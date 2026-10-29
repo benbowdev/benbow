@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Andrea Casali
+
 // Package cli implements the covo command line interface. It is a thin client:
 // commands parse flags, call the core and render the result.
 package cli

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Andrea Casali
+
 // Package trust adds Covo's local root CA to, and removes it from, the
 // user's login keychain with `security`. No sudo is involved: macOS shows one
 // authorization dialog to change the user's trust settings.

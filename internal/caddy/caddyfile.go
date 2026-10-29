@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Andrea Casali
+
 // Package caddy generates Covo's Caddyfile and talks to the running Caddy.
 package caddy
 

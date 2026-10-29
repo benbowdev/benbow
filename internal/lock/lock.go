@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Andrea Casali
+
 // Package lock serialises state-changing Covo commands with an advisory
 // flock on a file, so two CLI invocations never rewrite configs concurrently.
 package lock

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Andrea Casali
+
 // Package fsutil holds small file helpers shared across Covo packages.
 package fsutil
 

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Andrea Casali
+
 // Package paths defines where Covo keeps everything on disk. All files Covo
 // creates live under Root (~/Library/Application Support/covo by default); the
 // only exception is the socket fallback directory, see RunDir.

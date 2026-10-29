@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Andrea Casali
+
 // Package store persists Covo state in SQLite (pure-Go driver, no CGO).
 package store
 

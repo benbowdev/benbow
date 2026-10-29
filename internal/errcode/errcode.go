@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Andrea Casali
+
 // Package errcode attaches stable, machine-readable codes to errors so that
 // every client (CLI --json, later the local API and MCP) reports the same code
 // for the same failure.

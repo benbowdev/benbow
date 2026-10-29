@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Andrea Casali
+
 // Package components downloads, verifies and installs the third-party
 // binaries Covo runs (PHP-FPM, Caddy). Every artifact is pinned in an
 // embedded manifest with its SHA-256; nothing is executed or even extracted

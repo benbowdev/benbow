@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Andrea Casali
+
 // Package launchd generates launchd user agent plists and loads them into the
 // user's GUI domain with launchctl. Plists stay inside the Covo home: they are
 // bootstrapped from there, never copied to ~/Library/LaunchAgents.

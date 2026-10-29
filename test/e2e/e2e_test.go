@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Andrea Casali
+
 //go:build integration
 
 // Package e2e drives the real covo binary end to end: it downloads binaries,

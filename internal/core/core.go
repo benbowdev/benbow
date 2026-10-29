@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Andrea Casali
+
 // Package core is Covo's only source of truth. The CLI (and later the GUI and
 // MCP server, through a local API) are thin clients of this package.
 package core

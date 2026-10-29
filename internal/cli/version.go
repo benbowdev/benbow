@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Andrea Casali
+
 package cli
 
 import (
@@ -21,6 +24,9 @@ func (v versionResult) Text(w io.Writer) {
 		fmt.Fprint(w, ")")
 	}
 	fmt.Fprintln(w)
+	fmt.Fprintf(w, "License %s. Copyright (C) 2026 Andrea Casali.\n", v.License)
+	fmt.Fprintln(w, "This program comes with ABSOLUTELY NO WARRANTY. It is free software,")
+	fmt.Fprintln(w, "and you are welcome to redistribute it under certain conditions.")
 }
 
 func (a *app) versionCmd() *cobra.Command {
