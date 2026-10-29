@@ -32,6 +32,7 @@ func TestGolden(t *testing.T) {
 		ErrorLog:   home + "/logs/php-8.4-error.log",
 		SessionDir: home + "/data/php/8.4/sessions",
 		Timezone:   "Europe/Rome",
+		CAFile:     home + "/etc/ca-bundle.pem",
 	})
 	if err != nil {
 		t.Fatal(err)

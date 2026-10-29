@@ -159,6 +159,34 @@ func TestInstallIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestInstallFile(t *testing.T) {
+	body := []byte("-----BEGIN CERTIFICATE-----\n")
+	srv, _ := serve(t, body)
+	in := newInstaller(t)
+	a := Artifact{Component: "cabundle", Version: "2026-10-20", Arch: ArchAll, Format: FormatFile,
+		URL: srv.URL, SHA256: sum256(body), Files: []string{"cacert.pem"}}
+	got, err := in.Install(context.Background(), a)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(filepath.Join(got.Dir, "cacert.pem"))
+	if err != nil || string(b) != string(body) {
+		t.Fatalf("installed file = %q, %v", b, err)
+	}
+	assertEmptyTmp(t, in.TmpDir)
+
+	a.SHA256 = sum256([]byte("other"))
+	a.Version = "2026-10-21"
+	if _, err := in.Install(context.Background(), a); errcode.Code(err) != errcode.Checksum {
+		t.Fatalf("err = %v, want checksum_mismatch", err)
+	}
+	a.SHA256 = sum256(body)
+	a.Files = []string{"../escape.pem"}
+	if _, err := in.Install(context.Background(), a); err == nil {
+		t.Fatal("a file artifact with a path must be refused")
+	}
+}
+
 func TestInstallHTTPError(t *testing.T) {
 	srv := httptest.NewServer(http.NotFoundHandler())
 	defer srv.Close()
@@ -184,6 +212,7 @@ func TestResolve(t *testing.T) {
 		{Component: "php", Version: "8.4.30", Arch: "amd64"},
 		{Component: "php", Version: "8.2.32", Arch: "arm64"},
 		{Component: "caddy", Version: "2.11.7", Arch: "arm64"},
+		{Component: "cabundle", Version: "2026-10-20", Arch: ArchAll},
 	}}
 	tests := []struct {
 		component, spec, want string
@@ -196,6 +225,7 @@ func TestResolve(t *testing.T) {
 		{"php", "8.3", "", true},
 		{"php", "8.4.3", "", true},
 		{"caddy", "", "2.11.7", false},
+		{"cabundle", "", "2026-10-20", false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.component+"@"+tt.spec, func(t *testing.T) {
@@ -219,6 +249,9 @@ func TestEmbeddedManifest(t *testing.T) {
 		if len(a.SHA256) != 64 || a.URL == "" || len(a.Files) == 0 {
 			t.Errorf("incomplete artifact %+v", a)
 		}
+	}
+	if _, err := m.resolve("cabundle", "", "arm64"); err != nil {
+		t.Errorf("cabundle: %v", err)
 	}
 	for _, spec := range []string{"8.4", "8.2"} {
 		for _, arch := range []string{"arm64", "amd64"} {

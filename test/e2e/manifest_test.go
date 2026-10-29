@@ -7,6 +7,7 @@ package e2e
 
 import (
 	"bufio"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -61,4 +62,36 @@ func fetchCaddyChecksums(t *testing.T, version string) map[string]string {
 		}
 	}
 	return sums
+}
+
+// TestCABundleMatchesPublishedChecksum checks the pinned Mozilla CA bundle
+// against the SHA-256 curl.se publishes next to it.
+func TestCABundleMatchesPublishedChecksum(t *testing.T) {
+	m, err := components.Embedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	for _, a := range m.Artifacts {
+		if a.Component != "cabundle" {
+			continue
+		}
+		n++
+		resp, err := http.Get(a.URL + ".sha256")
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil || resp.StatusCode != http.StatusOK {
+			t.Fatalf("GET %s.sha256: %s %v", a.URL, resp.Status, err)
+		}
+		fields := strings.Fields(string(body))
+		if len(fields) != 2 || fields[0] != a.SHA256 || !strings.HasSuffix(a.URL, "/"+fields[1]) {
+			t.Errorf("%s: manifest sha256 %s, published %q", a.URL, a.SHA256, body)
+		}
+	}
+	if n == 0 {
+		t.Fatal("no cabundle in the manifest")
+	}
 }

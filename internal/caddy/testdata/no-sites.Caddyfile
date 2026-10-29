@@ -10,8 +10,15 @@
 	pki {
 		ca local {
 			name "Covo Local CA"
-			root_cn "Covo Local CA"
-			intermediate_cn "Covo Local CA Intermediate"
+			root {
+				format pem_file
+				cert "/Users/test/Library/Application Support/covo/data/ca/root.crt"
+			}
+			intermediate {
+				format pem_file
+				cert "/Users/test/Library/Application Support/covo/data/ca/intermediate.crt"
+				key "/Users/test/Library/Application Support/covo/data/ca/intermediate.key"
+			}
 		}
 	}
 	log {

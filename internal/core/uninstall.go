@@ -12,7 +12,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/getcovo/covo/internal/caddy"
+	"github.com/getcovo/covo/internal/ca"
 	"github.com/getcovo/covo/internal/errcode"
 	"github.com/getcovo/covo/internal/launchd"
 	"github.com/getcovo/covo/internal/paths"
@@ -60,11 +60,7 @@ func NewUninstaller() (*Uninstaller, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Uninstaller{Layout: layout, Launchctl: launchd.New(), Keychain: kc, CAName: caddy.CAName()}, nil
-}
-
-func (u *Uninstaller) caCertPath() string {
-	return filepath.Join(u.Layout.Data, "caddy", "pki", "authorities", "local", "root.crt")
+	return &Uninstaller{Layout: layout, Launchctl: launchd.New(), Keychain: kc, CAName: ca.Name()}, nil
 }
 
 // Plan computes what Uninstall would remove, changing nothing.
@@ -79,21 +75,11 @@ func (u *Uninstaller) Plan(ctx context.Context) (UninstallPlan, error) {
 	}
 	slices.Sort(plan.Agents)
 
-	onDisk, err := trust.ReadCert(u.caCertPath())
-	if err == nil {
-		if ok, err := u.Keychain.Trusted(ctx, onDisk); err != nil {
-			return plan, err
-		} else if ok {
-			plan.CA = append(plan.CA, onDisk)
-		}
-	} else {
-		// CA file gone: fall back to the name.
-		found, err := u.Keychain.Find(ctx, u.CAName)
-		if err != nil {
-			return plan, err
-		}
-		plan.CA = append(plan.CA, found...)
+	cas, err := trustedCAs(ctx, u.Keychain, u.CAName, caCertPaths(u.Layout))
+	if err != nil {
+		return plan, err
 	}
+	plan.CA = append(plan.CA, cas...)
 
 	if _, err := os.Lstat(u.Layout.Root); err == nil {
 		plan.Paths = append(plan.Paths, u.Layout.Root)
@@ -136,11 +122,7 @@ func (u *Uninstaller) Uninstall(ctx context.Context) (UninstallResult, error) {
 	if _, err := u.Launchctl.StopAll(ctx); err != nil {
 		return res, err
 	}
-	var onDisk *trust.Cert
-	if c, err := trust.ReadCert(u.caCertPath()); err == nil {
-		onDisk = &c
-	}
-	if _, err := u.Keychain.Remove(ctx, u.CAName, onDisk); err != nil {
+	if _, err := removeCAs(ctx, u.Keychain, u.CAName, caCertPaths(u.Layout)); err != nil {
 		return res, err
 	}
 	for _, p := range plan.Paths {

@@ -42,11 +42,21 @@ const maxFileSize = 512 << 20
 // markerFile records the verified archive hash inside an install directory.
 const markerFile = ".covo-sha256"
 
-// Artifact is one downloadable, pinned archive.
+// Artifact formats.
+const (
+	FormatTarGz = ""     // a .tar.gz from which Files are extracted
+	FormatFile  = "file" // a single file, saved as Files[0]
+)
+
+// ArchAll marks an artifact that does not depend on the architecture.
+const ArchAll = "all"
+
+// Artifact is one downloadable, pinned archive or file.
 type Artifact struct {
 	Component string `json:"component"`
 	Version   string `json:"version"`
-	Arch      string `json:"arch"` // GOARCH
+	Arch      string `json:"arch"` // GOARCH or ArchAll
+	Format    string `json:"format,omitempty"`
 	URL       string `json:"url"`
 	SHA256    string `json:"sha256"`
 	// SHA512 is the upstream-published checksum, when upstream publishes one.
@@ -78,7 +88,7 @@ func (m Manifest) Resolve(component, spec string) (Artifact, error) {
 func (m Manifest) resolve(component, spec, arch string) (Artifact, error) {
 	var best *Artifact
 	for i, a := range m.Artifacts {
-		if a.Component != component || a.Arch != arch {
+		if a.Component != component || (a.Arch != arch && a.Arch != ArchAll) {
 			continue
 		}
 		if spec != "" && a.Version != spec && !strings.HasPrefix(a.Version, spec+".") {
@@ -99,7 +109,7 @@ func (m Manifest) resolve(component, spec, arch string) (Artifact, error) {
 func (m Manifest) Versions(component, arch string) []string {
 	var out []string
 	for _, a := range m.Artifacts {
-		if a.Component == component && a.Arch == arch && !slices.Contains(out, a.Version) {
+		if a.Component == component && (a.Arch == arch || a.Arch == ArchAll) && !slices.Contains(out, a.Version) {
 			out = append(out, a.Version)
 		}
 	}
@@ -150,8 +160,23 @@ func (in Installer) Install(ctx context.Context, a Artifact) (Installed, error) 
 	}
 	defer os.RemoveAll(stage) // no-op after a successful rename
 
-	if err := extract(archive, stage, a.Files); err != nil {
-		return Installed{}, err
+	switch a.Format {
+	case FormatTarGz:
+		if err := extract(archive, stage, a.Files); err != nil {
+			return Installed{}, err
+		}
+	case FormatFile:
+		if len(a.Files) != 1 || path.Base(a.Files[0]) != a.Files[0] {
+			return Installed{}, errcode.Errorf(errcode.Internal, "file artifact "+a.Component+" must list exactly one plain file name")
+		}
+		if err := os.Rename(archive, filepath.Join(stage, a.Files[0])); err != nil {
+			return Installed{}, fmt.Errorf("move %s: %w", a.Files[0], err)
+		}
+		if err := os.Chmod(filepath.Join(stage, a.Files[0]), 0o644); err != nil {
+			return Installed{}, fmt.Errorf("chmod %s: %w", a.Files[0], err)
+		}
+	default:
+		return Installed{}, errcode.Errorf(errcode.Internal, "unknown artifact format "+a.Format)
 	}
 	if err := os.WriteFile(filepath.Join(stage, markerFile), []byte(a.SHA256+"\n"), 0o644); err != nil {
 		return Installed{}, fmt.Errorf("write marker: %w", err)

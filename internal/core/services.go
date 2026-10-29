@@ -132,18 +132,14 @@ func (c *Core) caddyBinary(inst CaddyInstall) caddy.Binary {
 
 func (c *Core) caddyfilePath() string { return filepath.Join(c.Layout.Etc, "caddy", "Caddyfile") }
 
-// CACertPath is where Caddy keeps the local root certificate.
-func (c *Core) CACertPath() string {
-	return filepath.Join(c.Layout.Data, "caddy", "pki", "authorities", "local", "root.crt")
-}
-
+// renderCaddyfile needs the CA on disk (ensureCA).
 func (c *Core) renderCaddyfile(port int, sites []store.Site) (string, error) {
 	cfg := caddy.Config{
 		AdminSocket: c.Layout.Socket("caddy-admin.sock"),
 		HTTPSPort:   port,
-		CAName:      caddy.CAName(),
 		StorageDir:  filepath.Join(c.Layout.Data, "caddy"),
 		LogFile:     filepath.Join(c.Layout.Logs, "caddy.log"),
+		CA:          c.caddyCA(),
 	}
 	for _, s := range sites {
 		cfg.Sites = append(cfg.Sites, caddy.Site{
@@ -153,7 +149,15 @@ func (c *Core) renderCaddyfile(port int, sites []store.Site) (string, error) {
 			FPMSocket: c.Layout.Socket(socketName(s.PHPMinor)),
 		})
 	}
-	return caddy.Caddyfile(cfg)
+	body, err := caddy.Caddyfile(cfg)
+	if err != nil {
+		return "", err
+	}
+	fp, err := c.caFingerprint()
+	if err != nil {
+		return "", err
+	}
+	return body + "# ca root sha256: " + fp + "\n", nil
 }
 
 // writeCaddyfile validates and installs a new Caddyfile. If Caddy is running
@@ -192,8 +196,9 @@ func (c *Core) writeCaddyfile(ctx context.Context, bin caddy.Binary, body string
 }
 
 // writePHPConfig writes php-fpm.conf and php.ini for minor and returns a hash
-// of both, which goes into the agent so a config change restarts FPM.
-func (c *Core) writePHPConfig(minor string) (string, error) {
+// of both and of the CA bundle, which goes into the agent so a change
+// restarts FPM.
+func (c *Core) writePHPConfig(minor, bundleHash string) (string, error) {
 	dir := filepath.Join(c.Layout.Etc, "php", minor)
 	sessions := filepath.Join(c.Layout.Data, "php", minor, "sessions")
 	if err := os.MkdirAll(sessions, 0o700); err != nil {
@@ -212,6 +217,7 @@ func (c *Core) writePHPConfig(minor string) (string, error) {
 		ErrorLog:   filepath.Join(c.Layout.Logs, "php-"+minor+"-error.log"),
 		SessionDir: sessions,
 		Timezone:   localTimezone(),
+		CAFile:     c.caBundlePath(),
 	})
 	if err != nil {
 		return "", err
@@ -222,7 +228,7 @@ func (c *Core) writePHPConfig(minor string) (string, error) {
 	if _, err := fsutil.WriteAtomic(filepath.Join(dir, "php.ini"), []byte(ini), 0o644); err != nil {
 		return "", err
 	}
-	sum := sha256.Sum256([]byte(fpm + "\x00" + ini))
+	sum := sha256.Sum256([]byte(fpm + "\x00" + ini + "\x00" + bundleHash))
 	return hex.EncodeToString(sum[:8]), nil
 }
 
@@ -310,6 +316,9 @@ func (c *Core) reconcile(ctx context.Context) (StartResult, error) {
 		return StartResult{}, err
 	}
 	bin := c.caddyBinary(caddyInst)
+	if _, err := c.ensureCA(); err != nil {
+		return StartResult{}, err
+	}
 
 	var agents []launchd.Agent
 	var minors []string
@@ -319,12 +328,18 @@ func (c *Core) reconcile(ctx context.Context) (StartResult, error) {
 		}
 	}
 	slices.Sort(minors)
+	var bundleHash string
+	if len(minors) > 0 {
+		if bundleHash, err = c.ensureCABundle(ctx); err != nil {
+			return StartResult{}, err
+		}
+	}
 	for _, minor := range minors {
 		v, err := c.ensurePHP(ctx, minor)
 		if err != nil {
 			return StartResult{}, err
 		}
-		hash, err := c.writePHPConfig(minor)
+		hash, err := c.writePHPConfig(minor, bundleHash)
 		if err != nil {
 			return StartResult{}, err
 		}
@@ -354,10 +369,6 @@ func (c *Core) reconcile(ctx context.Context) (StartResult, error) {
 		return StartResult{}, err
 	}
 	if err := c.waitReady(ctx, minors, port, len(sites) > 0); err != nil {
-		return StartResult{}, err
-	}
-	// Caddy creates its CA on first start.
-	if err := c.securePKI(); err != nil {
 		return StartResult{}, err
 	}
 	return StartResult{HTTPSPort: port, PortAssigned: assigned, Changes: changes}, nil

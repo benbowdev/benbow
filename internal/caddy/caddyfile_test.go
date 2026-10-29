@@ -16,6 +16,13 @@ var update = flag.Bool("update", false, "rewrite golden files")
 
 const home = "/Users/test/Library/Application Support/covo"
 
+var testCA = CA{
+	Name:             "Covo Local CA",
+	RootCert:         home + "/data/ca/root.crt",
+	IntermediateCert: home + "/data/ca/intermediate.crt",
+	IntermediateKey:  home + "/data/ca/intermediate.key",
+}
+
 func TestCaddyfileGolden(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -34,6 +41,7 @@ func TestCaddyfileGolden(t *testing.T) {
 				HTTPSPort:   8443,
 				StorageDir:  home + "/data/caddy",
 				LogFile:     home + "/logs/caddy.log",
+				CA:          testCA,
 				Sites:       tt.sites,
 			})
 			if err != nil {
@@ -49,6 +57,7 @@ func TestCaddyfileRejectsUnsafePaths(t *testing.T) {
 		AdminSocket: home + "/run/caddy-admin.sock",
 		StorageDir:  home + "/data/caddy",
 		LogFile:     home + "/logs/caddy.log",
+		CA:          testCA,
 		Sites:       []Site{{Name: "x", Domain: "x.localhost", Root: "/Users/test/{env.HOME}", FPMSocket: home + "/run/php84.sock"}},
 	})
 	if errcode.Code(err) != errcode.InvalidInput {

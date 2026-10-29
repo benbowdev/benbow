@@ -25,6 +25,9 @@ type INIConfig struct {
 	ErrorLog   string
 	SessionDir string
 	Timezone   string
+	// CAFile is the CA bundle (Mozilla roots plus Covo's root) PHP verifies
+	// TLS with, so a site can call itself over HTTPS.
+	CAFile string
 }
 
 var funcs = template.FuncMap{"q": func(s string) string { return `"` + s + `"` }}
@@ -63,6 +66,9 @@ error_log = {{q .ErrorLog}}
 date.timezone = {{q .Timezone}}
 session.save_path = {{q .SessionDir}}
 
+openssl.cafile = {{q .CAFile}}
+curl.cainfo = {{q .CAFile}}
+
 opcache.enable = 1
 opcache.validate_timestamps = 1
 opcache.revalidate_freq = 0
@@ -78,7 +84,7 @@ func FPMConf(c FPMConfig) (string, error) {
 
 // INI renders php.ini.
 func INI(c INIConfig) (string, error) {
-	if err := checkSafe(c.ErrorLog, c.SessionDir); err != nil {
+	if err := checkSafe(c.ErrorLog, c.SessionDir, c.CAFile); err != nil {
 		return "", err
 	}
 	return render(iniTmpl, c)

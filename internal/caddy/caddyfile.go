@@ -7,7 +7,6 @@ package caddy
 import (
 	"bytes"
 	"fmt"
-	"os"
 	"strings"
 	"text/template"
 
@@ -15,29 +14,24 @@ import (
 	"github.com/getcovo/covo/internal/paths"
 )
 
-// DefaultCAName is the name of Covo's local certificate authority, as shown
-// in Keychain Access. untrust uses it to find the CA when its file is gone.
-const DefaultCAName = "Covo Local CA"
-
-// EnvCAName overrides the CA name, so that tests never touch the real CA.
-const EnvCAName = "COVO_CA_NAME"
-
-// CAName returns the CA name in effect.
-func CAName() string {
-	if n := os.Getenv(EnvCAName); n != "" {
-		return n
-	}
-	return DefaultCAName
-}
-
 // Config is everything the Caddyfile depends on.
 type Config struct {
 	AdminSocket string
 	HTTPSPort   int
-	CAName      string // DefaultCAName if empty
 	StorageDir  string
 	LogFile     string
+	CA          CA
 	Sites       []Site
+}
+
+// CA is the certificate authority Caddy signs site certificates with. Covo
+// creates it (package ca): Caddy gets the root certificate without its key,
+// and the intermediate with its key.
+type CA struct {
+	Name             string
+	RootCert         string
+	IntermediateCert string
+	IntermediateKey  string
 }
 
 // Site is one virtual host.
@@ -59,9 +53,16 @@ var tmpl = template.Must(template.New("Caddyfile").Funcs(template.FuncMap{"q": q
 	storage file_system {{q .StorageDir}}
 	pki {
 		ca local {
-			name {{q .CA}}
-			root_cn {{q .CA}}
-			intermediate_cn {{q (print .CA " Intermediate")}}
+			name {{q .CA.Name}}
+			root {
+				format pem_file
+				cert {{q .CA.RootCert}}
+			}
+			intermediate {
+				format pem_file
+				cert {{q .CA.IntermediateCert}}
+				key {{q .CA.IntermediateKey}}
+			}
 		}
 	}
 	log {
@@ -84,7 +85,7 @@ var tmpl = template.Must(template.New("Caddyfile").Funcs(template.FuncMap{"q": q
 // Caddyfile renders cfg. Every path is validated with paths.CheckSafe so that
 // it can be quoted verbatim (spaces are allowed).
 func Caddyfile(cfg Config) (string, error) {
-	check := []string{cfg.AdminSocket, cfg.StorageDir, cfg.LogFile}
+	check := []string{cfg.AdminSocket, cfg.StorageDir, cfg.LogFile, cfg.CA.RootCert, cfg.CA.IntermediateCert, cfg.CA.IntermediateKey}
 	for _, s := range cfg.Sites {
 		check = append(check, s.Root, s.FPMSocket)
 	}
@@ -93,19 +94,11 @@ func Caddyfile(cfg Config) (string, error) {
 			return "", err
 		}
 	}
+	if cfg.CA.Name == "" || strings.ContainsAny(cfg.CA.Name, "\"\\{}\n") {
+		return "", errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("bad CA name %q", cfg.CA.Name))
+	}
 	var buf bytes.Buffer
-	ca := cfg.CAName
-	if ca == "" {
-		ca = DefaultCAName
-	}
-	if strings.ContainsAny(ca, "\"\\{}\n") {
-		return "", errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("bad CA name %q", ca))
-	}
-	data := struct {
-		Config
-		CA string
-	}{cfg, ca}
-	if err := tmpl.Execute(&buf, data); err != nil {
+	if err := tmpl.Execute(&buf, cfg); err != nil {
 		return "", fmt.Errorf("render Caddyfile: %w", err)
 	}
 	return buf.String(), nil

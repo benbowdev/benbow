@@ -11,7 +11,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
 
+	"github.com/getcovo/covo/internal/ca"
 	"github.com/getcovo/covo/internal/caddy"
 	"github.com/getcovo/covo/internal/php"
 )
@@ -46,11 +48,19 @@ func TestGeneratedConfigsAreValid(t *testing.T) {
 		}
 	}
 
+	caDir := ca.Dir(filepath.Join(dir, "data/ca"))
+	if _, err := ca.Ensure(caDir, "Covo Test CA", time.Now()); err != nil {
+		t.Fatal(err)
+	}
 	caddyfile, err := caddy.Caddyfile(caddy.Config{
 		AdminSocket: filepath.Join(run, "caddy-admin.sock"),
 		HTTPSPort:   h.port,
 		StorageDir:  filepath.Join(dir, "data/caddy"),
 		LogFile:     filepath.Join(dir, "logs/caddy.log"),
+		CA: caddy.CA{
+			Name: "Covo Test CA", RootCert: caDir.RootCert(),
+			IntermediateCert: caDir.IntermediateCert(), IntermediateKey: caDir.IntermediateKey(),
+		},
 		Sites: []caddy.Site{{
 			Name: "demo", Domain: "demo.localhost",
 			Root: filepath.Join(dir, "site root"), FPMSocket: filepath.Join(run, "php84.sock"),
@@ -68,6 +78,7 @@ func TestGeneratedConfigsAreValid(t *testing.T) {
 	}
 	ini, err := php.INI(php.INIConfig{
 		ErrorLog: filepath.Join(dir, "logs/php.log"), SessionDir: filepath.Join(dir, "sessions"), Timezone: "UTC",
+		CAFile: caDir.RootCert(),
 	})
 	if err != nil {
 		t.Fatal(err)
