@@ -1,0 +1,153 @@
+package core
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"regexp"
+	"time"
+
+	"github.com/getcovo/covo/internal/errcode"
+	"github.com/getcovo/covo/internal/paths"
+	"github.com/getcovo/covo/internal/store"
+)
+
+// siteNameRe is a single DNS label: the site is served at <name>.localhost.
+var siteNameRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
+
+// AddSiteRequest is the input of AddSite.
+type AddSiteRequest struct {
+	Name string
+	PHP  string // minor version, e.g. "8.4"
+	Path string // absolute path of the document root
+}
+
+// SiteResult is a site with its URL and whether services were (re)applied.
+type SiteResult struct {
+	SiteStatus
+	// Applied is true when Covo was running and the change is already live.
+	Applied bool `json:"applied"`
+}
+
+// AddSite registers a site, installing its PHP version if needed. If Covo is
+// running the site goes live immediately; if that fails the site is removed
+// again and the previous configuration restored.
+func (c *Core) AddSite(ctx context.Context, req AddSiteRequest) (SiteResult, error) {
+	if !siteNameRe.MatchString(req.Name) {
+		return SiteResult{}, errcode.Errorf(errcode.InvalidInput,
+			fmt.Sprintf("site name %q must be lowercase letters, digits and dashes (it becomes %s.localhost)", req.Name, req.Name))
+	}
+	if err := validMinor(req.PHP); err != nil {
+		return SiteResult{}, err
+	}
+	if err := checkSiteDir(req.Path); err != nil {
+		return SiteResult{}, err
+	}
+
+	var res SiteResult
+	err := c.locked(ctx, func() error {
+		if _, err := c.Store.Site(ctx, req.Name); err == nil {
+			return errcode.Errorf(errcode.Conflict, fmt.Sprintf("site %q already exists", req.Name))
+		}
+		if _, err := c.ensurePHP(ctx, req.PHP); err != nil {
+			return err
+		}
+		port, _, err := c.httpsPort(ctx)
+		if err != nil {
+			return err
+		}
+		site := store.Site{
+			Name:      req.Name,
+			Path:      req.Path,
+			PHPMinor:  req.PHP,
+			Domain:    req.Name + ".localhost",
+			HTTPS:     true,
+			CreatedAt: time.Now(),
+		}
+		if err := c.Store.AddSite(ctx, site); err != nil {
+			return err
+		}
+		res = SiteResult{SiteStatus: SiteStatus{Site: site, URL: siteURL(site, port)}}
+
+		applied, err := c.applyIfRunning(ctx)
+		if err != nil {
+			_ = c.Store.RemoveSite(ctx, site.Name)
+			_, _ = c.applyIfRunning(ctx)
+			return err
+		}
+		res.Applied = applied
+		return nil
+	})
+	return res, err
+}
+
+// RemoveSite unregisters a site. Its folder is never touched.
+func (c *Core) RemoveSite(ctx context.Context, name string) (SiteResult, error) {
+	var res SiteResult
+	err := c.locked(ctx, func() error {
+		site, err := c.Store.Site(ctx, name)
+		if err != nil {
+			return err
+		}
+		port, _, err := c.httpsPort(ctx)
+		if err != nil {
+			return err
+		}
+		if err := c.Store.RemoveSite(ctx, name); err != nil {
+			return err
+		}
+		res = SiteResult{SiteStatus: SiteStatus{Site: site, URL: siteURL(site, port)}}
+		applied, err := c.applyIfRunning(ctx)
+		if err != nil {
+			_ = c.Store.AddSite(ctx, site)
+			_, _ = c.applyIfRunning(ctx)
+			return err
+		}
+		res.Applied = applied
+		return nil
+	})
+	return res, err
+}
+
+// ListSites returns all sites with their URLs.
+func (c *Core) ListSites(ctx context.Context) ([]SiteStatus, error) {
+	st, err := c.Status(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return st.Sites, nil
+}
+
+// applyIfRunning reconciles services when Covo has been started.
+func (c *Core) applyIfRunning(ctx context.Context) (bool, error) {
+	_, running, err := c.Store.Setting(ctx, settingRunning)
+	if err != nil || !running {
+		return false, err
+	}
+	if _, err := c.reconcile(ctx); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func checkSiteDir(p string) error {
+	if err := paths.CheckSafe(p); err != nil {
+		return err
+	}
+	fi, err := os.Stat(p)
+	if errors.Is(err, os.ErrNotExist) {
+		return errcode.Errorf(errcode.NotFound, fmt.Sprintf("folder %q does not exist", p))
+	}
+	if err != nil {
+		return fmt.Errorf("stat %s: %w", p, err)
+	}
+	if !fi.IsDir() {
+		return errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("%q is not a folder", p))
+	}
+	if filepath.Clean(p) == "/" {
+		return errcode.Errorf(errcode.InvalidInput, "refusing to serve the root folder")
+	}
+	return nil
+}

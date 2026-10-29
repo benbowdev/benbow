@@ -48,3 +48,20 @@ PHP-FPM and the Caddy admin API listen on Unix sockets, so the only TCP port
 Covo opens is HTTPS (8443). Socket paths are limited to 103 bytes on macOS; if
 `<COVO_HOME>/run/caddy-admin.sock` is longer, sockets move to
 `$TMPDIR/covo-<uid>-<hash>/` (0700, owner checked).
+
+## Services
+
+- launchd user agents (`dev.getcovo.caddy`, `dev.getcovo.php84`, …) are
+  bootstrapped from plists inside the Covo home, never copied to
+  `~/Library/LaunchAgents`. Consequence: after a reboot nothing runs until
+  `covo start`. Autostart at login will be an explicit option later.
+- Caddy listens only on `127.0.0.1` and `[::1]` (`default_bind`) and only on
+  the HTTPS port; it binds nothing while there are no sites. HTTP redirects
+  are disabled, so port 80 (MAMP here) is never touched.
+- Adding/removing a site reloads Caddy through its admin socket (no restart).
+  A php.ini / php-fpm.conf change restarts that FPM agent (the config hash is
+  part of the plist).
+- **Risk: macOS privacy (TCC).** A site folder under `~/Documents`,
+  `~/Desktop`, `~/Downloads` or iCloud Drive may be unreadable by Caddy and
+  PHP-FPM started by launchd. `~/Sites` and other folders are fine. To verify
+  and document (or warn at `site add`) before App v1.
