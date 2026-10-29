@@ -2,6 +2,31 @@
 
 Decisions, risks and findings from the Spike phase. Short on purpose.
 
+## Result
+
+`covo site add demo --php 8.4 && covo start` serves https://demo.localhost:8443
+through Caddy + static PHP-FPM 8.4 with a trusted certificate, and a second
+site on PHP 8.2 runs in parallel (`TestTwoPHPVersionsInParallel`).
+`covo uninstall` removes everything Covo added (verified in isolated tests).
+
+## Decisions
+
+- **No daemon in the spike.** The CLI calls `internal/core` in-process. The
+  core already returns plain, JSON-serialisable types, so Core v1 can put it
+  behind the Unix-socket API without moving logic. Concurrent CLI runs are
+  serialised with a `flock` on `covo.lock`.
+- **Embedded manifest** of pinned artifacts (see Checksums). Updating a
+  component means a new Covo build for now; Core v1 adds remote manifests.
+- **Everything under the Covo home**, launchd plists included. The only
+  things outside it: the socket fallback in `$TMPDIR` (only when the home
+  path is too long) and the CA in the login keychain after `covo trust`.
+- **Every command supports `--json`** with the envelope
+  `{"schema":1,"ok":…,"data":…|"error":{"code","message"}}` and a non-zero
+  exit code on error. Error codes are stable (`internal/errcode`).
+- **Test isolation**: integration tests use their own `COVO_HOME`,
+  `COVO_LABEL_PREFIX`, `COVO_HTTPS_PORT` and `COVO_CA_NAME`, so they never
+  touch a real installation, its agents or its trusted CA.
+
 ## Components
 
 - **PHP**: static-php-cli prebuilt "bulk" FPM builds from `dl.static-php.dev`
@@ -41,6 +66,32 @@ built `xdebug.so` (NTS, matching API version, e.g. 20240924 for 8.4) should
 load via `zend_extension=`. Needs a per-minor Xdebug build (static-php-cli can
 build shared extensions) and a test before Core v1 promises the per-site
 Xdebug toggle. **Risk: open.**
+
+## Site folders
+
+`site add` refuses (`forbidden_folder`, even with `--force`): `/`, the home
+folder, `/Users`, `/Volumes` and disk roots, system trees (`/System`,
+`/Library`, `/usr`, `/etc`, `/Applications`, `~/Library`, …) and anything
+overlapping the Covo home (it holds the CA keys). Symlinks are resolved
+first. A folder without `index.php` or `index.html` needs confirmation
+(interactive) or `--force` (`confirmation_required`).
+
+## Uninstall
+
+`covo uninstall` stops every agent under the label prefix, removes this
+install's CA from the keychain (by SHA-1; by name only if the CA file is
+gone), and deletes the Covo home and socket fallback. It does not open the
+database, so it also cleans a partial or corrupted install. It refuses to
+delete a home containing files Covo did not create (`conflict`) and asks for
+confirmation unless `--yes`. Site folders are never touched.
+
+## Logs
+
+Logs live in `logs/`. Caddy rolls `caddy.log` itself (10 MiB × 3). On every
+start, any other log over 10 MiB is moved to `<name>.1`; PHP-FPM masters
+that keep running get SIGUSR1 to reopen their log. launchd's stdout/stderr
+files are only reopened when the agent restarts (both services write almost
+nothing there).
 
 ## Sockets
 
@@ -88,7 +139,7 @@ Covo opens is HTTPS (8443). Socket paths are limited to 103 bytes on macOS; if
 - Tested 2026-10-29 on the real home: trust → system `curl` and Chrome load
   https://demo.localhost:8443 with no warning; untrust → curl rejects it and
   only MAMP's root is left in the user trust settings; trust again → OK.
-  Safari and Firefox were checked by hand by the user.
+  Safari and Firefox: pending a manual check (not automatable here).
 - `security verify-cert -p ssl` reports missing SCTs for the leaf. That is
   Apple's Certificate Transparency rule for publicly trusted CAs; user-added
   roots are exempt, as curl and Chrome confirm.
