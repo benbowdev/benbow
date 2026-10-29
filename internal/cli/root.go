@@ -3,9 +3,12 @@
 package cli
 
 import (
+	"bufio"
 	"context"
+	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/getcovo/covo/internal/core"
 	"github.com/getcovo/covo/internal/errcode"
@@ -13,6 +16,8 @@ import (
 )
 
 type app struct {
+	// stdin is nil when the CLI must not prompt (tests, pipes).
+	stdin  io.Reader
 	stdout io.Writer
 	stderr io.Writer
 	json   bool
@@ -20,9 +25,14 @@ type app struct {
 	ran bool
 }
 
-// Execute runs the CLI with args and returns the process exit code.
+// Execute runs the CLI with args and returns the process exit code. It never
+// prompts for confirmation.
 func Execute(ctx context.Context, args []string, stdout, stderr io.Writer) int {
-	a := &app{stdout: stdout, stderr: stderr}
+	return execute(ctx, args, nil, stdout, stderr)
+}
+
+func execute(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	a := &app{stdin: stdin, stdout: stdout, stderr: stderr}
 	root := a.rootCmd()
 	root.SetArgs(args)
 	root.SetOut(stdout)
@@ -95,5 +105,26 @@ func (a *app) withCore(fn func(ctx context.Context, c *core.Core, args []string)
 
 // Main is the entrypoint used by cmd/covo.
 func Main() {
-	os.Exit(Execute(context.Background(), os.Args[1:], os.Stdout, os.Stderr))
+	os.Exit(execute(context.Background(), os.Args[1:], terminalStdin(), os.Stdout, os.Stderr))
+}
+
+// terminalStdin returns os.Stdin if it is a terminal, nil otherwise.
+func terminalStdin() io.Reader {
+	fi, err := os.Stdin.Stat()
+	if err != nil || fi.Mode()&os.ModeCharDevice == 0 {
+		return nil
+	}
+	return os.Stdin
+}
+
+// confirm asks a yes/no question. It returns false without asking in --json
+// mode or when stdin is not a terminal: callers must then pass --force.
+func (a *app) confirm(question string) bool {
+	if a.json || a.stdin == nil {
+		return false
+	}
+	fmt.Fprintf(a.stderr, "%s [y/N] ", question)
+	line, _ := bufio.NewReader(a.stdin).ReadString('\n')
+	answer := strings.ToLower(strings.TrimSpace(line))
+	return answer == "y" || answer == "yes"
 }

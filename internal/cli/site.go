@@ -32,6 +32,7 @@ func (r siteResult) Text(w io.Writer) {
 
 func (a *app) siteAddCmd() *cobra.Command {
 	var phpVersion, path string
+	var force bool
 	cmd := &cobra.Command{
 		Use:   "add <name>",
 		Short: "Add a site served at https://<name>.localhost",
@@ -41,12 +42,18 @@ func (a *app) siteAddCmd() *cobra.Command {
 			if err != nil {
 				return nil, err
 			}
-			res, err := c.AddSite(ctx, core.AddSiteRequest{Name: args[0], PHP: phpVersion, Path: dir})
+			req := core.AddSiteRequest{Name: args[0], PHP: phpVersion, Path: dir, Force: force}
+			res, err := c.AddSite(ctx, req)
+			if errcode.Code(err) == errcode.ConfirmationRequired && a.confirm(err.Error()+"\nAdd it anyway?") {
+				req.Force = true
+				res, err = c.AddSite(ctx, req)
+			}
 			return siteResult(res), err
 		}),
 	}
 	cmd.Flags().StringVar(&phpVersion, "php", "8.4", "PHP version (e.g. 8.4, 8.2)")
 	cmd.Flags().StringVar(&path, "path", "", "document root (default: current folder)")
+	cmd.Flags().BoolVar(&force, "force", false, "add the folder even if it has no index.php or index.html")
 	return cmd
 }
 

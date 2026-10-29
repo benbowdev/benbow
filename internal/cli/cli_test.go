@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
+	"strings"
 	"testing"
 )
 
@@ -43,6 +45,34 @@ func TestJSONEnvelope(t *testing.T) {
 			}
 			if tt.wantOK && len(env.Data) == 0 {
 				t.Fatal("missing data")
+			}
+		})
+	}
+}
+
+func TestConfirm(t *testing.T) {
+	tests := []struct {
+		name  string
+		stdin io.Reader
+		json  bool
+		want  bool
+	}{
+		{"yes", strings.NewReader("y\n"), false, true},
+		{"YES", strings.NewReader("YES\n"), false, true},
+		{"no", strings.NewReader("n\n"), false, false},
+		{"empty", strings.NewReader("\n"), false, false},
+		{"no terminal", nil, false, false},
+		{"json never prompts", strings.NewReader("y\n"), true, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var errOut bytes.Buffer
+			a := &app{stdin: tt.stdin, stderr: &errOut, json: tt.json}
+			if got := a.confirm("ok?"); got != tt.want {
+				t.Fatalf("confirm = %v, want %v", got, tt.want)
+			}
+			if (tt.stdin == nil || tt.json) && errOut.Len() != 0 {
+				t.Fatalf("prompted without a terminal: %q", errOut.String())
 			}
 		})
 	}

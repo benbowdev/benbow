@@ -2,15 +2,12 @@ package core
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"regexp"
 	"time"
 
 	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/paths"
 	"github.com/getcovo/covo/internal/store"
 )
 
@@ -22,6 +19,8 @@ type AddSiteRequest struct {
 	Name string
 	PHP  string // minor version, e.g. "8.4"
 	Path string // absolute path of the document root
+	// Force accepts a folder without index.php or index.html.
+	Force bool
 }
 
 // SiteResult is a site with its URL and whether services were (re)applied.
@@ -42,12 +41,20 @@ func (c *Core) AddSite(ctx context.Context, req AddSiteRequest) (SiteResult, err
 	if err := validMinor(req.PHP); err != nil {
 		return SiteResult{}, err
 	}
-	if err := checkSiteDir(req.Path); err != nil {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return SiteResult{}, fmt.Errorf("resolve home directory: %w", err)
+	}
+	if err := checkSiteDir(req.Path, home, c.Layout.Root); err != nil {
 		return SiteResult{}, err
+	}
+	if !req.Force && !hasIndex(req.Path) {
+		return SiteResult{}, errcode.Errorf(errcode.ConfirmationRequired,
+			fmt.Sprintf("%s has no index.php or index.html; use --force if it is the right folder", req.Path))
 	}
 
 	var res SiteResult
-	err := c.locked(ctx, func() error {
+	err = c.locked(ctx, func() error {
 		if _, err := c.Store.Site(ctx, req.Name); err == nil {
 			return errcode.Errorf(errcode.Conflict, fmt.Sprintf("site %q already exists", req.Name))
 		}
@@ -130,24 +137,4 @@ func (c *Core) applyIfRunning(ctx context.Context) (bool, error) {
 		return false, err
 	}
 	return true, nil
-}
-
-func checkSiteDir(p string) error {
-	if err := paths.CheckSafe(p); err != nil {
-		return err
-	}
-	fi, err := os.Stat(p)
-	if errors.Is(err, os.ErrNotExist) {
-		return errcode.Errorf(errcode.NotFound, fmt.Sprintf("folder %q does not exist", p))
-	}
-	if err != nil {
-		return fmt.Errorf("stat %s: %w", p, err)
-	}
-	if !fi.IsDir() {
-		return errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("%q is not a folder", p))
-	}
-	if filepath.Clean(p) == "/" {
-		return errcode.Errorf(errcode.InvalidInput, "refusing to serve the root folder")
-	}
-	return nil
 }

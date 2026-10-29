@@ -18,6 +18,11 @@ const (
 	Locked       = "locked"
 	Service      = "service_failed"
 	Unsupported  = "unsupported"
+	// ForbiddenFolder: a site folder that must never be served (home, disk
+	// root, system folders, the Covo home).
+	ForbiddenFolder = "forbidden_folder"
+	// ConfirmationRequired: the action needs explicit confirmation (--force).
+	ConfirmationRequired = "confirmation_required"
 )
 
 // Error is an error carrying a stable code.

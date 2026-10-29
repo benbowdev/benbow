@@ -4,6 +4,7 @@ package e2e
 
 import (
 	"encoding/json"
+	"os"
 	"os/exec"
 	"slices"
 	"strconv"
@@ -86,5 +87,33 @@ func assertLoopbackOnly(t *testing.T, port int) {
 		if !strings.HasPrefix(a, "127.0.0.1:") && !strings.HasPrefix(a, "[::1]:") {
 			t.Errorf("listening on non-loopback address %s", a)
 		}
+	}
+}
+
+func TestSiteAddFolderChecks(t *testing.T) {
+	h := newHarness(t)
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	empty := t.TempDir()
+	for _, tc := range []struct {
+		args []string
+		code string
+	}{
+		{[]string{"site", "add", "home", "--path", home}, "forbidden_folder"},
+		{[]string{"site", "add", "root", "--path", "/"}, "forbidden_folder"},
+		{[]string{"site", "add", "sys", "--path", "/System/Library"}, "forbidden_folder"},
+		{[]string{"site", "add", "empty", "--path", empty}, "confirmation_required"},
+	} {
+		env := h.covo(tc.args...)
+		if env.OK || env.Error == nil || env.Error.Code != tc.code {
+			t.Errorf("covo %v: %+v, want code %s", tc.args, env.Error, tc.code)
+		}
+	}
+	h.mustCovo("site", "add", "empty", "--path", empty, "--force")
+	// --force never bypasses the forbidden folders.
+	if env := h.covo("site", "add", "home", "--path", home, "--force"); env.OK || env.Error.Code != "forbidden_folder" {
+		t.Errorf("--force on home: %+v", env.Error)
 	}
 }
