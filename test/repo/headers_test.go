@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -66,6 +67,30 @@ func TestRequiredDocs(t *testing.T) {
 	for _, name := range []string{"README.md", "CONTRIBUTING.md", "TRADEMARKS.md"} {
 		if _, err := os.Stat(filepath.Join(root, name)); err != nil {
 			t.Error(err)
+		}
+	}
+}
+
+// TestHostsHelperStaysSmall keeps the privileged helper free of Covo's core
+// and third-party code: it runs as root.
+func TestHostsHelperStaysSmall(t *testing.T) {
+	out, err := exec.Command("go", "list", "-deps", "github.com/getcovo/covo/cmd/covo-hostshelper").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	allowed := map[string]bool{
+		"github.com/getcovo/covo/cmd/covo-hostshelper": true,
+		"github.com/getcovo/covo/internal/hostshelper": true,
+		"github.com/getcovo/covo/internal/hosts":       true,
+		"golang.org/x/sys/unix":                        true,
+	}
+	for _, pkg := range strings.Fields(string(out)) {
+		first, _, _ := strings.Cut(pkg, "/")
+		if !strings.Contains(first, ".") || strings.HasPrefix(pkg, "vendor/") {
+			continue // standard library
+		}
+		if !allowed[pkg] {
+			t.Errorf("covo-hostshelper depends on %s", pkg)
 		}
 	}
 }

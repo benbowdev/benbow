@@ -7,7 +7,7 @@ them (see [ca.md](ca.md)).
 |---|---|---|---|
 | `.localhost` | `demo.localhost` | none (default) | macOS resolves every `*.localhost` to 127.0.0.1 and ::1 (RFC 6761) |
 | `.test` | `demo.covo.test` | `covo domains enable test`, one administrator authorization | `/etc/resolver/test` → Covo's DNS server on 127.0.0.1 |
-| `.local` | `studio.local` | MAMP compatibility mode (not available yet) | `/etc/hosts` lines managed by a privileged helper |
+| `.local` | `studio.local` | `covo domains enable local` (MAMP compatibility mode), one administrator authorization | `/etc/hosts` lines managed by a privileged helper |
 
 The site name is free within these suffixes: `covo site add demo --domain
 demo.covo.test`. Other TLDs (`.covo`, `.dev`) and public domains are refused.
@@ -52,3 +52,67 @@ Firefox open the site without warnings; the DNS server listens only on
 Tests point `COVO_RESOLVER_DIR` at a temporary directory: they run without
 administrator rights and never touch `/etc/resolver`, which the e2e inventory
 checks.
+
+## .local (MAMP compatibility mode)
+
+`.local` is reserved for multicast DNS (Bonjour). Sites under it only work
+through `/etc/hosts`, which is how MAMP PRO does it. Covo supports it so that
+MAMP sites can keep their names; `.localhost` and `.test` are the better
+choices for new sites.
+
+`covo domains enable local` installs a small privileged helper with one
+administrator authorization (temporary design until the signed app can use
+SMAppService):
+
+- `/Library/PrivilegedHelperTools/dev.getcovo.hostshelper` (root:wheel 0755),
+  built from `cmd/covo-hostshelper`, which must sit next to `covo`;
+- `/Library/LaunchDaemons/dev.getcovo.hostshelper.plist` (root:wheel 0644).
+  Its arguments are fixed at install: the user id allowed to talk to it and
+  its own two files.
+
+The helper does exactly four things, all on Covo's block in `/etc/hosts`:
+
+| Operation | Effect |
+|---|---|
+| `status` | read only: helper version and the names in the block |
+| `sync` | make the block hold exactly the given names |
+| `clear` | remove the block |
+| `uninstall` | remove the block, then its binary and plist, then unload itself |
+
+How it is kept to that:
+
+- **Separate binary**: standard library, `x/sys/unix` and Covo's `hosts` and
+  `hostshelper` packages only; a repository test fails if it ever imports
+  anything else (Covo's core, cobra…).
+- **Nothing variable comes from requests** but the names: the hosts path, the
+  IP addresses (127.0.0.1 and ::1, both always written), its own files and
+  the allowed user are fixed when it starts.
+- **Names**: lowercase labels `[a-z0-9-]`, ending in `.local`, at most 253
+  characters, at most 500 names; no wildcards. Anything else is refused and
+  nothing is written.
+- **Only Covo's block changes**: everything outside the markers is preserved
+  byte for byte (golden tests with MAMP lines; clearing restores the original
+  file exactly). Malformed markers (missing, duplicated, out of order): the
+  helper refuses and writes nothing. A symlink in place of the hosts file is
+  refused; files over 1 MiB are refused.
+- **Atomic write**: temporary file in `/etc`, original mode and owner, fsync,
+  rename.
+- **Caller check**: the socket `/var/run/dev.getcovo.hostshelper.sock` accepts
+  only the installing user's uid (LOCAL_PEERCRED); one JSON request of at most
+  64 KiB per connection, 5 s deadline.
+- **No shell**: the only programs it starts are `/usr/bin/dscacheutil
+  -flushcache`, `/usr/bin/killall -HUP mDNSResponder` and `/bin/launchctl
+  bootout system/dev.getcovo.hostshelper`, with fixed arguments.
+
+Worst case, any process running as the user can make the helper write
+loopback lines for `.local` names, which the user can already do through
+Covo.
+
+Removal needs no password: `covo domains disable local` (refused while
+`.local` sites exist) and `covo uninstall` ask the helper to clear the block
+and remove itself. Uninstall only does so if this Covo home installed the
+helper (`data/hostshelper.installed`).
+
+Tests run the helper as the user on a copy of `/etc/hosts`
+(`COVO_HOSTS_HELPER_SOCKET`); a test installation refuses to install the
+system helper.

@@ -92,18 +92,27 @@ func (c *Core) checkSiteDomain(ctx context.Context, domain string) error {
 				fmt.Sprintf("%s needs .test domains: run `covo domains enable test` first (one administrator authorization)", domain))
 		}
 	case suffixLocal:
-		return errcode.Errorf(errcode.Unsupported,
-			fmt.Sprintf("%s needs .local domains (MAMP compatibility mode), which is not available yet", domain))
+		ok, err := c.domainEnabled(ctx, suffixLocal)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return errcode.Errorf(errcode.Unsupported,
+				fmt.Sprintf("%s needs .local domains: run `covo domains enable local` first (MAMP compatibility mode, one administrator authorization)", domain))
+		}
 	}
 	return nil
 }
 
 // DomainStatus describes one opt-in domain suffix.
 type DomainStatus struct {
-	Zone     string         `json:"zone"`
-	Enabled  bool           `json:"enabled"`
-	DNSPort  int            `json:"dns_port,omitempty"`
-	Resolver resolver.State `json:"resolver"`
+	Zone    string `json:"zone"`
+	Enabled bool   `json:"enabled"`
+	// .test only.
+	DNSPort  int             `json:"dns_port,omitempty"`
+	Resolver *resolver.State `json:"resolver,omitempty"`
+	// .local only.
+	Helper *HelperStatus `json:"helper,omitempty"`
 }
 
 // DomainResult reports what enable or disable did.
@@ -114,13 +123,10 @@ type DomainResult struct {
 }
 
 func checkZone(zone string) error {
-	if zone == suffixTest {
+	if zone == suffixTest || zone == suffixLocal {
 		return nil
 	}
-	if zone == suffixLocal {
-		return errcode.Errorf(errcode.Unsupported, ".local domains (MAMP compatibility mode) are not available yet")
-	}
-	return errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("unknown domain suffix %q: only test can be enabled", zone))
+	return errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("unknown domain suffix %q: test or local", zone))
 }
 
 func (c *Core) domainStatus(ctx context.Context, zone string) (DomainStatus, error) {
@@ -129,12 +135,17 @@ func (c *Core) domainStatus(ctx context.Context, zone string) (DomainStatus, err
 	if st.Enabled, err = c.domainEnabled(ctx, zone); err != nil {
 		return st, err
 	}
+	if zone == suffixLocal {
+		st.Helper = c.helperStatus(ctx)
+		return st, nil
+	}
 	if v, ok, err := c.Store.Setting(ctx, settingDNSPort); err != nil {
 		return st, err
 	} else if ok {
 		st.DNSPort, _ = strconv.Atoi(v)
 	}
-	st.Resolver, _, err = c.resolver.State(zone)
+	rs, _, err := c.resolver.State(zone)
+	st.Resolver = &rs
 	return st, err
 }
 
@@ -160,16 +171,32 @@ func (c *Core) dnsPort(ctx context.Context) (int, error) {
 	return port, c.Store.SetSetting(ctx, settingDNSPort, strconv.Itoa(port))
 }
 
-// EnableDomain turns on an opt-in suffix (only "test" for now): it installs
-// the resolver file, which takes one administrator authorization, and starts
-// the DNS server if Covo is running. beforePrompt is called right before the
-// macOS dialog, and not at all if nothing needs to change.
+// EnableDomain turns on an opt-in suffix. For .test it installs the resolver
+// file and starts the DNS server if Covo is running; for .local it installs
+// the privileged hosts helper. Either takes one administrator authorization.
+// beforePrompt is called right before the macOS dialog, and not at all if
+// nothing needs to change.
 func (c *Core) EnableDomain(ctx context.Context, zone string, beforePrompt func()) (DomainResult, error) {
 	if err := checkZone(zone); err != nil {
 		return DomainResult{}, err
 	}
 	var res DomainResult
 	err := c.locked(ctx, func() error {
+		if zone == suffixLocal {
+			changed, err := c.installHelper(ctx, beforePrompt)
+			if err != nil {
+				return err
+			}
+			res.Changed = changed
+			if err := c.Store.SetSetting(ctx, settingDomain(zone), "1"); err != nil {
+				return err
+			}
+			if err := c.syncLocal(ctx); err != nil {
+				return err
+			}
+			res.DomainStatus, err = c.domainStatus(ctx, zone)
+			return err
+		}
 		port, err := c.dnsPort(ctx)
 		if err != nil {
 			return err
@@ -197,9 +224,10 @@ func (c *Core) EnableDomain(ctx context.Context, zone string, beforePrompt func(
 	return res, err
 }
 
-// DisableDomain turns off an opt-in suffix: it removes the resolver file (one
-// administrator authorization) and stops the DNS server. It refuses while
-// sites still use the suffix.
+// DisableDomain turns off an opt-in suffix. For .test it removes the resolver
+// file (one administrator authorization) and stops the DNS server; for .local
+// the helper removes Covo's hosts lines and uninstalls itself (no password).
+// It refuses while sites still use the suffix.
 func (c *Core) DisableDomain(ctx context.Context, zone string, beforePrompt func()) (DomainResult, error) {
 	if err := checkZone(zone); err != nil {
 		return DomainResult{}, err
@@ -219,6 +247,18 @@ func (c *Core) DisableDomain(ctx context.Context, zone string, beforePrompt func
 		if len(using) > 0 {
 			return errcode.Errorf(errcode.Conflict,
 				fmt.Sprintf("sites still use .%s: %s; remove them first", zone, strings.Join(using, ", ")))
+		}
+		if zone == suffixLocal {
+			changed, err := c.uninstallHelper(ctx)
+			if err != nil {
+				return err
+			}
+			res.Changed = changed
+			if err := c.Store.DeleteSetting(ctx, settingDomain(zone)); err != nil {
+				return err
+			}
+			res.DomainStatus, err = c.domainStatus(ctx, zone)
+			return err
 		}
 		m := c.resolver
 		run := m.Run
@@ -245,11 +285,15 @@ func (c *Core) DisableDomain(ctx context.Context, zone string, beforePrompt func
 
 // Domains reports the opt-in suffixes.
 func (c *Core) Domains(ctx context.Context) ([]DomainStatus, error) {
-	st, err := c.domainStatus(ctx, suffixTest)
-	if err != nil {
-		return nil, err
+	var out []DomainStatus
+	for _, zone := range []string{suffixTest, suffixLocal} {
+		st, err := c.domainStatus(ctx, zone)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, st)
 	}
-	return []DomainStatus{st}, nil
+	return out, nil
 }
 
 // selfBinary copies the running covo binary into the Covo home, so that the

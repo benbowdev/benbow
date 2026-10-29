@@ -49,6 +49,11 @@ type harness struct {
 	port int
 	// resolverDir stands in for /etc/resolver.
 	resolverDir string
+	// hostsFile stands in for /etc/hosts; hostsOriginal is its initial
+	// content (a copy of the real one, MAMP lines included).
+	hostsFile, hostsOriginal string
+	// helperFiles stand in for the helper's binary and plist.
+	helperFiles []string
 }
 
 func newHarness(t *testing.T) *harness {
@@ -58,6 +63,11 @@ func newHarness(t *testing.T) *harness {
 	build := exec.Command("go", "build", "-o", bin, "github.com/getcovo/covo/cmd/covo")
 	if out, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("build covo: %v\n%s", err, out)
+	}
+	helper := filepath.Join(tmp, "covo-hostshelper")
+	build = exec.Command("go", "build", "-o", helper, "github.com/getcovo/covo/cmd/covo-hostshelper")
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build covo-hostshelper: %v\n%s", err, out)
 	}
 	// A space in the path on purpose: the real home is "Application Support".
 	home := filepath.Join(tmp, "Covo Home")
@@ -78,6 +88,7 @@ func newHarness(t *testing.T) *harness {
 		"COVO_RESOLVER_DIR="+filepath.Join(tmp, "resolver"),
 	)
 	h.resolverDir = filepath.Join(tmp, "resolver")
+	h.env = append(h.env, "COVO_HOSTS_HELPER_SOCKET="+h.startHelper(helper))
 	t.Cleanup(func() {
 		h.covo("stop")
 		h.covo("uninstall", "--yes")
@@ -87,6 +98,65 @@ func newHarness(t *testing.T) *harness {
 		}
 	})
 	return h
+}
+
+// startHelper runs the hosts helper as the current user on a copy of the
+// real /etc/hosts, and returns its socket. Tests never install the real one.
+func (h *harness) startHelper(bin string) string {
+	t := h.t
+	// Short: Unix socket paths are limited to 104 bytes.
+	dir, err := os.MkdirTemp("", "hs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	current, err := os.ReadFile("/etc/hosts")
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.hostsOriginal = string(current)
+	h.hostsFile = filepath.Join(dir, "hosts")
+	if err := os.WriteFile(h.hostsFile, current, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sock := filepath.Join(dir, "h.sock")
+	args := []string{"--uid", strconv.Itoa(os.Getuid()), "--socket", sock, "--hosts", h.hostsFile, "--flush=false"}
+	for _, name := range []string{"helper-binary", "helper-plist"} {
+		p := filepath.Join(dir, name)
+		if err := os.WriteFile(p, nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		h.helperFiles = append(h.helperFiles, p)
+		args = append(args, "--remove", p)
+	}
+	cmd := exec.Command(bin, args...)
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan struct{})
+	go func() { _ = cmd.Wait(); close(done) }()
+	t.Cleanup(func() {
+		_ = cmd.Process.Signal(os.Interrupt)
+		<-done
+		_ = os.RemoveAll(dir)
+	})
+	for range 50 {
+		if c, err := net.Dial("unix", sock); err == nil {
+			c.Close()
+			return sock
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatal("helper did not start")
+	return ""
+}
+
+func (h *harness) hosts() string {
+	h.t.Helper()
+	b, err := os.ReadFile(h.hostsFile)
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	return string(b)
 }
 
 func freePort(t *testing.T) int {

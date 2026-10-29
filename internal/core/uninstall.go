@@ -14,6 +14,7 @@ import (
 
 	"github.com/getcovo/covo/internal/ca"
 	"github.com/getcovo/covo/internal/errcode"
+	"github.com/getcovo/covo/internal/hostshelper"
 	"github.com/getcovo/covo/internal/launchd"
 	"github.com/getcovo/covo/internal/paths"
 	"github.com/getcovo/covo/internal/resolver"
@@ -35,8 +36,11 @@ type UninstallPlan struct {
 	// Resolver lists Covo's files in /etc/resolver: removing them takes an
 	// administrator authorization.
 	Resolver []string `json:"resolver"`
-	Paths    []string `json:"paths"`
-	Unknown  []string `json:"unknown,omitempty"`
+	// HostsHelper lists the privileged helper's files; removing them (and
+	// Covo's /etc/hosts lines) needs no password.
+	HostsHelper []string `json:"hosts_helper"`
+	Paths       []string `json:"paths"`
+	Unknown     []string `json:"unknown,omitempty"`
 }
 
 // UninstallResult reports what uninstall did.
@@ -73,7 +77,7 @@ func NewUninstaller() (*Uninstaller, error) {
 
 // Plan computes what Uninstall would remove, changing nothing.
 func (u *Uninstaller) Plan(ctx context.Context) (UninstallPlan, error) {
-	plan := UninstallPlan{Agents: []string{}, CA: []trust.Cert{}, Resolver: []string{}, Paths: []string{}}
+	plan := UninstallPlan{Agents: []string{}, CA: []trust.Cert{}, Resolver: []string{}, HostsHelper: []string{}, Paths: []string{}}
 	loaded, err := u.Launchctl.List(ctx)
 	if err != nil {
 		return plan, err
@@ -89,6 +93,11 @@ func (u *Uninstaller) Plan(ctx context.Context) (UninstallPlan, error) {
 	}
 	plan.CA = append(plan.CA, cas...)
 
+	if _, external := helperClient(); !external {
+		if _, err := os.Stat(helperMarker(u.Layout)); err == nil {
+			plan.HostsHelper = append(plan.HostsHelper, "Covo's lines in "+hostshelper.HostsPath, hostshelper.BinaryPath, hostshelper.PlistPath)
+		}
+	}
 	for _, zone := range []string{suffixTest} {
 		st, _, err := u.Resolver.State(zone)
 		if err != nil {
@@ -147,6 +156,9 @@ func (u *Uninstaller) Uninstall(ctx context.Context) (UninstallResult, error) {
 		if _, err := u.Resolver.Remove(ctx, zone); err != nil {
 			return res, err
 		}
+	}
+	if _, err := removeHelper(ctx, u.Layout); err != nil {
+		return res, err
 	}
 	for _, p := range plan.Paths {
 		if err := os.RemoveAll(p); err != nil && !errors.Is(err, os.ErrNotExist) {

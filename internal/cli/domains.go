@@ -26,6 +26,20 @@ func (r domainsResult) Text(w io.Writer) {
 }
 
 func writeDomain(w io.Writer, d core.DomainStatus) {
+	if h := d.Helper; h != nil {
+		switch {
+		case d.Enabled && h.Running:
+			fmt.Fprintf(w, ".%-10s on, MAMP compatibility mode (helper %s, %d names in /etc/hosts)\n", d.Zone, h.Version, len(h.Names))
+		case d.Enabled:
+			fmt.Fprintf(w, ".%-10s on, but the helper does not answer: run `covo domains enable %s`\n", d.Zone, d.Zone)
+		default:
+			fmt.Fprintf(w, ".%-10s off (MAMP compatibility mode: `covo domains enable %s`)\n", d.Zone, d.Zone)
+		}
+		return
+	}
+	if d.Resolver == nil {
+		return
+	}
 	switch {
 	case d.Enabled && d.Resolver.Installed:
 		fmt.Fprintf(w, ".%-10s on (DNS 127.0.0.1:%d, %s)\n", d.Zone, d.DNSPort, d.Resolver.Path)
@@ -56,34 +70,42 @@ func (a *app) domainsCmd() *cobra.Command {
 
 .test domains (e.g. demo.covo.test) are opt-in: Covo adds a file to
 /etc/resolver that sends .test lookups to its own DNS server on 127.0.0.1.
-Enabling and disabling each ask for one administrator authorization.`,
+Enabling and disabling each ask for one administrator authorization.
+
+.local domains (e.g. shop.local) are a MAMP compatibility mode: Covo installs
+a small helper that only manages Covo's own lines in /etc/hosts (127.0.0.1
+and ::1). Installing it asks for one administrator authorization.`,
 		Args: cobra.NoArgs,
 		RunE: a.withCore(func(ctx context.Context, c *core.Core, _ []string) (Result, error) {
 			res, err := c.Domains(ctx)
 			return domainsResult(res), err
 		}),
 	}
-	notice := func(action string) func() {
+	notice := func(zone, action string) func() {
 		return func() {
-			fmt.Fprintf(a.stderr, "macOS will now ask for an administrator password to %s /etc/resolver/test.\n", action)
+			if zone == "local" {
+				fmt.Fprintln(a.stderr, "macOS will now ask for an administrator password to install Covo's helper, which manages Covo's lines in /etc/hosts.")
+				return
+			}
+			fmt.Fprintf(a.stderr, "macOS will now ask for an administrator password to %s /etc/resolver/%s.\n", action, zone)
 		}
 	}
 	cmd.AddCommand(&cobra.Command{
-		Use:       "enable test",
-		Short:     "Serve .test domains (one administrator authorization)",
+		Use:       "enable test|local",
+		Short:     "Serve .test or .local domains (one administrator authorization)",
 		Args:      cobra.ExactArgs(1),
-		ValidArgs: []string{"test"},
+		ValidArgs: []string{"test", "local"},
 		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
-			res, err := c.EnableDomain(ctx, args[0], notice("create"))
+			res, err := c.EnableDomain(ctx, args[0], notice(args[0], "create"))
 			return domainResult(res), err
 		}),
 	}, &cobra.Command{
-		Use:       "disable test",
-		Short:     "Stop serving .test domains and remove the resolver file",
+		Use:       "disable test|local",
+		Short:     "Stop serving .test or .local domains and remove what Covo installed for them",
 		Args:      cobra.ExactArgs(1),
-		ValidArgs: []string{"test"},
+		ValidArgs: []string{"test", "local"},
 		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
-			res, err := c.DisableDomain(ctx, args[0], notice("remove"))
+			res, err := c.DisableDomain(ctx, args[0], notice(args[0], "remove"))
 			return domainResult(res), err
 		}),
 	})

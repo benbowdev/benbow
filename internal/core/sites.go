@@ -94,9 +94,14 @@ func (c *Core) AddSite(ctx context.Context, req AddSiteRequest) (SiteResult, err
 		}
 		res = SiteResult{SiteStatus: SiteStatus{Site: site, URL: siteURL(site, port)}}
 
+		if err := c.syncLocal(ctx); err != nil {
+			_ = c.Store.RemoveSite(ctx, site.Name)
+			return err
+		}
 		applied, err := c.applyIfRunning(ctx)
 		if err != nil {
 			_ = c.Store.RemoveSite(ctx, site.Name)
+			_ = c.syncLocal(ctx)
 			_, _ = c.applyIfRunning(ctx)
 			return err
 		}
@@ -126,6 +131,10 @@ func (c *Core) RemoveSite(ctx context.Context, name string) (SiteResult, error) 
 		if err != nil {
 			_ = c.Store.AddSite(ctx, site)
 			_, _ = c.applyIfRunning(ctx)
+			return err
+		}
+		// After Caddy stopped serving it: a leftover hosts line is harmless.
+		if err := c.syncLocal(ctx); err != nil {
 			return err
 		}
 		res.Applied = applied
