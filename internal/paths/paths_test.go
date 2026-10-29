@@ -46,6 +46,7 @@ func TestFallbackIsPerRoot(t *testing.T) {
 }
 
 func TestEnsure(t *testing.T) {
+	isolateTempDir(t)
 	l, err := New(filepath.Join(t.TempDir(), "Covo Home"))
 	if err != nil {
 		t.Fatal(err)
@@ -69,6 +70,7 @@ func TestEnsure(t *testing.T) {
 }
 
 func TestEnsureRejectsOpenRunDir(t *testing.T) {
+	isolateTempDir(t)
 	l, err := New(filepath.Join(t.TempDir(), "covo"))
 	if err != nil {
 		t.Fatal(err)
@@ -104,4 +106,16 @@ func TestCheckSafe(t *testing.T) {
 			t.Errorf("CheckSafe(%q) = %v, want ok=%v", tt.path, err, tt.ok)
 		}
 	}
+}
+
+// isolateTempDir points $TMPDIR at a short per-test directory, so that the
+// socket fallback directory is created there and removed with the test.
+func isolateTempDir(t *testing.T) {
+	t.Helper()
+	dir, err := os.MkdirTemp("/tmp", "covo-test-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	t.Setenv("TMPDIR", dir)
 }
