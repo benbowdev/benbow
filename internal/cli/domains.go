@@ -57,7 +57,7 @@ type domainResult core.DomainResult
 
 func (r domainResult) Text(w io.Writer) {
 	writeDomain(w, r.DomainStatus)
-	if r.Enabled && !r.Applied {
+	if r.Zone == "test" && r.Enabled && !r.Applied {
 		fmt.Fprintln(w, "Covo is not running: the DNS server starts with `covo start`.")
 	}
 }
