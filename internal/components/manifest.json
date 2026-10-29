@@ -41,6 +41,26 @@
       ]
     },
     {
+      "component": "php",
+      "version": "8.1.34",
+      "arch": "arm64",
+      "url": "https://dl.static-php.dev/static-php-cli/bulk/php-8.1.34-fpm-macos-aarch64.tar.gz",
+      "sha256": "c5faad9eac5ce9753c30a17fb2a2023dcf72e5b367e0ac76b81d006647ea0e52",
+      "files": [
+        "php-fpm"
+      ]
+    },
+    {
+      "component": "php",
+      "version": "8.1.34",
+      "arch": "amd64",
+      "url": "https://dl.static-php.dev/static-php-cli/bulk/php-8.1.34-fpm-macos-x86_64.tar.gz",
+      "sha256": "eab87df298d83c8182f296e3f56ac4025cdb2a74baa4b6587d27ea39ac31b5e6",
+      "files": [
+        "php-fpm"
+      ]
+    },
+    {
       "component": "caddy",
       "version": "2.11.7",
       "arch": "arm64",

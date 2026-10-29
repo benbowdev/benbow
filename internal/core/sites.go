@@ -41,74 +41,106 @@ type SiteResult struct {
 // running the site goes live immediately; if that fails the site is removed
 // again and the previous configuration restored.
 func (c *Core) AddSite(ctx context.Context, req AddSiteRequest) (SiteResult, error) {
-	if !siteNameRe.MatchString(req.Name) {
-		return SiteResult{}, errcode.Errorf(errcode.InvalidInput,
-			fmt.Sprintf("site name %q must be lowercase letters, digits and dashes", req.Name))
+	if err := c.checkSiteRequest(req); err != nil {
+		return SiteResult{}, err
 	}
 	if req.Domain == "" {
 		req.Domain = req.Name + "." + suffixLocalhost
 	}
-	if _, err := domainSuffix(req.Domain); err != nil {
-		return SiteResult{}, err
-	}
-	if err := validMinor(req.PHP); err != nil {
-		return SiteResult{}, err
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return SiteResult{}, fmt.Errorf("resolve home directory: %w", err)
-	}
-	if err := checkSiteDir(req.Path, home, c.Layout.Root); err != nil {
-		return SiteResult{}, err
-	}
-	if !req.Force && !hasIndex(req.Path) {
-		return SiteResult{}, errcode.Errorf(errcode.ConfirmationRequired,
-			fmt.Sprintf("%s has no index.php or index.html; use --force if it is the right folder", req.Path))
-	}
-
 	var res SiteResult
-	err = c.locked(ctx, func() error {
-		if _, err := c.Store.Site(ctx, req.Name); err == nil {
-			return errcode.Errorf(errcode.Conflict, fmt.Sprintf("site %q already exists", req.Name))
-		}
-		if err := c.checkSiteDomain(ctx, req.Domain); err != nil {
-			return err
-		}
-		if _, err := c.ensurePHP(ctx, req.PHP); err != nil {
+	err := c.locked(ctx, func() error {
+		site, err := c.insertSite(ctx, req)
+		if err != nil {
 			return err
 		}
 		port, _, err := c.httpsPort(ctx)
 		if err != nil {
-			return err
-		}
-		site := store.Site{
-			Name:      req.Name,
-			Path:      req.Path,
-			PHPMinor:  req.PHP,
-			Domain:    req.Domain,
-			HTTPS:     true,
-			CreatedAt: time.Now(),
-		}
-		if err := c.Store.AddSite(ctx, site); err != nil {
+			_ = c.Store.RemoveSite(ctx, site.Name)
 			return err
 		}
 		res = SiteResult{SiteStatus: SiteStatus{Site: site, URL: siteURL(site, port)}}
-
-		if err := c.syncLocal(ctx); err != nil {
-			_ = c.Store.RemoveSite(ctx, site.Name)
-			return err
-		}
-		applied, err := c.applyIfRunning(ctx)
-		if err != nil {
-			_ = c.Store.RemoveSite(ctx, site.Name)
-			_ = c.syncLocal(ctx)
-			_, _ = c.applyIfRunning(ctx)
-			return err
-		}
-		res.Applied = applied
-		return nil
+		res.Applied, err = c.goLive(ctx, []store.Site{site})
+		return err
 	})
 	return res, err
+}
+
+// checkSiteRequest validates a request without touching any state.
+func (c *Core) checkSiteRequest(req AddSiteRequest) error {
+	if !siteNameRe.MatchString(req.Name) {
+		return errcode.Errorf(errcode.InvalidInput,
+			fmt.Sprintf("site name %q must be lowercase letters, digits and dashes", req.Name))
+	}
+	domain := req.Domain
+	if domain == "" {
+		domain = req.Name + "." + suffixLocalhost
+	}
+	if _, err := domainSuffix(domain); err != nil {
+		return err
+	}
+	if err := validMinor(req.PHP); err != nil {
+		return err
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("resolve home directory: %w", err)
+	}
+	if err := checkSiteDir(req.Path, home, c.Layout.Root); err != nil {
+		return err
+	}
+	if !req.Force && !hasIndex(req.Path) {
+		return errcode.Errorf(errcode.ConfirmationRequired,
+			fmt.Sprintf("%s has no index.php or index.html; use --force if it is the right folder", req.Path))
+	}
+	return nil
+}
+
+// insertSite stores a checked request, installing its PHP version if
+// needed. Callers hold the lock and then call goLive.
+func (c *Core) insertSite(ctx context.Context, req AddSiteRequest) (store.Site, error) {
+	if _, err := c.Store.Site(ctx, req.Name); err == nil {
+		return store.Site{}, errcode.Errorf(errcode.Conflict, fmt.Sprintf("site %q already exists", req.Name))
+	}
+	if err := c.checkSiteDomain(ctx, req.Domain); err != nil {
+		return store.Site{}, err
+	}
+	if _, err := c.ensurePHP(ctx, req.PHP); err != nil {
+		return store.Site{}, err
+	}
+	site := store.Site{
+		Name:      req.Name,
+		Path:      req.Path,
+		PHPMinor:  req.PHP,
+		Domain:    req.Domain,
+		HTTPS:     true,
+		CreatedAt: time.Now(),
+	}
+	if err := c.Store.AddSite(ctx, site); err != nil {
+		return store.Site{}, err
+	}
+	return site, nil
+}
+
+// goLive syncs /etc/hosts and services after sites were inserted. On failure
+// the sites are removed again and the previous state restored.
+func (c *Core) goLive(ctx context.Context, sites []store.Site) (bool, error) {
+	rollback := func() {
+		for _, s := range sites {
+			_ = c.Store.RemoveSite(ctx, s.Name)
+		}
+	}
+	if err := c.syncLocal(ctx); err != nil {
+		rollback()
+		return false, err
+	}
+	applied, err := c.applyIfRunning(ctx)
+	if err != nil {
+		rollback()
+		_ = c.syncLocal(ctx)
+		_, _ = c.applyIfRunning(ctx)
+		return false, err
+	}
+	return applied, nil
 }
 
 // RemoveSite unregisters a site. Its folder is never touched.
