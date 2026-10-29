@@ -6,7 +6,9 @@
       "arch": "arm64",
       "url": "https://dl.static-php.dev/static-php-cli/bulk/php-8.4.23-fpm-macos-aarch64.tar.gz",
       "sha256": "1a417db44f0eb0b40a9f8cd862f24ecfabdea87f85863f30d218c4876bb688ef",
-      "files": ["php-fpm"]
+      "files": [
+        "php-fpm"
+      ]
     },
     {
       "component": "php",
@@ -14,7 +16,9 @@
       "arch": "amd64",
       "url": "https://dl.static-php.dev/static-php-cli/bulk/php-8.4.23-fpm-macos-x86_64.tar.gz",
       "sha256": "67bbb7f2b2543d45c8a4ab0e4759fbd956530e87fba47a00505c06f09c9b9950",
-      "files": ["php-fpm"]
+      "files": [
+        "php-fpm"
+      ]
     },
     {
       "component": "php",
@@ -22,7 +26,9 @@
       "arch": "arm64",
       "url": "https://dl.static-php.dev/static-php-cli/bulk/php-8.2.32-fpm-macos-aarch64.tar.gz",
       "sha256": "dadddf9b6528f7344ba1f4cdc220bc7e26d2c8402d018f743fe0316d06e4ba77",
-      "files": ["php-fpm"]
+      "files": [
+        "php-fpm"
+      ]
     },
     {
       "component": "php",
@@ -30,7 +36,31 @@
       "arch": "amd64",
       "url": "https://dl.static-php.dev/static-php-cli/bulk/php-8.2.32-fpm-macos-x86_64.tar.gz",
       "sha256": "7d7f21caa31670fa7198bd21fd5fb6178ecedf2a8b90ef59b2af539587fa0dd7",
-      "files": ["php-fpm"]
+      "files": [
+        "php-fpm"
+      ]
+    },
+    {
+      "component": "caddy",
+      "version": "2.11.7",
+      "arch": "arm64",
+      "url": "https://github.com/caddyserver/caddy/releases/download/v2.11.7/caddy_2.11.7_mac_arm64.tar.gz",
+      "sha256": "cda3030e5d5b13eb9f0b6fb541037f633bddd958c070c5f561d7a5cccb581665",
+      "sha512": "68f592df8f0ec058fbdb9b137b64e9a0aa792d28c06e1e3b9ec12d0e7fb371683a54e73ef6d8e6d0dd70dc6b941a5b5d5b73faedd3f89de119ad2eb78bdc668e",
+      "files": [
+        "caddy"
+      ]
+    },
+    {
+      "component": "caddy",
+      "version": "2.11.7",
+      "arch": "amd64",
+      "url": "https://github.com/caddyserver/caddy/releases/download/v2.11.7/caddy_2.11.7_mac_amd64.tar.gz",
+      "sha256": "110c53e5c093e4cfce6eda787f94f23bef913c309f620fab26b4f678031841ad",
+      "sha512": "147886811fa2320a8881c6116dc8cc3f0562e2f686509ccc60f55cf85dfd5ea78e9f5f770c75da13bf124a2536b72e887b975fefd58706de3dafb57483610e70",
+      "files": [
+        "caddy"
+      ]
     }
   ]
 }

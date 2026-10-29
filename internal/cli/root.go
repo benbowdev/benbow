@@ -53,7 +53,7 @@ func (a *app) rootCmd() *cobra.Command {
 		SilenceErrors: true,
 	}
 	root.PersistentFlags().BoolVar(&a.json, "json", false, "output JSON with a stable schema")
-	root.AddCommand(a.versionCmd(), a.phpCmd())
+	root.AddCommand(a.versionCmd(), a.phpCmd(), a.caddyCmd())
 	return root
 }
 
