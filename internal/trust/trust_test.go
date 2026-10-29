@@ -156,6 +156,29 @@ func TestRemoveBySHA1WhenNotInKeychain(t *testing.T) {
 	}
 }
 
+func TestRemoveByCertLeavesOtherCAs(t *testing.T) {
+	ctx := context.Background()
+	f := newFake()
+	k := &Keychain{Path: "/tmp/login.keychain-db", Run: f.run}
+	mine := makeCert(t, "Covo Local CA")
+	theirs := makeCert(t, "Covo Local CA") // e.g. another Covo home
+	for _, c := range []Cert{mine, theirs} {
+		if err := k.Add(ctx, c); err != nil {
+			t.Fatal(err)
+		}
+	}
+	removed, err := k.Remove(ctx, "Covo Local CA", &mine)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(removed) != 1 || removed[0].SHA1 != mine.SHA1 {
+		t.Fatalf("removed %v, want only mine", removed)
+	}
+	if ok, _ := k.Trusted(ctx, theirs); !ok {
+		t.Fatal("removing by certificate touched another CA with the same name")
+	}
+}
+
 func TestRemoveNothingRunsNoChange(t *testing.T) {
 	f := newFake()
 	k := &Keychain{Path: "/tmp/login.keychain-db", Run: f.run}

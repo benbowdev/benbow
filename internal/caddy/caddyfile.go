@@ -4,19 +4,34 @@ package caddy
 import (
 	"bytes"
 	"fmt"
+	"os"
+	"strings"
 	"text/template"
 
+	"github.com/getcovo/covo/internal/errcode"
 	"github.com/getcovo/covo/internal/paths"
 )
 
-// CAName is the name of Covo's local certificate authority, as shown in
-// Keychain Access. untrust relies on it as a fallback lookup key.
-const CAName = "Covo Local CA"
+// DefaultCAName is the name of Covo's local certificate authority, as shown
+// in Keychain Access. untrust uses it to find the CA when its file is gone.
+const DefaultCAName = "Covo Local CA"
+
+// EnvCAName overrides the CA name, so that tests never touch the real CA.
+const EnvCAName = "COVO_CA_NAME"
+
+// CAName returns the CA name in effect.
+func CAName() string {
+	if n := os.Getenv(EnvCAName); n != "" {
+		return n
+	}
+	return DefaultCAName
+}
 
 // Config is everything the Caddyfile depends on.
 type Config struct {
 	AdminSocket string
 	HTTPSPort   int
+	CAName      string // DefaultCAName if empty
 	StorageDir  string
 	LogFile     string
 	Sites       []Site
@@ -41,9 +56,9 @@ var tmpl = template.Must(template.New("Caddyfile").Funcs(template.FuncMap{"q": q
 	storage file_system {{q .StorageDir}}
 	pki {
 		ca local {
-			name {{q .CAName}}
-			root_cn {{q .CAName}}
-			intermediate_cn {{q (print .CAName " Intermediate")}}
+			name {{q .CA}}
+			root_cn {{q .CA}}
+			intermediate_cn {{q (print .CA " Intermediate")}}
 		}
 	}
 	log {
@@ -76,10 +91,17 @@ func Caddyfile(cfg Config) (string, error) {
 		}
 	}
 	var buf bytes.Buffer
+	ca := cfg.CAName
+	if ca == "" {
+		ca = DefaultCAName
+	}
+	if strings.ContainsAny(ca, "\"\\{}\n") {
+		return "", errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("bad CA name %q", ca))
+	}
 	data := struct {
 		Config
-		CAName string
-	}{cfg, CAName}
+		CA string
+	}{cfg, ca}
 	if err := tmpl.Execute(&buf, data); err != nil {
 		return "", fmt.Errorf("render Caddyfile: %w", err)
 	}

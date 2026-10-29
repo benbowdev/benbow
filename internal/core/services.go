@@ -137,6 +137,7 @@ func (c *Core) renderCaddyfile(port int, sites []store.Site) (string, error) {
 	cfg := caddy.Config{
 		AdminSocket: c.Layout.Socket("caddy-admin.sock"),
 		HTTPSPort:   port,
+		CAName:      caddy.CAName(),
 		StorageDir:  filepath.Join(c.Layout.Data, "caddy"),
 		LogFile:     filepath.Join(c.Layout.Logs, "caddy.log"),
 	}

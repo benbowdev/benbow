@@ -66,6 +66,8 @@ func newHarness(t *testing.T) *harness {
 	h.env = append(os.Environ(),
 		"COVO_HOME="+home,
 		"COVO_LABEL_PREFIX=dev.getcovo.test-"+hex.EncodeToString(suffix),
+		// Never let a test find, or remove, the real "Covo Local CA".
+		"COVO_CA_NAME=Covo Test CA "+hex.EncodeToString(suffix),
 		"COVO_HTTPS_PORT="+strconv.Itoa(h.port),
 	)
 	t.Cleanup(func() {

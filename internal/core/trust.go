@@ -74,9 +74,9 @@ func (c *Core) Trust(ctx context.Context, beforePrompt func()) (TrustResult, err
 	return res, err
 }
 
-// Untrust removes Covo's CA from the login keychain: every certificate named
-// caddy.CAName, plus the recorded and on-disk ones by SHA-1. It works even if
-// the Covo home is gone, and is a no-op when nothing is there.
+// Untrust removes Covo's CA from the login keychain: the certificate on disk
+// by SHA-1 or, if the file is gone, every certificate named caddy.CAName().
+// It is a no-op when nothing is there.
 func (c *Core) Untrust(ctx context.Context) (TrustResult, error) {
 	var res TrustResult
 	err := c.locked(ctx, func() error {
@@ -97,7 +97,7 @@ func (c *Core) untrust(ctx context.Context) (TrustResult, error) {
 	if cert, err := trust.ReadCert(c.CACertPath()); err == nil {
 		onDisk = &cert
 	}
-	removed, err := kc.Remove(ctx, caddy.CAName, onDisk)
+	removed, err := kc.Remove(ctx, caddy.CAName(), onDisk)
 	if err != nil {
 		return res, err
 	}

@@ -179,11 +179,12 @@ func (k *Keychain) Add(ctx context.Context, c Cert) error {
 	return nil
 }
 
-// Remove removes the trust settings and the keychain items of every
-// certificate whose Common Name is exactly cn, plus extra if given (matched by
-// SHA-1). It works without the original certificate file. Only what is
-// actually present is touched, so removing nothing never shows a dialog.
-func (k *Keychain) Remove(ctx context.Context, cn string, extra *Cert) ([]Cert, error) {
+// Remove removes a CA from the keychain and the user trust settings. If
+// onDisk is given only that certificate (by SHA-1) is removed; otherwise
+// every certificate whose Common Name is exactly cn, which is the fallback
+// when the CA file has been lost. Only what is actually present is touched,
+// so removing nothing never shows a dialog.
+func (k *Keychain) Remove(ctx context.Context, cn string, onDisk *Cert) ([]Cert, error) {
 	inKeychain, err := k.Find(ctx, cn)
 	if err != nil {
 		return nil, err
@@ -194,13 +195,16 @@ func (k *Keychain) Remove(ctx context.Context, cn string, extra *Cert) ([]Cert, 
 	}
 	hasTrust := hasTrustEntry(trustOut, cn)
 
-	certs := inKeychain
 	present := map[string]bool{}
+	var certs []Cert
 	for _, c := range inKeychain {
-		present[c.SHA1] = true
+		if onDisk == nil || c.SHA1 == onDisk.SHA1 {
+			present[c.SHA1] = true
+			certs = append(certs, c)
+		}
 	}
-	if extra != nil && !present[extra.SHA1] && hasTrust {
-		certs = append(certs, *extra)
+	if onDisk != nil && !present[onDisk.SHA1] && hasTrust {
+		certs = append(certs, *onDisk)
 	}
 	var removed []Cert
 	for _, c := range certs {
