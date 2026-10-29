@@ -7,7 +7,10 @@ Decisions, risks and findings from the Spike phase. Short on purpose.
 `covo site add demo --php 8.4 && covo start` serves https://demo.localhost:8443
 through Caddy + static PHP-FPM 8.4 with a trusted certificate, and a second
 site on PHP 8.2 runs in parallel (`TestTwoPHPVersionsInParallel`).
-`covo uninstall` removes everything Covo added (verified in isolated tests).
+`covo uninstall` removes everything Covo added: after running it on the real
+home, the Step 0 inventory was identical (ports, launchd, keychain trust
+settings, `/etc/resolver`, `/etc/hosts`), MAMP still running, site folder
+untouched.
 
 ## Decisions
 
@@ -139,7 +142,7 @@ Covo opens is HTTPS (8443). Socket paths are limited to 103 bytes on macOS; if
 - Tested 2026-10-29 on the real home: trust → system `curl` and Chrome load
   https://demo.localhost:8443 with no warning; untrust → curl rejects it and
   only MAMP's root is left in the user trust settings; trust again → OK.
-  Safari and Firefox: pending a manual check (not automatable here).
+  Safari and Firefox: no warning either (checked by hand).
 - `security verify-cert -p ssl` reports missing SCTs for the leaf. That is
   Apple's Certificate Transparency rule for publicly trusted CAs; user-added
   roots are exempt, as curl and Chrome confirm.
