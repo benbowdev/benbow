@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/getcovo/covo/internal/errcode"
@@ -132,4 +133,22 @@ func (l Layout) checkRunDir() error {
 // Socket returns the path of a socket named name in the run directory.
 func (l Layout) Socket(name string) string {
 	return filepath.Join(l.Run, name)
+}
+
+// CheckSafe rejects paths that cannot be written verbatim inside a quoted
+// Caddyfile or php.ini value: quotes, backslashes, placeholders ({…}),
+// variable expansion ($) and control characters. Spaces are fine.
+func CheckSafe(p string) error {
+	for _, r := range p {
+		switch {
+		case r < 0x20 || r == 0x7f:
+			return errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("path %q contains a control character", p))
+		case strings.ContainsRune(`"\{}$`, r):
+			return errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("path %q contains unsupported character %q", p, r))
+		}
+	}
+	if !filepath.IsAbs(p) {
+		return errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("path %q is not absolute", p))
+	}
+	return nil
 }

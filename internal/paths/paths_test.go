@@ -84,3 +84,24 @@ func TestEnsureRejectsOpenRunDir(t *testing.T) {
 		t.Fatal("expected world-accessible run dir to be rejected")
 	}
 }
+
+func TestCheckSafe(t *testing.T) {
+	tests := []struct {
+		path string
+		ok   bool
+	}{
+		{"/Users/a/Library/Application Support/covo", true},
+		{"/Users/a/Sites/café", true},
+		{"relative/path", false},
+		{`/Users/a/"quoted"`, false},
+		{"/Users/a/{placeholder}", false},
+		{"/Users/a/$HOME", false},
+		{`/Users/a/back\slash`, false},
+		{"/Users/a/new\nline", false},
+	}
+	for _, tt := range tests {
+		if err := CheckSafe(tt.path); (err == nil) != tt.ok {
+			t.Errorf("CheckSafe(%q) = %v, want ok=%v", tt.path, err, tt.ok)
+		}
+	}
+}
