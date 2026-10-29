@@ -54,5 +54,8 @@ func writeError(w io.Writer, asJSON bool, err error) {
 func writeJSON(w io.Writer, v any) error {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
-	return enc.Encode(v)
+	if err := enc.Encode(v); err != nil {
+		return fmt.Errorf("write JSON: %w", err)
+	}
+	return nil
 }
