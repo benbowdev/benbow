@@ -61,7 +61,16 @@ Covo opens is HTTPS (8443). Socket paths are limited to 103 bytes on macOS; if
 - Adding/removing a site reloads Caddy through its admin socket (no restart).
   A php.ini / php-fpm.conf change restarts that FPM agent (the config hash is
   part of the plist).
-- **Risk: macOS privacy (TCC).** A site folder under `~/Documents`,
-  `~/Desktop`, `~/Downloads` or iCloud Drive may be unreadable by Caddy and
-  PHP-FPM started by launchd. `~/Sites` and other folders are fine. To verify
-  and document (or warn at `site add`) before App v1.
+- **macOS privacy (TCC): tested 2026-10-29, macOS 26.2.** A site in
+  `~/Documents/covo-tcc-test` served both a static file and `index.php`
+  (HTTP 200), with no prompt and nothing in the logs. Caddy and PHP-FPM never
+  got a permission of their own, while the shell running `covo start` (inside
+  VS Code) can read `~/Documents` but has no Full Disk Access. So macOS
+  attributes the agents to the app that ran `launchctl bootstrap`, and they
+  inherit its folder permissions.
+  Consequences: from a terminal app that has (or is granted) access to
+  Documents/Desktop/Downloads/iCloud Drive, sites there work. From one that
+  has been denied, Caddy/PHP would get "operation not permitted". The future
+  Covo.app will be the responsible app and macOS will prompt for it once.
+  No `protected_folder` warning was added since the read succeeded; revisit if
+  a user reports the failure or when the GUI starts the agents.
