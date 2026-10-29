@@ -113,6 +113,30 @@ Removal needs no password: `covo domains disable local` (refused while
 and remove itself. Uninstall only does so if this Covo home installed the
 helper (`data/hostshelper.installed`).
 
+Verified on the real Mac (2026-10-29, macOS 26.2, MAMP PRO running with 54
+`.local` entries in `/etc/hosts`): one administrator dialog installed the
+helper (both files root:wheel, socket in `/var/run`) without touching
+`/etc/hosts`; `covo site add covodemo --domain covo-demo.local` added only
+Covo's four-line block at the end, keeping the file's owner and mode;
+`dscacheutil` returns 127.0.0.1 and ::1; curl (also forced to IPv4 and to
+IPv6) returns 200 with a verified certificate; Safari, Chrome and Firefox open
+the site without warnings. `site remove` and `domains disable local` (no
+password) restored `/etc/hosts` to the same SHA-256 and removed the helper's
+files, socket and launchd job.
+
+Lookup latency (getaddrinfo, median of 30, both lines present):
+
+| Name | First lookup | Median |
+|---|---|---|
+| `covo-demo.local` (Covo) | 12.4 ms | 1.11 ms |
+| `studio.local` (MAMP) | 1.0 ms | 1.02 ms |
+| `demo.covo.test` | 1.8 ms | 0.47 ms |
+| `demo.localhost` | 0.3 ms | 0.26 ms |
+
+`.local` names cost about 1 ms per lookup, the same as under MAMP; the first
+lookup after the cache flush is slower. This is why `.local` is a
+compatibility mode and not the default.
+
 Tests run the helper as the user on a copy of `/etc/hosts`
 (`COVO_HOSTS_HELPER_SOCKET`); a test installation refuses to install the
 system helper.
