@@ -63,6 +63,28 @@
       ]
     },
     {
+      "component": "mysql",
+      "version": "8.4.13",
+      "arch": "arm64",
+      "url": "https://cdn.mysql.com/Downloads/MySQL-8.4/mysql-8.4.13-macos15-arm64.tar.gz",
+      "sha256": "f324f8950e24d4147470bbc6a6ef0b90ef93b91d3fc74154b3d2ba085b44912a",
+      "md5": "73926da59774274b5cdfe78cd2150840",
+      "strip": "mysql-8.4.13-macos15-arm64",
+      "files": [
+        "bin/mysqld",
+        "bin/mysql",
+        "bin/mysqladmin",
+        "bin/mysqldump",
+        "bin/libprotobuf-lite.24.4.0.dylib",
+        "lib/libssl.3.dylib",
+        "lib/libcrypto.3.dylib",
+        "lib/libprotobuf-lite.24.4.0.dylib",
+        "lib/private/",
+        "share/english/",
+        "share/charsets/"
+      ]
+    },
+    {
       "component": "cabundle",
       "version": "2026-10-20",
       "arch": "all",

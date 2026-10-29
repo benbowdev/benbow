@@ -28,6 +28,11 @@ type INIConfig struct {
 	// CAFile is the CA bundle (Mozilla roots plus Covo's root) PHP verifies
 	// TLS with, so a site can call itself over HTTPS.
 	CAFile string
+	// MySQLSocket and MySQLPort, when MySQL is enabled, make "localhost"
+	// (socket) and a bare "127.0.0.1" (no port) reach Covo's MySQL, never
+	// another server on 3306.
+	MySQLSocket string
+	MySQLPort   int
 }
 
 var funcs = template.FuncMap{"q": func(s string) string { return `"` + s + `"` }}
@@ -68,6 +73,12 @@ session.save_path = {{q .SessionDir}}
 
 openssl.cafile = {{q .CAFile}}
 curl.cainfo = {{q .CAFile}}
+{{- if .MySQLPort}}
+
+mysqli.default_socket = {{q .MySQLSocket}}
+mysqli.default_port = {{.MySQLPort}}
+pdo_mysql.default_socket = {{q .MySQLSocket}}
+{{- end}}
 
 opcache.enable = 1
 opcache.validate_timestamps = 1
@@ -86,6 +97,11 @@ func FPMConf(c FPMConfig) (string, error) {
 func INI(c INIConfig) (string, error) {
 	if err := checkSafe(c.ErrorLog, c.SessionDir, c.CAFile); err != nil {
 		return "", err
+	}
+	if c.MySQLPort != 0 {
+		if err := checkSafe(c.MySQLSocket); err != nil {
+			return "", err
+		}
 	}
 	return render(iniTmpl, c)
 }

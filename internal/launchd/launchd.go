@@ -52,6 +52,9 @@ type Agent struct {
 	WorkDir   string
 	StdoutLog string
 	StderrLog string
+	// ExitTimeout is how many seconds launchd waits after SIGTERM before
+	// SIGKILL (launchd's default, 20, if zero).
+	ExitTimeout int
 }
 
 type envVar struct{ Key, Value string }
@@ -93,6 +96,10 @@ var plistTmpl = template.Must(template.New("plist").Funcs(template.FuncMap{"x": 
 	<true/>
 	<key>ThrottleInterval</key>
 	<integer>5</integer>
+{{- if .ExitTimeout}}
+	<key>ExitTimeOut</key>
+	<integer>{{.ExitTimeout}}</integer>
+{{- end}}
 	<key>ProcessType</key>
 	<string>Interactive</string>
 </dict>

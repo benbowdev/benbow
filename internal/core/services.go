@@ -198,7 +198,7 @@ func (c *Core) writeCaddyfile(ctx context.Context, bin caddy.Binary, body string
 // writePHPConfig writes php-fpm.conf and php.ini for minor and returns a hash
 // of both and of the CA bundle, which goes into the agent so a change
 // restarts FPM.
-func (c *Core) writePHPConfig(minor, bundleHash string) (string, error) {
+func (c *Core) writePHPConfig(ctx context.Context, minor, bundleHash string) (string, error) {
 	dir := filepath.Join(c.Layout.Etc, "php", minor)
 	sessions := filepath.Join(c.Layout.Data, "php", minor, "sessions")
 	if err := os.MkdirAll(sessions, 0o700); err != nil {
@@ -213,11 +213,17 @@ func (c *Core) writePHPConfig(minor, bundleHash string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	mysqlSocket, mysqlPort, err := c.mysqlPHPSettings(ctx)
+	if err != nil {
+		return "", err
+	}
 	ini, err := php.INI(php.INIConfig{
-		ErrorLog:   filepath.Join(c.Layout.Logs, "php-"+minor+"-error.log"),
-		SessionDir: sessions,
-		Timezone:   localTimezone(),
-		CAFile:     c.caBundlePath(),
+		ErrorLog:    filepath.Join(c.Layout.Logs, "php-"+minor+"-error.log"),
+		SessionDir:  sessions,
+		Timezone:    localTimezone(),
+		CAFile:      c.caBundlePath(),
+		MySQLSocket: mysqlSocket,
+		MySQLPort:   mysqlPort,
 	})
 	if err != nil {
 		return "", err
@@ -339,7 +345,7 @@ func (c *Core) reconcile(ctx context.Context) (StartResult, error) {
 		if err != nil {
 			return StartResult{}, err
 		}
-		hash, err := c.writePHPConfig(minor, bundleHash)
+		hash, err := c.writePHPConfig(ctx, minor, bundleHash)
 		if err != nil {
 			return StartResult{}, err
 		}
@@ -358,12 +364,17 @@ func (c *Core) reconcile(ctx context.Context) (StartResult, error) {
 	if err != nil {
 		return StartResult{}, err
 	}
+	mysqlAgents, mysqlPort, err := c.mysqlAgents(ctx, loaded)
+	if err != nil {
+		return StartResult{}, err
+	}
 	caddyRunning := loaded[c.labelFor(caddyService)].Running
 	if err := c.writeCaddyfile(ctx, bin, body, caddyRunning); err != nil {
 		return StartResult{}, err
 	}
 	agents = append([]launchd.Agent{c.caddyAgent(bin)}, agents...)
 	agents = append(agents, dnsAgents...)
+	agents = append(agents, mysqlAgents...)
 
 	rotated := c.rotateLogs()
 	changes, err := c.launchctl.Apply(ctx, c.Layout.Launchd, agents)
@@ -373,14 +384,14 @@ func (c *Core) reconcile(ctx context.Context) (StartResult, error) {
 	if err := c.reopenLogs(ctx, minors, rotated, changes); err != nil {
 		return StartResult{}, err
 	}
-	if err := c.waitReady(ctx, minors, port, len(sites) > 0, dnsPort); err != nil {
+	if err := c.waitReady(ctx, minors, port, len(sites) > 0, dnsPort, mysqlPort); err != nil {
 		return StartResult{}, err
 	}
 	return StartResult{HTTPSPort: port, PortAssigned: assigned, Changes: changes}, nil
 }
 
 // waitReady waits until every socket accepts connections.
-func (c *Core) waitReady(ctx context.Context, minors []string, port int, expectHTTPS bool, dnsPort int) error {
+func (c *Core) waitReady(ctx context.Context, minors []string, port int, expectHTTPS bool, dnsPort, mysqlPort int) error {
 	type check struct {
 		service, network, addr string
 	}
@@ -393,6 +404,9 @@ func (c *Core) waitReady(ctx context.Context, minors []string, port int, expectH
 	}
 	if dnsPort != 0 {
 		checks = append(checks, check{dnsService, "tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(dnsPort))})
+	}
+	if mysqlPort != 0 {
+		checks = append(checks, check{mysqlService, "tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(mysqlPort))})
 	}
 	deadline := time.Now().Add(readyTimeout)
 	for _, ch := range checks {
@@ -466,6 +480,7 @@ type Status struct {
 	Sites     []SiteStatus    `json:"sites"`
 	CA        CAStatus        `json:"ca"`
 	Domains   []DomainStatus  `json:"domains"`
+	MySQL     MySQLStatus     `json:"mysql"`
 	// Orphans are loaded Covo agents that no site needs any more.
 	Orphans []string `json:"orphans,omitempty"`
 }
@@ -497,6 +512,11 @@ func (c *Core) Status(ctx context.Context) (Status, error) {
 	} else if ok {
 		services = append(services, dnsService)
 	}
+	if ok, err := c.mysqlEnabled(ctx); err != nil {
+		return Status{}, err
+	} else if ok {
+		services = append(services, mysqlService)
+	}
 	st.Running = true
 	expected := map[string]bool{}
 	for _, svc := range services {
@@ -513,6 +533,9 @@ func (c *Core) Status(ctx context.Context) (Status, error) {
 	}
 	slices.Sort(st.Orphans)
 	if st.Domains, err = c.Domains(ctx); err != nil {
+		return Status{}, err
+	}
+	if st.MySQL, err = c.mysqlStatus(ctx); err != nil {
 		return Status{}, err
 	}
 	st.CA.CertPath = c.CACertPath()

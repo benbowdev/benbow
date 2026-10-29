@@ -39,8 +39,10 @@ type UninstallPlan struct {
 	// HostsHelper lists the privileged helper's files; removing them (and
 	// Covo's /etc/hosts lines) needs no password.
 	HostsHelper []string `json:"hosts_helper"`
-	Paths       []string `json:"paths"`
-	Unknown     []string `json:"unknown,omitempty"`
+	// Keychain lists Covo's items in the login keychain (MySQL password).
+	Keychain []string `json:"keychain"`
+	Paths    []string `json:"paths"`
+	Unknown  []string `json:"unknown,omitempty"`
 }
 
 // UninstallResult reports what uninstall did.
@@ -77,7 +79,7 @@ func NewUninstaller() (*Uninstaller, error) {
 
 // Plan computes what Uninstall would remove, changing nothing.
 func (u *Uninstaller) Plan(ctx context.Context) (UninstallPlan, error) {
-	plan := UninstallPlan{Agents: []string{}, CA: []trust.Cert{}, Resolver: []string{}, HostsHelper: []string{}, Paths: []string{}}
+	plan := UninstallPlan{Agents: []string{}, CA: []trust.Cert{}, Resolver: []string{}, HostsHelper: []string{}, Keychain: []string{}, Paths: []string{}}
 	loaded, err := u.Launchctl.List(ctx)
 	if err != nil {
 		return plan, err
@@ -97,6 +99,15 @@ func (u *Uninstaller) Plan(ctx context.Context) (UninstallPlan, error) {
 		if _, err := os.Stat(helperMarker(u.Layout)); err == nil {
 			plan.HostsHelper = append(plan.HostsHelper, "Covo's lines in "+hostshelper.HostsPath, hostshelper.BinaryPath, hostshelper.PlistPath)
 		}
+	}
+	kc, err := mysqlKeychain(u.Launchctl.Prefix)
+	if err != nil {
+		return plan, err
+	}
+	if ok, err := kc.Exists(ctx); err != nil {
+		return plan, err
+	} else if ok {
+		plan.Keychain = append(plan.Keychain, "MySQL root password ("+kc.Service+")")
 	}
 	for _, zone := range []string{suffixTest} {
 		st, _, err := u.Resolver.State(zone)
@@ -158,6 +169,14 @@ func (u *Uninstaller) Uninstall(ctx context.Context) (UninstallResult, error) {
 		}
 	}
 	if _, err := removeHelper(ctx, u.Layout); err != nil {
+		return res, err
+	}
+	// After the agents stopped: MySQL is no longer running.
+	kc, err := mysqlKeychain(u.Launchctl.Prefix)
+	if err != nil {
+		return res, err
+	}
+	if _, err := kc.Delete(ctx); err != nil {
 		return res, err
 	}
 	for _, p := range plan.Paths {

@@ -20,7 +20,7 @@ func (r uninstallResult) Text(w io.Writer) {
 	if !r.Done {
 		return
 	}
-	if len(r.Agents)+len(r.CA)+len(r.Resolver)+len(r.HostsHelper)+len(r.Paths) == 0 {
+	if len(r.Agents)+len(r.CA)+len(r.Resolver)+len(r.HostsHelper)+len(r.Keychain)+len(r.Paths) == 0 {
 		fmt.Fprintln(w, "Nothing to remove: Covo is not installed.")
 		return
 	}
@@ -41,6 +41,9 @@ func writePlan(w io.Writer, p core.UninstallPlan, verb string) {
 	for _, item := range p.HostsHelper {
 		fmt.Fprintf(w, "%s %s\n", verb, item)
 	}
+	for _, item := range p.Keychain {
+		fmt.Fprintf(w, "%s %s from the login keychain\n", verb, item)
+	}
 	for _, path := range p.Paths {
 		fmt.Fprintf(w, "%s %s\n", verb, path)
 	}
@@ -51,8 +54,9 @@ func (a *app) uninstallCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "uninstall",
 		Short: "Stop Covo, remove its CA and delete all its data",
-		Long: `Stops every Covo service, removes Covo's CA from the login keychain and
-deletes ~/Library/Application Support/covo. Your site folders are never touched.`,
+		Long: `Stops every Covo service, removes Covo's CA and MySQL password from the
+login keychain and deletes ~/Library/Application Support/covo, MySQL databases
+included. Your site folders are never touched.`,
 		Args: cobra.NoArgs,
 		// Not withCore: opening the core would recreate the folders being removed.
 		RunE: a.run(func(ctx context.Context, _ []string) (Result, error) {
@@ -67,7 +71,7 @@ deletes ~/Library/Application Support/covo. Your site folders are never touched.
 				}
 				var b strings.Builder
 				writePlan(&b, plan, "Will remove")
-				if len(plan.Agents)+len(plan.CA)+len(plan.Resolver)+len(plan.HostsHelper)+len(plan.Paths) > 0 &&
+				if len(plan.Agents)+len(plan.CA)+len(plan.Resolver)+len(plan.HostsHelper)+len(plan.Keychain)+len(plan.Paths) > 0 &&
 					!a.confirm(b.String()+"Your site folders will not be touched. Continue?") {
 					return nil, errcode.Errorf(errcode.ConfirmationRequired, "uninstall not confirmed; pass --yes to proceed")
 				}

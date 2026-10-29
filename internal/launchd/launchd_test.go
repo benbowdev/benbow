@@ -44,6 +44,13 @@ func TestPlistGolden(t *testing.T) {
 	if !strings.Contains(string(got), "A_&lt;&amp;&gt;") {
 		t.Error("keys must be XML-escaped")
 	}
+	if strings.Contains(string(got), "ExitTimeOut") {
+		t.Error("ExitTimeOut without ExitTimeout")
+	}
+	got, err = Plist(Agent{Label: "x", Program: "/x", StdoutLog: "/o", StderrLog: "/e", ExitTimeout: 60})
+	if err != nil || !strings.Contains(string(got), "<key>ExitTimeOut</key>\n\t<integer>60</integer>") {
+		t.Errorf("ExitTimeOut missing: %v\n%s", err, got)
+	}
 }
 
 func TestParseList(t *testing.T) {

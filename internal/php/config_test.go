@@ -7,6 +7,7 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/getcovo/covo/internal/errcode"
@@ -38,6 +39,22 @@ func TestGolden(t *testing.T) {
 		t.Fatal(err)
 	}
 	golden(t, filepath.Join("testdata", "php.ini"), ini)
+	if strings.Contains(ini, "mysqli.") {
+		t.Error("MySQL defaults without MySQL")
+	}
+
+	ini, err = INI(INIConfig{
+		ErrorLog:    home + "/logs/php-8.4-error.log",
+		SessionDir:  home + "/data/php/8.4/sessions",
+		Timezone:    "Europe/Rome",
+		CAFile:      home + "/etc/ca-bundle.pem",
+		MySQLSocket: home + "/run/mysql.sock",
+		MySQLPort:   3307,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	golden(t, filepath.Join("testdata", "php-mysql.ini"), ini)
 }
 
 func TestRejectsUnsafePaths(t *testing.T) {
@@ -47,6 +64,10 @@ func TestRejectsUnsafePaths(t *testing.T) {
 	}{
 		{"fpm env expansion", func() error {
 			_, err := FPMConf(FPMConfig{Minor: "8.4", Socket: "/x/${HOME}.sock", PIDFile: "/x/p", ErrorLog: "/x/l"})
+			return err
+		}},
+		{"ini mysql socket", func() error {
+			_, err := INI(INIConfig{ErrorLog: "/x/l", SessionDir: "/x/s", Timezone: "UTC", MySQLSocket: "/x/{m}.sock", MySQLPort: 3307})
 			return err
 		}},
 		{"ini quote", func() error {

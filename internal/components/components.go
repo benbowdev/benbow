@@ -11,6 +11,7 @@ import (
 	"archive/tar"
 	"compress/gzip"
 	"context"
+	"crypto/md5" //nolint:gosec // only to match the checksum MySQL publishes; SHA-256 is the real check
 	"crypto/sha256"
 	"crypto/sha512"
 	"encoding/hex"
@@ -60,8 +61,16 @@ type Artifact struct {
 	URL       string `json:"url"`
 	SHA256    string `json:"sha256"`
 	// SHA512 is the upstream-published checksum, when upstream publishes one.
-	SHA512 string   `json:"sha512,omitempty"`
-	Files  []string `json:"files"`
+	SHA512 string `json:"sha512,omitempty"`
+	// MD5 is the upstream-published checksum when upstream publishes nothing
+	// better (MySQL); it is checked in addition to SHA256.
+	MD5 string `json:"md5,omitempty"`
+	// Strip is a leading directory removed from every archive entry name.
+	Strip string `json:"strip,omitempty"`
+	// Files are extracted from a .tar.gz. An entry ending in "/" extracts the
+	// whole directory below it. Symbolic links are only accepted when listed
+	// one by one, relative, and pointing at another extracted file.
+	Files []string `json:"files"`
 }
 
 // Manifest is the set of pinned artifacts.
@@ -162,7 +171,7 @@ func (in Installer) Install(ctx context.Context, a Artifact) (Installed, error) 
 
 	switch a.Format {
 	case FormatTarGz:
-		if err := extract(archive, stage, a.Files); err != nil {
+		if err := extract(archive, stage, a.Strip, a.Files); err != nil {
 			return Installed{}, err
 		}
 	case FormatFile:
@@ -203,7 +212,7 @@ func (in Installer) verified(dir string, a Artifact) bool {
 		return false
 	}
 	for _, f := range a.Files {
-		if _, err := os.Stat(filepath.Join(dir, f)); err != nil {
+		if _, err := os.Stat(filepath.Join(dir, filepath.FromSlash(f))); err != nil {
 			return false
 		}
 	}
@@ -241,8 +250,8 @@ func (in Installer) download(ctx context.Context, a Artifact) (path string, err 
 		}
 	}()
 
-	h256, h512 := sha256.New(), sha512.New()
-	if _, err := io.Copy(io.MultiWriter(f, h256, h512), resp.Body); err != nil {
+	h256, h512, hmd5 := sha256.New(), sha512.New(), md5.New() //nolint:gosec // see import
+	if _, err := io.Copy(io.MultiWriter(f, h256, h512, hmd5), resp.Body); err != nil {
 		return "", errcode.New(errcode.Download, fmt.Errorf("download %s: %w", a.URL, err))
 	}
 	if err := checkSum("sha256", h256, a.SHA256, a.URL); err != nil {
@@ -250,6 +259,11 @@ func (in Installer) download(ctx context.Context, a Artifact) (path string, err 
 	}
 	if a.SHA512 != "" {
 		if err := checkSum("sha512", h512, a.SHA512, a.URL); err != nil {
+			return "", err
+		}
+	}
+	if a.MD5 != "" {
+		if err := checkSum("md5", hmd5, a.MD5, a.URL); err != nil {
 			return "", err
 		}
 	}
@@ -265,9 +279,11 @@ func checkSum(name string, h hash.Hash, want, url string) error {
 	return nil
 }
 
-// extract copies the listed regular files out of a .tar.gz into dir. Any
-// other entry is ignored; links, traversal and missing files are errors.
-func extract(archive, dir string, files []string) error {
+// extract copies the listed entries out of a .tar.gz into dir, after removing
+// the strip directory from their names. Any other entry is ignored.
+// Traversal, unlisted links, links leaving dir or pointing at nothing
+// extracted, and missing entries are errors.
+func extract(archive, dir, strip string, files []string) error {
 	f, err := os.Open(archive)
 	if err != nil {
 		return fmt.Errorf("open archive: %w", err)
@@ -279,10 +295,25 @@ func extract(archive, dir string, files []string) error {
 	}
 	defer gz.Close()
 
-	want := map[string]bool{}
+	want := map[string]bool{} // exact entries, and whether they were seen
+	var trees []string        // directory entries ("share/english/")
 	for _, name := range files {
+		if strings.HasSuffix(name, "/") {
+			trees = append(trees, name)
+		}
 		want[name] = false
 	}
+	inTree := func(name string) (string, bool) {
+		for _, t := range trees {
+			if strings.HasPrefix(name, t) {
+				return t, true
+			}
+		}
+		return "", false
+	}
+	extracted := map[string]bool{}
+	links := map[string]string{} // link name -> target, relative to dir
+
 	tr := tar.NewReader(gz)
 	for {
 		hdr, err := tr.Next()
@@ -293,37 +324,80 @@ func extract(archive, dir string, files []string) error {
 			return fmt.Errorf("read archive: %w", err)
 		}
 		name := path.Clean(strings.TrimPrefix(hdr.Name, "./"))
-		seen, ok := want[name]
-		if !ok {
+		if strip != "" {
+			rest, ok := strings.CutPrefix(name, strip+"/")
+			if !ok {
+				continue
+			}
+			name = rest
+		}
+		if name == "." || name == ".." || strings.HasPrefix(name, "../") || path.IsAbs(name) {
 			continue
 		}
-		if seen {
+		seen, exact := want[name]
+		tree, below := inTree(name)
+		if !exact && !below {
+			continue
+		}
+		if exact && seen || extracted[name] {
 			return errcode.Errorf(errcode.Checksum, "archive contains "+name+" twice")
 		}
-		if hdr.Typeflag != tar.TypeReg {
+		dst := filepath.Join(dir, filepath.FromSlash(name))
+		switch hdr.Typeflag {
+		case tar.TypeReg:
+			if hdr.Size > maxFileSize {
+				return errcode.Errorf(errcode.Checksum, "archive entry "+name+" is too large")
+			}
+			if err := writeFile(dst, tr, hdr.Size, os.FileMode(hdr.Mode).Perm()&0o755|0o644); err != nil {
+				return err
+			}
+		case tar.TypeDir:
+			if err := os.MkdirAll(dst, 0o755); err != nil {
+				return fmt.Errorf("create %s: %w", dst, err)
+			}
+		case tar.TypeSymlink:
+			if !exact {
+				return errcode.Errorf(errcode.Checksum, "archive entry "+name+" is a link that is not listed")
+			}
+			target := path.Clean(path.Join(path.Dir(name), hdr.Linkname))
+			if path.IsAbs(hdr.Linkname) || target == ".." || strings.HasPrefix(target, "../") {
+				return errcode.Errorf(errcode.Checksum, "archive link "+name+" points outside the install directory")
+			}
+			if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+				return fmt.Errorf("create %s: %w", filepath.Dir(dst), err)
+			}
+			if err := os.Symlink(hdr.Linkname, dst); err != nil {
+				return fmt.Errorf("create link %s: %w", dst, err)
+			}
+			links[name] = target
+		default:
 			return errcode.Errorf(errcode.Checksum, "archive entry "+name+" is not a regular file")
 		}
-		if hdr.Size > maxFileSize {
-			return errcode.Errorf(errcode.Checksum, "archive entry "+name+" is too large")
+		extracted[name] = true
+		if exact {
+			want[name] = true
+		} else {
+			want[tree] = true
 		}
-		if err := writeFile(filepath.Join(dir, filepath.FromSlash(name)), tr, hdr.Size); err != nil {
-			return err
-		}
-		want[name] = true
 	}
 	for name, seen := range want {
 		if !seen {
 			return errcode.Errorf(errcode.Checksum, "archive does not contain "+name)
 		}
 	}
+	for name, target := range links {
+		if fi, err := os.Lstat(filepath.Join(dir, filepath.FromSlash(target))); err != nil || !fi.Mode().IsRegular() || !extracted[target] {
+			return errcode.Errorf(errcode.Checksum, "archive link "+name+" does not point at an extracted file")
+		}
+	}
 	return nil
 }
 
-func writeFile(dst string, r io.Reader, size int64) error {
+func writeFile(dst string, r io.Reader, size int64, mode os.FileMode) error {
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return fmt.Errorf("create %s: %w", filepath.Dir(dst), err)
 	}
-	out, err := os.OpenFile(dst, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o755)
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_EXCL|os.O_WRONLY, mode)
 	if err != nil {
 		return fmt.Errorf("create %s: %w", dst, err)
 	}

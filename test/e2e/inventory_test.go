@@ -82,8 +82,30 @@ func inventory() (map[string]string, error) {
 		inv[dir+" covo"] = strings.Join(matches, "\n")
 	}
 
+	// Keychain items Covo creates (MySQL password) and certificates named
+	// Covo, by attribute only: no secret is read. Also the keychain search
+	// list.
+	kc := filepath.Join(home, "Library", "Keychains", "login.keychain-db")
+	out, err := exec.Command("/usr/bin/security", "dump-keychain", kc).Output()
+	if err != nil {
+		return nil, fmt.Errorf("security dump-keychain: %w", err)
+	}
+	var items []string
+	for line := range strings.SplitSeq(string(out), "\n") {
+		if l := strings.ToLower(line); strings.Contains(l, "dev.getcovo") || strings.Contains(l, "covo") {
+			items = append(items, strings.TrimSpace(line))
+		}
+	}
+	slices.Sort(items)
+	inv["login keychain covo items"] = strings.Join(items, "\n")
+	out, err = exec.Command("/usr/bin/security", "list-keychains", "-d", "user").Output()
+	if err != nil {
+		return nil, fmt.Errorf("security list-keychains: %w", err)
+	}
+	inv["keychain search list"] = string(out)
+
 	// Loaded launchd agents.
-	out, err := exec.Command("/bin/launchctl", "list").Output()
+	out, err = exec.Command("/bin/launchctl", "list").Output()
 	if err != nil {
 		return nil, fmt.Errorf("launchctl list: %w", err)
 	}

@@ -40,6 +40,9 @@ func (s statusResult) Text(w io.Writer) {
 	for _, site := range s.Sites {
 		fmt.Fprintf(w, "  %-14s PHP %-4s %s\n", site.Name, site.PHPMinor, site.URL)
 	}
+	if s.MySQL.Enabled {
+		writeMySQLLine(w, s.MySQL)
+	}
 }
 
 func running(b bool) string {
