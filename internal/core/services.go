@@ -198,7 +198,8 @@ func (c *Core) writeCaddyfile(ctx context.Context, bin caddy.Binary, body string
 // writePHPConfig writes php-fpm.conf and php.ini for minor and returns a hash
 // of both and of the CA bundle, which goes into the agent so a change
 // restarts FPM.
-func (c *Core) writePHPConfig(ctx context.Context, minor, bundleHash string) (string, error) {
+func (c *Core) writePHPConfig(ctx context.Context, v store.PHPVersion, bundleHash string) (string, error) {
+	minor := v.Minor
 	dir := filepath.Join(c.Layout.Etc, "php", minor)
 	sessions := filepath.Join(c.Layout.Data, "php", minor, "sessions")
 	if err := os.MkdirAll(sessions, 0o700); err != nil {
@@ -217,6 +218,10 @@ func (c *Core) writePHPConfig(ctx context.Context, minor, bundleHash string) (st
 	if err != nil {
 		return "", err
 	}
+	xdebug, err := c.xdebugPath(ctx, v)
+	if err != nil {
+		return "", err
+	}
 	ini, err := php.INI(php.INIConfig{
 		ErrorLog:    filepath.Join(c.Layout.Logs, "php-"+minor+"-error.log"),
 		SessionDir:  sessions,
@@ -224,6 +229,7 @@ func (c *Core) writePHPConfig(ctx context.Context, minor, bundleHash string) (st
 		CAFile:      c.caBundlePath(),
 		MySQLSocket: mysqlSocket,
 		MySQLPort:   mysqlPort,
+		Xdebug:      xdebug,
 	})
 	if err != nil {
 		return "", err
@@ -345,7 +351,7 @@ func (c *Core) reconcile(ctx context.Context) (StartResult, error) {
 		if err != nil {
 			return StartResult{}, err
 		}
-		hash, err := c.writePHPConfig(ctx, minor, bundleHash)
+		hash, err := c.writePHPConfig(ctx, v, bundleHash)
 		if err != nil {
 			return StartResult{}, err
 		}

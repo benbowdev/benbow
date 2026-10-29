@@ -33,6 +33,8 @@ type INIConfig struct {
 	// another server on 3306.
 	MySQLSocket string
 	MySQLPort   int
+	// Xdebug is the absolute path of xdebug.so, or empty when off.
+	Xdebug string
 }
 
 var funcs = template.FuncMap{"q": func(s string) string { return `"` + s + `"` }}
@@ -79,6 +81,16 @@ mysqli.default_socket = {{q .MySQLSocket}}
 mysqli.default_port = {{.MySQLPort}}
 pdo_mysql.default_socket = {{q .MySQLSocket}}
 {{- end}}
+{{- if .Xdebug}}
+
+; Xdebug: step debugging only, started by a trigger (browser extension,
+; XDEBUG_TRIGGER cookie or parameter). The IDE listens on 127.0.0.1:9003.
+zend_extension = {{q .Xdebug}}
+xdebug.mode = debug
+xdebug.start_with_request = trigger
+xdebug.client_host = 127.0.0.1
+xdebug.client_port = 9003
+{{- end}}
 
 opcache.enable = 1
 opcache.validate_timestamps = 1
@@ -100,6 +112,11 @@ func INI(c INIConfig) (string, error) {
 	}
 	if c.MySQLPort != 0 {
 		if err := checkSafe(c.MySQLSocket); err != nil {
+			return "", err
+		}
+	}
+	if c.Xdebug != "" {
+		if err := checkSafe(c.Xdebug); err != nil {
 			return "", err
 		}
 	}

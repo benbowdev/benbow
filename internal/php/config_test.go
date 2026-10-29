@@ -39,8 +39,8 @@ func TestGolden(t *testing.T) {
 		t.Fatal(err)
 	}
 	golden(t, filepath.Join("testdata", "php.ini"), ini)
-	if strings.Contains(ini, "mysqli.") {
-		t.Error("MySQL defaults without MySQL")
+	if strings.Contains(ini, "mysqli.") || strings.Contains(ini, "xdebug") {
+		t.Error("MySQL or Xdebug settings when both are off")
 	}
 
 	ini, err = INI(INIConfig{
@@ -50,11 +50,12 @@ func TestGolden(t *testing.T) {
 		CAFile:      home + "/etc/ca-bundle.pem",
 		MySQLSocket: home + "/run/mysql.sock",
 		MySQLPort:   3307,
+		Xdebug:      home + "/bin/xdebug/3.5.3/8.4.23/xdebug.so",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	golden(t, filepath.Join("testdata", "php-mysql.ini"), ini)
+	golden(t, filepath.Join("testdata", "php-mysql-xdebug.ini"), ini)
 }
 
 func TestRejectsUnsafePaths(t *testing.T) {

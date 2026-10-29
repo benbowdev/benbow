@@ -95,3 +95,47 @@ func TestCABundleMatchesPublishedChecksum(t *testing.T) {
 		t.Fatal("no cabundle in the manifest")
 	}
 }
+
+// TestXdebugManifestMatchesRelease checks every pinned xdebug.so against the
+// SHA256SUMS published in the same getcovo/covo-binaries release.
+func TestXdebugManifestMatchesRelease(t *testing.T) {
+	m, err := components.Embedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	sums := map[string]map[string]string{} // release dir -> file -> sha256
+	n := 0
+	for _, a := range m.Artifacts {
+		if a.Component != "xdebug" {
+			continue
+		}
+		n++
+		dir, file := a.URL[:strings.LastIndex(a.URL, "/")], a.URL[strings.LastIndex(a.URL, "/")+1:]
+		if !strings.HasPrefix(dir, "https://github.com/getcovo/covo-binaries/releases/download/") {
+			t.Errorf("%s: not a covo-binaries release", a.URL)
+		}
+		if _, ok := sums[dir]; !ok {
+			resp, err := http.Get(dir + "/SHA256SUMS")
+			if err != nil {
+				t.Fatal(err)
+			}
+			body, err := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if err != nil || resp.StatusCode != http.StatusOK {
+				t.Fatalf("GET %s/SHA256SUMS: %v %s", dir, err, resp.Status)
+			}
+			sums[dir] = map[string]string{}
+			for line := range strings.SplitSeq(string(body), "\n") {
+				if f := strings.Fields(line); len(f) == 2 {
+					sums[dir][f[1]] = f[0]
+				}
+			}
+		}
+		if got := sums[dir][file]; got != a.SHA256 {
+			t.Errorf("%s: manifest %s, release %s", file, a.SHA256, got)
+		}
+	}
+	if n == 0 {
+		t.Fatal("no xdebug artifacts")
+	}
+}

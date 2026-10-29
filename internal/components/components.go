@@ -27,6 +27,7 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"time"
 
 	_ "embed"
 
@@ -57,9 +58,12 @@ type Artifact struct {
 	Component string `json:"component"`
 	Version   string `json:"version"`
 	Arch      string `json:"arch"` // GOARCH or ArchAll
-	Format    string `json:"format,omitempty"`
-	URL       string `json:"url"`
-	SHA256    string `json:"sha256"`
+	// For is the exact version of the component this one belongs to (the
+	// PHP version an xdebug.so was built for), or empty.
+	For    string `json:"for,omitempty"`
+	Format string `json:"format,omitempty"`
+	URL    string `json:"url"`
+	SHA256 string `json:"sha256"`
 	// SHA512 is the upstream-published checksum, when upstream publishes one.
 	SHA512 string `json:"sha512,omitempty"`
 	// MD5 is the upstream-published checksum when upstream publishes nothing
@@ -92,6 +96,29 @@ func Embedded() (Manifest, error) {
 // ("8.4"), in which case the newest matching version wins.
 func (m Manifest) Resolve(component, spec string) (Artifact, error) {
 	return m.resolve(component, spec, runtime.GOARCH)
+}
+
+// ResolveFor finds the newest artifact of component built for exactly
+// version forVersion of another component, for the running architecture.
+func (m Manifest) ResolveFor(component, forVersion string) (Artifact, error) {
+	return m.resolveFor(component, forVersion, runtime.GOARCH)
+}
+
+func (m Manifest) resolveFor(component, forVersion, arch string) (Artifact, error) {
+	var best *Artifact
+	for i, a := range m.Artifacts {
+		if a.Component != component || a.For != forVersion || (a.Arch != arch && a.Arch != ArchAll) {
+			continue
+		}
+		if best == nil || store.CompareVersions(a.Version, best.Version) > 0 {
+			best = &m.Artifacts[i]
+		}
+	}
+	if best == nil {
+		return Artifact{}, errcode.Errorf(errcode.NotFound,
+			fmt.Sprintf("no %s build for %s on %s", component, forVersion, arch))
+	}
+	return *best, nil
 }
 
 func (m Manifest) resolve(component, spec, arch string) (Artifact, error) {
@@ -141,8 +168,12 @@ type Installed struct {
 	Fresh bool `json:"fresh"`
 }
 
-// Dir returns where a is installed: <bin>/<component>/<version>.
+// Dir returns where a is installed: <bin>/<component>/<version>, plus
+// /<for> for an artifact built for one version of another component.
 func (in Installer) Dir(a Artifact) string {
+	if a.For != "" {
+		return filepath.Join(in.BinDir, a.Component, a.Version, a.For)
+	}
 	return filepath.Join(in.BinDir, a.Component, a.Version)
 }
 
@@ -219,9 +250,41 @@ func (in Installer) verified(dir string, a Artifact) bool {
 	return true
 }
 
-// download fetches a into a temp file and verifies its checksums. The file
-// is deleted on any error.
-func (in Installer) download(ctx context.Context, a Artifact) (path string, err error) {
+// downloadAttempts and retryDelay bound retries of transient failures
+// (network errors, HTTP 5xx). A checksum mismatch is never retried.
+const downloadAttempts = 3
+
+var retryDelay = 2 * time.Second
+
+// download fetches a, retrying transient failures.
+func (in Installer) download(ctx context.Context, a Artifact) (string, error) {
+	for attempt := 1; ; attempt++ {
+		path, err := in.downloadOnce(ctx, a)
+		if err == nil {
+			return path, nil
+		}
+		if attempt == downloadAttempts || !errors.Is(err, errTransient) {
+			return "", err
+		}
+		select {
+		case <-ctx.Done():
+			return "", errcode.New(errcode.Download, fmt.Errorf("download %s: %w", a.URL, ctx.Err()))
+		case <-time.After(time.Duration(attempt) * retryDelay):
+		}
+	}
+}
+
+// errTransient marks failures worth retrying.
+var errTransient = errors.New("transient")
+
+type transientError struct{ err error }
+
+func (e transientError) Error() string   { return e.err.Error() }
+func (e transientError) Unwrap() []error { return []error{e.err, errTransient} }
+
+// downloadOnce fetches a into a temp file and verifies its checksums. The
+// file is deleted on any error.
+func (in Installer) downloadOnce(ctx context.Context, a Artifact) (path string, err error) {
 	client := in.Client
 	if client == nil {
 		client = http.DefaultClient
@@ -232,11 +295,15 @@ func (in Installer) download(ctx context.Context, a Artifact) (path string, err 
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", errcode.New(errcode.Download, fmt.Errorf("download %s: %w", a.URL, err))
+		return "", errcode.New(errcode.Download, transientError{fmt.Errorf("download %s: %w", a.URL, err)})
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return "", errcode.Errorf(errcode.Download, fmt.Sprintf("download %s: HTTP %d", a.URL, resp.StatusCode))
+		err := fmt.Errorf("download %s: HTTP %d", a.URL, resp.StatusCode)
+		if resp.StatusCode >= 500 {
+			err = transientError{err}
+		}
+		return "", errcode.New(errcode.Download, err)
 	}
 
 	f, err := os.CreateTemp(in.TmpDir, "download-")
@@ -252,7 +319,7 @@ func (in Installer) download(ctx context.Context, a Artifact) (path string, err 
 
 	h256, h512, hmd5 := sha256.New(), sha512.New(), md5.New() //nolint:gosec // see import
 	if _, err := io.Copy(io.MultiWriter(f, h256, h512, hmd5), resp.Body); err != nil {
-		return "", errcode.New(errcode.Download, fmt.Errorf("download %s: %w", a.URL, err))
+		return "", errcode.New(errcode.Download, transientError{fmt.Errorf("download %s: %w", a.URL, err)})
 	}
 	if err := checkSum("sha256", h256, a.SHA256, a.URL); err != nil {
 		return "", err

@@ -18,7 +18,7 @@ func (a *app) phpCmd() *cobra.Command {
 		Use:   "php",
 		Short: "Manage PHP versions",
 	}
-	cmd.AddCommand(a.phpInstallCmd(), a.phpListCmd())
+	cmd.AddCommand(a.phpInstallCmd(), a.phpListCmd(), a.phpXdebugCmd())
 	return cmd
 }
 
@@ -66,4 +66,66 @@ func (a *app) phpListCmd() *cobra.Command {
 			return phpListResult(res), err
 		}),
 	}
+}
+
+type xdebugListResult []core.XdebugStatus
+
+func (r xdebugListResult) Text(w io.Writer) {
+	if len(r) == 0 {
+		fmt.Fprintln(w, "No PHP versions installed.")
+	}
+	for _, x := range r {
+		writeXdebug(w, x)
+	}
+}
+
+func writeXdebug(w io.Writer, x core.XdebugStatus) {
+	switch {
+	case !x.Available:
+		fmt.Fprintf(w, "PHP %-6s Xdebug not available for PHP %s\n", x.PHP, x.PHPVersion)
+	case x.Enabled:
+		fmt.Fprintf(w, "PHP %-6s Xdebug %s on (mode debug, trigger, IDE on 127.0.0.1:9003)\n", x.PHP, x.Version)
+	default:
+		fmt.Fprintf(w, "PHP %-6s Xdebug %s off\n", x.PHP, x.Version)
+	}
+}
+
+type xdebugResult core.XdebugResult
+
+func (r xdebugResult) Text(w io.Writer) {
+	writeXdebug(w, r.XdebugStatus)
+	if r.Changed && !r.Applied {
+		fmt.Fprintln(w, "Covo is not running: PHP picks this up with `covo start`.")
+	}
+}
+
+func (a *app) phpXdebugCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "xdebug",
+		Short: "Show or toggle Xdebug per PHP version",
+		Long: `Xdebug runs in step-debugging mode and only starts when triggered (browser
+extension, or an XDEBUG_TRIGGER cookie or parameter). Your IDE listens on
+127.0.0.1:9003. Turning it on or off restarts that PHP version.`,
+		Args: cobra.NoArgs,
+		RunE: a.withCore(func(ctx context.Context, c *core.Core, _ []string) (Result, error) {
+			res, err := c.Xdebug(ctx)
+			return xdebugListResult(res), err
+		}),
+	}
+	for _, on := range []bool{true, false} {
+		use, short := "on <version>", "Turn Xdebug on for a PHP version (e.g. 8.4)"
+		if !on {
+			use, short = "off <version>", "Turn Xdebug off for a PHP version"
+		}
+		cmd.AddCommand(&cobra.Command{
+			Use:   use,
+			Short: short,
+			Args:  cobra.ExactArgs(1),
+			RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
+				res, err := c.SetXdebug(ctx, args[0], on)
+				return xdebugResult(res), err
+			}),
+		})
+	}
+	return cmd
 }

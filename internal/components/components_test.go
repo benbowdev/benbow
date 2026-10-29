@@ -16,9 +16,11 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/getcovo/covo/internal/errcode"
 )
@@ -285,6 +287,49 @@ func assertEmptyTmp(t *testing.T, dir string) {
 	}
 }
 
+func TestDownloadRetries(t *testing.T) {
+	retryDelay = time.Millisecond
+	good := tarGz(t, entry{name: "php-fpm", body: "fpm"})
+	tests := []struct {
+		name     string
+		fail     int // first n requests fail with status
+		status   int
+		sha      string
+		wantHits int32
+		wantOK   bool
+	}{
+		{"503 then ok", 1, http.StatusServiceUnavailable, sum256(good), 2, true},
+		{"cut body then ok", 2, -1, sum256(good), 3, true},
+		{"always 502", 99, http.StatusBadGateway, sum256(good), downloadAttempts, false},
+		{"404 is final", 99, http.StatusNotFound, sum256(good), 1, false},
+		{"checksum is final", 0, 0, sum256([]byte("other")), 1, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var hits atomic.Int32
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				if int(hits.Add(1)) <= tt.fail {
+					if tt.status == -1 { // promise more than is sent
+						w.Header().Set("Content-Length", strconv.Itoa(len(good)))
+						_, _ = w.Write(good[:10])
+						return
+					}
+					w.WriteHeader(tt.status)
+					return
+				}
+				_, _ = w.Write(good)
+			}))
+			defer srv.Close()
+			in := newInstaller(t)
+			_, err := in.Install(context.Background(), Artifact{Component: "php", Version: "1", URL: srv.URL, SHA256: tt.sha, Files: []string{"php-fpm"}})
+			if (err == nil) != tt.wantOK || hits.Load() != tt.wantHits {
+				t.Fatalf("err = %v, hits = %d, want ok=%v hits=%d", err, hits.Load(), tt.wantOK, tt.wantHits)
+			}
+			assertEmptyTmp(t, in.TmpDir)
+		})
+	}
+}
+
 func TestResolve(t *testing.T) {
 	m := Manifest{Artifacts: []Artifact{
 		{Component: "php", Version: "8.4.2", Arch: "arm64"},
@@ -320,6 +365,32 @@ func TestResolve(t *testing.T) {
 	}
 }
 
+func TestResolveFor(t *testing.T) {
+	m := Manifest{Artifacts: []Artifact{
+		{Component: "xdebug", Version: "3.5.2", Arch: "arm64", For: "8.4.23"},
+		{Component: "xdebug", Version: "3.5.3", Arch: "arm64", For: "8.4.23"},
+		{Component: "xdebug", Version: "3.5.3", Arch: "arm64", For: "8.2.32"},
+		{Component: "xdebug", Version: "3.5.3", Arch: "amd64", For: "8.4.22"},
+	}}
+	got, err := m.resolveFor("xdebug", "8.4.23", "arm64")
+	if err != nil || got.Version != "3.5.3" || got.For != "8.4.23" {
+		t.Fatalf("got %+v, %v", got, err)
+	}
+	// Only the exact PHP version: never a build for another patch release.
+	for _, v := range []string{"8.4.22", "8.4", "8.4.24"} {
+		if _, err := m.resolveFor("xdebug", v, "arm64"); errcode.Code(err) != errcode.NotFound {
+			t.Errorf("%s: err = %v", v, err)
+		}
+	}
+	in := Installer{BinDir: "/b"}
+	if d := in.Dir(got); d != "/b/xdebug/3.5.3/8.4.23" {
+		t.Errorf("Dir = %s", d)
+	}
+	if d := in.Dir(Artifact{Component: "php", Version: "8.4.23"}); d != "/b/php/8.4.23" {
+		t.Errorf("Dir = %s", d)
+	}
+}
+
 func TestEmbeddedManifest(t *testing.T) {
 	m, err := Embedded()
 	if err != nil {
@@ -339,6 +410,15 @@ func TestEmbeddedManifest(t *testing.T) {
 	}
 	if _, err := m.resolve("cabundle", "", "arm64"); err != nil {
 		t.Errorf("cabundle: %v", err)
+	}
+	for _, x := range m.Artifacts {
+		if x.Component != "xdebug" {
+			continue
+		}
+		php, err := m.resolve("php", x.For, x.Arch)
+		if err != nil || php.Version != x.For || x.Format != FormatFile {
+			t.Errorf("xdebug %s is for PHP %q, which is not pinned exactly (%v), or is not a plain file", x.Version, x.For, err)
+		}
 	}
 	for _, spec := range []string{"8.4", "8.2"} {
 		for _, arch := range []string{"arm64", "amd64"} {
