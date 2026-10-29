@@ -1,0 +1,36 @@
+{
+  "artifacts": [
+    {
+      "component": "php",
+      "version": "8.4.23",
+      "arch": "arm64",
+      "url": "https://dl.static-php.dev/static-php-cli/bulk/php-8.4.23-fpm-macos-aarch64.tar.gz",
+      "sha256": "1a417db44f0eb0b40a9f8cd862f24ecfabdea87f85863f30d218c4876bb688ef",
+      "files": ["php-fpm"]
+    },
+    {
+      "component": "php",
+      "version": "8.4.23",
+      "arch": "amd64",
+      "url": "https://dl.static-php.dev/static-php-cli/bulk/php-8.4.23-fpm-macos-x86_64.tar.gz",
+      "sha256": "67bbb7f2b2543d45c8a4ab0e4759fbd956530e87fba47a00505c06f09c9b9950",
+      "files": ["php-fpm"]
+    },
+    {
+      "component": "php",
+      "version": "8.2.32",
+      "arch": "arm64",
+      "url": "https://dl.static-php.dev/static-php-cli/bulk/php-8.2.32-fpm-macos-aarch64.tar.gz",
+      "sha256": "dadddf9b6528f7344ba1f4cdc220bc7e26d2c8402d018f743fe0316d06e4ba77",
+      "files": ["php-fpm"]
+    },
+    {
+      "component": "php",
+      "version": "8.2.32",
+      "arch": "amd64",
+      "url": "https://dl.static-php.dev/static-php-cli/bulk/php-8.2.32-fpm-macos-x86_64.tar.gz",
+      "sha256": "7d7f21caa31670fa7198bd21fd5fb6178ecedf2a8b90ef59b2af539587fa0dd7",
+      "files": ["php-fpm"]
+    }
+  ]
+}

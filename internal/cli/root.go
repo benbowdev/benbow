@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/getcovo/covo/internal/core"
 	"github.com/getcovo/covo/internal/errcode"
 	"github.com/spf13/cobra"
 )
@@ -52,7 +53,7 @@ func (a *app) rootCmd() *cobra.Command {
 		SilenceErrors: true,
 	}
 	root.PersistentFlags().BoolVar(&a.json, "json", false, "output JSON with a stable schema")
-	root.AddCommand(a.versionCmd())
+	root.AddCommand(a.versionCmd(), a.phpCmd())
 	return root
 }
 
@@ -78,6 +79,18 @@ func (a *app) run(fn func(ctx context.Context, args []string) (Result, error)) f
 		}
 		return writeResult(a.stdout, a.json, r)
 	}
+}
+
+// withCore is run for commands that need the core.
+func (a *app) withCore(fn func(ctx context.Context, c *core.Core, args []string) (Result, error)) func(*cobra.Command, []string) error {
+	return a.run(func(ctx context.Context, args []string) (Result, error) {
+		c, err := core.Open(ctx)
+		if err != nil {
+			return nil, err
+		}
+		defer func() { _ = c.Close() }()
+		return fn(ctx, c, args)
+	})
 }
 
 // Main is the entrypoint used by cmd/covo.
