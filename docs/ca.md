@@ -52,4 +52,16 @@ Automated (`go test ./internal/ca/`, `go test -tags integration ./test/e2e/`):
   and curl, verification on; with Mozilla's roots alone the same request fails
   (`unable to get local issuer certificate`).
 
-Browsers: see below.
+Browsers (2026-10-29, macOS 26.2, CA trusted in the login keychain with
+`covo trust`). A test server on loopback presented a certificate for
+`covo-nc.localtest.me` and `127.0.0.1` (`localtest.me` is a public name that
+resolves to loopback) signed by Covo's real intermediate:
+
+| Browser | `demo.localhost:8443` | `covo-nc.localtest.me` | `127.0.0.1` |
+|---|---|---|---|
+| Safari | no warning | refused | refused |
+| Chrome | no warning | refused | refused |
+| Firefox | no warning | refused (`SEC_ERROR_CERT_NOT_IN_NAME_SPACE`) | refused |
+
+All three enforce the name constraints of a user-trusted root; even a stolen
+intermediate key cannot be used against real websites.
