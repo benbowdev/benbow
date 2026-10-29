@@ -1,0 +1,532 @@
+package core
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"net"
+	"os"
+	"path/filepath"
+	"slices"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/getcovo/covo/internal/caddy"
+	"github.com/getcovo/covo/internal/errcode"
+	"github.com/getcovo/covo/internal/fsutil"
+	"github.com/getcovo/covo/internal/launchd"
+	"github.com/getcovo/covo/internal/php"
+	"github.com/getcovo/covo/internal/ports"
+	"github.com/getcovo/covo/internal/store"
+)
+
+const (
+	// EnvHTTPSPort sets the first HTTPS port tried when none is stored yet.
+	EnvHTTPSPort     = "COVO_HTTPS_PORT"
+	defaultHTTPSPort = 8443
+	portSearchSpan   = 100
+
+	settingHTTPSPort = "https_port"
+	settingRunning   = "running"
+
+	maxLogSize   = 10 << 20
+	readyTimeout = 15 * time.Second
+)
+
+// Service names reported by status.
+const caddyService = "caddy"
+
+func phpService(minor string) string { return "php-" + minor }
+
+// labelFor returns the launchd label of a service.
+func (c *Core) labelFor(service string) string {
+	return c.launchctl.Prefix + "." + strings.ReplaceAll(strings.ReplaceAll(service, "-", ""), ".", "")
+}
+
+func socketName(minor string) string { return "php" + strings.ReplaceAll(minor, ".", "") + ".sock" }
+
+// httpsPort returns the stored HTTPS port, assigning one on first use: the
+// first free port from 8443 (or $COVO_HTTPS_PORT) upward. Once stored it never
+// changes on its own, so site URLs stay stable.
+func (c *Core) httpsPort(ctx context.Context) (port int, assigned bool, err error) {
+	v, ok, err := c.Store.Setting(ctx, settingHTTPSPort)
+	if err != nil {
+		return 0, false, err
+	}
+	if ok {
+		port, err := strconv.Atoi(v)
+		if err != nil {
+			return 0, false, fmt.Errorf("bad stored https_port %q: %w", v, err)
+		}
+		return port, false, nil
+	}
+	from := defaultHTTPSPort
+	if env := os.Getenv(EnvHTTPSPort); env != "" {
+		if from, err = strconv.Atoi(env); err != nil {
+			return 0, false, errcode.New(errcode.InvalidInput, fmt.Errorf("%s: %w", EnvHTTPSPort, err))
+		}
+	}
+	port, err = ports.FirstFree(from, portSearchSpan)
+	if err != nil {
+		return 0, false, err
+	}
+	if err := c.Store.SetSetting(ctx, settingHTTPSPort, strconv.Itoa(port)); err != nil {
+		return 0, false, err
+	}
+	return port, true, nil
+}
+
+// checkPort fails if port is taken by anything but Covo's own Caddy.
+func (c *Core) checkPort(ctx context.Context, port int) error {
+	if ports.Free(port) {
+		return nil
+	}
+	owners := ports.Owners(ctx, port)
+	loaded, err := c.launchctl.List(ctx)
+	if err != nil {
+		return err
+	}
+	if st, ok := loaded[c.labelFor(caddyService)]; ok && st.Running {
+		for _, o := range owners {
+			if o.PID == st.PID {
+				return nil
+			}
+		}
+	}
+	msg := fmt.Sprintf("port %d is in use by %s", port, ports.Describe(owners))
+	if alt, err := ports.FirstFree(port+1, portSearchSpan); err == nil {
+		msg += fmt.Sprintf("; run `covo start --https-port %d` to use a free port", alt)
+	}
+	return errcode.Errorf(errcode.PortInUse, msg)
+}
+
+// setHTTPSPort changes the HTTPS port. It must be free.
+func (c *Core) setHTTPSPort(ctx context.Context, port int) error {
+	if port < 1024 || port > 65535 {
+		return errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("HTTPS port must be between 1024 and 65535, got %d", port))
+	}
+	cur, _, err := c.httpsPort(ctx)
+	if err != nil {
+		return err
+	}
+	if cur == port {
+		return nil
+	}
+	if !ports.Free(port) {
+		return errcode.Errorf(errcode.PortInUse,
+			fmt.Sprintf("port %d is in use by %s", port, ports.Describe(ports.Owners(ctx, port))))
+	}
+	return c.Store.SetSetting(ctx, settingHTTPSPort, strconv.Itoa(port))
+}
+
+func (c *Core) caddyBinary(inst CaddyInstall) caddy.Binary {
+	return caddy.Binary{Path: inst.Binary, DataDir: c.Layout.Data}
+}
+
+func (c *Core) caddyfilePath() string { return filepath.Join(c.Layout.Etc, "caddy", "Caddyfile") }
+
+// CACertPath is where Caddy keeps the local root certificate.
+func (c *Core) CACertPath() string {
+	return filepath.Join(c.Layout.Data, "caddy", "pki", "authorities", "local", "root.crt")
+}
+
+func (c *Core) renderCaddyfile(port int, sites []store.Site) (string, error) {
+	cfg := caddy.Config{
+		AdminSocket: c.Layout.Socket("caddy-admin.sock"),
+		HTTPSPort:   port,
+		StorageDir:  filepath.Join(c.Layout.Data, "caddy"),
+		LogFile:     filepath.Join(c.Layout.Logs, "caddy.log"),
+	}
+	for _, s := range sites {
+		cfg.Sites = append(cfg.Sites, caddy.Site{
+			Name:      s.Name,
+			Domain:    s.Domain,
+			Root:      s.Path,
+			FPMSocket: c.Layout.Socket(socketName(s.PHPMinor)),
+		})
+	}
+	return caddy.Caddyfile(cfg)
+}
+
+// writeCaddyfile validates and installs a new Caddyfile. If Caddy is running
+// the config is reloaded; if the reload fails the previous file is restored.
+func (c *Core) writeCaddyfile(ctx context.Context, bin caddy.Binary, body string, running bool) error {
+	path := c.caddyfilePath()
+	candidate := path + ".new"
+	if _, err := fsutil.WriteAtomic(candidate, []byte(body), 0o644); err != nil {
+		return err
+	}
+	defer os.Remove(candidate)
+	if err := bin.Validate(ctx, candidate); err != nil {
+		return err
+	}
+	prev, err := os.ReadFile(path)
+	hadPrev := err == nil
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("read %s: %w", path, err)
+	}
+	changed, err := fsutil.WriteAtomic(path, []byte(body), 0o644)
+	if err != nil {
+		return err
+	}
+	if !changed || !running {
+		return nil
+	}
+	if err := bin.Reload(ctx, path, c.Layout.Socket("caddy-admin.sock")); err != nil {
+		if hadPrev {
+			_, _ = fsutil.WriteAtomic(path, prev, 0o644)
+		} else {
+			_ = os.Remove(path)
+		}
+		return err
+	}
+	return nil
+}
+
+// writePHPConfig writes php-fpm.conf and php.ini for minor and returns a hash
+// of both, which goes into the agent so a config change restarts FPM.
+func (c *Core) writePHPConfig(minor string) (string, error) {
+	dir := filepath.Join(c.Layout.Etc, "php", minor)
+	sessions := filepath.Join(c.Layout.Data, "php", minor, "sessions")
+	if err := os.MkdirAll(sessions, 0o700); err != nil {
+		return "", fmt.Errorf("create %s: %w", sessions, err)
+	}
+	fpm, err := php.FPMConf(php.FPMConfig{
+		Minor:    minor,
+		Socket:   c.Layout.Socket(socketName(minor)),
+		PIDFile:  c.Layout.Socket(strings.TrimSuffix(socketName(minor), ".sock") + ".pid"),
+		ErrorLog: filepath.Join(c.Layout.Logs, "php-"+minor+"-fpm.log"),
+	})
+	if err != nil {
+		return "", err
+	}
+	ini, err := php.INI(php.INIConfig{
+		ErrorLog:   filepath.Join(c.Layout.Logs, "php-"+minor+"-error.log"),
+		SessionDir: sessions,
+		Timezone:   localTimezone(),
+	})
+	if err != nil {
+		return "", err
+	}
+	if _, err := fsutil.WriteAtomic(filepath.Join(dir, "php-fpm.conf"), []byte(fpm), 0o644); err != nil {
+		return "", err
+	}
+	if _, err := fsutil.WriteAtomic(filepath.Join(dir, "php.ini"), []byte(ini), 0o644); err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256([]byte(fpm + "\x00" + ini))
+	return hex.EncodeToString(sum[:8]), nil
+}
+
+func (c *Core) logPaths(service string) (string, string) {
+	return filepath.Join(c.Layout.Logs, service+".out.log"), filepath.Join(c.Layout.Logs, service+".err.log")
+}
+
+func (c *Core) caddyAgent(bin caddy.Binary) launchd.Agent {
+	out, errLog := c.logPaths(caddyService)
+	return launchd.Agent{
+		Label:     c.labelFor(caddyService),
+		Program:   bin.Path,
+		Args:      []string{"run", "--config", c.caddyfilePath(), "--adapter", "caddyfile"},
+		Env:       bin.Env(),
+		WorkDir:   c.Layout.Root,
+		StdoutLog: out,
+		StderrLog: errLog,
+	}
+}
+
+func (c *Core) phpAgent(v store.PHPVersion, configHash string) launchd.Agent {
+	dir := filepath.Join(c.Layout.Etc, "php", v.Minor)
+	out, errLog := c.logPaths(phpService(v.Minor))
+	return launchd.Agent{
+		Label:   c.labelFor(phpService(v.Minor)),
+		Program: filepath.Join(v.Path, "php-fpm"),
+		Args:    []string{"--nodaemonize", "-c", filepath.Join(dir, "php.ini"), "--fpm-config", filepath.Join(dir, "php-fpm.conf")},
+		// Not read by FPM: a changed value changes the plist, which makes
+		// launchd.Apply restart the agent after a config change.
+		Env:       map[string]string{"COVO_CONFIG_HASH": configHash},
+		WorkDir:   c.Layout.Root,
+		StdoutLog: out,
+		StderrLog: errLog,
+	}
+}
+
+// StartResult reports what start did.
+type StartResult struct {
+	HTTPSPort    int              `json:"https_port"`
+	PortAssigned bool             `json:"port_assigned"`
+	Changes      []launchd.Change `json:"changes"`
+	Status
+}
+
+// Start installs whatever is missing, writes configs and makes the launchd
+// agents match the configured sites. Running it again is a no-op.
+// httpsPort, if non-zero, changes the HTTPS port first.
+func (c *Core) Start(ctx context.Context, httpsPort int) (StartResult, error) {
+	var res StartResult
+	err := c.locked(ctx, func() error {
+		if httpsPort != 0 {
+			if err := c.setHTTPSPort(ctx, httpsPort); err != nil {
+				return err
+			}
+		}
+		if err := c.Store.SetSetting(ctx, settingRunning, "1"); err != nil {
+			return err
+		}
+		var err error
+		res, err = c.reconcile(ctx)
+		return err
+	})
+	if err != nil {
+		return res, err
+	}
+	res.Status, err = c.Status(ctx)
+	return res, err
+}
+
+// reconcile brings services in line with the stored sites. Callers hold the lock.
+func (c *Core) reconcile(ctx context.Context) (StartResult, error) {
+	port, assigned, err := c.httpsPort(ctx)
+	if err != nil {
+		return StartResult{}, err
+	}
+	if err := c.checkPort(ctx, port); err != nil {
+		return StartResult{}, err
+	}
+	sites, err := c.Store.ListSites(ctx)
+	if err != nil {
+		return StartResult{}, err
+	}
+	caddyInst, err := c.ensureCaddy(ctx)
+	if err != nil {
+		return StartResult{}, err
+	}
+	bin := c.caddyBinary(caddyInst)
+
+	var agents []launchd.Agent
+	var minors []string
+	for _, s := range sites {
+		if !slices.Contains(minors, s.PHPMinor) {
+			minors = append(minors, s.PHPMinor)
+		}
+	}
+	slices.Sort(minors)
+	for _, minor := range minors {
+		v, err := c.ensurePHP(ctx, minor)
+		if err != nil {
+			return StartResult{}, err
+		}
+		hash, err := c.writePHPConfig(minor)
+		if err != nil {
+			return StartResult{}, err
+		}
+		agents = append(agents, c.phpAgent(v, hash))
+	}
+
+	body, err := c.renderCaddyfile(port, sites)
+	if err != nil {
+		return StartResult{}, err
+	}
+	loaded, err := c.launchctl.List(ctx)
+	if err != nil {
+		return StartResult{}, err
+	}
+	caddyRunning := loaded[c.labelFor(caddyService)].Running
+	if err := c.writeCaddyfile(ctx, bin, body, caddyRunning); err != nil {
+		return StartResult{}, err
+	}
+	agents = append([]launchd.Agent{c.caddyAgent(bin)}, agents...)
+
+	c.rotateLogs()
+	changes, err := c.launchctl.Apply(ctx, c.Layout.Launchd, agents)
+	if err != nil {
+		return StartResult{}, err
+	}
+	if err := c.waitReady(ctx, minors, port, len(sites) > 0); err != nil {
+		return StartResult{}, err
+	}
+	return StartResult{HTTPSPort: port, PortAssigned: assigned, Changes: changes}, nil
+}
+
+// waitReady waits until every socket accepts connections.
+func (c *Core) waitReady(ctx context.Context, minors []string, port int, expectHTTPS bool) error {
+	type check struct {
+		service, network, addr string
+	}
+	checks := []check{{caddyService, "unix", c.Layout.Socket("caddy-admin.sock")}}
+	for _, m := range minors {
+		checks = append(checks, check{phpService(m), "unix", c.Layout.Socket(socketName(m))})
+	}
+	if expectHTTPS {
+		checks = append(checks, check{caddyService, "tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(port))})
+	}
+	deadline := time.Now().Add(readyTimeout)
+	for _, ch := range checks {
+		for {
+			conn, err := (&net.Dialer{Timeout: time.Second}).DialContext(ctx, ch.network, ch.addr)
+			if err == nil {
+				_ = conn.Close()
+				break
+			}
+			if time.Now().After(deadline) {
+				_, errLog := c.logPaths(ch.service)
+				return errcode.Errorf(errcode.Service, fmt.Sprintf("%s did not become ready on %s: %v\n%s",
+					ch.service, ch.addr, err, tail(errLog, 10)))
+			}
+			select {
+			case <-ctx.Done():
+				return fmt.Errorf("wait for %s: %w", ch.service, ctx.Err())
+			case <-time.After(100 * time.Millisecond):
+			}
+		}
+	}
+	return nil
+}
+
+// StopResult reports what stop did.
+type StopResult struct {
+	Changes []launchd.Change `json:"changes"`
+}
+
+// Stop boots out every Covo agent. Running it again is a no-op.
+func (c *Core) Stop(ctx context.Context) (StopResult, error) {
+	var res StopResult
+	err := c.locked(ctx, func() error {
+		if err := c.Store.DeleteSetting(ctx, settingRunning); err != nil {
+			return err
+		}
+		changes, err := c.launchctl.StopAll(ctx)
+		res.Changes = changes
+		return err
+	})
+	return res, err
+}
+
+// ServiceStatus is one service's state.
+type ServiceStatus struct {
+	Name    string `json:"name"`
+	Label   string `json:"label"`
+	Running bool   `json:"running"`
+	PID     int    `json:"pid,omitempty"`
+}
+
+// SiteStatus is a site as shown by status.
+type SiteStatus struct {
+	store.Site
+	URL string `json:"url"`
+}
+
+// CAStatus describes the local certificate authority.
+type CAStatus struct {
+	CertPath string `json:"cert_path"`
+	Exists   bool   `json:"exists"`
+}
+
+// Status is the overall state of Covo.
+type Status struct {
+	Running   bool            `json:"running"`
+	HTTPSPort int             `json:"https_port,omitempty"`
+	Home      string          `json:"home"`
+	Services  []ServiceStatus `json:"services"`
+	Sites     []SiteStatus    `json:"sites"`
+	CA        CAStatus        `json:"ca"`
+	// Orphans are loaded Covo agents that no site needs any more.
+	Orphans []string `json:"orphans,omitempty"`
+}
+
+// Status reports services, sites and the CA. It changes nothing.
+func (c *Core) Status(ctx context.Context) (Status, error) {
+	sites, err := c.Store.ListSites(ctx)
+	if err != nil {
+		return Status{}, err
+	}
+	loaded, err := c.launchctl.List(ctx)
+	if err != nil {
+		return Status{}, err
+	}
+	st := Status{Home: c.Layout.Root, Services: []ServiceStatus{}, Sites: []SiteStatus{}}
+	if v, ok, err := c.Store.Setting(ctx, settingHTTPSPort); err == nil && ok {
+		st.HTTPSPort, _ = strconv.Atoi(v)
+	}
+	services := []string{caddyService}
+	for _, s := range sites {
+		if svc := phpService(s.PHPMinor); !slices.Contains(services, svc) {
+			services = append(services, svc)
+		}
+		st.Sites = append(st.Sites, SiteStatus{Site: s, URL: siteURL(s, st.HTTPSPort)})
+	}
+	slices.Sort(services[1:])
+	st.Running = true
+	expected := map[string]bool{}
+	for _, svc := range services {
+		label := c.labelFor(svc)
+		expected[label] = true
+		ls := loaded[label]
+		st.Services = append(st.Services, ServiceStatus{Name: svc, Label: label, Running: ls.Running, PID: ls.PID})
+		st.Running = st.Running && ls.Running
+	}
+	for label := range loaded {
+		if !expected[label] {
+			st.Orphans = append(st.Orphans, label)
+		}
+	}
+	slices.Sort(st.Orphans)
+	st.CA.CertPath = c.CACertPath()
+	_, err = os.Stat(st.CA.CertPath)
+	st.CA.Exists = err == nil
+	return st, nil
+}
+
+func siteURL(s store.Site, port int) string {
+	if port == 0 {
+		port = defaultHTTPSPort
+	}
+	return "https://" + s.Domain + ":" + strconv.Itoa(port)
+}
+
+// rotateLogs keeps launchd stdout/stderr and PHP logs bounded: any log over
+// maxLogSize is moved to <name>.1, replacing the previous one. Caddy rolls its
+// own log. A process that keeps running keeps writing to the renamed file
+// until its next restart. Errors are ignored: logs must never block a start.
+func (c *Core) rotateLogs() {
+	entries, err := os.ReadDir(c.Layout.Logs)
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".log") || e.Name() == "caddy.log" {
+			continue
+		}
+		if info, err := e.Info(); err == nil && info.Size() > maxLogSize {
+			p := filepath.Join(c.Layout.Logs, e.Name())
+			_ = os.Rename(p, p+".1")
+		}
+	}
+}
+
+// tail returns the last n lines of a file, or "" if unreadable.
+func tail(path string, n int) string {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	lines := strings.Split(strings.TrimRight(string(b), "\n"), "\n")
+	if len(lines) > n {
+		lines = lines[len(lines)-n:]
+	}
+	return strings.Join(lines, "\n")
+}
+
+// localTimezone returns the system IANA zone (e.g. Europe/Rome) for php.ini.
+func localTimezone() string {
+	target, err := os.Readlink("/etc/localtime")
+	if err == nil {
+		if _, zone, ok := strings.Cut(target, "zoneinfo/"); ok && zone != "" {
+			return zone
+		}
+	}
+	return "UTC"
+}

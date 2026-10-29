@@ -1,0 +1,89 @@
+// Package ports checks that TCP ports are free before Covo binds them.
+package ports
+
+import (
+	"context"
+	"fmt"
+	"net"
+	"os/exec"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/getcovo/covo/internal/errcode"
+)
+
+// Free reports whether port can be bound on both loopback addresses, which
+// is where Covo listens.
+func Free(port int) bool {
+	for _, host := range []string{"127.0.0.1", "::1"} {
+		l, err := net.Listen("tcp", net.JoinHostPort(host, strconv.Itoa(port)))
+		if err != nil {
+			return false
+		}
+		_ = l.Close()
+	}
+	return true
+}
+
+// FirstFree returns the first free port in [from, from+span).
+func FirstFree(from, span int) (int, error) {
+	for p := from; p < from+span && p <= 65535; p++ {
+		if Free(p) {
+			return p, nil
+		}
+	}
+	return 0, errcode.Errorf(errcode.PortInUse, fmt.Sprintf("no free port between %d and %d", from, from+span-1))
+}
+
+// Listener is a process listening on a port.
+type Listener struct {
+	PID     int    `json:"pid"`
+	Command string `json:"command"`
+}
+
+// Owners returns the processes listening on port, as far as lsof can see
+// (processes of other users may be invisible). Errors yield an empty list.
+func Owners(ctx context.Context, port int) []Listener {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	out, _ := exec.CommandContext(ctx, "/usr/sbin/lsof", "-nP", "-iTCP:"+strconv.Itoa(port), "-sTCP:LISTEN", "-Fpc").Output()
+	return parseLsof(string(out))
+}
+
+// parseLsof parses lsof -F pc output: "p<pid>" then "c<command>" lines.
+func parseLsof(out string) []Listener {
+	var res []Listener
+	seen := map[int]bool{}
+	var cur Listener
+	for line := range strings.Lines(out) {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		switch line[0] {
+		case 'p':
+			cur = Listener{}
+			cur.PID, _ = strconv.Atoi(line[1:])
+		case 'c':
+			cur.Command = line[1:]
+			if !seen[cur.PID] {
+				seen[cur.PID] = true
+				res = append(res, cur)
+			}
+		}
+	}
+	return res
+}
+
+// Describe formats listeners for an error message.
+func Describe(ls []Listener) string {
+	if len(ls) == 0 {
+		return "another process"
+	}
+	parts := make([]string, len(ls))
+	for i, l := range ls {
+		parts[i] = fmt.Sprintf("%s (pid %d)", l.Command, l.PID)
+	}
+	return strings.Join(parts, ", ")
+}

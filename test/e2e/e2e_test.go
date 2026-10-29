@@ -68,7 +68,14 @@ func newHarness(t *testing.T) *harness {
 		"COVO_LABEL_PREFIX=dev.getcovo.test-"+hex.EncodeToString(suffix),
 		"COVO_HTTPS_PORT="+strconv.Itoa(h.port),
 	)
-	t.Cleanup(func() { h.covo("uninstall", "--yes") })
+	t.Cleanup(func() {
+		h.covo("stop")
+		h.covo("uninstall", "--yes")
+		// Safety net: never leave a test agent loaded, whatever covo did.
+		for _, label := range h.loadedLabels() {
+			_ = exec.Command("/bin/launchctl", "bootout", "gui/"+strconv.Itoa(os.Getuid())+"/"+label).Run()
+		}
+	})
 	return h
 }
 
