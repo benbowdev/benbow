@@ -76,6 +76,7 @@ func TestTestDomains(t *testing.T) {
 		Services []struct {
 			Name    string `json:"name"`
 			Running bool   `json:"running"`
+			PID     int    `json:"pid"`
 		} `json:"services"`
 		Sites []struct {
 			URL string `json:"url"`
@@ -87,12 +88,13 @@ func TestTestDomains(t *testing.T) {
 	if err := json.Unmarshal(h.mustCovo("status"), &status); err != nil {
 		t.Fatal(err)
 	}
-	if i := slices.IndexFunc(status.Services, func(s struct {
-		Name    string `json:"name"`
-		Running bool   `json:"running"`
-	}) bool {
-		return s.Name == "dns"
-	}); i < 0 || !status.Services[i].Running {
+	dnsPID := 0
+	for _, svc := range status.Services {
+		if svc.Name == "dns" && svc.Running {
+			dnsPID = svc.PID
+		}
+	}
+	if dnsPID == 0 {
 		t.Fatalf("dns service not running: %+v", status.Services)
 	}
 	wantURL := "https://demo.covo.test:" + strconv.Itoa(h.port)
@@ -115,8 +117,14 @@ func TestTestDomains(t *testing.T) {
 	if ips, err := r.LookupHost(ctx, "example.com"); err == nil {
 		t.Fatalf("example.com resolved to %v", ips)
 	}
-	out, _ := exec.Command("/usr/sbin/lsof", "-nP", "-a", "-i:"+strconv.Itoa(enabled.DNSPort)).Output()
-	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n")[1:] {
+	// Every socket of the DNS process (not of whatever else uses the same
+	// port number as a local port) is on 127.0.0.1:<port>.
+	out, _ := exec.Command("/usr/sbin/lsof", "-nP", "-a", "-p", strconv.Itoa(dnsPID), "-i").Output()
+	lines := strings.Split(strings.TrimSpace(string(out)), "\n")[1:]
+	if len(lines) == 0 {
+		t.Fatal("lsof shows no sockets for the DNS server")
+	}
+	for _, line := range lines {
 		if !strings.Contains(line, "127.0.0.1:"+strconv.Itoa(enabled.DNSPort)) {
 			t.Errorf("DNS server not on loopback only: %s", line)
 		}
