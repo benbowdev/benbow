@@ -59,14 +59,37 @@ fpm=$work/php-fpm
 version=$("$fpm" -n -v)
 case $version in "PHP $php_version "*) ;; *) echo "bulk binary is not PHP $php_version" >&2; exit 1 ;; esac
 
-# With chained fixups (macOS 12+ targets) every symbol is bound when the
-# extension is loaded, so loading it below proves php-fpm exports all that
-# xdebug.so needs from PHP.
-case $(otool -l "$so") in *LC_DYLD_CHAINED_FIXUPS*) ;; *) echo "xdebug.so does not use chained fixups" >&2; exit 1 ;; esac
-# For the log: what is resolved outside php-fpm (system libraries).
+# phpize links with -undefined dynamic_lookup and macOS binds lazily, so a
+# symbol php-fpm does not export would only fail when first called. Check
+# them all: each must be exported by php-fpm or found in the system
+# libraries.
 nm -gU "$fpm" | awk '{print $3}' | sort -u >exported.txt
 nm -u "$so" | sort -u >needed.txt
-echo "symbols resolved outside php-fpm: $(comm -23 needed.txt exported.txt | tr '\n' ' ')"
+comm -23 needed.txt exported.txt >outside.txt
+cat >dlsym.c <<'C'
+#include <dlfcn.h>
+#include <stdio.h>
+#include <string.h>
+int main(void) {
+	char line[512];
+	int missing = 0;
+	while (fgets(line, sizeof line, stdin)) {
+		line[strcspn(line, "\n")] = 0;
+		if (line[0] != '_' || dlsym(RTLD_DEFAULT, line + 1) == NULL) {
+			printf("%s\n", line);
+			missing = 1;
+		}
+	}
+	return missing;
+}
+C
+cc -o dlsym dlsym.c
+echo "resolved by the system: $(tr '\n' ' ' <outside.txt)"
+if ! ./dlsym <outside.txt >missing.txt; then
+	echo "neither php-fpm $php_version nor the system provide:" >&2
+	cat missing.txt >&2
+	exit 1
+fi
 
 modules=$("$fpm" -n -d "zend_extension=$work/$so" -m)
 case $'\n'$modules$'\n' in *$'\n'Xdebug$'\n'*) ;; *) echo "php-fpm did not load xdebug.so: $modules" >&2; exit 1 ;; esac
