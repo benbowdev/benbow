@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/getcovo/covo/internal/caddy"
@@ -341,9 +342,12 @@ func (c *Core) reconcile(ctx context.Context) (StartResult, error) {
 	}
 	agents = append([]launchd.Agent{c.caddyAgent(bin)}, agents...)
 
-	c.rotateLogs()
+	rotated := c.rotateLogs()
 	changes, err := c.launchctl.Apply(ctx, c.Layout.Launchd, agents)
 	if err != nil {
+		return StartResult{}, err
+	}
+	if err := c.reopenLogs(ctx, minors, rotated, changes); err != nil {
 		return StartResult{}, err
 	}
 	if err := c.waitReady(ctx, minors, port, len(sites) > 0); err != nil {
@@ -498,14 +502,19 @@ func siteURL(s store.Site, port int) string {
 	return "https://" + s.Domain + ":" + strconv.Itoa(port)
 }
 
-// rotateLogs keeps launchd stdout/stderr and PHP logs bounded: any log over
-// maxLogSize is moved to <name>.1, replacing the previous one. Caddy rolls its
-// own log. A process that keeps running keeps writing to the renamed file
-// until its next restart. Errors are ignored: logs must never block a start.
-func (c *Core) rotateLogs() {
+// rotateLogs keeps logs bounded: any log over maxLogSize is moved to
+// <name>.1, replacing the previous one, and its name is returned. Caddy rolls
+// its own log. Errors are ignored: logs must never block a start.
+//
+// After a rename a running process keeps writing to the old file until it
+// reopens it: reopenLogs handles PHP-FPM; launchd's stdout/stderr files are
+// only reopened when the agent restarts (Caddy and FPM write almost nothing
+// there: their real logs are caddy.log and php-<v>-fpm.log).
+func (c *Core) rotateLogs() []string {
+	var rotated []string
 	entries, err := os.ReadDir(c.Layout.Logs)
 	if err != nil {
-		return
+		return nil
 	}
 	for _, e := range entries {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".log") || e.Name() == "caddy.log" {
@@ -513,9 +522,41 @@ func (c *Core) rotateLogs() {
 		}
 		if info, err := e.Info(); err == nil && info.Size() > maxLogSize {
 			p := filepath.Join(c.Layout.Logs, e.Name())
-			_ = os.Rename(p, p+".1")
+			if os.Rename(p, p+".1") == nil {
+				rotated = append(rotated, e.Name())
+			}
 		}
 	}
+	return rotated
+}
+
+// reopenLogs sends SIGUSR1 to each PHP-FPM master whose log was rotated and
+// that kept running, so it reopens its error_log. (PHP's own error_log is
+// opened on every write and needs nothing.)
+func (c *Core) reopenLogs(ctx context.Context, minors, rotated []string, changes []launchd.Change) error {
+	if len(rotated) == 0 {
+		return nil
+	}
+	unchanged := map[string]bool{}
+	for _, ch := range changes {
+		unchanged[ch.Label] = ch.Action == "unchanged"
+	}
+	loaded, err := c.launchctl.List(ctx)
+	if err != nil {
+		return err
+	}
+	for _, minor := range minors {
+		label := c.labelFor(phpService(minor))
+		if !slices.Contains(rotated, "php-"+minor+"-fpm.log") || !unchanged[label] {
+			continue
+		}
+		if st := loaded[label]; st.Running && st.PID > 0 {
+			if err := syscall.Kill(st.PID, syscall.SIGUSR1); err != nil {
+				return errcode.New(errcode.Service, fmt.Errorf("signal %s to reopen logs: %w", label, err))
+			}
+		}
+	}
+	return nil
 }
 
 // tail returns the last n lines of a file, or "" if unreadable.
