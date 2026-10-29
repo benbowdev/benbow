@@ -42,6 +42,13 @@ demo.covo.test`. Other TLDs (`.covo`, `.dev`) and public domains are refused.
 - Covo never overwrites or removes a resolver file it did not write for the
   same Covo home (another tool, or another Covo installation).
 
+Verified on the real Mac (2026-10-29, macOS 26.2): one administrator dialog
+created `/etc/resolver/test` (root:wheel 0644); `dscacheutil -q host -a name
+demo.covo.test` returns 127.0.0.1 and ::1; `curl https://demo.covo.test:8443`
+(no `--resolve`) returns 200 with a verified certificate; Safari, Chrome and
+Firefox open the site without warnings; the DNS server listens only on
+127.0.0.1:53535 (UDP and TCP).
+
 Tests point `COVO_RESOLVER_DIR` at a temporary directory: they run without
 administrator rights and never touch `/etc/resolver`, which the e2e inventory
 checks.
