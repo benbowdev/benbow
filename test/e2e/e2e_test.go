@@ -47,6 +47,8 @@ type harness struct {
 	bin  string
 	env  []string
 	port int
+	// resolverDir stands in for /etc/resolver.
+	resolverDir string
 }
 
 func newHarness(t *testing.T) *harness {
@@ -72,7 +74,10 @@ func newHarness(t *testing.T) *harness {
 		// Never let a test find, or remove, the real "Covo Local CA".
 		"COVO_CA_NAME=Covo Test CA "+hex.EncodeToString(suffix),
 		"COVO_HTTPS_PORT="+strconv.Itoa(h.port),
+		// Never touch /etc/resolver, never ask for an administrator password.
+		"COVO_RESOLVER_DIR="+filepath.Join(tmp, "resolver"),
 	)
+	h.resolverDir = filepath.Join(tmp, "resolver")
 	t.Cleanup(func() {
 		h.covo("stop")
 		h.covo("uninstall", "--yes")

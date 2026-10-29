@@ -16,6 +16,7 @@ import (
 	"github.com/getcovo/covo/internal/errcode"
 	"github.com/getcovo/covo/internal/launchd"
 	"github.com/getcovo/covo/internal/paths"
+	"github.com/getcovo/covo/internal/resolver"
 	"github.com/getcovo/covo/internal/trust"
 )
 
@@ -29,10 +30,13 @@ var knownEntries = []string{
 
 // UninstallPlan lists what uninstall removes. Site folders are never touched.
 type UninstallPlan struct {
-	Agents  []string     `json:"agents"`
-	CA      []trust.Cert `json:"ca"`
-	Paths   []string     `json:"paths"`
-	Unknown []string     `json:"unknown,omitempty"`
+	Agents []string     `json:"agents"`
+	CA     []trust.Cert `json:"ca"`
+	// Resolver lists Covo's files in /etc/resolver: removing them takes an
+	// administrator authorization.
+	Resolver []string `json:"resolver"`
+	Paths    []string `json:"paths"`
+	Unknown  []string `json:"unknown,omitempty"`
 }
 
 // UninstallResult reports what uninstall did.
@@ -48,6 +52,7 @@ type Uninstaller struct {
 	Launchctl *launchd.Launchctl
 	Keychain  *trust.Keychain
 	CAName    string
+	Resolver  resolver.Manager
 }
 
 // NewUninstaller resolves the environment without creating anything.
@@ -60,12 +65,15 @@ func NewUninstaller() (*Uninstaller, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Uninstaller{Layout: layout, Launchctl: launchd.New(), Keychain: kc, CAName: ca.Name()}, nil
+	return &Uninstaller{
+		Layout: layout, Launchctl: launchd.New(), Keychain: kc, CAName: ca.Name(),
+		Resolver: newResolverManager(layout.Root, layout.Tmp),
+	}, nil
 }
 
 // Plan computes what Uninstall would remove, changing nothing.
 func (u *Uninstaller) Plan(ctx context.Context) (UninstallPlan, error) {
-	plan := UninstallPlan{Agents: []string{}, CA: []trust.Cert{}, Paths: []string{}}
+	plan := UninstallPlan{Agents: []string{}, CA: []trust.Cert{}, Resolver: []string{}, Paths: []string{}}
 	loaded, err := u.Launchctl.List(ctx)
 	if err != nil {
 		return plan, err
@@ -80,6 +88,16 @@ func (u *Uninstaller) Plan(ctx context.Context) (UninstallPlan, error) {
 		return plan, err
 	}
 	plan.CA = append(plan.CA, cas...)
+
+	for _, zone := range []string{suffixTest} {
+		st, _, err := u.Resolver.State(zone)
+		if err != nil {
+			return plan, err
+		}
+		if st.Installed {
+			plan.Resolver = append(plan.Resolver, st.Path)
+		}
+	}
 
 	if _, err := os.Lstat(u.Layout.Root); err == nil {
 		plan.Paths = append(plan.Paths, u.Layout.Root)
@@ -124,6 +142,11 @@ func (u *Uninstaller) Uninstall(ctx context.Context) (UninstallResult, error) {
 	}
 	if _, err := removeCAs(ctx, u.Keychain, u.CAName, caCertPaths(u.Layout)); err != nil {
 		return res, err
+	}
+	for _, zone := range []string{suffixTest} {
+		if _, err := u.Resolver.Remove(ctx, zone); err != nil {
+			return res, err
+		}
 	}
 	for _, p := range plan.Paths {
 		if err := os.RemoveAll(p); err != nil && !errors.Is(err, os.ErrNotExist) {

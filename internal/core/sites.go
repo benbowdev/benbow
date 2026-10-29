@@ -14,14 +14,18 @@ import (
 	"github.com/getcovo/covo/internal/store"
 )
 
-// siteNameRe is a single DNS label: the site is served at <name>.localhost.
+// siteNameRe is a single DNS label: by default the site is served at
+// <name>.localhost.
 var siteNameRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
 
 // AddSiteRequest is the input of AddSite.
 type AddSiteRequest struct {
 	Name string
-	PHP  string // minor version, e.g. "8.4"
-	Path string // absolute path of the document root
+	// Domain defaults to <name>.localhost. It may be any name under
+	// .localhost, or .test once enabled (e.g. demo.covo.test).
+	Domain string
+	PHP    string // minor version, e.g. "8.4"
+	Path   string // absolute path of the document root
 	// Force accepts a folder without index.php or index.html.
 	Force bool
 }
@@ -39,7 +43,13 @@ type SiteResult struct {
 func (c *Core) AddSite(ctx context.Context, req AddSiteRequest) (SiteResult, error) {
 	if !siteNameRe.MatchString(req.Name) {
 		return SiteResult{}, errcode.Errorf(errcode.InvalidInput,
-			fmt.Sprintf("site name %q must be lowercase letters, digits and dashes (it becomes %s.localhost)", req.Name, req.Name))
+			fmt.Sprintf("site name %q must be lowercase letters, digits and dashes", req.Name))
+	}
+	if req.Domain == "" {
+		req.Domain = req.Name + "." + suffixLocalhost
+	}
+	if _, err := domainSuffix(req.Domain); err != nil {
+		return SiteResult{}, err
 	}
 	if err := validMinor(req.PHP); err != nil {
 		return SiteResult{}, err
@@ -61,6 +71,9 @@ func (c *Core) AddSite(ctx context.Context, req AddSiteRequest) (SiteResult, err
 		if _, err := c.Store.Site(ctx, req.Name); err == nil {
 			return errcode.Errorf(errcode.Conflict, fmt.Sprintf("site %q already exists", req.Name))
 		}
+		if err := c.checkSiteDomain(ctx, req.Domain); err != nil {
+			return err
+		}
 		if _, err := c.ensurePHP(ctx, req.PHP); err != nil {
 			return err
 		}
@@ -72,7 +85,7 @@ func (c *Core) AddSite(ctx context.Context, req AddSiteRequest) (SiteResult, err
 			Name:      req.Name,
 			Path:      req.Path,
 			PHPMinor:  req.PHP,
-			Domain:    req.Name + ".localhost",
+			Domain:    req.Domain,
 			HTTPS:     true,
 			CreatedAt: time.Now(),
 		}

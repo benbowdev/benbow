@@ -20,7 +20,7 @@ func (r uninstallResult) Text(w io.Writer) {
 	if !r.Done {
 		return
 	}
-	if len(r.Agents)+len(r.CA)+len(r.Paths) == 0 {
+	if len(r.Agents)+len(r.CA)+len(r.Resolver)+len(r.Paths) == 0 {
 		fmt.Fprintln(w, "Nothing to remove: Covo is not installed.")
 		return
 	}
@@ -34,6 +34,9 @@ func writePlan(w io.Writer, p core.UninstallPlan, verb string) {
 	}
 	for _, c := range p.CA {
 		fmt.Fprintf(w, "%s %s (SHA-1 %s) from the login keychain\n", verb, c.CommonName, c.SHA1)
+	}
+	for _, path := range p.Resolver {
+		fmt.Fprintf(w, "%s %s (administrator authorization)\n", verb, path)
 	}
 	for _, path := range p.Paths {
 		fmt.Fprintf(w, "%s %s\n", verb, path)
@@ -61,7 +64,7 @@ deletes ~/Library/Application Support/covo. Your site folders are never touched.
 				}
 				var b strings.Builder
 				writePlan(&b, plan, "Will remove")
-				if len(plan.Agents)+len(plan.CA)+len(plan.Paths) > 0 &&
+				if len(plan.Agents)+len(plan.CA)+len(plan.Resolver)+len(plan.Paths) > 0 &&
 					!a.confirm(b.String()+"Your site folders will not be touched. Continue?") {
 					return nil, errcode.Errorf(errcode.ConfirmationRequired, "uninstall not confirmed; pass --yes to proceed")
 				}

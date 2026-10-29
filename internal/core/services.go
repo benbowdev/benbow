@@ -354,11 +354,16 @@ func (c *Core) reconcile(ctx context.Context) (StartResult, error) {
 	if err != nil {
 		return StartResult{}, err
 	}
+	dnsAgents, dnsPort, err := c.dnsAgents(ctx, loaded)
+	if err != nil {
+		return StartResult{}, err
+	}
 	caddyRunning := loaded[c.labelFor(caddyService)].Running
 	if err := c.writeCaddyfile(ctx, bin, body, caddyRunning); err != nil {
 		return StartResult{}, err
 	}
 	agents = append([]launchd.Agent{c.caddyAgent(bin)}, agents...)
+	agents = append(agents, dnsAgents...)
 
 	rotated := c.rotateLogs()
 	changes, err := c.launchctl.Apply(ctx, c.Layout.Launchd, agents)
@@ -368,14 +373,14 @@ func (c *Core) reconcile(ctx context.Context) (StartResult, error) {
 	if err := c.reopenLogs(ctx, minors, rotated, changes); err != nil {
 		return StartResult{}, err
 	}
-	if err := c.waitReady(ctx, minors, port, len(sites) > 0); err != nil {
+	if err := c.waitReady(ctx, minors, port, len(sites) > 0, dnsPort); err != nil {
 		return StartResult{}, err
 	}
 	return StartResult{HTTPSPort: port, PortAssigned: assigned, Changes: changes}, nil
 }
 
 // waitReady waits until every socket accepts connections.
-func (c *Core) waitReady(ctx context.Context, minors []string, port int, expectHTTPS bool) error {
+func (c *Core) waitReady(ctx context.Context, minors []string, port int, expectHTTPS bool, dnsPort int) error {
 	type check struct {
 		service, network, addr string
 	}
@@ -385,6 +390,9 @@ func (c *Core) waitReady(ctx context.Context, minors []string, port int, expectH
 	}
 	if expectHTTPS {
 		checks = append(checks, check{caddyService, "tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(port))})
+	}
+	if dnsPort != 0 {
+		checks = append(checks, check{dnsService, "tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(dnsPort))})
 	}
 	deadline := time.Now().Add(readyTimeout)
 	for _, ch := range checks {
@@ -457,6 +465,7 @@ type Status struct {
 	Services  []ServiceStatus `json:"services"`
 	Sites     []SiteStatus    `json:"sites"`
 	CA        CAStatus        `json:"ca"`
+	Domains   []DomainStatus  `json:"domains"`
 	// Orphans are loaded Covo agents that no site needs any more.
 	Orphans []string `json:"orphans,omitempty"`
 }
@@ -483,6 +492,11 @@ func (c *Core) Status(ctx context.Context) (Status, error) {
 		st.Sites = append(st.Sites, SiteStatus{Site: s, URL: siteURL(s, st.HTTPSPort)})
 	}
 	slices.Sort(services[1:])
+	if ok, err := c.domainEnabled(ctx, suffixTest); err != nil {
+		return Status{}, err
+	} else if ok {
+		services = append(services, dnsService)
+	}
 	st.Running = true
 	expected := map[string]bool{}
 	for _, svc := range services {
@@ -498,6 +512,9 @@ func (c *Core) Status(ctx context.Context) (Status, error) {
 		}
 	}
 	slices.Sort(st.Orphans)
+	if st.Domains, err = c.Domains(ctx); err != nil {
+		return Status{}, err
+	}
 	st.CA.CertPath = c.CACertPath()
 	_, err = os.Stat(st.CA.CertPath)
 	st.CA.Exists = err == nil

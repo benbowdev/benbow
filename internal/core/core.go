@@ -14,6 +14,7 @@ import (
 	"github.com/getcovo/covo/internal/launchd"
 	"github.com/getcovo/covo/internal/lock"
 	"github.com/getcovo/covo/internal/paths"
+	"github.com/getcovo/covo/internal/resolver"
 	"github.com/getcovo/covo/internal/store"
 )
 
@@ -28,6 +29,7 @@ type Core struct {
 	Installer components.Installer
 
 	launchctl *launchd.Launchctl
+	resolver  resolver.Manager
 }
 
 // Open prepares the Covo home and opens the state database.
@@ -58,6 +60,7 @@ func Open(ctx context.Context) (*Core, error) {
 			Client: &http.Client{Timeout: 10 * time.Minute},
 		},
 		launchctl: launchd.New(),
+		resolver:  newResolverManager(layout.Root, layout.Tmp),
 	}, nil
 }
 

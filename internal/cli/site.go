@@ -34,18 +34,18 @@ func (r siteResult) Text(w io.Writer) {
 }
 
 func (a *app) siteAddCmd() *cobra.Command {
-	var phpVersion, path string
+	var phpVersion, path, domain string
 	var force bool
 	cmd := &cobra.Command{
 		Use:   "add <name>",
-		Short: "Add a site served at https://<name>.localhost",
+		Short: "Add a site served at https://<name>.localhost (or --domain)",
 		Args:  cobra.ExactArgs(1),
 		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
 			dir, err := absDir(path)
 			if err != nil {
 				return nil, err
 			}
-			req := core.AddSiteRequest{Name: args[0], PHP: phpVersion, Path: dir, Force: force}
+			req := core.AddSiteRequest{Name: args[0], Domain: domain, PHP: phpVersion, Path: dir, Force: force}
 			res, err := c.AddSite(ctx, req)
 			if errcode.Code(err) == errcode.ConfirmationRequired && a.confirm(err.Error()+"\nAdd it anyway?") {
 				req.Force = true
@@ -56,6 +56,7 @@ func (a *app) siteAddCmd() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&phpVersion, "php", "8.4", "PHP version (e.g. 8.4, 8.2)")
 	cmd.Flags().StringVar(&path, "path", "", "document root (default: current folder)")
+	cmd.Flags().StringVar(&domain, "domain", "", "local domain, e.g. demo.covo.test (default: <name>.localhost)")
 	cmd.Flags().BoolVar(&force, "force", false, "add the folder even if it has no index.php or index.html")
 	return cmd
 }

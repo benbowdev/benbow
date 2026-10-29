@@ -29,6 +29,33 @@ func Free(port int) bool {
 	return true
 }
 
+// FreeDNS reports whether port is free for both UDP and TCP on 127.0.0.1,
+// where Covo's DNS server listens.
+func FreeDNS(port int) bool {
+	addr := net.JoinHostPort("127.0.0.1", strconv.Itoa(port))
+	pc, err := net.ListenPacket("udp", addr)
+	if err != nil {
+		return false
+	}
+	_ = pc.Close()
+	l, err := net.Listen("tcp", addr)
+	if err != nil {
+		return false
+	}
+	_ = l.Close()
+	return true
+}
+
+// FirstFreeDNS returns the first port in [from, from+span) free for FreeDNS.
+func FirstFreeDNS(from, span int) (int, error) {
+	for p := from; p < from+span && p <= 65535; p++ {
+		if FreeDNS(p) {
+			return p, nil
+		}
+	}
+	return 0, errcode.Errorf(errcode.PortInUse, fmt.Sprintf("no free DNS port between %d and %d", from, from+span-1))
+}
+
 // FirstFree returns the first free port in [from, from+span).
 func FirstFree(from, span int) (int, error) {
 	for p := from; p < from+span && p <= 65535; p++ {
