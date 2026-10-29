@@ -348,6 +348,10 @@ func (c *Core) reconcile(ctx context.Context) (StartResult, error) {
 	if err := c.waitReady(ctx, minors, port, len(sites) > 0); err != nil {
 		return StartResult{}, err
 	}
+	// Caddy creates its CA on first start.
+	if err := c.securePKI(); err != nil {
+		return StartResult{}, err
+	}
 	return StartResult{HTTPSPort: port, PortAssigned: assigned, Changes: changes}, nil
 }
 
@@ -423,6 +427,7 @@ type SiteStatus struct {
 type CAStatus struct {
 	CertPath string `json:"cert_path"`
 	Exists   bool   `json:"exists"`
+	Trusted  bool   `json:"trusted"`
 }
 
 // Status is the overall state of Covo.
@@ -477,6 +482,11 @@ func (c *Core) Status(ctx context.Context) (Status, error) {
 	st.CA.CertPath = c.CACertPath()
 	_, err = os.Stat(st.CA.CertPath)
 	st.CA.Exists = err == nil
+	if st.CA.Exists {
+		if st.CA.Trusted, err = c.caTrusted(ctx); err != nil {
+			return Status{}, err
+		}
+	}
 	return st, nil
 }
 

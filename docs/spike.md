@@ -74,3 +74,27 @@ Covo opens is HTTPS (8443). Socket paths are limited to 103 bytes on macOS; if
   Covo.app will be the responsible app and macOS will prompt for it once.
   No `protected_folder` warning was added since the read succeeded; revisit if
   a user reports the failure or when the GUI starts the agents.
+
+## Local CA trust
+
+- `covo trust` runs `security add-trusted-cert -r trustRoot -k
+  ~/Library/Keychains/login.keychain-db root.crt`: no sudo, trust for the
+  current user only, one macOS authorization dialog. Caddy is configured with
+  `skip_install_trust`, so it never tries to install its CA by itself.
+- `covo untrust` removes trust settings and keychain items for every
+  certificate whose CN is exactly "Covo Local CA" (the on-disk root is also
+  matched by SHA-1). It only runs commands for items that are present, so a
+  no-op never shows a dialog. Both commands are idempotent.
+- Tested 2026-10-29 on the real home: trust → system `curl` and Chrome load
+  https://demo.localhost:8443 with no warning; untrust → curl rejects it and
+  only MAMP's root is left in the user trust settings; trust again → OK.
+  Safari and Firefox were checked by hand by the user.
+- `security verify-cert -p ssl` reports missing SCTs for the leaf. That is
+  Apple's Certificate Transparency rule for publicly trusted CAs; user-added
+  roots are exempt, as curl and Chrome confirm.
+- The CA has no name constraints: once trusted, it could sign a certificate
+  for any domain. Its key lives in `data/caddy/pki` (0700/0600) and never
+  leaves the Mac. Name constraints on `.localhost` would need our own CA
+  setup instead of Caddy's default one. **Risk: accepted for the spike.**
+- Trust cannot be automated in CI (it needs the dialog); the keychain logic
+  is unit-tested against a fake `security`.
