@@ -19,6 +19,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -146,6 +147,9 @@ type Launchctl struct {
 	Prefix string
 	// Run executes launchctl; overridable in tests.
 	Run func(ctx context.Context, args ...string) (string, error)
+	// Keep lists labels that Apply and StopAll leave alone (the daemon
+	// serving the API must not stop itself with the services).
+	Keep []string
 }
 
 // New returns a Launchctl for the configured prefix.
@@ -278,7 +282,7 @@ func (l *Launchctl) Apply(ctx context.Context, dir string, want []Agent) ([]Chan
 	}
 	orphans := make([]string, 0)
 	for label := range loaded {
-		if !wanted[label] {
+		if !wanted[label] && !slices.Contains(l.Keep, label) {
 			orphans = append(orphans, label)
 		}
 	}
@@ -291,6 +295,17 @@ func (l *Launchctl) Apply(ctx context.Context, dir string, want []Agent) ([]Chan
 		changes = append(changes, Change{label, "stopped"})
 	}
 	return changes, nil
+}
+
+// Ensure writes a's plist and loads it, reloading it if the plist changed.
+// Other agents are left alone.
+func (l *Launchctl) Ensure(ctx context.Context, dir string, a Agent) (Change, error) {
+	loaded, err := l.List(ctx)
+	if err != nil {
+		return Change{}, err
+	}
+	action, err := l.applyOne(ctx, dir, a, loaded)
+	return Change{a.Label, action}, err
 }
 
 func (l *Launchctl) applyOne(ctx context.Context, dir string, a Agent, loaded map[string]Status) (string, error) {
@@ -337,7 +352,9 @@ func (l *Launchctl) StopAll(ctx context.Context) ([]Change, error) {
 	}
 	labels := make([]string, 0, len(loaded))
 	for label := range loaded {
-		labels = append(labels, label)
+		if !slices.Contains(l.Keep, label) {
+			labels = append(labels, label)
+		}
 	}
 	sort.Strings(labels)
 	changes := []Change{}

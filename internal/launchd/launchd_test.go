@@ -164,3 +164,38 @@ func TestStopAll(t *testing.T) {
 		t.Fatalf("still loaded: %v", f.loaded)
 	}
 }
+
+func TestKeepSurvivesApplyAndStopAll(t *testing.T) {
+	dir := t.TempDir()
+	f := &fakeLaunchctl{loaded: map[string]bool{"dev.getcovo.core": true, "dev.getcovo.php81": true}}
+	l := &Launchctl{Prefix: "dev.getcovo", Run: f.run, Keep: []string{"dev.getcovo.core"}}
+	if _, err := l.Apply(context.Background(), dir, []Agent{{Label: "dev.getcovo.caddy", Program: "/c"}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := l.StopAll(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if want := map[string]bool{"dev.getcovo.core": true}; !reflect.DeepEqual(f.loaded, want) {
+		t.Fatalf("loaded = %v, want %v", f.loaded, want)
+	}
+}
+
+func TestEnsure(t *testing.T) {
+	dir := t.TempDir()
+	f := &fakeLaunchctl{loaded: map[string]bool{"dev.getcovo.php81": true}}
+	l := &Launchctl{Prefix: "dev.getcovo", Run: f.run}
+	a := Agent{Label: "dev.getcovo.core", Program: "/covo", Args: []string{"daemon", "run"}}
+	for i, want := range []string{"started", "unchanged"} {
+		ch, err := l.Ensure(context.Background(), dir, a)
+		if err != nil || ch.Action != want {
+			t.Fatalf("Ensure #%d = %v %v, want %s", i, ch, err, want)
+		}
+	}
+	a.Env = map[string]string{"COVO_BINARY_HASH": "x"}
+	if ch, err := l.Ensure(context.Background(), dir, a); err != nil || ch.Action != "restarted" {
+		t.Fatalf("changed plist: %v %v", ch, err)
+	}
+	if !f.loaded["dev.getcovo.php81"] {
+		t.Fatal("Ensure stopped another agent")
+	}
+}

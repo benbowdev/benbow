@@ -533,7 +533,7 @@ func (c *Core) Status(ctx context.Context) (Status, error) {
 		st.Running = st.Running && ls.Running
 	}
 	for label := range loaded {
-		if !expected[label] {
+		if !expected[label] && !slices.Contains(c.launchctl.Keep, label) {
 			st.Orphans = append(st.Orphans, label)
 		}
 	}

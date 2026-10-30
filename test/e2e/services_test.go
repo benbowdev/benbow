@@ -15,8 +15,10 @@ import (
 )
 
 type statusData struct {
-	Running   bool `json:"running"`
-	HTTPSPort int  `json:"https_port"`
+	Running   bool     `json:"running"`
+	HTTPSPort int      `json:"https_port"`
+	Home      string   `json:"home"`
+	Orphans   []string `json:"orphans"`
 	Services  []struct {
 		Name    string `json:"name"`
 		Label   string `json:"label"`

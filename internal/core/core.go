@@ -18,6 +18,13 @@ import (
 	"github.com/getcovo/covo/internal/store"
 )
 
+// DaemonService is the agent serving the local API (`covo daemon`). Start,
+// stop and reconcile never touch it: the app talks to the core through it.
+const DaemonService = "core"
+
+// DaemonLabel returns the daemon's launchd label.
+func (c *Core) DaemonLabel() string { return c.labelFor(DaemonService) }
+
 // lockWait is how long a command waits for another covo command to finish.
 const lockWait = 30 * time.Second
 
@@ -45,6 +52,8 @@ func Open(ctx context.Context) (*Core, error) {
 	if err != nil {
 		return nil, err
 	}
+	lc := launchd.New()
+	lc.Keep = []string{lc.Prefix + "." + DaemonService}
 	manifest, err := components.Embedded()
 	if err != nil {
 		_ = st.Close()
@@ -59,7 +68,7 @@ func Open(ctx context.Context) (*Core, error) {
 			TmpDir: layout.Tmp,
 			Client: &http.Client{Timeout: 10 * time.Minute},
 		},
-		launchctl: launchd.New(),
+		launchctl: lc,
 		resolver:  newResolverManager(layout.Root, layout.Tmp),
 	}, nil
 }
