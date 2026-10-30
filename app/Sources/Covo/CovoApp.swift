@@ -5,9 +5,15 @@ import SwiftUI
 
 @main
 struct CovoApp: App {
+    @State private var model = AppModel()
+
     var body: some Scene {
-        WindowGroup("Covo") {
-            Text("Covo")
+        Window("Covo", id: "main") {
+            ContentView()
+                .environment(model)
+                .task { await model.connect() }
+                .frame(minWidth: 760, minHeight: 460)
         }
+        .windowToolbarStyle(.unified)
     }
 }
