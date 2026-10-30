@@ -10,6 +10,8 @@ import (
 	"io"
 	"strings"
 	"testing"
+
+	"github.com/getcovo/covo/internal/envelope"
 )
 
 func TestJSONEnvelope(t *testing.T) {
@@ -32,15 +34,15 @@ func TestJSONEnvelope(t *testing.T) {
 				t.Fatalf("exit code = %d, want %d (stderr %q)", code, tt.wantCode, errOut.String())
 			}
 			var env struct {
-				Schema int             `json:"schema"`
-				OK     bool            `json:"ok"`
-				Data   json.RawMessage `json:"data"`
-				Error  *ErrorBody      `json:"error"`
+				Schema int                 `json:"schema"`
+				OK     bool                `json:"ok"`
+				Data   json.RawMessage     `json:"data"`
+				Error  *envelope.ErrorBody `json:"error"`
 			}
 			if err := json.Unmarshal(out.Bytes(), &env); err != nil {
 				t.Fatalf("stdout is not JSON: %v\n%s", err, out.String())
 			}
-			if env.Schema != SchemaVersion || env.OK != tt.wantOK {
+			if env.Schema != envelope.SchemaVersion || env.OK != tt.wantOK {
 				t.Fatalf("envelope = %+v", env)
 			}
 			if tt.wantErr != "" && (env.Error == nil || env.Error.Code != tt.wantErr) {
