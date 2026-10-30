@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "ok": true,
+  "data": [
+    {
+      "php": "8.4",
+      "php_version": "8.4.23",
+      "enabled": false,
+      "available": true,
+      "version": "3.5.3"
+    }
+  ]
+}

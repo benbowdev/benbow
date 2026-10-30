@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "ok": true,
+  "data": [
+    {
+      "zone": "test",
+      "enabled": true,
+      "dns_port": 53535,
+      "resolver": {
+        "path": "/etc/resolver/test",
+        "installed": true,
+        "port": 53535
+      }
+    },
+    {
+      "zone": "local",
+      "enabled": false,
+      "helper": {
+        "installed": false,
+        "running": false,
+        "names": []
+      }
+    }
+  ]
+}

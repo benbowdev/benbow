@@ -22,22 +22,28 @@ const gplSHA256 = "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36
 
 const root = "../.."
 
-func TestGoFilesHaveLicenseHeader(t *testing.T) {
-	n := 0
+// TestSourcesHaveLicenseHeader covers Go and Swift sources.
+func TestSourcesHaveLicenseHeader(t *testing.T) {
+	n := map[string]int{}
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		if d.IsDir() && (d.Name() == ".git" || d.Name() == "testdata") {
+		if d.IsDir() && (d.Name() == ".git" || d.Name() == "testdata" || d.Name() == ".build" || path == filepath.Join(root, "app", "build")) {
 			return filepath.SkipDir
 		}
-		if d.IsDir() || !strings.HasSuffix(path, ".go") {
+		ext := filepath.Ext(path)
+		if d.IsDir() || (ext != ".go" && ext != ".swift") {
 			return nil
 		}
-		n++
+		n[ext]++
 		body, err := os.ReadFile(path)
 		if err != nil {
 			return err
+		}
+		if d.Name() == "Package.swift" { // must start with swift-tools-version
+			_, after, _ := strings.Cut(string(body), "\n")
+			body = []byte(after)
 		}
 		if !strings.HasPrefix(string(body), header) {
 			t.Errorf("%s: missing license header", path)
@@ -47,8 +53,8 @@ func TestGoFilesHaveLicenseHeader(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n == 0 {
-		t.Fatal("no Go files found")
+	if n[".go"] == 0 || n[".swift"] == 0 {
+		t.Fatalf("files found: %v", n)
 	}
 }
 

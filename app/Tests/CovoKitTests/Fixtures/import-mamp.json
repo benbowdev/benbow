@@ -1,0 +1,111 @@
+{
+  "schema": 1,
+  "ok": true,
+  "data": {
+    "source": "/Users/test/Projects/Covo/covo/internal/mamp/testdata/settings6.xml",
+    "dry_run": true,
+    "items": [
+      {
+        "mamp": {
+          "server_name": "localhost",
+          "document_root": "/Users/test/Sites/htdocs",
+          "php_version": "7.4.33",
+          "ssl": false,
+          "aliases": [],
+          "databases": []
+        },
+        "action": "skip",
+        "reason": "MAMP's default host",
+        "warnings": []
+      },
+      {
+        "mamp": {
+          "server_name": "shop.local",
+          "document_root": "/Users/test/Sites/Shop Site/public",
+          "php_version": "8.1.13",
+          "ssl": false,
+          "aliases": [],
+          "databases": [
+            "shop"
+          ]
+        },
+        "action": "skip",
+        "reason": "folder not found: /Users/test/Sites/Shop Site/public",
+        "warnings": []
+      },
+      {
+        "mamp": {
+          "server_name": "blog.client.local",
+          "document_root": "/Users/test/Sites/blog",
+          "php_version": "7.4.33",
+          "ssl": false,
+          "aliases": [
+            "www.blog.client.local"
+          ],
+          "databases": [
+            "blog",
+            "blog_old"
+          ]
+        },
+        "action": "create",
+        "warnings": [
+          "PHP 7.4.33 is not available: uses PHP 8.1; check the site still works",
+          "aliases not imported: www.blog.client.local"
+        ],
+        "name": "blog-client",
+        "domain": "blog.client.local",
+        "php": "8.1"
+      },
+      {
+        "mamp": {
+          "server_name": "intranet",
+          "document_root": "/Users/test/Sites/intranet",
+          "php_version": "8.2.0",
+          "ssl": false,
+          "aliases": [],
+          "databases": []
+        },
+        "action": "skip",
+        "reason": "folder not found: /Users/test/Sites/intranet",
+        "warnings": [
+          "MAMP served it as \"intranet\"; Covo needs a reserved suffix"
+        ]
+      },
+      {
+        "mamp": {
+          "server_name": "gone.local",
+          "document_root": "/Users/test/Sites/missing",
+          "php_version": "8.2.0",
+          "ssl": false,
+          "aliases": [],
+          "databases": []
+        },
+        "action": "skip",
+        "reason": "folder not found: /Users/test/Sites/missing",
+        "warnings": []
+      },
+      {
+        "mamp": {
+          "server_name": "Bad_Name.local",
+          "document_root": "/Users/test/Sites/shop",
+          "php_version": "8.1.13",
+          "ssl": false,
+          "aliases": [],
+          "databases": []
+        },
+        "action": "skip",
+        "reason": "\"Bad_Name.local\" is not a valid host name",
+        "warnings": []
+      }
+    ],
+    "create": 1,
+    "skip": 5,
+    "needs_local": true,
+    "databases": [
+      "blog",
+      "blog_old",
+      "shop"
+    ],
+    "applied": false
+  }
+}
