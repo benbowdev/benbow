@@ -79,6 +79,25 @@ func TestTwoPHPVersionsInParallel(t *testing.T) {
 	if body := h.get(urls["8.4"], st.CA.CertPath); !strings.HasPrefix(body, "8.2.") {
 		t.Errorf("demo served %q after enable, want PHP 8.2.x", body)
 	}
+
+	// Archived: off and kept apart; it cannot be turned on until unarchived.
+	h.mustCovo("site", "archive", "demo")
+	if got := serviceNames(h.status()); got != "caddy" {
+		t.Fatalf("services with demo archived = %s, want caddy", got)
+	}
+	if env := h.covo("site", "enable", "demo"); env.OK || env.Error.Code != "conflict" {
+		t.Fatalf("enable an archived site = %+v", env)
+	}
+	var back struct {
+		Enabled  bool `json:"enabled"`
+		Archived bool `json:"archived"`
+	}
+	if err := json.Unmarshal(h.mustCovo("site", "unarchive", "demo"), &back); err != nil || !back.Enabled || back.Archived {
+		t.Fatalf("unarchive = %+v, %v", back, err)
+	}
+	if body := h.get(urls["8.4"], st.CA.CertPath); !strings.HasPrefix(body, "8.2.") {
+		t.Errorf("demo served %q after unarchive", body)
+	}
 }
 
 func serviceNames(st statusData) string {

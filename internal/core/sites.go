@@ -168,6 +168,9 @@ type UpdateSiteRequest struct {
 	Domain string
 	// Enabled turns serving the site on or off when set.
 	Enabled *bool
+	// Archived puts the site away (also turning it off) or brings it back
+	// (turning it on) when set.
+	Archived *bool
 	// Aliases, when set, replace the site's extra domains (empty clears).
 	Aliases *[]string
 	// Force accepts a new folder without index.php or index.html.
@@ -261,7 +264,13 @@ func (c *Core) UpdateSite(ctx context.Context, req UpdateSiteRequest) (SiteResul
 			}
 			site.Domain = req.Domain
 		}
+		if req.Archived != nil {
+			site.Archived, site.Enabled = *req.Archived, !*req.Archived
+		}
 		if req.Enabled != nil {
+			if *req.Enabled && site.Archived {
+				return errcode.Errorf(errcode.Conflict, fmt.Sprintf("%s is archived: unarchive it first", site.Name))
+			}
 			site.Enabled = *req.Enabled
 		}
 		if req.Aliases != nil {
@@ -311,7 +320,7 @@ func (c *Core) UpdateSite(ctx context.Context, req UpdateSiteRequest) (SiteResul
 
 func siteEqual(a, b store.Site) bool {
 	return a.Path == b.Path && a.PHPMinor == b.PHPMinor && a.Domain == b.Domain &&
-		a.HTTPS == b.HTTPS && a.Enabled == b.Enabled && slices.Equal(a.Aliases, b.Aliases) &&
+		a.HTTPS == b.HTTPS && a.Enabled == b.Enabled && a.Archived == b.Archived && slices.Equal(a.Aliases, b.Aliases) &&
 		maps.Equal(a.PHPSettings, b.PHPSettings)
 }
 

@@ -115,10 +115,11 @@ func TestSites(t *testing.T) {
 	moved.Path, moved.PHPMinor, moved.Domain, moved.Enabled = "/Users/a/new", "8.2", "demo.covo.test", false
 	moved.Database, moved.DBUser = "demo_db", "demo"
 	moved.PHPSettings = map[string]string{"memory_limit": "1G"}
+	moved.Archived = true
 	if err := s.UpdateSite(ctx, moved); err != nil {
 		t.Fatal(err)
 	}
-	if got, _ := s.Site(ctx, "demo"); got.Path != moved.Path || got.PHPMinor != "8.2" || got.Domain != moved.Domain || got.Enabled || got.Database != "demo_db" || got.DBUser != "demo" || got.PHPSettings["memory_limit"] != "1G" || !got.CreatedAt.Equal(demo.CreatedAt.Truncate(time.Second)) {
+	if got, _ := s.Site(ctx, "demo"); got.Path != moved.Path || got.PHPMinor != "8.2" || got.Domain != moved.Domain || got.Enabled || got.Database != "demo_db" || got.DBUser != "demo" || got.PHPSettings["memory_limit"] != "1G" || !got.Archived || !got.CreatedAt.Equal(demo.CreatedAt.Truncate(time.Second)) {
 		t.Fatalf("after update Site = %+v", got)
 	}
 	moved.Domain = "other.localhost"

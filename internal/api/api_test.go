@@ -51,6 +51,9 @@ func (f *fake) UpdateSite(_ context.Context, req core.UpdateSiteRequest) (core.S
 	if req.Enabled != nil {
 		call += map[bool]string{true: " on", false: " off"}[*req.Enabled]
 	}
+	if req.Archived != nil {
+		call += map[bool]string{true: " archived", false: " unarchived"}[*req.Archived]
+	}
 	if req.Aliases != nil {
 		call += " aliases=" + strings.Join(*req.Aliases, ",")
 	}
@@ -210,6 +213,7 @@ func TestRoutes(t *testing.T) {
 		{"POST", "/v1/adminer/redeem", `{"token":"abc"}`, 200, "adminer redeem abc", ""},
 		{"POST", "/v1/mail/enable", "", 200, "mail true", ""},
 		{"POST", "/v1/mail/disable", "", 200, "mail false", ""},
+		{"PATCH", "/v1/sites/demo", `{"archived":true}`, 200, "update demo   archived", ""},
 		{"PATCH", "/v1/sites/demo", `{"name":"x"}`, 400, "", errcode.InvalidInput},
 		{"PUT", "/v1/xdebug/8.4", `{"enabled":true}`, 200, "xdebug 8.4 on", ""},
 		{"PUT", "/v1/xdebug/8.4", `{"enabled":false}`, 200, "xdebug 8.4 off", ""},

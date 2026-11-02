@@ -20,14 +20,24 @@ struct SiteDetail: View {
     var body: some View {
         Form {
             Section {
-                Toggle(isOn: Binding(
-                    get: { site.enabled },
-                    set: { on in Task { await model.setEnabled(site, on) } }
-                )) {
-                    Text("Serve this site")
-                    if !site.enabled { Text("Off: kept in the list, not served.") }
+                if site.archived {
+                    LabeledContent {
+                        Button("Unarchive") { Task { await model.setArchived(site, false) } }
+                            .disabled(model.busy != nil)
+                    } label: {
+                        Label("Archived", systemImage: "archivebox")
+                        Text("Not served. Folder, database and settings are kept.")
+                    }
+                } else {
+                    Toggle(isOn: Binding(
+                        get: { site.enabled },
+                        set: { on in Task { await model.setEnabled(site, on) } }
+                    )) {
+                        Text("Serve this site")
+                        if !site.enabled { Text("Off: kept in the list, not served.") }
+                    }
+                    .disabled(model.busy != nil)
                 }
-                .disabled(model.busy != nil)
                 LabeledContent("Name", value: site.name)
                 LabeledContent("Folder") {
                     HStack {
@@ -152,6 +162,11 @@ struct SiteDetail: View {
                     }
                     HStack {
                         Spacer()
+                        if !site.archived {
+                            Button("Archive") { Task { await model.setArchived(site, true) } }
+                                .help("Put the site away: not served, listed apart; nothing is deleted")
+                                .disabled(model.busy != nil)
+                        }
                         Button("Remove Site…", role: .destructive) { confirmRemove = true }
                             .disabled(model.busy != nil)
                     }

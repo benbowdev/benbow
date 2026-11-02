@@ -45,7 +45,7 @@ Request bodies are strict JSON (unknown fields are refused).
 | `POST /v1/stop` | | `covo stop` |
 | `GET /v1/sites` | | `covo site list` |
 | `POST /v1/sites` | `{name, domain, php, path, force}` | `covo site add` |
-| `PATCH /v1/sites/{name}` | any of `{php, path, domain, enabled, aliases, force}` | `covo site set`, `enable`, `disable` |
+| `PATCH /v1/sites/{name}` | any of `{php, path, domain, enabled, archived, aliases, force}` | `covo site set`, `enable`, `disable`, `archive`, `unarchive` |
 | `DELETE /v1/sites/{name}` | | `covo site remove` |
 | `GET /v1/sites/{name}/logs/{access\|php}` | `?lines=N` | `covo site logs` |
 | `DELETE /v1/sites/{name}/logs` | | `covo site logs --clear` |

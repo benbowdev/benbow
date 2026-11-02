@@ -13,6 +13,8 @@ covo site logs shop --php -n 100                   # PHP errors; without --php: 
 covo site logs shop --clear
 covo site disable shop                             # keep it, stop serving it
 covo site enable shop
+covo site archive shop                             # put it away: off, listed apart
+covo site unarchive shop                           # back, and served again
 covo site remove shop                              # the folder is never touched
 ```
 
@@ -35,9 +37,13 @@ Each site has its own logs under `logs/sites/<name>/` in the Covo folder:
 its logs (never its folder). In the app: the Logs button in the site
 detail, refreshed every 2 seconds.
 
+An archived site is off and listed apart (the app shows it under
+"Archived", collapsed); its folder, database, aliases and settings are kept.
+It cannot be turned on until it is unarchived.
+
 A disabled site stays in the list but Caddy does not serve it, and a PHP
 version used only by disabled sites is not started.
 
 API: `GET/POST /v1/sites`, `PATCH /v1/sites/{name}` with any of
-`php`, `path`, `domain`, `enabled`, `aliases`, `force`, `DELETE /v1/sites/{name}`, `GET /v1/sites/{name}/logs/{access|php}?lines=N`
+`php`, `path`, `domain`, `enabled`, `archived`, `aliases`, `force`, `DELETE /v1/sites/{name}`, `GET /v1/sites/{name}/logs/{access|php}?lines=N`
 and `DELETE /v1/sites/{name}/logs`.

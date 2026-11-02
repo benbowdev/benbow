@@ -13,6 +13,7 @@ struct ContentView: View {
     @State private var newWordPress = false
     @State private var search = ""
     @State private var duplicating: Site?
+    @State private var showArchived = false
 
     /// Sites whose name, domain, alias or folder match the search.
     private var filtered: [Site] {
@@ -61,8 +62,20 @@ struct ContentView: View {
 
     private var split: some View {
         NavigationSplitView {
-            List(filtered, selection: $selection) { site in
-                SiteRow(site: site) { duplicating = site }
+            List(selection: $selection) {
+                ForEach(filtered.filter { !$0.archived }) { site in
+                    SiteRow(site: site) { duplicating = site }
+                }
+                let archived = filtered.filter(\.archived)
+                if !archived.isEmpty {
+                    Section(isExpanded: $showArchived) {
+                        ForEach(archived) { site in
+                            SiteRow(site: site) { duplicating = site }
+                        }
+                    } header: {
+                        Text("Archived (\(archived.count))")
+                    }
+                }
             }
             .searchable(text: $search, placement: .sidebar, prompt: "Search sites")
             .overlay {
@@ -166,15 +179,19 @@ struct SiteRow: View {
             }
             Spacer()
             Text("PHP \(site.php)").font(.caption).foregroundStyle(.secondary)
-            Toggle("On", isOn: Binding(
-                get: { site.enabled },
-                set: { on in Task { await model.setEnabled(site, on) } }
-            ))
-            .labelsHidden()
-            .toggleStyle(.switch)
-            .controlSize(.mini)
-            .disabled(model.busy != nil)
-            .help(site.enabled ? "Stop serving this site" : "Serve this site")
+            if site.archived {
+                Image(systemName: "archivebox").foregroundStyle(.secondary).help("Archived")
+            } else {
+                Toggle("On", isOn: Binding(
+                    get: { site.enabled },
+                    set: { on in Task { await model.setEnabled(site, on) } }
+                ))
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+                .disabled(model.busy != nil)
+                .help(site.enabled ? "Stop serving this site" : "Serve this site")
+            }
         }
         .opacity(site.enabled ? 1 : 0.55)
         .contextMenu {
@@ -184,6 +201,19 @@ struct SiteRow: View {
             Divider()
             Button(action: duplicate) {
                 Label("Duplicate…", systemImage: "plus.square.on.square")
+            }
+            if site.archived {
+                Button {
+                    Task { await model.setArchived(site, false) }
+                } label: {
+                    Label("Unarchive", systemImage: "tray.and.arrow.up")
+                }
+            } else {
+                Button {
+                    Task { await model.setArchived(site, true) }
+                } label: {
+                    Label("Archive", systemImage: "archivebox")
+                }
             }
         }
     }

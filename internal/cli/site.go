@@ -21,7 +21,7 @@ func (a *app) siteCmd() *cobra.Command {
 		Use:   "site",
 		Short: "Manage sites",
 	}
-	cmd.AddCommand(a.siteAddCmd(), a.siteSetCmd(), a.siteToggleCmd(true), a.siteToggleCmd(false), a.siteLogsCmd(), a.sitePHPCmd(), a.siteListCmd(), a.siteRemoveCmd())
+	cmd.AddCommand(a.siteAddCmd(), a.siteSetCmd(), a.siteToggleCmd(true), a.siteToggleCmd(false), a.siteArchiveCmd(true), a.siteArchiveCmd(false), a.siteLogsCmd(), a.sitePHPCmd(), a.siteListCmd(), a.siteRemoveCmd())
 	return cmd
 }
 
@@ -32,9 +32,12 @@ func (r siteResult) Text(w io.Writer) {
 	if len(r.Aliases) > 0 {
 		fmt.Fprintf(w, "  also: %s\n", strings.Join(r.Aliases, ", "))
 	}
-	if !r.Enabled {
+	switch {
+	case r.Archived:
+		fmt.Fprintln(w, "Archived: not served. Bring it back with `covo site unarchive`.")
+	case !r.Enabled:
 		fmt.Fprintln(w, "Disabled: Covo does not serve it. Turn it on with `covo site enable`.")
-	} else if !r.Applied {
+	case !r.Applied:
 		fmt.Fprintln(w, "Covo is not running: run `covo start`.")
 	}
 }
@@ -193,6 +196,22 @@ func (a *app) sitePHPCmd() *cobra.Command {
 	}
 }
 
+func (a *app) siteArchiveCmd(archive bool) *cobra.Command {
+	use, short := "unarchive <name>", "Bring back an archived site and serve it again"
+	if archive {
+		use, short = "archive <name>", "Put a site away: not served, listed apart (folder and database are kept)"
+	}
+	return &cobra.Command{
+		Use:   use,
+		Short: short,
+		Args:  cobra.ExactArgs(1),
+		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
+			res, err := c.UpdateSite(ctx, core.UpdateSiteRequest{Name: args[0], Archived: &archive})
+			return siteResult(res), err
+		}),
+	}
+}
+
 func absDir(path string) (string, error) {
 	if path == "" {
 		wd, err := os.Getwd()
@@ -216,7 +235,10 @@ func (r siteListResult) Text(w io.Writer) {
 	}
 	for _, s := range r {
 		off := ""
-		if !s.Enabled {
+		switch {
+		case s.Archived:
+			off = "  (archived)"
+		case !s.Enabled:
 			off = "  (disabled)"
 		}
 		fmt.Fprintf(w, "%-14s PHP %-4s %-36s %s%s\n", s.Name, s.PHPMinor, s.URL, s.Path, off)

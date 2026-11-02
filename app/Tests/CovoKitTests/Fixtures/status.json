@@ -39,6 +39,7 @@
         "domain": "demo.localhost",
         "https": true,
         "enabled": true,
+        "archived": false,
         "aliases": [],
         "database": "",
         "created_at": "2026-10-29T17:17:54Z",
@@ -51,6 +52,7 @@
         "domain": "demo.covo.test",
         "https": true,
         "enabled": true,
+        "archived": false,
         "aliases": [],
         "database": "",
         "created_at": "2026-10-29T17:33:33Z",
@@ -66,6 +68,7 @@
       {
         "zone": "test",
         "enabled": true,
+        "archived": false,
         "aliases": [],
         "database": "",
         "dns_port": 53535,
@@ -87,6 +90,7 @@
     ],
     "mysql": {
       "enabled": true,
+      "archived": false,
       "aliases": [],
       "database": "",
       "version": "8.4.13",

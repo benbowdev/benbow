@@ -160,6 +160,12 @@ final class AppModel {
         }
     }
 
+    func setArchived(_ site: Site, _ archived: Bool) async {
+        await perform(archived ? "Archiving \(site.name)…" : "Bringing back \(site.name)…") {
+            _ = try await $0.updateSite(site.name, archived: archived)
+        }
+    }
+
     func setAliases(_ site: Site, _ aliases: [String]) async {
         await perform("Updating \(site.name)…") {
             _ = try await $0.updateSite(site.name, aliases: aliases)

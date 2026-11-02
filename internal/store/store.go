@@ -201,6 +201,8 @@ type Site struct {
 	HTTPS    bool   `json:"https"`
 	// Enabled is false for a site kept in the list but not served.
 	Enabled bool `json:"enabled"`
+	// Archived sites are put away: not served and listed apart.
+	Archived bool `json:"archived"`
 	// Aliases are extra domains served by the same site (e.g. www.).
 	Aliases []string `json:"aliases"`
 	// Database is the MySQL database linked to the site, or empty.
@@ -216,8 +218,8 @@ type Site struct {
 // AddSite inserts a site. Duplicate names or domains are a Conflict.
 func (s *Store) AddSite(ctx context.Context, site Site) error {
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO sites (name, path, php_minor, domain, https, enabled, db_name, db_user, php_settings, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		site.Name, site.Path, site.PHPMinor, site.Domain, site.HTTPS, site.Enabled, site.Database, site.DBUser, encodeSettings(site.PHPSettings), site.CreatedAt.UTC().Format(time.RFC3339))
+		`INSERT INTO sites (name, path, php_minor, domain, https, enabled, archived, db_name, db_user, php_settings, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		site.Name, site.Path, site.PHPMinor, site.Domain, site.HTTPS, site.Enabled, site.Archived, site.Database, site.DBUser, encodeSettings(site.PHPSettings), site.CreatedAt.UTC().Format(time.RFC3339))
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
 			return errcode.Errorf(errcode.Conflict, fmt.Sprintf("site %q already exists", site.Name))
@@ -246,7 +248,7 @@ func (s *Store) ListSites(ctx context.Context) ([]Site, error) {
 
 func (s *Store) querySites(ctx context.Context, tail string, args ...any) ([]Site, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT name, path, php_minor, domain, https, enabled, db_name, db_user, php_settings, created_at FROM sites `+tail, args...)
+		`SELECT name, path, php_minor, domain, https, enabled, archived, db_name, db_user, php_settings, created_at FROM sites `+tail, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query sites: %w", err)
 	}
@@ -255,7 +257,7 @@ func (s *Store) querySites(ctx context.Context, tail string, args ...any) ([]Sit
 	for rows.Next() {
 		var site Site
 		var at, settings string
-		if err := rows.Scan(&site.Name, &site.Path, &site.PHPMinor, &site.Domain, &site.HTTPS, &site.Enabled, &site.Database, &site.DBUser, &settings, &at); err != nil {
+		if err := rows.Scan(&site.Name, &site.Path, &site.PHPMinor, &site.Domain, &site.HTTPS, &site.Enabled, &site.Archived, &site.Database, &site.DBUser, &settings, &at); err != nil {
 			return nil, fmt.Errorf("scan site: %w", err)
 		}
 		site.PHPSettings = map[string]string{}
@@ -334,8 +336,8 @@ func (s *Store) SetAliases(ctx context.Context, name string, aliases []string) e
 // site called site.Name. A domain used by another site is a Conflict.
 func (s *Store) UpdateSite(ctx context.Context, site Site) error {
 	res, err := s.db.ExecContext(ctx,
-		`UPDATE sites SET path = ?, php_minor = ?, domain = ?, https = ?, enabled = ?, db_name = ?, db_user = ?, php_settings = ? WHERE name = ?`,
-		site.Path, site.PHPMinor, site.Domain, site.HTTPS, site.Enabled, site.Database, site.DBUser, encodeSettings(site.PHPSettings), site.Name)
+		`UPDATE sites SET path = ?, php_minor = ?, domain = ?, https = ?, enabled = ?, archived = ?, db_name = ?, db_user = ?, php_settings = ? WHERE name = ?`,
+		site.Path, site.PHPMinor, site.Domain, site.HTTPS, site.Enabled, site.Archived, site.Database, site.DBUser, encodeSettings(site.PHPSettings), site.Name)
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
 			return errcode.Errorf(errcode.Conflict, fmt.Sprintf("domain %q is used by another site", site.Domain))
