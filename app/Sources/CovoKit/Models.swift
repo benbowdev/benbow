@@ -165,6 +165,18 @@ public struct SiteLog: Codable, Sendable, Hashable {
     public var lines: [String]
 }
 
+/// A site's effective php.ini values and which ones are its own.
+public struct SitePHPSettings: Codable, Sendable, Hashable {
+    public var site: String
+    public var php: String
+    public var memoryLimit: String
+    public var uploadMaxFilesize: String
+    public var maxExecutionTime: Int
+    public var displayErrors: Bool
+    /// php.ini name → value set for this site only.
+    public var overrides: [String: String]
+}
+
 public struct XdebugStatus: Codable, Sendable, Hashable, Identifiable {
     public var php: String
     public var phpVersion: String

@@ -148,6 +148,18 @@ public struct CovoAPI: Sendable {
         let _: Ignored = try await call("DELETE", "/v1/sites/\(escape(name))/database" + (drop ? "?drop=true" : ""))
     }
 
+    public func sitePHPSettings(_ name: String) async throws -> SitePHPSettings {
+        try await call("GET", "/v1/sites/\(escape(name))/php-settings")
+    }
+
+    /// php.ini name → value; "" goes back to the PHP version's value.
+    public func setSitePHPSettings(_ name: String, _ values: [String: String]) async throws -> SitePHPSettings {
+        // Keys are php.ini names already: encode them as they are.
+        let data = try JSONEncoder().encode(values)
+        let resp = try await http.send(method: "PATCH", path: "/v1/sites/\(escape(name))/php-settings", body: data)
+        return try EnvelopeDecoder.decode(SitePHPSettings.self, from: resp.body)
+    }
+
     /// kind is "access" or "php".
     public func siteLogs(_ name: String, kind: String, lines: Int = 500) async throws -> SiteLog {
         try await call("GET", "/v1/sites/\(escape(name))/logs/\(escape(kind))?lines=\(lines)")

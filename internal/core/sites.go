@@ -6,6 +6,7 @@ package core
 import (
 	"context"
 	"fmt"
+	"maps"
 	"os"
 	"regexp"
 	"slices"
@@ -120,14 +121,15 @@ func (c *Core) insertSite(ctx context.Context, req AddSiteRequest) (store.Site, 
 		return store.Site{}, err
 	}
 	site := store.Site{
-		Name:      req.Name,
-		Path:      req.Path,
-		PHPMinor:  req.PHP,
-		Domain:    req.Domain,
-		HTTPS:     true,
-		Enabled:   true,
-		Aliases:   []string{},
-		CreatedAt: time.Now(),
+		Name:        req.Name,
+		Path:        req.Path,
+		PHPMinor:    req.PHP,
+		Domain:      req.Domain,
+		HTTPS:       true,
+		Enabled:     true,
+		Aliases:     []string{},
+		PHPSettings: map[string]string{},
+		CreatedAt:   time.Now(),
 	}
 	if err := c.Store.AddSite(ctx, site); err != nil {
 		return store.Site{}, err
@@ -306,7 +308,8 @@ func (c *Core) UpdateSite(ctx context.Context, req UpdateSiteRequest) (SiteResul
 
 func siteEqual(a, b store.Site) bool {
 	return a.Path == b.Path && a.PHPMinor == b.PHPMinor && a.Domain == b.Domain &&
-		a.HTTPS == b.HTTPS && a.Enabled == b.Enabled && slices.Equal(a.Aliases, b.Aliases)
+		a.HTTPS == b.HTTPS && a.Enabled == b.Enabled && slices.Equal(a.Aliases, b.Aliases) &&
+		maps.Equal(a.PHPSettings, b.PHPSettings)
 }
 
 // RemoveSite unregisters a site. Its folder is never touched.

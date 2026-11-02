@@ -7,8 +7,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
+	"slices"
+	"strconv"
+	"strings"
 
+	"github.com/getcovo/covo/internal/errcode"
 	"github.com/getcovo/covo/internal/php"
+	"github.com/getcovo/covo/internal/store"
 )
 
 func settingPHP(minor string) string { return "php_settings_" + minor }
@@ -92,4 +98,97 @@ func (c *Core) SetPHPSettings(ctx context.Context, minor string, values map[stri
 func mustJSON(v any) string {
 	b, _ := json.Marshal(v)
 	return string(b)
+}
+
+// sitePHPSettings are a site's effective php.ini values: its PHP version's
+// with the site's own on top.
+func (c *Core) sitePHPSettings(ctx context.Context, site store.Site) (php.Settings, error) {
+	base, err := c.phpSettings(ctx, site.PHPMinor)
+	if err != nil {
+		return base, err
+	}
+	return base.WithOverrides(site.PHPSettings)
+}
+
+// SitePHPSettings are a site's php.ini values and which of them are its own.
+type SitePHPSettings struct {
+	Site string `json:"site"`
+	PHP  string `json:"php"`
+	// Effective values for the site's requests.
+	php.Settings
+	// Overrides are the site's own values; the rest come from its PHP version.
+	Overrides map[string]string `json:"overrides"`
+	Applied   bool              `json:"applied,omitempty"`
+}
+
+// GetSitePHPSettings returns a site's php.ini values.
+func (c *Core) GetSitePHPSettings(ctx context.Context, name string) (SitePHPSettings, error) {
+	site, err := c.Store.Site(ctx, name)
+	if err != nil {
+		return SitePHPSettings{}, err
+	}
+	s, err := c.sitePHPSettings(ctx, site)
+	return SitePHPSettings{Site: name, PHP: site.PHPMinor, Settings: s, Overrides: site.PHPSettings}, err
+}
+
+// SetSitePHPSettings sets php.ini values for one site (name → value); an
+// empty value removes the site's own value so its PHP version's applies.
+// Applied at once if Covo is running.
+func (c *Core) SetSitePHPSettings(ctx context.Context, name string, values map[string]string) (SitePHPSettings, error) {
+	var res SitePHPSettings
+	err := c.locked(ctx, func() error {
+		old, err := c.Store.Site(ctx, name)
+		if err != nil {
+			return err
+		}
+		site := old
+		site.PHPSettings = maps.Clone(old.PHPSettings)
+		for k, v := range values {
+			if !slices.Contains(php.SettingNames, k) {
+				return errcode.Errorf(errcode.InvalidInput,
+					fmt.Sprintf("unknown PHP setting %q; Covo manages %s", k, strings.Join(php.SettingNames, ", ")))
+			}
+			if strings.TrimSpace(v) == "" {
+				delete(site.PHPSettings, k)
+				continue
+			}
+			probe := php.DefaultSettings()
+			if err := probe.Set(k, v); err != nil {
+				return err
+			}
+			site.PHPSettings[k] = normalized(probe, k)
+		}
+		effective, err := c.sitePHPSettings(ctx, site)
+		if err != nil {
+			return err
+		}
+		res = SitePHPSettings{Site: name, PHP: site.PHPMinor, Settings: effective, Overrides: site.PHPSettings}
+		if maps.Equal(site.PHPSettings, old.PHPSettings) {
+			return nil
+		}
+		if err := c.Store.UpdateSite(ctx, site); err != nil {
+			return err
+		}
+		if res.Applied, err = c.applyIfRunning(ctx); err != nil {
+			_ = c.Store.UpdateSite(ctx, old)
+			_, _ = c.applyIfRunning(ctx)
+			return err
+		}
+		return nil
+	})
+	return res, err
+}
+
+// normalized is the stored form of one setting (e.g. "1g" → "1G", "no" → "off").
+func normalized(s php.Settings, name string) string {
+	switch name {
+	case "memory_limit":
+		return s.MemoryLimit
+	case "upload_max_filesize":
+		return s.UploadMaxFilesize
+	case "max_execution_time":
+		return strconv.Itoa(s.MaxExecutionTime)
+	default:
+		return map[bool]string{true: "on", false: "off"}[s.DisplayErrors]
+	}
 }

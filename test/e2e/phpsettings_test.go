@@ -52,4 +52,40 @@ func TestPHPSettings(t *testing.T) {
 	if got := h.get(added.URL, st.CA.CertPath); got != "1G 64M 0 off" {
 		t.Fatalf("a rejected change altered PHP: %q", got)
 	}
+
+	// Per site: demo gets its own values, other keeps the version's, and
+	// neither leaks into the other through a shared PHP-FPM worker.
+	other := newSite(t)
+	if err := os.WriteFile(filepath.Join(other, "index.php"), []byte(script), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var otherSite struct {
+		URL string `json:"url"`
+	}
+	if err := json.Unmarshal(h.mustCovo("site", "add", "other", "--php", "8.4", "--path", other), &otherSite); err != nil {
+		t.Fatal(err)
+	}
+	var site struct {
+		MemoryLimit string            `json:"memory_limit"`
+		Overrides   map[string]string `json:"overrides"`
+	}
+	if err := json.Unmarshal(h.mustCovo("site", "php", "demo", "memory_limit=256m", "display_errors=on"), &site); err != nil ||
+		site.MemoryLimit != "256M" || site.Overrides["memory_limit"] != "256M" || site.Overrides["display_errors"] != "on" {
+		t.Fatalf("site php = %+v, %v", site, err)
+	}
+	for range 5 {
+		if got := h.get(added.URL, st.CA.CertPath); got != "256M 64M 0 1" {
+			t.Fatalf("demo with its own values served %q", got)
+		}
+		if got := h.get(otherSite.URL, st.CA.CertPath); got != "1G 64M 0 off" {
+			t.Fatalf("other site served %q, want the PHP version's values", got)
+		}
+	}
+	if env := h.covo("site", "php", "demo", "short_open_tag=1"); env.OK || env.Error.Code != "invalid_input" {
+		t.Fatalf("unknown setting = %+v", env)
+	}
+	h.mustCovo("site", "php", "demo", "memory_limit=", "display_errors=")
+	if got := h.get(added.URL, st.CA.CertPath); got != "1G 64M 0 off" {
+		t.Fatalf("after reset demo served %q", got)
+	}
 }

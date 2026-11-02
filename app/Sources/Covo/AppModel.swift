@@ -234,6 +234,20 @@ final class AppModel {
         }
     }
 
+    func sitePHPSettings(_ site: Site) async -> SitePHPSettings? {
+        guard let api else { return nil }
+        do {
+            return try await api.sitePHPSettings(site.name)
+        } catch {
+            self.error = error.localizedDescription
+            return nil
+        }
+    }
+
+    func setSitePHPSettings(_ site: Site, _ values: [String: String]) async -> Bool {
+        await perform("Applying PHP settings…") { _ = try await $0.setSitePHPSettings(site.name, values) }
+    }
+
     func installed(_ minor: String) -> Bool {
         php?.installed.contains { $0.minor == minor } ?? false
     }

@@ -22,6 +22,21 @@ Covo is running. Values are validated before anything is saved, so nothing
 else can be written into php.ini. Errors always go to the PHP error log
 (`log_errors = On`, `error_reporting = E_ALL`).
 
+## Per site
+
+```sh
+covo site php shop                                  # effective values, and where each comes from
+covo site php shop memory_limit=1G display_errors=off
+covo site php shop memory_limit=                    # back to the PHP version's value
+```
+
+A site's own values sit on top of its PHP version's. They reach PHP-FPM as
+the FastCGI `PHP_VALUE` of that site's requests, together with its error
+log; every setting is always sent, because PHP-FPM keeps a `PHP_VALUE` in the
+worker for later requests and a site must never inherit another's. In the
+app: site detail → Advanced → PHP settings. API: `GET` and
+`PATCH /v1/sites/{name}/php-settings` (`{"memory_limit": "1G"}`, `""` resets).
+
 In the app: Settings → PHP. API: `GET` and `PATCH /v1/php/{minor}/settings`.
 
 Xdebug: see `xdebug.md`.

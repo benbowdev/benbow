@@ -105,6 +105,9 @@ func liveDaemon() async throws {
         await #expect(throws: APIError(code: "not_found", message: #"site "nope" not found"#)) {
             try await api.siteDatabase("nope")
         }
+        await #expect(throws: APIError(code: "not_found", message: #"site "nope" not found"#)) {
+            try await api.setSitePHPSettings("nope", ["memory_limit": "1G"])
+        }
         let ini = try await api.phpSettings("8.4")
         #expect(ini.memoryLimit == "512M" && ini.displayErrors)
     }

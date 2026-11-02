@@ -15,6 +15,7 @@ struct SiteDetail: View {
     @State private var pendingFolder: URL?
     @State private var domain = ""
     @State private var alias = ""
+    @State private var editingPHP = false
 
     var body: some View {
         Form {
@@ -110,6 +111,10 @@ struct SiteDetail: View {
                         }
                     }
                     Text(domainHint).font(.caption).foregroundStyle(.secondary)
+                    LabeledContent("PHP settings") {
+                        Button("Edit…") { editingPHP = true }
+                            .disabled(model.busy != nil)
+                    }
                     if let x = model.xdebug(for: site.php), x.available {
                         Toggle(isOn: Binding(
                             get: { x.enabled },
@@ -131,6 +136,7 @@ struct SiteDetail: View {
         .formStyle(.grouped)
         .onAppear { domain = site.domain }
         .onChange(of: site.domain) { _, new in domain = new }
+        .sheet(isPresented: $editingPHP) { SitePHPSheet(site: site) }
         .confirmationDialog("Remove \(site.name)?", isPresented: $confirmRemove) {
             Button("Remove", role: .destructive) { Task { await model.removeSite(site) } }
         } message: {

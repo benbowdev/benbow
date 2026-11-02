@@ -87,3 +87,40 @@ func (s Settings) Validate() error {
 func invalid(name, value, want string) error {
 	return errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("%s %q: want %s", name, value, want))
 }
+
+// WithOverrides returns s with per-site values (php.ini name → value)
+// applied on top.
+func (s Settings) WithOverrides(overrides map[string]string) (Settings, error) {
+	for name, v := range overrides {
+		if err := s.Set(name, v); err != nil {
+			return s, err
+		}
+	}
+	return s, nil
+}
+
+// CheckOverrides validates per-site values without applying them.
+func CheckOverrides(overrides map[string]string) error {
+	_, err := DefaultSettings().WithOverrides(overrides)
+	return err
+}
+
+// PHPValue is the FastCGI PHP_VALUE that applies s and errorLog to one
+// site's requests. Every setting is always sent: PHP-FPM keeps a
+// PHP_VALUE in the worker for later requests, so a site that sent fewer
+// values would inherit another site's.
+func (s Settings) PHPValue(errorLog string) string {
+	onOff := map[bool]string{true: "On", false: "Off"}
+	lines := []string{
+		"memory_limit=" + s.MemoryLimit,
+		"upload_max_filesize=" + s.UploadMaxFilesize,
+		"post_max_size=" + s.UploadMaxFilesize,
+		"max_execution_time=" + strconv.Itoa(s.MaxExecutionTime),
+		"display_errors=" + onOff[s.DisplayErrors],
+		"display_startup_errors=" + onOff[s.DisplayErrors],
+	}
+	if errorLog != "" {
+		lines = append(lines, "error_log="+errorLog)
+	}
+	return strings.Join(lines, "\n")
+}

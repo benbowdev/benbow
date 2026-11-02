@@ -21,7 +21,7 @@ func (a *app) siteCmd() *cobra.Command {
 		Use:   "site",
 		Short: "Manage sites",
 	}
-	cmd.AddCommand(a.siteAddCmd(), a.siteSetCmd(), a.siteToggleCmd(true), a.siteToggleCmd(false), a.siteLogsCmd(), a.siteListCmd(), a.siteRemoveCmd())
+	cmd.AddCommand(a.siteAddCmd(), a.siteSetCmd(), a.siteToggleCmd(true), a.siteToggleCmd(false), a.siteLogsCmd(), a.sitePHPCmd(), a.siteListCmd(), a.siteRemoveCmd())
 	return cmd
 }
 
@@ -152,6 +152,45 @@ func (a *app) siteLogsCmd() *cobra.Command {
 	cmd.Flags().IntVarP(&lines, "lines", "n", 50, "number of lines (max 2000)")
 	cmd.Flags().BoolVar(&empty, "clear", false, "empty both logs of the site")
 	return cmd
+}
+
+type sitePHPResult core.SitePHPSettings
+
+func (r sitePHPResult) Text(w io.Writer) {
+	own := func(name string) string {
+		if _, ok := r.Overrides[name]; ok {
+			return "  (this site)"
+		}
+		return "  (PHP " + r.PHP + ")"
+	}
+	onOff := map[bool]string{true: "On", false: "Off"}
+	fmt.Fprintf(w, "%s\n  memory_limit         %-6s%s\n  upload_max_filesize  %-6s%s\n  max_execution_time   %-6d%s\n  display_errors       %-6s%s\n",
+		r.Site, r.MemoryLimit, own("memory_limit"), r.UploadMaxFilesize, own("upload_max_filesize"),
+		r.MaxExecutionTime, own("max_execution_time"), onOff[r.DisplayErrors], own("display_errors"))
+}
+
+func (a *app) sitePHPCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "php <name> [setting=value...]",
+		Short: "Show or change php.ini settings of one site (setting= goes back to the PHP version's)",
+		Args:  cobra.MinimumNArgs(1),
+		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
+			if len(args) == 1 {
+				res, err := c.GetSitePHPSettings(ctx, args[0])
+				return sitePHPResult(res), err
+			}
+			values := map[string]string{}
+			for _, kv := range args[1:] {
+				name, value, ok := strings.Cut(kv, "=")
+				if !ok {
+					return nil, errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("%q: want name=value", kv))
+				}
+				values[name] = value
+			}
+			res, err := c.SetSitePHPSettings(ctx, args[0], values)
+			return sitePHPResult(res), err
+		}),
+	}
 }
 
 func absDir(path string) (string, error) {

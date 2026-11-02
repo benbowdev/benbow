@@ -134,7 +134,7 @@ func (c *Core) caddyBinary(inst CaddyInstall) caddy.Binary {
 func (c *Core) caddyfilePath() string { return filepath.Join(c.Layout.Etc, "caddy", "Caddyfile") }
 
 // renderCaddyfile needs the CA on disk (ensureCA).
-func (c *Core) renderCaddyfile(port int, sites []store.Site, adminer *caddy.Adminer) (string, error) {
+func (c *Core) renderCaddyfile(ctx context.Context, port int, sites []store.Site, adminer *caddy.Adminer) (string, error) {
 	cfg := caddy.Config{
 		Adminer:     adminer,
 		AdminSocket: c.Layout.Socket("caddy-admin.sock"),
@@ -144,14 +144,18 @@ func (c *Core) renderCaddyfile(port int, sites []store.Site, adminer *caddy.Admi
 		CA:          c.caddyCA(),
 	}
 	for _, s := range sites {
+		settings, err := c.sitePHPSettings(ctx, s)
+		if err != nil {
+			return "", err
+		}
 		cfg.Sites = append(cfg.Sites, caddy.Site{
-			Name:        s.Name,
-			Domain:      s.Domain,
-			Aliases:     s.Aliases,
-			Root:        s.Path,
-			FPMSocket:   c.Layout.Socket(socketName(s.PHPMinor)),
-			AccessLog:   c.siteLogPath(s.Name, LogAccess),
-			PHPErrorLog: c.siteLogPath(s.Name, LogPHP),
+			Name:      s.Name,
+			Domain:    s.Domain,
+			Aliases:   s.Aliases,
+			Root:      s.Path,
+			FPMSocket: c.Layout.Socket(socketName(s.PHPMinor)),
+			AccessLog: c.siteLogPath(s.Name, LogAccess),
+			PHPValue:  settings.PHPValue(c.siteLogPath(s.Name, LogPHP)),
 		})
 	}
 	body, err := caddy.Caddyfile(cfg)
@@ -396,7 +400,7 @@ func (c *Core) reconcile(ctx context.Context) (StartResult, error) {
 	if err := c.ensureSiteLogDirs(names); err != nil {
 		return StartResult{}, err
 	}
-	body, err := c.renderCaddyfile(port, sites, adminer)
+	body, err := c.renderCaddyfile(ctx, port, sites, adminer)
 	if err != nil {
 		return StartResult{}, err
 	}

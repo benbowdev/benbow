@@ -64,3 +64,18 @@ func TestINIUsesSettings(t *testing.T) {
 		t.Fatalf("unsafe stored value err = %v, want invalid_input", err)
 	}
 }
+
+func TestOverridesAndPHPValue(t *testing.T) {
+	s, err := DefaultSettings().WithOverrides(map[string]string{"memory_limit": "1g", "display_errors": "off"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "memory_limit=1G\nupload_max_filesize=128M\npost_max_size=128M\nmax_execution_time=300\n" +
+		"display_errors=Off\ndisplay_startup_errors=Off\nerror_log=/x/php-error.log"
+	if got := s.PHPValue("/x/php-error.log"); got != want {
+		t.Fatalf("PHPValue:\n%s\nwant:\n%s", got, want)
+	}
+	if err := CheckOverrides(map[string]string{"memory_limit": "lots"}); errcode.Code(err) != errcode.InvalidInput {
+		t.Fatalf("bad override err = %v", err)
+	}
+}

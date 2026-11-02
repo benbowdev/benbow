@@ -40,7 +40,9 @@
 		}
 	}
 	php_fastcgi "unix//Users/test/Library/Application Support/covo/run/php84.sock" {
-		env PHP_VALUE "error_log=/Users/test/Library/Application Support/covo/logs/sites/demo/php-error.log"
+		env PHP_VALUE "memory_limit=1G
+display_errors=Off
+error_log=/Users/test/Library/Application Support/covo/logs/sites/demo/php-error.log"
 	}
 	file_server
 }

@@ -85,6 +85,10 @@ func (f *fake) NewWordPress(_ context.Context, req core.WordPressRequest) (core.
 	return core.WordPressResult{}, f.record("wordpress " + req.Name + " " + req.PHP + " " + req.AdminUser)
 }
 
+func (f *fake) SetSitePHPSettings(_ context.Context, name string, values map[string]string) (core.SitePHPSettings, error) {
+	return core.SitePHPSettings{}, f.record(fmt.Sprintf("site php %s %q", name, values["memory_limit"]))
+}
+
 func (f *fake) RemoveSite(_ context.Context, name string) (core.SiteResult, error) {
 	return core.SiteResult{}, f.record("remove " + name)
 }
@@ -188,6 +192,8 @@ func TestRoutes(t *testing.T) {
 		{"DELETE", "/v1/sites/demo/database", "", 200, "unlink db demo false", ""},
 		{"DELETE", "/v1/sites/demo/database?drop=true", "", 200, "unlink db demo true", ""},
 		{"POST", "/v1/wordpress", `{"name":"blog","php":"8.4","admin_user":"me"}`, 200, "wordpress blog 8.4 me", ""},
+		{"PATCH", "/v1/sites/demo/php-settings", `{"memory_limit":""}`, 200, `site php demo ""`, ""},
+		{"PATCH", "/v1/sites/demo/php-settings", `{"memory_limit":1}`, 400, "", errcode.InvalidInput},
 		{"PATCH", "/v1/sites/demo", `{"name":"x"}`, 400, "", errcode.InvalidInput},
 		{"PUT", "/v1/xdebug/8.4", `{"enabled":true}`, 200, "xdebug 8.4 on", ""},
 		{"PUT", "/v1/xdebug/8.4", `{"enabled":false}`, 200, "xdebug 8.4 off", ""},

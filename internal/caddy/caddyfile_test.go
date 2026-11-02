@@ -32,7 +32,8 @@ func TestCaddyfileGolden(t *testing.T) {
 		{"no-sites", nil, nil},
 		{"two-sites", []Site{
 			{Name: "demo", Domain: "demo.localhost", Aliases: []string{"shop.test", "www.demo.localhost"}, Root: "/Users/test/Sites/My Demo", FPMSocket: home + "/run/php84.sock",
-				AccessLog: home + "/logs/sites/demo/access.log", PHPErrorLog: home + "/logs/sites/demo/php-error.log"},
+				AccessLog: home + "/logs/sites/demo/access.log",
+				PHPValue:  "memory_limit=1G\ndisplay_errors=Off\nerror_log=" + home + "/logs/sites/demo/php-error.log"},
 			{Name: "legacy", Domain: "legacy.localhost", Root: "/Users/test/Sites/legacy", FPMSocket: home + "/run/php82.sock"},
 		}, &Adminer{Dir: home + "/components/adminer/6.2.0-all", FPMSocket: home + "/run/php84.sock"}},
 	}
@@ -79,6 +80,14 @@ func TestCaddyfileRejectsBadDomains(t *testing.T) {
 	})
 	if errcode.Code(err) != errcode.InvalidInput {
 		t.Fatalf("err = %v, want invalid_input", err)
+	}
+	_, err = Caddyfile(Config{
+		AdminSocket: home + "/run/caddy-admin.sock", StorageDir: home + "/data/caddy", LogFile: home + "/logs/caddy.log", CA: testCA,
+		Sites: []Site{{Name: "x", Domain: "x.localhost", Root: "/Users/test/x", FPMSocket: home + "/run/php84.sock",
+			PHPValue: "memory_limit=1G\"\n}"}},
+	})
+	if errcode.Code(err) != errcode.InvalidInput {
+		t.Fatalf("bad PHP value err = %v, want invalid_input", err)
 	}
 }
 
