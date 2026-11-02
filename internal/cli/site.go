@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/getcovo/covo/internal/core"
 	"github.com/getcovo/covo/internal/errcode"
@@ -28,6 +29,9 @@ type siteResult core.SiteResult
 
 func (r siteResult) Text(w io.Writer) {
 	fmt.Fprintf(w, "%s  PHP %s  %s\n  %s\n", r.Name, r.PHPMinor, r.URL, r.Path)
+	if len(r.Aliases) > 0 {
+		fmt.Fprintf(w, "  also: %s\n", strings.Join(r.Aliases, ", "))
+	}
 	if !r.Enabled {
 		fmt.Fprintln(w, "Disabled: Covo does not serve it. Turn it on with `covo site enable`.")
 	} else if !r.Applied {
@@ -65,13 +69,18 @@ func (a *app) siteAddCmd() *cobra.Command {
 
 func (a *app) siteSetCmd() *cobra.Command {
 	var phpVersion, path, domain string
+	var aliases []string
 	var force bool
-	cmd := &cobra.Command{
+	var cmd *cobra.Command
+	cmd = &cobra.Command{
 		Use:   "set <name>",
-		Short: "Change a site's PHP version, folder or domain",
+		Short: "Change a site's PHP version, folder, domain or aliases",
 		Args:  cobra.ExactArgs(1),
 		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
 			req := core.UpdateSiteRequest{Name: args[0], PHP: phpVersion, Domain: domain, Force: force}
+			if cmd.Flags().Changed("aliases") {
+				req.Aliases = &aliases
+			}
 			if path != "" {
 				dir, err := absDir(path)
 				if err != nil {
@@ -90,6 +99,7 @@ func (a *app) siteSetCmd() *cobra.Command {
 	cmd.Flags().StringVar(&phpVersion, "php", "", "new PHP version (e.g. 8.3)")
 	cmd.Flags().StringVar(&path, "path", "", "new document root")
 	cmd.Flags().StringVar(&domain, "domain", "", "new local domain, e.g. demo.covo.test")
+	cmd.Flags().StringSliceVar(&aliases, "aliases", nil, `extra domains, comma separated, replacing the current ones ("" clears)`)
 	cmd.Flags().BoolVar(&force, "force", false, "accept a folder without index.php or index.html")
 	return cmd
 }

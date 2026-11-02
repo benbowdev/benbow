@@ -13,6 +13,7 @@ struct SiteDetail: View {
     /// A folder without an index file, waiting for "Use Anyway".
     @State private var pendingFolder: URL?
     @State private var domain = ""
+    @State private var alias = ""
 
     var body: some View {
         Form {
@@ -80,6 +81,31 @@ struct SiteDetail: View {
                                 .disabled(domain.isEmpty || domain == site.domain || model.busy != nil)
                         }
                     }
+                    LabeledContent("Aliases") {
+                        VStack(alignment: .trailing, spacing: 4) {
+                            ForEach(site.aliases, id: \.self) { alias in
+                                HStack {
+                                    Text(alias).textSelection(.enabled)
+                                    Button {
+                                        Task { await model.setAliases(site, site.aliases.filter { $0 != alias }) }
+                                    } label: {
+                                        Image(systemName: "minus.circle.fill")
+                                    }
+                                    .buttonStyle(.borderless)
+                                    .help("Remove alias")
+                                    .disabled(model.busy != nil)
+                                }
+                            }
+                            HStack {
+                                TextField("New alias", text: $alias, prompt: Text("www.\(site.domain)"))
+                                    .labelsHidden()
+                                    .multilineTextAlignment(.trailing)
+                                    .onSubmit(addAlias)
+                                Button("Add", action: addAlias)
+                                    .disabled(alias.trimmingCharacters(in: .whitespaces).isEmpty || model.busy != nil)
+                            }
+                        }
+                    }
                     Text(domainHint).font(.caption).foregroundStyle(.secondary)
                     if let x = model.xdebug(for: site.php), x.available {
                         Toggle(isOn: Binding(
@@ -131,7 +157,16 @@ struct SiteDetail: View {
         var suffixes = [".localhost"]
         if model.domainEnabled("test") { suffixes.append(".test") }
         if model.domainEnabled("local") { suffixes.append(".local") }
-        return "Must end in \(suffixes.joined(separator: ", ")). More suffixes in Settings → Domains."
+        return "Domain and aliases must end in \(suffixes.joined(separator: ", ")). More suffixes in Settings → Domains."
+    }
+
+    private func addAlias() {
+        let a = alias.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !a.isEmpty else { return }
+        Task {
+            await model.setAliases(site, site.aliases + [a])
+            if model.error == nil { alias = "" }
+        }
     }
 
     private func saveDomain() {

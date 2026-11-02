@@ -70,7 +70,7 @@ func (c *Core) helperStatus(ctx context.Context) *HelperStatus {
 	return st
 }
 
-// localNames lists the .local domains of all sites.
+// localNames lists the .local domains and aliases of all sites.
 func (c *Core) localNames(ctx context.Context) ([]string, error) {
 	sites, err := c.Store.ListSites(ctx)
 	if err != nil {
@@ -78,8 +78,10 @@ func (c *Core) localNames(ctx context.Context) ([]string, error) {
 	}
 	names := []string{}
 	for _, s := range sites {
-		if strings.HasSuffix(s.Domain, "."+suffixLocal) {
-			names = append(names, s.Domain)
+		for _, d := range append([]string{s.Domain}, s.Aliases...) {
+			if strings.HasSuffix(d, "."+suffixLocal) {
+				names = append(names, d)
+			}
 		}
 	}
 	slices.Sort(names)

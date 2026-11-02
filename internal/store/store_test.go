@@ -126,6 +126,21 @@ func TestSites(t *testing.T) {
 	if err := s.UpdateSite(ctx, Site{Name: "missing", Domain: "missing.localhost"}); errcode.Code(err) != errcode.NotFound {
 		t.Fatalf("update missing err = %v, want not_found", err)
 	}
+	if err := s.SetAliases(ctx, "demo", []string{"www.demo.localhost", "shop.localhost"}); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := s.Site(ctx, "demo"); len(got.Aliases) != 2 || got.Aliases[0] != "shop.localhost" {
+		t.Fatalf("aliases = %v", got.Aliases)
+	}
+	if err := s.SetAliases(ctx, "other", []string{"shop.localhost"}); errcode.Code(err) != errcode.Conflict {
+		t.Fatalf("taken alias err = %v, want conflict", err)
+	}
+	if err := s.SetAliases(ctx, "missing", []string{"x.localhost"}); errcode.Code(err) != errcode.NotFound {
+		t.Fatalf("alias for missing site err = %v, want not_found", err)
+	}
+	if got, _ := s.Site(ctx, "other"); len(got.Aliases) != 0 || got.Aliases == nil {
+		t.Fatalf("other aliases = %#v, want empty", got.Aliases)
+	}
 	if err := s.RemoveSite(ctx, "other"); err != nil {
 		t.Fatal(err)
 	}
@@ -138,6 +153,9 @@ func TestSites(t *testing.T) {
 	sites, err := s.ListSites(ctx)
 	if err != nil || len(sites) != 0 {
 		t.Fatalf("ListSites = %v, %v", sites, err)
+	}
+	if a, err := s.aliases(ctx); err != nil || len(a) != 0 {
+		t.Fatalf("aliases left after remove: %v, %v", a, err)
 	}
 }
 

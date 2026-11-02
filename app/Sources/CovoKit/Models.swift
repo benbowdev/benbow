@@ -15,6 +15,8 @@ public struct Site: Codable, Sendable, Identifiable, Hashable {
     public var https: Bool
     /// False for a site kept in the list but not served.
     public var enabled: Bool
+    /// Extra domains served by the same site.
+    public var aliases: [String]
     public var url: String
     public var id: String { name }
 }

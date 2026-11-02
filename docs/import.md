@@ -23,7 +23,7 @@ original is only read once, by the copy.
 | PHP 8.x | the same minor version (8.1.13 → 8.1, 8.2.0 → 8.2) |
 | PHP 7.4 and older | PHP 8.1, with a warning: Covo has no PHP 7 builds |
 | SSL | always on: every Covo site is HTTPS |
-| aliases | not imported (listed in the warnings) |
+| aliases | imported, mapped like the server name; one already used by another site is skipped with a warning |
 | databases | not imported: listed, to export from MAMP's MySQL (port 3306) and import into Covo's (3307) |
 
 Hosts are skipped when their folder does not exist, when Covo refuses the

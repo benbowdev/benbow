@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/getcovo/covo/internal/errcode"
@@ -110,6 +112,9 @@ func (c *Core) insertSite(ctx context.Context, req AddSiteRequest) (store.Site, 
 	if err := c.checkSiteDomain(ctx, req.Domain); err != nil {
 		return store.Site{}, err
 	}
+	if err := c.checkDomainFree(ctx, req.Domain, ""); err != nil {
+		return store.Site{}, err
+	}
 	if _, err := c.ensurePHP(ctx, req.PHP); err != nil {
 		return store.Site{}, err
 	}
@@ -120,6 +125,7 @@ func (c *Core) insertSite(ctx context.Context, req AddSiteRequest) (store.Site, 
 		Domain:    req.Domain,
 		HTTPS:     true,
 		Enabled:   true,
+		Aliases:   []string{},
 		CreatedAt: time.Now(),
 	}
 	if err := c.Store.AddSite(ctx, site); err != nil {
@@ -159,8 +165,59 @@ type UpdateSiteRequest struct {
 	Domain string
 	// Enabled turns serving the site on or off when set.
 	Enabled *bool
+	// Aliases, when set, replace the site's extra domains (empty clears).
+	Aliases *[]string
 	// Force accepts a new folder without index.php or index.html.
 	Force bool
+}
+
+// maxAliases keeps the certificate and /etc/hosts block reasonable.
+const maxAliases = 20
+
+// checkDomainFree fails if domain is served by a site other than self, or
+// is already one of self's names.
+func (c *Core) checkDomainFree(ctx context.Context, domain, self string) error {
+	sites, err := c.Store.ListSites(ctx)
+	if err != nil {
+		return err
+	}
+	for _, s := range sites {
+		if s.Domain == domain || slices.Contains(s.Aliases, domain) {
+			if s.Name == self {
+				return errcode.Errorf(errcode.Conflict, fmt.Sprintf("%s is already a name of %s", domain, self))
+			}
+			return errcode.Errorf(errcode.Conflict, fmt.Sprintf("%s is used by site %s", domain, s.Name))
+		}
+	}
+	return nil
+}
+
+// checkAliases validates and normalizes new aliases for site.
+func (c *Core) checkAliases(ctx context.Context, site store.Site, aliases []string) ([]string, error) {
+	out := []string{}
+	for _, a := range aliases {
+		a = strings.ToLower(strings.TrimSpace(a))
+		if a == "" || slices.Contains(out, a) {
+			continue
+		}
+		if a == site.Domain {
+			return nil, errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("%s is the site's own domain", a))
+		}
+		if err := c.checkSiteDomain(ctx, a); err != nil {
+			return nil, err
+		}
+		if !slices.Contains(site.Aliases, a) {
+			if err := c.checkDomainFree(ctx, a, site.Name); err != nil {
+				return nil, err
+			}
+		}
+		out = append(out, a)
+	}
+	if len(out) > maxAliases {
+		return nil, errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("at most %d aliases per site", maxAliases))
+	}
+	slices.Sort(out)
+	return out, nil
 }
 
 // UpdateSite changes a site's PHP version, folder or domain, or turns it on
@@ -190,17 +247,25 @@ func (c *Core) UpdateSite(ctx context.Context, req UpdateSiteRequest) (SiteResul
 			if err := c.checkSiteDomain(ctx, req.Domain); err != nil {
 				return err
 			}
+			if err := c.checkDomainFree(ctx, req.Domain, ""); err != nil {
+				return err
+			}
 			site.Domain = req.Domain
 		}
 		if req.Enabled != nil {
 			site.Enabled = *req.Enabled
+		}
+		if req.Aliases != nil {
+			if site.Aliases, err = c.checkAliases(ctx, site, *req.Aliases); err != nil {
+				return err
+			}
 		}
 		port, _, err := c.httpsPort(ctx)
 		if err != nil {
 			return err
 		}
 		res = SiteResult{SiteStatus: SiteStatus{Site: site, URL: siteURL(site, port)}}
-		if site == old {
+		if siteEqual(site, old) {
 			res.Applied, err = c.applyIfRunning(ctx)
 			return err
 		}
@@ -212,8 +277,13 @@ func (c *Core) UpdateSite(ctx context.Context, req UpdateSiteRequest) (SiteResul
 		if err := c.Store.UpdateSite(ctx, site); err != nil {
 			return err
 		}
+		if err := c.Store.SetAliases(ctx, site.Name, site.Aliases); err != nil {
+			_ = c.Store.UpdateSite(ctx, old)
+			return err
+		}
 		restore := func() {
 			_ = c.Store.UpdateSite(ctx, old)
+			_ = c.Store.SetAliases(ctx, old.Name, old.Aliases)
 			_ = c.syncLocal(ctx)
 			_, _ = c.applyIfRunning(ctx)
 		}
@@ -228,6 +298,11 @@ func (c *Core) UpdateSite(ctx context.Context, req UpdateSiteRequest) (SiteResul
 		return nil
 	})
 	return res, err
+}
+
+func siteEqual(a, b store.Site) bool {
+	return a.Path == b.Path && a.PHPMinor == b.PHPMinor && a.Domain == b.Domain &&
+		a.HTTPS == b.HTTPS && a.Enabled == b.Enabled && slices.Equal(a.Aliases, b.Aliases)
 }
 
 // RemoveSite unregisters a site. Its folder is never touched.

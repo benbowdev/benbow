@@ -50,6 +50,9 @@ func (f *fake) UpdateSite(_ context.Context, req core.UpdateSiteRequest) (core.S
 	if req.Enabled != nil {
 		call += map[bool]string{true: " on", false: " off"}[*req.Enabled]
 	}
+	if req.Aliases != nil {
+		call += " aliases=" + strings.Join(*req.Aliases, ",")
+	}
 	return core.SiteResult{}, f.record(call)
 }
 
@@ -149,6 +152,8 @@ func TestRoutes(t *testing.T) {
 		{"PATCH", "/v1/sites/demo", `{"enabled":false}`, 200, "update demo   off", ""},
 		{"PATCH", "/v1/php/8.4/settings", `{"memory_limit":"1G","display_errors":false}`, 200, "php settings 8.4 1G false", ""},
 		{"PATCH", "/v1/php/8.4/settings", `{"short_open_tag":"On"}`, 400, "", errcode.InvalidInput},
+		{"PATCH", "/v1/sites/demo", `{"aliases":["www.demo.localhost"]}`, 200, "update demo   aliases=www.demo.localhost", ""},
+		{"PATCH", "/v1/sites/demo", `{"aliases":[]}`, 200, "update demo   aliases=", ""},
 		{"PATCH", "/v1/sites/demo", `{"name":"x"}`, 400, "", errcode.InvalidInput},
 		{"PUT", "/v1/xdebug/8.4", `{"enabled":true}`, 200, "xdebug 8.4 on", ""},
 		{"PUT", "/v1/xdebug/8.4", `{"enabled":false}`, 200, "xdebug 8.4 off", ""},

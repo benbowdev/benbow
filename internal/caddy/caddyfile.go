@@ -7,6 +7,7 @@ package caddy
 import (
 	"bytes"
 	"fmt"
+	"regexp"
 	"strings"
 	"text/template"
 
@@ -38,6 +39,7 @@ type CA struct {
 type Site struct {
 	Name      string
 	Domain    string
+	Aliases   []string
 	Root      string
 	FPMSocket string
 }
@@ -74,7 +76,7 @@ var tmpl = template.Must(template.New("Caddyfile").Funcs(template.FuncMap{"q": q
 }
 {{range .Sites}}
 # site: {{.Name}}
-{{q (print "https://" .Domain ":" $.HTTPSPort)}} {
+{{q (print "https://" .Domain ":" $.HTTPSPort)}}{{range .Aliases}}, {{q (print "https://" . ":" $.HTTPSPort)}}{{end}} {
 	tls internal
 	root * {{q .Root}}
 	php_fastcgi {{q (print "unix/" .FPMSocket)}}
@@ -88,6 +90,11 @@ func Caddyfile(cfg Config) (string, error) {
 	check := []string{cfg.AdminSocket, cfg.StorageDir, cfg.LogFile, cfg.CA.RootCert, cfg.CA.IntermediateCert, cfg.CA.IntermediateKey}
 	for _, s := range cfg.Sites {
 		check = append(check, s.Root, s.FPMSocket)
+		for _, d := range append([]string{s.Domain}, s.Aliases...) {
+			if !hostRe.MatchString(d) {
+				return "", errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("bad domain %q", d))
+			}
+		}
 	}
 	for _, p := range check {
 		if err := paths.CheckSafe(p); err != nil {
@@ -103,6 +110,10 @@ func Caddyfile(cfg Config) (string, error) {
 	}
 	return buf.String(), nil
 }
+
+// hostRe is what a domain may contain in the Caddyfile (the core checks
+// the actual rules).
+var hostRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$`)
 
 // quote wraps s in double quotes. CheckSafe guarantees s holds no quote,
 // backslash or brace that would need escaping.

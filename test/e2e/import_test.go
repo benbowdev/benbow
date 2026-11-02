@@ -29,6 +29,7 @@ type importPlan struct {
 		Name     string   `json:"name"`
 		Domain   string   `json:"domain"`
 		PHP      string   `json:"php"`
+		Aliases  []string `json:"aliases"`
 		Warnings []string `json:"warnings"`
 	} `json:"items"`
 	Databases []string `json:"databases"`
@@ -112,6 +113,9 @@ func TestImportMAMP(t *testing.T) {
 		if it.MAMP.ServerName == "blog.client.local" && !strings.Contains(strings.Join(it.Warnings, "|"), "PHP 7.4.33 is not available") {
 			t.Errorf("no PHP warning: %v", it.Warnings)
 		}
+		if it.MAMP.ServerName == "blog.client.local" && strings.Join(it.Aliases, ",") != "www.blog.client.local" {
+			t.Errorf("blog aliases = %v", it.Aliases)
+		}
 	}
 	if strings.Join(plan.Databases, ",") != "blog,blog_old,shop" {
 		t.Errorf("databases = %v", plan.Databases)
@@ -139,8 +143,9 @@ func TestImportMAMP(t *testing.T) {
 			CertPath string `json:"cert_path"`
 		} `json:"ca"`
 		Sites []struct {
-			Name string `json:"name"`
-			URL  string `json:"url"`
+			Name    string   `json:"name"`
+			URL     string   `json:"url"`
+			Aliases []string `json:"aliases"`
 		} `json:"sites"`
 	}
 	if err := json.Unmarshal(h.mustCovo("status"), &status); err != nil {
@@ -154,6 +159,9 @@ func TestImportMAMP(t *testing.T) {
 		wantBody := map[string]string{"shop": "Shop Site/public 8.1", "blog-client": "blog 8.1", "intranet": "intranet 8.2"}[s.Name]
 		if body != wantBody {
 			t.Errorf("%s: %q, want %q", s.URL, body, wantBody)
+		}
+		if s.Name == "blog-client" && strings.Join(s.Aliases, ",") != "www.blog.client.localhost" {
+			t.Errorf("blog-client aliases = %v", s.Aliases)
 		}
 	}
 

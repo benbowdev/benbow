@@ -146,6 +146,12 @@ final class AppModel {
         }
     }
 
+    func setAliases(_ site: Site, _ aliases: [String]) async {
+        await perform("Updating \(site.name)…") {
+            _ = try await $0.updateSite(site.name, aliases: aliases)
+        }
+    }
+
     func installed(_ minor: String) -> Bool {
         php?.installed.contains { $0.minor == minor } ?? false
     }

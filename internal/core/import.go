@@ -40,6 +40,8 @@ type ImportItem struct {
 	Name   string `json:"name,omitempty"`
 	Domain string `json:"domain,omitempty"`
 	PHP    string `json:"php,omitempty"`
+	// Aliases are MAMP's aliases mapped like the domain.
+	Aliases []string `json:"aliases,omitempty"`
 	// Warnings are differences from MAMP the user should know about.
 	Warnings []string `json:"warnings"`
 }
@@ -108,6 +110,14 @@ func (c *Core) ImportMAMP(ctx context.Context, opts ImportOptions) (ImportPlan, 
 				return fmt.Errorf("import %s: %w", it.MAMP.ServerName, err)
 			}
 			added = append(added, site)
+			if len(it.Aliases) > 0 {
+				if err := c.Store.SetAliases(ctx, site.Name, it.Aliases); err != nil {
+					for _, s := range added {
+						_ = c.Store.RemoveSite(ctx, s.Name)
+					}
+					return fmt.Errorf("import %s: %w", it.MAMP.ServerName, err)
+				}
+			}
 		}
 		plan.Applied, err = c.goLive(ctx, added)
 		return err
@@ -124,6 +134,9 @@ func (c *Core) planImport(ctx context.Context, src string, hosts []mamp.Host, op
 	names, domains := map[string]bool{}, map[string]bool{}
 	for _, s := range existing {
 		names[s.Name], domains[s.Domain] = true, true
+		for _, a := range s.Aliases {
+			domains[a] = true
+		}
 	}
 	localOn, err := c.domainEnabled(ctx, suffixLocal)
 	if err != nil {
@@ -178,14 +191,31 @@ func (c *Core) planImport(ctx context.Context, src string, hosts []mamp.Host, op
 			continue
 		}
 		it.Warnings = append(it.Warnings, warn...)
-		if len(h.Aliases) > 0 {
-			it.Warnings = append(it.Warnings, "aliases not imported: "+strings.Join(h.Aliases, ", "))
+		for _, a := range h.Aliases {
+			ad, _, _, err := importDomain(a, opts.Localhost)
+			switch {
+			case err != nil:
+				it.Warnings = append(it.Warnings, "alias "+a+" not imported: "+err.Error())
+			case ad == domain || slices.Contains(it.Aliases, ad):
+			case domains[ad]:
+				it.Warnings = append(it.Warnings, "alias "+a+" not imported: a Covo site already uses "+ad)
+			case !strings.HasSuffix(ad, "."+suffixLocal) && c.checkSiteDomain(ctx, ad) != nil:
+				it.Warnings = append(it.Warnings, "alias "+a+" not imported: "+c.checkSiteDomain(ctx, ad).Error())
+			default:
+				it.Aliases = append(it.Aliases, ad)
+				if strings.HasSuffix(ad, "."+suffixLocal) && !localOn {
+					plan.NeedsLocal = true
+				}
+			}
 		}
 		if len(h.Databases) > 0 {
 			it.Warnings = append(it.Warnings, "databases not imported: "+strings.Join(h.Databases, ", "))
 		}
 		it.Action, it.Name, it.Domain, it.PHP = ImportCreate, name, domain, php
 		names[name], domains[domain] = true, true
+		for _, a := range it.Aliases {
+			domains[a] = true
+		}
 		if strings.HasSuffix(domain, "."+suffixLocal) && !localOn {
 			plan.NeedsLocal = true
 		}

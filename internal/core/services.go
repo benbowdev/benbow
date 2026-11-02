@@ -145,6 +145,7 @@ func (c *Core) renderCaddyfile(port int, sites []store.Site) (string, error) {
 		cfg.Sites = append(cfg.Sites, caddy.Site{
 			Name:      s.Name,
 			Domain:    s.Domain,
+			Aliases:   s.Aliases,
 			Root:      s.Path,
 			FPMSocket: c.Layout.Socket(socketName(s.PHPMinor)),
 		})

@@ -30,7 +30,7 @@
 }
 
 # site: demo
-"https://demo.localhost:8443" {
+"https://demo.localhost:8443", "https://shop.test:8443", "https://www.demo.localhost:8443" {
 	tls internal
 	root * "/Users/test/Sites/My Demo"
 	php_fastcgi "unix//Users/test/Library/Application Support/covo/run/php84.sock"

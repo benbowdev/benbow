@@ -199,7 +199,9 @@ type Site struct {
 	Domain   string `json:"domain"`
 	HTTPS    bool   `json:"https"`
 	// Enabled is false for a site kept in the list but not served.
-	Enabled   bool      `json:"enabled"`
+	Enabled bool `json:"enabled"`
+	// Aliases are extra domains served by the same site (e.g. www.).
+	Aliases   []string  `json:"aliases"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
@@ -254,7 +256,66 @@ func (s *Store) querySites(ctx context.Context, tail string, args ...any) ([]Sit
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("query sites: %w", err)
 	}
+	_ = rows.Close()
+	aliases, err := s.aliases(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for i := range out {
+		out[i].Aliases = aliases[out[i].Name]
+		if out[i].Aliases == nil {
+			out[i].Aliases = []string{}
+		}
+	}
 	return out, nil
+}
+
+func (s *Store) aliases(ctx context.Context) (map[string][]string, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT site, domain FROM site_aliases ORDER BY domain`)
+	if err != nil {
+		return nil, fmt.Errorf("query aliases: %w", err)
+	}
+	defer rows.Close()
+	out := map[string][]string{}
+	for rows.Next() {
+		var site, domain string
+		if err := rows.Scan(&site, &domain); err != nil {
+			return nil, fmt.Errorf("scan alias: %w", err)
+		}
+		out[site] = append(out[site], domain)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("query aliases: %w", err)
+	}
+	return out, nil
+}
+
+// SetAliases replaces the aliases of the site called name. An alias used
+// by another site is a Conflict.
+func (s *Store) SetAliases(ctx context.Context, name string, aliases []string) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("set aliases of %s: %w", name, err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.ExecContext(ctx, `DELETE FROM site_aliases WHERE site = ?`, name); err != nil {
+		return fmt.Errorf("set aliases of %s: %w", name, err)
+	}
+	for _, a := range aliases {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO site_aliases (domain, site) VALUES (?, ?)`, a, name); err != nil {
+			if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+				return errcode.Errorf(errcode.Conflict, fmt.Sprintf("alias %q is used by another site", a))
+			}
+			if strings.Contains(err.Error(), "FOREIGN KEY constraint failed") {
+				return errcode.Errorf(errcode.NotFound, fmt.Sprintf("site %q not found", name))
+			}
+			return fmt.Errorf("set aliases of %s: %w", name, err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("set aliases of %s: %w", name, err)
+	}
+	return nil
 }
 
 // UpdateSite replaces the path, PHP version, domain, HTTPS and enabled flags of the

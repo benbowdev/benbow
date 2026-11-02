@@ -30,7 +30,7 @@ func TestCaddyfileGolden(t *testing.T) {
 	}{
 		{"no-sites", nil},
 		{"two-sites", []Site{
-			{Name: "demo", Domain: "demo.localhost", Root: "/Users/test/Sites/My Demo", FPMSocket: home + "/run/php84.sock"},
+			{Name: "demo", Domain: "demo.localhost", Aliases: []string{"shop.test", "www.demo.localhost"}, Root: "/Users/test/Sites/My Demo", FPMSocket: home + "/run/php84.sock"},
 			{Name: "legacy", Domain: "legacy.localhost", Root: "/Users/test/Sites/legacy", FPMSocket: home + "/run/php82.sock"},
 		}},
 	}
@@ -59,6 +59,20 @@ func TestCaddyfileRejectsUnsafePaths(t *testing.T) {
 		LogFile:     home + "/logs/caddy.log",
 		CA:          testCA,
 		Sites:       []Site{{Name: "x", Domain: "x.localhost", Root: "/Users/test/{env.HOME}", FPMSocket: home + "/run/php84.sock"}},
+	})
+	if errcode.Code(err) != errcode.InvalidInput {
+		t.Fatalf("err = %v, want invalid_input", err)
+	}
+}
+
+func TestCaddyfileRejectsBadDomains(t *testing.T) {
+	_, err := Caddyfile(Config{
+		AdminSocket: home + "/run/caddy-admin.sock",
+		StorageDir:  home + "/data/caddy",
+		LogFile:     home + "/logs/caddy.log",
+		CA:          testCA,
+		Sites: []Site{{Name: "x", Domain: "x.localhost", Aliases: []string{`a.localhost" {`},
+			Root: "/Users/test/x", FPMSocket: home + "/run/php84.sock"}},
 	})
 	if errcode.Code(err) != errcode.InvalidInput {
 		t.Fatalf("err = %v, want invalid_input", err)
