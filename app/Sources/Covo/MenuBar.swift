@@ -13,6 +13,13 @@ struct MenuBarContent: View {
     var body: some View {
         if model.phase == .ready {
             Text(model.busy ?? (model.running ? "All sites running" : "All sites stopped"))
+            ForEach(model.status?.services ?? [], id: \.name) { svc in
+                Label {
+                    Text("\(Self.title(svc.name))  ·  \(svc.running ? "running" : "stopped")")
+                } icon: {
+                    Image(nsImage: StatusDot.image(color(svc)))
+                }
+            }
             Button(model.running ? "Stop All Sites" : "Start All Sites") {
                 Task { await model.toggleRunning() }
             }
@@ -44,6 +51,43 @@ struct MenuBarContent: View {
         Divider()
         Button("Quit Covo") { NSApp.terminate(nil) }
             .keyboardShortcut("q")
+    }
+}
+
+extension MenuBarContent {
+    /// Traffic light: green running, yellow while Covo is changing things,
+    /// red when a service should run but does not, grey when all is stopped.
+    func color(_ svc: Service) -> NSColor {
+        if model.busy != nil { return .systemYellow }
+        if svc.running { return .systemGreen }
+        let anyRunning = model.status?.services.contains(where: \.running) ?? false
+        return anyRunning ? .systemRed : .systemGray
+    }
+
+    static func title(_ service: String) -> String {
+        switch service {
+        case "caddy": return "Web server"
+        case "mysql": return "MySQL"
+        case "mailpit": return "Mailpit"
+        case "dns": return "DNS for .test"
+        default:
+            if let v = service.split(separator: "-").last, service.hasPrefix("php-") { return "PHP \(v)" }
+            return service
+        }
+    }
+}
+
+/// A coloured dot for menu items (not a template image, so macOS keeps the
+/// colour).
+enum StatusDot {
+    static func image(_ color: NSColor) -> NSImage {
+        let image = NSImage(size: NSSize(width: 10, height: 10), flipped: false) { rect in
+            color.setFill()
+            NSBezierPath(ovalIn: rect.insetBy(dx: 1, dy: 1)).fill()
+            return true
+        }
+        image.isTemplate = false
+        return image
     }
 }
 
