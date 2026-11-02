@@ -134,6 +134,10 @@ public struct CovoAPI: Sendable {
         return url
     }
 
+    public func setMail(enabled: Bool) async throws {
+        let _: Ignored = try await call("POST", enabled ? "/v1/mail/enable" : "/v1/mail/disable")
+    }
+
     public func databases() async throws -> [String] { try await call("GET", "/v1/databases") }
 
     public func siteDatabase(_ name: String) async throws -> SiteDatabase {

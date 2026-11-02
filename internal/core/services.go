@@ -135,7 +135,16 @@ func (c *Core) caddyfilePath() string { return filepath.Join(c.Layout.Etc, "cadd
 
 // renderCaddyfile needs the CA on disk (ensureCA).
 func (c *Core) renderCaddyfile(ctx context.Context, port int, sites []store.Site, adminer *caddy.Adminer) (string, error) {
+	var mailUI int
+	if on, err := c.mailEnabled(ctx); err != nil {
+		return "", err
+	} else if on {
+		if _, mailUI, err = c.mailPorts(ctx); err != nil {
+			return "", err
+		}
+	}
 	cfg := caddy.Config{
+		MailUIPort:  mailUI,
 		Adminer:     adminer,
 		AdminSocket: c.Layout.Socket("caddy-admin.sock"),
 		HTTPSPort:   port,
@@ -218,14 +227,20 @@ func (c *Core) phpINIConfig(ctx context.Context, v store.PHPVersion) (php.INICon
 	if err != nil {
 		return php.INIConfig{}, err
 	}
+	sendmail, sendmailPort, err := c.mailSendmail(ctx)
+	if err != nil {
+		return php.INIConfig{}, err
+	}
 	return php.INIConfig{
-		Settings:    settings,
-		ErrorLog:    filepath.Join(c.Layout.Logs, "php-"+v.Minor+"-error.log"),
-		SessionDir:  sessions,
-		Timezone:    localTimezone(),
-		CAFile:      c.caBundlePath(),
-		MySQLSocket: mysqlSocket,
-		MySQLPort:   mysqlPort,
+		Sendmail:     sendmail,
+		SendmailPort: sendmailPort,
+		Settings:     settings,
+		ErrorLog:     filepath.Join(c.Layout.Logs, "php-"+v.Minor+"-error.log"),
+		SessionDir:   sessions,
+		Timezone:     localTimezone(),
+		CAFile:       c.caBundlePath(),
+		MySQLSocket:  mysqlSocket,
+		MySQLPort:    mysqlPort,
 	}, nil
 }
 
@@ -416,6 +431,10 @@ func (c *Core) reconcile(ctx context.Context) (StartResult, error) {
 	if err != nil {
 		return StartResult{}, err
 	}
+	mailAgents, mailSMTP, mailUI, err := c.mailAgents(ctx, loaded)
+	if err != nil {
+		return StartResult{}, err
+	}
 	caddyRunning := loaded[c.labelFor(caddyService)].Running
 	if err := c.writeCaddyfile(ctx, bin, body, caddyRunning); err != nil {
 		return StartResult{}, err
@@ -423,6 +442,7 @@ func (c *Core) reconcile(ctx context.Context) (StartResult, error) {
 	agents = append([]launchd.Agent{c.caddyAgent(bin)}, agents...)
 	agents = append(agents, dnsAgents...)
 	agents = append(agents, mysqlAgents...)
+	agents = append(agents, mailAgents...)
 
 	rotated := c.rotateLogs()
 	changes, err := c.launchctl.Apply(ctx, c.Layout.Launchd, agents)
@@ -432,17 +452,26 @@ func (c *Core) reconcile(ctx context.Context) (StartResult, error) {
 	if err := c.reopenLogs(ctx, minors, rotated, changes); err != nil {
 		return StartResult{}, err
 	}
-	if err := c.waitReady(ctx, minors, port, len(sites) > 0 || adminer != nil, dnsPort, mysqlPort); err != nil {
+	var extra []readyCheck
+	if mailSMTP != 0 {
+		extra = append(extra,
+			readyCheck{mailService, "tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(mailSMTP))},
+			readyCheck{mailService, "tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(mailUI))})
+	}
+	if err := c.waitReady(ctx, minors, port, len(sites) > 0 || adminer != nil || mailUI != 0, dnsPort, mysqlPort, extra...); err != nil {
 		return StartResult{}, err
 	}
 	return StartResult{HTTPSPort: port, PortAssigned: assigned, Changes: changes}, nil
 }
 
 // waitReady waits until every socket accepts connections.
-func (c *Core) waitReady(ctx context.Context, minors []string, port int, expectHTTPS bool, dnsPort, mysqlPort int) error {
-	type check struct {
-		service, network, addr string
-	}
+// readyCheck is an address a service must accept connections on.
+type readyCheck struct {
+	service, network, addr string
+}
+
+func (c *Core) waitReady(ctx context.Context, minors []string, port int, expectHTTPS bool, dnsPort, mysqlPort int, extra ...readyCheck) error {
+	type check = readyCheck
 	checks := []check{{caddyService, "unix", c.Layout.Socket("caddy-admin.sock")}}
 	for _, m := range minors {
 		checks = append(checks, check{phpService(m), "unix", c.Layout.Socket(socketName(m))})
@@ -456,6 +485,7 @@ func (c *Core) waitReady(ctx context.Context, minors []string, port int, expectH
 	if mysqlPort != 0 {
 		checks = append(checks, check{mysqlService, "tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(mysqlPort))})
 	}
+	checks = append(checks, extra...)
 	deadline := time.Now().Add(readyTimeout)
 	for _, ch := range checks {
 		for {
@@ -530,7 +560,8 @@ type Status struct {
 	Domains   []DomainStatus  `json:"domains"`
 	MySQL     MySQLStatus     `json:"mysql"`
 	// AdminerURL is set while MySQL is enabled.
-	AdminerURL string `json:"adminer_url,omitempty"`
+	AdminerURL string     `json:"adminer_url,omitempty"`
+	Mail       MailStatus `json:"mail"`
 	// Orphans are loaded Covo agents that no site needs any more.
 	Orphans []string `json:"orphans,omitempty"`
 }
@@ -569,9 +600,16 @@ func (c *Core) Status(ctx context.Context) (Status, error) {
 	} else if ok {
 		services = append(services, dnsService)
 	}
+	mailOn, err := c.mailEnabled(ctx)
+	if err != nil {
+		return Status{}, err
+	}
 	if mysqlOn {
 		services = append(services, mysqlService)
 		st.AdminerURL = "https://" + caddy.AdminerDomain + ":" + strconv.Itoa(cmp.Or(st.HTTPSPort, defaultHTTPSPort)) + "/"
+	}
+	if mailOn {
+		services = append(services, mailService)
 	}
 	st.Running = true
 	expected := map[string]bool{}
@@ -592,6 +630,9 @@ func (c *Core) Status(ctx context.Context) (Status, error) {
 		return Status{}, err
 	}
 	if st.MySQL, err = c.mysqlStatus(ctx); err != nil {
+		return Status{}, err
+	}
+	if st.Mail, err = c.mailStatus(ctx, st.HTTPSPort); err != nil {
 		return Status{}, err
 	}
 	st.CA.CertPath = c.CACertPath()

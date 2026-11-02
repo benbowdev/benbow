@@ -76,6 +76,16 @@ public struct MySQLCredentials: Codable, Sendable, Hashable {
     public var password: String
 }
 
+/// Mailpit, which catches the mail PHP sends.
+public struct MailStatus: Codable, Sendable, Hashable {
+    public var enabled: Bool
+    public var version: String?
+    public var running: Bool
+    public var smtpPort: Int?
+    public var uiPort: Int?
+    public var url: String?
+}
+
 public struct Status: Codable, Sendable, Hashable {
     public var running: Bool
     public var httpsPort: Int?
@@ -87,6 +97,7 @@ public struct Status: Codable, Sendable, Hashable {
     public var mysql: MySQLStatus
     /// Set while MySQL is enabled.
     public var adminerUrl: String?
+    public var mail: MailStatus?
     public var orphans: [String]?
 }
 

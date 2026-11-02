@@ -256,6 +256,26 @@
         "wp-content/",
         "wp-includes/"
       ]
+    },
+    {
+      "component": "mailpit",
+      "version": "1.33.0",
+      "arch": "arm64",
+      "url": "https://github.com/axllent/mailpit/releases/download/v1.33.0/mailpit-darwin-arm64.tar.gz",
+      "sha256": "0c4abbf289c6d8ee3c11adc2f93d9a1b45084e25104e19a0d9b06e847e98e0fb",
+      "files": [
+        "mailpit"
+      ]
+    },
+    {
+      "component": "mailpit",
+      "version": "1.33.0",
+      "arch": "amd64",
+      "url": "https://github.com/axllent/mailpit/releases/download/v1.33.0/mailpit-darwin-amd64.tar.gz",
+      "sha256": "6f07a68ba48fc569ca4a2bff7871377f71dc4b5c24849fa25da17740989936e4",
+      "files": [
+        "mailpit"
+      ]
     }
   ]
 }

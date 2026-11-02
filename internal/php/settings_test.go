@@ -79,3 +79,18 @@ func TestOverridesAndPHPValue(t *testing.T) {
 		t.Fatalf("bad override err = %v", err)
 	}
 }
+
+func TestINISendmail(t *testing.T) {
+	ini, err := INI(INIConfig{ErrorLog: "/x/l", SessionDir: "/x/s", Timezone: "UTC", CAFile: "/x/ca.pem",
+		Sendmail: "/Users/a/Library/Application Support/covo/components/mailpit/mailpit", SendmailPort: 1025})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := `sendmail_path = "'/Users/a/Library/Application Support/covo/components/mailpit/mailpit' sendmail -S 127.0.0.1:1025"`; !strings.Contains(ini, want) {
+		t.Fatalf("php.ini lacks %s", want)
+	}
+	if _, err := INI(INIConfig{ErrorLog: "/x/l", SessionDir: "/x/s", Timezone: "UTC", CAFile: "/x/ca.pem",
+		Sendmail: "/x/it's/mailpit", SendmailPort: 1025}); errcode.Code(err) != errcode.InvalidInput {
+		t.Fatalf("quote in sendmail path err = %v", err)
+	}
+}

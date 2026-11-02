@@ -106,6 +106,17 @@ struct ContentView: View {
                       : "Adminer needs MySQL on and Covo started")
                 .disabled(!model.mysqlReady || !model.running)
             }
+            if let mail = model.status?.mail, mail.enabled, let u = mail.url, let url = URL(string: u) {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        NSWorkspace.shared.open(url)
+                    } label: {
+                        Label("Mail", systemImage: "envelope")
+                    }
+                    .help("Open the inbox of the mail your sites sent")
+                    .disabled(!mail.running)
+                }
+            }
             ToolbarItem(placement: .primaryAction) {
                 SettingsLink {
                     Label("Settings", systemImage: "gearshape")

@@ -7,8 +7,10 @@ package php
 import (
 	"bytes"
 	"fmt"
+	"strings"
 	"text/template"
 
+	"github.com/getcovo/covo/internal/errcode"
 	"github.com/getcovo/covo/internal/paths"
 )
 
@@ -37,6 +39,10 @@ type INIConfig struct {
 	Xdebug string
 	// Settings are the user's values; the zero value means the defaults.
 	Settings Settings
+	// Sendmail, when set, is the Mailpit binary: mail() goes to Mailpit's
+	// SMTP port instead of the Mac's own mail system.
+	Sendmail     string
+	SendmailPort int
 }
 
 var funcs = template.FuncMap{"q": func(s string) string { return `"` + s + `"` }}
@@ -83,6 +89,11 @@ mysqli.default_socket = {{q .MySQLSocket}}
 mysqli.default_port = {{.MySQLPort}}
 pdo_mysql.default_socket = {{q .MySQLSocket}}
 {{- end}}
+{{- if .Sendmail}}
+
+; Mail is caught by Mailpit (covo mail).
+sendmail_path = "'{{.Sendmail}}' sendmail -S 127.0.0.1:{{.SendmailPort}}"
+{{- end}}
 {{- if .Xdebug}}
 
 ; Xdebug: step debugging only, started by a trigger (browser extension,
@@ -126,6 +137,15 @@ func INI(c INIConfig) (string, error) {
 	if c.Xdebug != "" {
 		if err := checkSafe(c.Xdebug); err != nil {
 			return "", err
+		}
+	}
+	if c.Sendmail != "" {
+		// Single-quoted for the shell PHP runs it with.
+		if err := checkSafe(c.Sendmail); err != nil {
+			return "", err
+		}
+		if strings.Contains(c.Sendmail, "'") || c.SendmailPort <= 0 {
+			return "", errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("bad sendmail %q port %d", c.Sendmail, c.SendmailPort))
 		}
 	}
 	return render(iniTmpl, c)

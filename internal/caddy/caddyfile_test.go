@@ -47,6 +47,7 @@ func TestCaddyfileGolden(t *testing.T) {
 				CA:          testCA,
 				Sites:       tt.sites,
 				Adminer:     tt.adminer,
+				MailUIPort:  map[bool]int{true: 8025}[tt.adminer != nil],
 			})
 			if err != nil {
 				t.Fatal(err)

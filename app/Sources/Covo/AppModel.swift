@@ -241,6 +241,10 @@ final class AppModel {
         await perform("Applying PHP settings…") { _ = try await $0.setSitePHPSettings(site.name, values) }
     }
 
+    func setMail(_ on: Bool) async {
+        await perform(on ? "Starting Mailpit…" : "Stopping Mailpit…") { try await $0.setMail(enabled: on) }
+    }
+
     func installed(_ minor: String) -> Bool {
         php?.installed.contains { $0.minor == minor } ?? false
     }

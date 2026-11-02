@@ -55,6 +55,8 @@ type Backend interface {
 	SetSitePHPSettings(ctx context.Context, name string, values map[string]string) (core.SitePHPSettings, error)
 	NewAdminerLogin(ctx context.Context, site string) (core.AdminerLogin, error)
 	RedeemAdminerLogin(token string) (core.AdminerCredentials, error)
+	Mail(ctx context.Context) (core.MailStatus, error)
+	SetMail(ctx context.Context, on bool) (core.MailResult, error)
 	SiteLogs(ctx context.Context, name, kind string, lines int) (core.SiteLog, error)
 	ClearSiteLogs(ctx context.Context, name string) (core.SiteLog, error)
 	ListPHP(ctx context.Context) (core.PHPList, error)
@@ -208,6 +210,9 @@ func Handler(b Backend) http.Handler {
 		}
 		return b.RedeemAdminerLogin(req.Token)
 	})
+	get("/v1/mail", func(ctx context.Context) (any, error) { return b.Mail(ctx) })
+	post("POST", "/v1/mail/enable", func(r *http.Request, _ []byte) (any, error) { return b.SetMail(r.Context(), true) })
+	post("POST", "/v1/mail/disable", func(r *http.Request, _ []byte) (any, error) { return b.SetMail(r.Context(), false) })
 	get("/v1/databases", func(ctx context.Context) (any, error) { return b.Databases(ctx) })
 	mux.HandleFunc("GET /v1/sites/{name}/database", func(w http.ResponseWriter, r *http.Request) {
 		v, err := b.GetSiteDatabase(r.Context(), r.PathValue("name"))

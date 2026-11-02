@@ -97,6 +97,10 @@ func (f *fake) RedeemAdminerLogin(token string) (core.AdminerCredentials, error)
 	return core.AdminerCredentials{}, f.record("adminer redeem " + token)
 }
 
+func (f *fake) SetMail(_ context.Context, on bool) (core.MailResult, error) {
+	return core.MailResult{}, f.record(fmt.Sprintf("mail %v", on))
+}
+
 func (f *fake) RemoveSite(_ context.Context, name string) (core.SiteResult, error) {
 	return core.SiteResult{}, f.record("remove " + name)
 }
@@ -204,6 +208,8 @@ func TestRoutes(t *testing.T) {
 		{"PATCH", "/v1/sites/demo/php-settings", `{"memory_limit":1}`, 400, "", errcode.InvalidInput},
 		{"POST", "/v1/adminer/login", `{"site":"demo"}`, 200, "adminer login demo", ""},
 		{"POST", "/v1/adminer/redeem", `{"token":"abc"}`, 200, "adminer redeem abc", ""},
+		{"POST", "/v1/mail/enable", "", 200, "mail true", ""},
+		{"POST", "/v1/mail/disable", "", 200, "mail false", ""},
 		{"PATCH", "/v1/sites/demo", `{"name":"x"}`, 400, "", errcode.InvalidInput},
 		{"PUT", "/v1/xdebug/8.4", `{"enabled":true}`, 200, "xdebug 8.4 on", ""},
 		{"PUT", "/v1/xdebug/8.4", `{"enabled":false}`, 200, "xdebug 8.4 off", ""},

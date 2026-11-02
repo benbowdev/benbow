@@ -12,6 +12,7 @@ struct SettingsView: View {
             GeneralSettings().tabItem { Label("General", systemImage: "gearshape") }
             PHPSettingsTab().tabItem { Label("PHP", systemImage: "chevron.left.forwardslash.chevron.right") }
             MySQLSettings().tabItem { Label("MySQL", systemImage: "cylinder.split.1x2") }
+            MailSettings().tabItem { Label("Mail", systemImage: "envelope") }
             DomainSettings().tabItem { Label("Domains", systemImage: "globe") }
         }
         .frame(width: 520)
@@ -242,6 +243,40 @@ struct MySQLSettings: View {
         }
         .buttonStyle(.borderless)
         .help("Copy")
+    }
+}
+
+struct MailSettings: View {
+    @Environment(AppModel.self) private var model
+    private var mail: MailStatus? { model.status?.mail }
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle(isOn: Binding(
+                    get: { mail?.enabled ?? false },
+                    set: { on in Task { await model.setMail(on) } }
+                )) {
+                    Text("Catch outgoing mail")
+                    Text("Every mail your sites send (password resets, orders, forms) lands in a local inbox instead of being delivered.")
+                }
+                .disabled(model.busy != nil)
+                if let m = mail, m.enabled {
+                    LabeledContent("Inbox") {
+                        if let u = m.url, let url = URL(string: u) {
+                            Button("Open") { NSWorkspace.shared.open(url) }.disabled(!m.running)
+                        }
+                    }
+                    LabeledContent("SMTP") {
+                        Text("127.0.0.1:\(m.smtpPort ?? 1025)").textSelection(.enabled).foregroundStyle(.secondary)
+                    }
+                }
+            } footer: {
+                Text("Mailpit \(mail?.version ?? "") · PHP's mail() is sent to it automatically; other code can use the SMTP address.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
     }
 }
 

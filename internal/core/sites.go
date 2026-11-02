@@ -180,8 +180,11 @@ const maxAliases = 20
 // checkDomainFree fails if domain is served by a site other than self, or
 // is already one of self's names.
 func (c *Core) checkDomainFree(ctx context.Context, domain, self string) error {
-	if domain == caddy.AdminerDomain {
+	switch domain {
+	case caddy.AdminerDomain:
 		return errcode.Errorf(errcode.Conflict, domain+" is reserved for Adminer")
+	case caddy.MailDomain:
+		return errcode.Errorf(errcode.Conflict, domain+" is reserved for Mailpit")
 	}
 	sites, err := c.Store.ListSites(ctx)
 	if err != nil {

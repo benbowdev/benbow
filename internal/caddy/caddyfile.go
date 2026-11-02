@@ -25,6 +25,8 @@ type Config struct {
 	Sites       []Site
 	// Adminer, when set, is served at https://adminer.localhost.
 	Adminer *Adminer
+	// MailUIPort, when set, proxies https://mail.localhost to Mailpit.
+	MailUIPort int
 }
 
 // Adminer is the database manager: one PHP file served by PHP-FPM.
@@ -33,8 +35,11 @@ type Adminer struct {
 	FPMSocket string
 }
 
-// AdminerDomain is reserved for Adminer.
-const AdminerDomain = "adminer.localhost"
+// Reserved domains.
+const (
+	AdminerDomain = "adminer.localhost"
+	MailDomain    = "mail.localhost"
+)
 
 // CA is the certificate authority Caddy signs site certificates with. Covo
 // creates it (package ca): Caddy gets the root certificate without its key,
@@ -118,6 +123,13 @@ var tmpl = template.Must(template.New("Caddyfile").Funcs(template.FuncMap{"q": q
 	root * {{q .Dir}}
 	rewrite * /index.php
 	php_fastcgi {{q (print "unix/" .FPMSocket)}}
+}
+{{end}}
+{{- if .MailUIPort}}
+# mail
+{{q (print "https://mail.localhost:" $.HTTPSPort)}} {
+	tls internal
+	reverse_proxy 127.0.0.1:{{.MailUIPort}}
 }
 {{end}}`))
 

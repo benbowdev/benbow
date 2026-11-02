@@ -62,3 +62,9 @@ error_log=/Users/test/Library/Application Support/covo/logs/sites/demo/php-error
 	rewrite * /index.php
 	php_fastcgi "unix//Users/test/Library/Application Support/covo/run/php84.sock"
 }
+
+# mail
+"https://mail.localhost:8443" {
+	tls internal
+	reverse_proxy 127.0.0.1:8025
+}
