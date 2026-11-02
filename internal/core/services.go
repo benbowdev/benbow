@@ -222,7 +222,12 @@ func (c *Core) writePHPConfig(ctx context.Context, v store.PHPVersion, bundleHas
 	if err != nil {
 		return "", err
 	}
+	settings, err := c.phpSettings(ctx, minor)
+	if err != nil {
+		return "", err
+	}
 	ini, err := php.INI(php.INIConfig{
+		Settings:    settings,
 		ErrorLog:    filepath.Join(c.Layout.Logs, "php-"+minor+"-error.log"),
 		SessionDir:  sessions,
 		Timezone:    localTimezone(),

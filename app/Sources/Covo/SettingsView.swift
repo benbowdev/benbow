@@ -10,7 +10,7 @@ struct SettingsView: View {
     var body: some View {
         TabView {
             GeneralSettings().tabItem { Label("General", systemImage: "gearshape") }
-            PHPSettings().tabItem { Label("PHP", systemImage: "chevron.left.forwardslash.chevron.right") }
+            PHPSettingsTab().tabItem { Label("PHP", systemImage: "chevron.left.forwardslash.chevron.right") }
             MySQLSettings().tabItem { Label("MySQL", systemImage: "cylinder.split.1x2") }
             DomainSettings().tabItem { Label("Domains", systemImage: "globe") }
         }
@@ -80,8 +80,11 @@ struct GeneralSettings: View {
     }
 }
 
-struct PHPSettings: View {
+struct PHPSettingsTab: View {
     @Environment(AppModel.self) private var model
+    @State private var minor = ""
+    @State private var saved: CovoKit.PHPSettings?
+    @State private var draft: CovoKit.PHPSettings?
 
     var body: some View {
         Form {
@@ -91,7 +94,8 @@ struct PHPSettings: View {
                         if let v = model.php?.installed.first(where: { $0.minor == minor }) {
                             HStack {
                                 Text(v.version).foregroundStyle(.secondary)
-                                if let n = sites(minor), n > 0 {
+                                let n = model.sites.filter { $0.php == minor }.count
+                                if n > 0 {
                                     Text("· \(n) site\(n == 1 ? "" : "s")").foregroundStyle(.secondary)
                                 }
                             }
@@ -101,16 +105,53 @@ struct PHPSettings: View {
                         }
                     }
                 }
+            } header: {
+                Text("Versions")
             } footer: {
                 Text("Versions are also downloaded when a site needs them. Change a site's version in its detail.")
                     .font(.caption).foregroundStyle(.secondary)
             }
+
+            Section {
+                Picker("Version", selection: $minor) {
+                    ForEach(model.php?.minors ?? [], id: \.self) { Text("PHP \($0)").tag($0) }
+                }
+                if let d = Binding($draft) {
+                    TextField("Memory limit", text: d.memoryLimit, prompt: Text("512M"))
+                    TextField("Max upload size", text: d.uploadMaxFilesize, prompt: Text("128M"))
+                    TextField("Max execution time (s)", value: d.maxExecutionTime, format: .number, prompt: Text("300"))
+                    Toggle("Show errors in the page", isOn: d.displayErrors)
+                    HStack {
+                        Spacer()
+                        Button("Revert") { draft = saved }.disabled(draft == saved)
+                        Button("Apply") { Task { await apply() } }
+                            .keyboardShortcut(.defaultAction)
+                            .disabled(draft == saved || model.busy != nil)
+                    }
+                }
+            } header: {
+                Text("php.ini")
+            } footer: {
+                Text("Sizes like 512M or 1G (-1 = no memory limit). post_max_size follows the upload size. 0 s = no time limit. Applies to every site on this version.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
+        .onAppear {
+            if minor.isEmpty { minor = model.php?.installed.first?.minor ?? model.php?.minors.first ?? "" }
+        }
+        .task(id: minor) { await load() }
     }
 
-    private func sites(_ minor: String) -> Int? {
-        model.sites.filter { $0.php == minor }.count
+    private func load() async {
+        guard !minor.isEmpty else { return }
+        saved = await model.phpSettings(minor)
+        draft = saved
+    }
+
+    private func apply() async {
+        guard let d = draft else { return }
+        if await model.setPHPSettings(d) { await load() }
     }
 }
 

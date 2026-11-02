@@ -10,6 +10,8 @@ import (
 	"strings"
 
 	"github.com/getcovo/covo/internal/core"
+	"github.com/getcovo/covo/internal/errcode"
+	"github.com/getcovo/covo/internal/php"
 	"github.com/spf13/cobra"
 )
 
@@ -18,7 +20,7 @@ func (a *app) phpCmd() *cobra.Command {
 		Use:   "php",
 		Short: "Manage PHP versions",
 	}
-	cmd.AddCommand(a.phpInstallCmd(), a.phpListCmd(), a.phpXdebugCmd())
+	cmd.AddCommand(a.phpInstallCmd(), a.phpListCmd(), a.phpXdebugCmd(), a.phpSettingsCmd())
 	return cmd
 }
 
@@ -128,4 +130,41 @@ extension, or an XDEBUG_TRIGGER cookie or parameter). Your IDE listens on
 		})
 	}
 	return cmd
+}
+
+type phpSettingsResult core.PHPSettingsResult
+
+func (r phpSettingsResult) Text(w io.Writer) {
+	onOff := map[bool]string{true: "On", false: "Off"}
+	fmt.Fprintf(w, "PHP %s\n  memory_limit         %s\n  upload_max_filesize  %s (post_max_size follows)\n  max_execution_time   %d\n  display_errors       %s\n",
+		r.PHP, r.MemoryLimit, r.UploadMaxFilesize, r.MaxExecutionTime, onOff[r.DisplayErrors])
+	if r.Changed && !r.Applied {
+		fmt.Fprintln(w, "Saved: applied when Covo starts.")
+	}
+}
+
+func (a *app) phpSettingsCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "settings <version> [name=value...]",
+		Short: "Show or change php.ini settings of a PHP version (e.g. memory_limit=1G)",
+		Long: "Show or change php.ini settings of a PHP version.\n\nSettings: " +
+			strings.Join(php.SettingNames, ", ") + ".\npost_max_size always follows upload_max_filesize.",
+		Args: cobra.MinimumNArgs(1),
+		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
+			if len(args) == 1 {
+				s, err := c.GetPHPSettings(ctx, args[0])
+				return phpSettingsResult{PHPSettings: s}, err
+			}
+			values := map[string]string{}
+			for _, kv := range args[1:] {
+				name, value, ok := strings.Cut(kv, "=")
+				if !ok {
+					return nil, errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("%q: want name=value", kv))
+				}
+				values[name] = value
+			}
+			res, err := c.SetPHPSettings(ctx, args[0], values)
+			return phpSettingsResult(res), err
+		}),
+	}
 }

@@ -103,6 +103,16 @@ public struct PHPList: Codable, Sendable, Hashable {
     }
 }
 
+/// php.ini values of one PHP minor version. post_max_size follows
+/// uploadMaxFilesize.
+public struct PHPSettings: Codable, Sendable, Hashable {
+    public var php: String
+    public var memoryLimit: String
+    public var uploadMaxFilesize: String
+    public var maxExecutionTime: Int
+    public var displayErrors: Bool
+}
+
 public struct XdebugStatus: Codable, Sendable, Hashable, Identifiable {
     public var php: String
     public var phpVersion: String

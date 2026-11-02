@@ -19,6 +19,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	"golang.org/x/sys/unix"
@@ -46,6 +47,8 @@ type Backend interface {
 	RemoveSite(ctx context.Context, name string) (core.SiteResult, error)
 	ListPHP(ctx context.Context) (core.PHPList, error)
 	InstallPHP(ctx context.Context, spec string) (core.PHPInstall, error)
+	GetPHPSettings(ctx context.Context, minor string) (core.PHPSettings, error)
+	SetPHPSettings(ctx context.Context, minor string, values map[string]string) (core.PHPSettingsResult, error)
 	Xdebug(ctx context.Context) ([]core.XdebugStatus, error)
 	SetXdebug(ctx context.Context, minor string, on bool) (core.XdebugResult, error)
 	Domains(ctx context.Context) ([]core.DomainStatus, error)
@@ -143,6 +146,35 @@ func Handler(b Backend) http.Handler {
 			return nil, err
 		}
 		return b.InstallPHP(r.Context(), req.Version)
+	})
+	mux.HandleFunc("GET /v1/php/{minor}/settings", func(w http.ResponseWriter, r *http.Request) {
+		v, err := b.GetPHPSettings(r.Context(), r.PathValue("minor"))
+		reply(w, v, err)
+	})
+	post("PATCH", "/v1/php/{minor}/settings", func(r *http.Request, body []byte) (any, error) {
+		var req struct {
+			MemoryLimit       *string `json:"memory_limit"`
+			UploadMaxFilesize *string `json:"upload_max_filesize"`
+			MaxExecutionTime  *int    `json:"max_execution_time"`
+			DisplayErrors     *bool   `json:"display_errors"`
+		}
+		if err := decode(body, &req); err != nil {
+			return nil, err
+		}
+		values := map[string]string{}
+		if req.MemoryLimit != nil {
+			values["memory_limit"] = *req.MemoryLimit
+		}
+		if req.UploadMaxFilesize != nil {
+			values["upload_max_filesize"] = *req.UploadMaxFilesize
+		}
+		if req.MaxExecutionTime != nil {
+			values["max_execution_time"] = strconv.Itoa(*req.MaxExecutionTime)
+		}
+		if req.DisplayErrors != nil {
+			values["display_errors"] = strconv.FormatBool(*req.DisplayErrors)
+		}
+		return b.SetPHPSettings(r.Context(), r.PathValue("minor"), values)
 	})
 	get("/v1/xdebug", func(ctx context.Context) (any, error) { return b.Xdebug(ctx) })
 	post("PUT", "/v1/xdebug/{php}", func(r *http.Request, body []byte) (any, error) {

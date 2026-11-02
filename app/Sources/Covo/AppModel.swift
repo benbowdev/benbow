@@ -154,6 +154,21 @@ final class AppModel {
         await perform("Downloading PHP \(minor)…") { try await $0.installPHP(minor) }
     }
 
+    func phpSettings(_ minor: String) async -> PHPSettings? {
+        guard let api else { return nil }
+        do {
+            return try await api.phpSettings(minor)
+        } catch {
+            self.error = error.localizedDescription
+            return nil
+        }
+    }
+
+    /// Saves php.ini values; PHP restarts with them if Covo is running.
+    func setPHPSettings(_ s: PHPSettings) async -> Bool {
+        await perform("Restarting PHP \(s.php)…") { _ = try await $0.setPHPSettings(s) }
+    }
+
     func setHTTPSPort(_ port: Int) async {
         await perform("Changing the HTTPS port…") { try await $0.start(httpsPort: port) }
     }

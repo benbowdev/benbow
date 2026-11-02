@@ -99,6 +99,8 @@ func liveDaemon() async throws {
             try await api.updateSite("nope", php: "8.2")
         }
         #expect(try await api.xdebug().isEmpty)
+        let ini = try await api.phpSettings("8.4")
+        #expect(ini.memoryLimit == "512M" && ini.displayErrors)
     }
     let result = await Result { try await checks() }
     // Always: stops the daemon and deletes the test home.

@@ -53,6 +53,10 @@ func (f *fake) UpdateSite(_ context.Context, req core.UpdateSiteRequest) (core.S
 	return core.SiteResult{}, f.record(call)
 }
 
+func (f *fake) SetPHPSettings(_ context.Context, minor string, values map[string]string) (core.PHPSettingsResult, error) {
+	return core.PHPSettingsResult{}, f.record("php settings " + minor + " " + values["memory_limit"] + " " + values["display_errors"])
+}
+
 func (f *fake) RemoveSite(_ context.Context, name string) (core.SiteResult, error) {
 	return core.SiteResult{}, f.record("remove " + name)
 }
@@ -143,6 +147,8 @@ func TestRoutes(t *testing.T) {
 		{"DELETE", "/v1/sites/demo", "", 200, "remove demo", ""},
 		{"PATCH", "/v1/sites/demo", `{"php":"8.2","domain":"demo.test"}`, 200, "update demo 8.2 demo.test", ""},
 		{"PATCH", "/v1/sites/demo", `{"enabled":false}`, 200, "update demo   off", ""},
+		{"PATCH", "/v1/php/8.4/settings", `{"memory_limit":"1G","display_errors":false}`, 200, "php settings 8.4 1G false", ""},
+		{"PATCH", "/v1/php/8.4/settings", `{"short_open_tag":"On"}`, 400, "", errcode.InvalidInput},
 		{"PATCH", "/v1/sites/demo", `{"name":"x"}`, 400, "", errcode.InvalidInput},
 		{"PUT", "/v1/xdebug/8.4", `{"enabled":true}`, 200, "xdebug 8.4 on", ""},
 		{"PUT", "/v1/xdebug/8.4", `{"enabled":false}`, 200, "xdebug 8.4 off", ""},

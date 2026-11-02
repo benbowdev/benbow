@@ -117,6 +117,23 @@ public struct CovoAPI: Sendable {
         let _: Ignored = try await call("POST", "/v1/php", InstallRequest(version: version))
     }
 
+    public func phpSettings(_ minor: String) async throws -> PHPSettings {
+        try await call("GET", "/v1/php/\(escape(minor))/settings")
+    }
+
+    struct SettingsChange: Encodable {
+        let memoryLimit: String
+        let uploadMaxFilesize: String
+        let maxExecutionTime: Int
+        let displayErrors: Bool
+    }
+
+    public func setPHPSettings(_ s: PHPSettings) async throws -> PHPSettings {
+        try await call("PATCH", "/v1/php/\(escape(s.php))/settings", SettingsChange(
+            memoryLimit: s.memoryLimit, uploadMaxFilesize: s.uploadMaxFilesize,
+            maxExecutionTime: s.maxExecutionTime, displayErrors: s.displayErrors))
+    }
+
     public func xdebug() async throws -> [XdebugStatus] { try await call("GET", "/v1/xdebug") }
 
     struct Toggle: Encodable { let enabled: Bool }
