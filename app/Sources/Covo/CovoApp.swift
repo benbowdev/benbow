@@ -28,6 +28,12 @@ struct CovoApp: App {
             }
         }
 
+        MenuBarExtra {
+            MenuBarContent().environment(model)
+        } label: {
+            MenuBarLabel().environment(model)
+        }
+
         Settings {
             SettingsView().environment(model)
         }
