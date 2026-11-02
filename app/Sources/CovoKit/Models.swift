@@ -78,6 +78,39 @@ public struct MySQLCredentials: Codable, Sendable, Hashable {
     public var password: String
 }
 
+/// A newer version of a component.
+public struct ComponentUpdate: Codable, Sendable, Hashable, Identifiable {
+    public var component: String
+    public var current: String
+    public var available: String
+    public var blocked: String?
+    public var id: String { component }
+
+    /// "PHP 8.4", "MySQL", …
+    public var title: String {
+        switch component {
+        case "caddy": return "Caddy (web server)"
+        case "mysql": return "MySQL"
+        case "mailpit": return "Mailpit"
+        case "adminer": return "Adminer"
+        case "wpcli": return "wp-cli"
+        default:
+            if component.hasPrefix("php-") { return "PHP " + component.dropFirst(4) }
+            return component
+        }
+    }
+}
+
+public struct UpdatesStatus: Codable, Sendable, Hashable {
+    public var checkedAt: Date?
+    public var serial: Int
+    public var error: String?
+    public var updates: [ComponentUpdate]
+
+    /// Updates that can be installed now.
+    public var ready: [ComponentUpdate] { updates.filter { $0.blocked == nil } }
+}
+
 /// Mailpit, which catches the mail PHP sends.
 public struct MailStatus: Codable, Sendable, Hashable {
     public var enabled: Bool

@@ -33,6 +33,11 @@ struct MenuBarContent: View {
                 Button(site.domain) { open(site.url) }
                     .disabled(!model.running)
             }
+            if let n = model.updates?.ready.count, n > 0 {
+                Divider()
+                Button("Install \(n) Update\(n == 1 ? "" : "s")") { Task { await model.applyUpdates() } }
+                    .disabled(model.busy != nil)
+            }
             Divider()
             if model.status?.mysql.enabled == true {
                 Button("Adminer") { Task { await model.openAdminer() } }

@@ -1,0 +1,76 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Andrea Casali
+
+import CovoKit
+import SwiftUI
+
+/// The updates list, shown in the toolbar popover and in Settings.
+struct UpdatesList: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        let st = model.updates
+        VStack(alignment: .leading, spacing: 8) {
+            if let updates = st?.updates, !updates.isEmpty {
+                ForEach(updates) { u in
+                    HStack(alignment: .firstTextBaseline) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(u.title)
+                            Text("\(u.current) → \(u.available)").font(.caption).foregroundStyle(.secondary)
+                            if let why = u.blocked {
+                                Text(why).font(.caption).foregroundStyle(.orange)
+                            }
+                        }
+                        Spacer()
+                        Button("Update") { Task { await model.applyUpdates([u.component]) } }
+                            .disabled(u.blocked != nil || model.busy != nil)
+                    }
+                }
+            } else {
+                Text("Everything is up to date.").foregroundStyle(.secondary)
+            }
+            if let err = st?.error, !err.isEmpty {
+                Text("Last check failed: \(err)").font(.caption).foregroundStyle(.red)
+            }
+            HStack {
+                Text(checkedText(st?.checkedAt)).font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                Button("Check Now") { Task { await model.checkUpdates() } }
+                    .disabled(model.busy != nil)
+                if (st?.ready.count ?? 0) > 1 {
+                    Button("Update All") { Task { await model.applyUpdates() } }
+                        .disabled(model.busy != nil)
+                }
+            }
+            Text("Signed by Covo, checked before installing. The previous version is kept: `covo update rollback <component>` goes back.")
+                .font(.caption2).foregroundStyle(.secondary)
+        }
+    }
+
+    private func checkedText(_ d: Date?) -> String {
+        guard let d else { return "Not checked yet" }
+        return "Checked " + d.formatted(.relative(presentation: .named))
+    }
+}
+
+/// The discreet badge in the toolbar: only there when something is ready.
+struct UpdatesBadge: View {
+    @Environment(AppModel.self) private var model
+    @State private var showing = false
+
+    var body: some View {
+        let n = model.updates?.ready.count ?? 0
+        if n > 0 {
+            Button {
+                showing = true
+            } label: {
+                Label("\(n) Update\(n == 1 ? "" : "s")", systemImage: "arrow.down.circle.fill")
+                    .labelStyle(.titleAndIcon)
+            }
+            .help("Component updates are available")
+            .popover(isPresented: $showing, arrowEdge: .bottom) {
+                UpdatesList().padding().frame(width: 360)
+            }
+        }
+    }
+}

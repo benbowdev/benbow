@@ -81,6 +81,9 @@ struct GeneralSettings: View {
                     Text(loginError).font(.caption).foregroundStyle(.red)
                 }
             }
+            Section("Updates") {
+                UpdatesList()
+            }
             Section("Certificate") {
                 LabeledContent("Covo local CA") {
                     if model.status?.ca.trusted == true {

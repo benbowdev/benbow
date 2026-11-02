@@ -28,6 +28,7 @@ public enum EnvelopeDecoder {
     static let decoder: JSONDecoder = {
         let d = JSONDecoder()
         d.keyDecodingStrategy = .convertFromSnakeCase
+        d.dateDecodingStrategy = .iso8601
         return d
     }()
 
@@ -139,6 +140,17 @@ public struct CovoAPI: Sendable {
 
     public func setMail(enabled: Bool) async throws {
         let _: Ignored = try await call("POST", enabled ? "/v1/mail/enable" : "/v1/mail/disable")
+    }
+
+    public func updates() async throws -> UpdatesStatus { try await call("GET", "/v1/updates") }
+
+    public func checkUpdates() async throws -> UpdatesStatus { try await call("POST", "/v1/updates/check") }
+
+    struct ApplyRequest: Encodable { let components: [String] }
+
+    /// Installs updates; an empty list means every available one.
+    public func applyUpdates(_ components: [String] = []) async throws -> UpdatesStatus {
+        try await call("POST", "/v1/updates/apply", ApplyRequest(components: components))
     }
 
     public func databases() async throws -> [String] { try await call("GET", "/v1/databases") }

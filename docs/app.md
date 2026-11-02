@@ -41,7 +41,15 @@ it; dimmed while stopped. It lists the sites for quick opening, Start/Stop,
 Adminer, the mail inbox, and Quit. Closing the window keeps Covo in the menu
 bar.
 
+## Updates
+
+When the daemon's daily check (or Check Now) finds component updates, a
+discreet "n Updates" button appears in the toolbar, with the list and
+Update / Update All; the same list is in Settings → General, and the menu
+bar offers to install them. Nothing is installed without a click
+(`docs/updates.md`).
+
 ## Not yet
 
-Signing and notarization, Sparkle updates and the update badge come with
+Signing and notarization and Sparkle (updates of the app itself) come with
 the public beta.

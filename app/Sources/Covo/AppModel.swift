@@ -20,6 +20,7 @@ final class AppModel {
     private(set) var status: Status?
     private(set) var php: PHPList?
     private(set) var xdebug: [XdebugStatus] = []
+    private(set) var updates: UpdatesStatus?
     /// Set while a change is in progress (disables the controls).
     private(set) var busy: String?
     /// Set by File → Import from MAMP PRO… to show the import sheet.
@@ -30,6 +31,7 @@ final class AppModel {
     private var polling: Task<Void, Never>?
     /// Start-on-launch runs once per app launch, not on reconnects.
     private var launched = false
+    private var ticks = 0
 
     /// UserDefaults key: start every site when the app opens.
     static let startOnLaunchKey = "startSitesOnLaunch"
@@ -76,6 +78,9 @@ final class AppModel {
         guard let api else { return }
         do {
             status = try await api.status()
+            // The daemon checks for updates on its own: pick them up now and then.
+            ticks += 1
+            if ticks % 150 == 0 { updates = try? await api.updates() }
         } catch is APIError {
             // The core answered: nothing to recover.
         } catch {
@@ -89,6 +94,7 @@ final class AppModel {
         status = try await api.status()
         php = try await api.php()
         xdebug = try await api.xdebug()
+        updates = try? await api.updates()
     }
 
     /// Runs a change, then refreshes. Errors are shown in an alert.
@@ -287,6 +293,18 @@ final class AppModel {
         defer { busy = nil }
         try await api.enableDomain("local")
         try? await refreshAll()
+    }
+
+    func checkUpdates() async {
+        await perform("Checking for updates…") { [weak self] api in
+            let st = try await api.checkUpdates()
+            await MainActor.run { self?.updates = st }
+        }
+    }
+
+    /// Installs updates (all ready ones when empty).
+    func applyUpdates(_ components: [String] = []) async {
+        await perform("Updating…") { _ = try await $0.applyUpdates(components) }
     }
 
     func installed(_ minor: String) -> Bool {

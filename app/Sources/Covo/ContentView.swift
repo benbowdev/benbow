@@ -138,6 +138,9 @@ struct ContentView: View {
                       : "Adminer needs MySQL on and Covo started")
                 .disabled(!model.mysqlReady || !model.running)
             }
+            ToolbarItem(placement: .primaryAction) {
+                UpdatesBadge()
+            }
             if let mail = model.status?.mail, mail.enabled, let u = mail.url, let url = URL(string: u) {
                 ToolbarItem(placement: .primaryAction) {
                     Button {
