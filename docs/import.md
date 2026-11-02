@@ -24,7 +24,7 @@ original is only read once, by the copy.
 | PHP 7.4 and older | PHP 8.1, with a warning: Covo has no PHP 7 builds |
 | SSL | always on: every Covo site is HTTPS |
 | aliases | imported, mapped like the server name; one already used by another site is skipped with a warning |
-| databases | not imported: listed, to export from MAMP's MySQL (port 3306) and import into Covo's (3307) |
+| databases | not copied: listed, to export from MAMP's MySQL (port 3306) and import into Covo's (3307). A new site is linked to its database when MAMP linked exactly one and a database of that name already exists on Covo's MySQL (connects as root) |
 
 Hosts are skipped when their folder does not exist, when Covo refuses the
 folder (your home, a system folder, Covo's own), when the name is not a valid

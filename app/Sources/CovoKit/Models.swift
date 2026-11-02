@@ -217,6 +217,9 @@ public struct ImportItem: Codable, Sendable, Hashable {
     public var name: String?
     public var domain: String?
     public var php: String?
+    public var aliases: [String]?
+    /// The MAMP database linked to the new site (already on Covo's MySQL).
+    public var database: String?
     public var warnings: [String]
 
     public var creates: Bool { action == "create" }

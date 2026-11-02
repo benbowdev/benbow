@@ -22,6 +22,8 @@ final class AppModel {
     private(set) var xdebug: [XdebugStatus] = []
     /// Set while a change is in progress (disables the controls).
     private(set) var busy: String?
+    /// Set by File → Import from MAMP PRO… to show the import sheet.
+    var importing = false
     var error: String?
 
     private var api: CovoAPI?
@@ -254,6 +256,31 @@ final class AppModel {
 
     func setMail(_ on: Bool) async {
         await perform(on ? "Starting Mailpit…" : "Stopping Mailpit…") { try await $0.setMail(enabled: on) }
+    }
+
+    /// Previews or runs the MAMP PRO import. Throws so the sheet shows errors.
+    func importMAMP(dryRun: Bool, localhost: Bool) async throws -> ImportPlan? {
+        guard let api else { return nil }
+        if dryRun { return try await api.importMAMP(dryRun: true, localhost: localhost) }
+        busy = "Importing from MAMP PRO…"
+        defer { busy = nil }
+        do {
+            let plan = try await api.importMAMP(dryRun: false, localhost: localhost)
+            try? await refreshAll()
+            return plan
+        } catch {
+            try? await refreshAll()
+            throw error
+        }
+    }
+
+    /// Turns on .local names; macOS asks for an administrator password.
+    func enableLocal() async throws {
+        guard let api else { return }
+        busy = "Waiting for macOS…"
+        defer { busy = nil }
+        try await api.enableDomain("local")
+        try? await refreshAll()
     }
 
     func installed(_ minor: String) -> Bool {

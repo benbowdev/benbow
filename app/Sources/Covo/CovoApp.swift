@@ -15,6 +15,12 @@ struct CovoApp: App {
                 .frame(minWidth: 760, minHeight: 460)
         }
         .windowToolbarStyle(.unified)
+        .commands {
+            CommandGroup(after: .newItem) {
+                Button("Import from MAMP PRO…") { model.importing = true }
+                    .disabled(model.phase != .ready || model.busy != nil)
+            }
+        }
 
         WindowGroup("Logs", id: "logs", for: String.self) { $site in
             if let site {

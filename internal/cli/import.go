@@ -26,6 +26,9 @@ func (r importResult) Text(w io.Writer) {
 			continue
 		}
 		fmt.Fprintf(w, "%s %-28s PHP %-4s %s\n", verb, it.Domain, it.PHP, it.MAMP.DocumentRoot)
+		if it.Database != "" {
+			fmt.Fprintf(w, "    database %s linked (already on Covo's MySQL)\n", it.Database)
+		}
 		for _, warn := range it.Warnings {
 			fmt.Fprintf(w, "    ! %s\n", warn)
 		}
@@ -37,7 +40,7 @@ func (r importResult) Text(w io.Writer) {
 	}
 	fmt.Fprintf(w, "\n%d to create, %d skipped.\n", r.Create, r.Skip)
 	if len(r.Databases) > 0 {
-		fmt.Fprintf(w, "Databases are not imported (export them from MAMP): %s\n", strings.Join(r.Databases, ", "))
+		fmt.Fprintf(w, "Databases are not copied (export them from MAMP); a site is linked to its database when that already exists on Covo's MySQL: %s\n", strings.Join(r.Databases, ", "))
 	}
 	if r.NeedsLocal {
 		fmt.Fprintln(w, "Keeping .local names needs `covo domains enable local` first; or pass --localhost.")

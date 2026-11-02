@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -190,5 +191,48 @@ func TestImportMAMPKeepsLocalNames(t *testing.T) {
 	}
 	if !strings.HasPrefix(hosts, h.hostsOriginal) {
 		t.Error("lines outside Covo's block changed")
+	}
+}
+
+// TestImportMAMPLinksDatabases links a site to its MAMP database when that
+// database was already copied to Covo's MySQL.
+func TestImportMAMPLinksDatabases(t *testing.T) {
+	if runtime.GOARCH != "arm64" {
+		t.Skip("MySQL 8.4 is pinned for Apple Silicon only")
+	}
+	h := newHarness(t)
+	mampFixture(t, h)
+	h.mustCovo("mysql", "enable")
+	h.mustCovo("start")
+	// A database "shop" on Covo's MySQL, as after a mysqldump copy.
+	h.mustCovo("site", "add", "tmp", "--path", newSite(t))
+	h.mustCovo("db", "create", "tmp", "--name", "shop")
+	h.mustCovo("db", "unlink", "tmp")
+	h.mustCovo("site", "remove", "tmp")
+
+	var plan struct {
+		Items []struct {
+			Name     string `json:"name"`
+			Database string `json:"database"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(h.mustCovo("import", "mamp", "--localhost"), &plan); err != nil {
+		t.Fatal(err)
+	}
+	linked := map[string]string{}
+	for _, it := range plan.Items {
+		if it.Database != "" {
+			linked[it.Name] = it.Database
+		}
+	}
+	if len(linked) != 1 || linked["shop"] != "shop" {
+		t.Fatalf("linked = %v (blog has two MAMP databases and none on Covo)", linked)
+	}
+	var db struct {
+		Database string `json:"database"`
+		User     string `json:"user"`
+	}
+	if err := json.Unmarshal(h.mustCovo("db", "show", "shop"), &db); err != nil || db.Database != "shop" || db.User != "root" {
+		t.Fatalf("db show shop = %+v, %v", db, err)
 	}
 }

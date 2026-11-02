@@ -42,6 +42,9 @@ type ImportItem struct {
 	PHP    string `json:"php,omitempty"`
 	// Aliases are MAMP's aliases mapped like the domain.
 	Aliases []string `json:"aliases,omitempty"`
+	// Database is the MAMP database linked to the new site because it
+	// already exists on Covo's MySQL (only when MAMP linked exactly one).
+	Database string `json:"database,omitempty"`
 	// Warnings are differences from MAMP the user should know about.
 	Warnings []string `json:"warnings"`
 }
@@ -119,10 +122,38 @@ func (c *Core) ImportMAMP(ctx context.Context, opts ImportOptions) (ImportPlan, 
 				}
 			}
 		}
-		plan.Applied, err = c.goLive(ctx, added)
-		return err
+		if plan.Applied, err = c.goLive(ctx, added); err != nil {
+			return err
+		}
+		c.linkImportedDatabases(ctx, &plan)
+		return nil
 	})
 	return plan, err
+}
+
+// linkImportedDatabases links each new site to its MAMP database when MAMP
+// linked exactly one and a database of that name exists on Covo's MySQL
+// (e.g. copied over with mysqldump). Best effort: without a running MySQL
+// nothing is linked. Callers hold the lock.
+func (c *Core) linkImportedDatabases(ctx context.Context, plan *ImportPlan) {
+	dbs, err := c.Databases(ctx)
+	if err != nil {
+		return
+	}
+	for i := range plan.Items {
+		it := &plan.Items[i]
+		if it.Action != ImportCreate || len(it.MAMP.Databases) != 1 || !slices.Contains(dbs, it.MAMP.Databases[0]) {
+			continue
+		}
+		site, err := c.Store.Site(ctx, it.Name)
+		if err != nil || site.Database != "" {
+			continue
+		}
+		site.Database = it.MAMP.Databases[0]
+		if c.Store.UpdateSite(ctx, site) == nil {
+			it.Database = site.Database
+		}
+	}
 }
 
 func (c *Core) planImport(ctx context.Context, src string, hosts []mamp.Host, opts ImportOptions) (ImportPlan, error) {

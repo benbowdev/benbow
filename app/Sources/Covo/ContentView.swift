@@ -53,6 +53,7 @@ struct ContentView: View {
         .sheet(isPresented: $newWordPress) {
             WordPressSheet { name in selection = name }
         }
+        .sheet(isPresented: $model.importing) { ImportSheet() }
         .sheet(item: $duplicating) { site in
             DuplicateSheet(site: site) { name in selection = name }
         }
@@ -104,6 +105,8 @@ struct ContentView: View {
                 Menu {
                     Button("Add Folder…") { adding = AddSiteRequest(folder: nil) }
                     Button("New WordPress Site…") { newWordPress = true }
+                    Divider()
+                    Button("Import from MAMP PRO…") { model.importing = true }
                 } label: {
                     Label("Add Site", systemImage: "plus")
                 }
