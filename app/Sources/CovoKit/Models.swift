@@ -60,6 +60,14 @@ public struct MySQLStatus: Codable, Sendable, Hashable {
     public var running: Bool
 }
 
+public struct MySQLCredentials: Codable, Sendable, Hashable {
+    public var host: String
+    public var port: Int
+    public var socket: String
+    public var user: String
+    public var password: String
+}
+
 public struct Status: Codable, Sendable, Hashable {
     public var running: Bool
     public var httpsPort: Int?

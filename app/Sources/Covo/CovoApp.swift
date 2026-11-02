@@ -15,5 +15,9 @@ struct CovoApp: App {
                 .frame(minWidth: 760, minHeight: 460)
         }
         .windowToolbarStyle(.unified)
+
+        Settings {
+            SettingsView().environment(model)
+        }
     }
 }

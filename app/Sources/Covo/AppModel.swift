@@ -112,6 +112,77 @@ final class AppModel {
         try? await refreshAll()
     }
 
+    /// Changes a site. Throws so the caller can ask before forcing a folder
+    /// without an index file; other errors are thrown as well.
+    func updateSite(_ site: Site, php: String? = nil, path: String? = nil, domain: String? = nil, force: Bool = false) async throws {
+        guard let api else { return }
+        if let php {
+            busy = installed(php) ? "Switching to PHP \(php)…" : "Downloading PHP \(php)…"
+        } else {
+            busy = "Updating \(site.name)…"
+        }
+        defer { busy = nil }
+        do {
+            _ = try await api.updateSite(site.name, php: php, path: path, domain: domain, force: force)
+            try? await refreshAll()
+        } catch {
+            try? await refreshAll()
+            throw error
+        }
+    }
+
+    /// Runs updateSite and shows any error in the alert.
+    func updateSiteShowingErrors(_ site: Site, php: String? = nil, domain: String? = nil) async {
+        do {
+            try await updateSite(site, php: php, domain: domain)
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    func installed(_ minor: String) -> Bool {
+        php?.installed.contains { $0.minor == minor } ?? false
+    }
+
+    func installPHP(_ minor: String) async {
+        await perform("Downloading PHP \(minor)…") { try await $0.installPHP(minor) }
+    }
+
+    func setHTTPSPort(_ port: Int) async {
+        await perform("Changing the HTTPS port…") { try await $0.start(httpsPort: port) }
+    }
+
+    /// Turns a domain suffix on or off. Both need an administrator password.
+    func setDomain(_ zone: String, enabled: Bool) async {
+        await perform("Waiting for macOS…") { api in
+            if enabled { try await api.enableDomain(zone) } else { try await api.disableDomain(zone) }
+        }
+    }
+
+    func domainEnabled(_ zone: String) -> Bool {
+        status?.domains.first { $0.zone == zone }?.enabled ?? false
+    }
+
+    func setMySQL(enabled: Bool, port: Int? = nil) async {
+        await perform(enabled ? "Starting MySQL…" : "Stopping MySQL…") { api in
+            if enabled { try await api.enableMySQL(port: port) } else { try await api.disableMySQL() }
+        }
+    }
+
+    func mysqlCredentials() async -> MySQLCredentials? {
+        guard let api else { return nil }
+        do {
+            return try await api.mysqlCredentials()
+        } catch {
+            self.error = error.localizedDescription
+            return nil
+        }
+    }
+
+    func untrust() async {
+        await perform("Removing trust…") { try await $0.untrust() }
+    }
+
     func removeSite(_ site: Site) async {
         await perform("Removing \(site.name)…") { try await $0.removeSite(site.name) }
     }

@@ -67,8 +67,11 @@ public struct CovoAPI: Sendable {
 
     public func status() async throws -> Status { try await call("GET", "/v1/status") }
 
-    public func start() async throws {
-        let _: Status = try await call("POST", "/v1/start")
+    struct StartRequest: Encodable { let httpsPort: Int? }
+
+    /// Starts Covo; a non-nil port also changes the HTTPS port.
+    public func start(httpsPort: Int? = nil) async throws {
+        let _: Ignored = try await call("POST", "/v1/start", StartRequest(httpsPort: httpsPort))
     }
 
     public func stop() async throws {
@@ -89,8 +92,26 @@ public struct CovoAPI: Sendable {
         try await call("POST", "/v1/sites", NewSite(name: name, domain: domain, php: php, path: path, force: force))
     }
 
+    struct SiteChange: Encodable {
+        let php: String?
+        let path: String?
+        let domain: String?
+        let force: Bool
+    }
+
+    /// Changes a site; nil fields are left as they are.
+    public func updateSite(_ name: String, php: String? = nil, path: String? = nil, domain: String? = nil, force: Bool = false) async throws -> SiteResult {
+        try await call("PATCH", "/v1/sites/" + escape(name), SiteChange(php: php, path: path, domain: domain, force: force))
+    }
+
     public func removeSite(_ name: String) async throws {
         let _: Ignored = try await call("DELETE", "/v1/sites/" + escape(name))
+    }
+
+    struct InstallRequest: Encodable { let version: String }
+
+    public func installPHP(_ version: String) async throws {
+        let _: Ignored = try await call("POST", "/v1/php", InstallRequest(version: version))
     }
 
     public func xdebug() async throws -> [XdebugStatus] { try await call("GET", "/v1/xdebug") }
@@ -105,8 +126,31 @@ public struct CovoAPI: Sendable {
         let _: Ignored = try await call("POST", "/v1/domains/\(escape(zone))/enable")
     }
 
+    public func disableDomain(_ zone: String) async throws {
+        let _: Ignored = try await call("POST", "/v1/domains/\(escape(zone))/disable")
+    }
+
     public func trust() async throws {
         let _: Ignored = try await call("POST", "/v1/trust")
+    }
+
+    public func untrust() async throws {
+        let _: Ignored = try await call("POST", "/v1/untrust")
+    }
+
+    struct PortRequest: Encodable { let port: Int? }
+
+    /// Turns MySQL on; a non-nil port also changes its port.
+    public func enableMySQL(port: Int? = nil) async throws {
+        let _: Ignored = try await call("POST", "/v1/mysql/enable", PortRequest(port: port))
+    }
+
+    public func disableMySQL() async throws {
+        let _: Ignored = try await call("POST", "/v1/mysql/disable")
+    }
+
+    public func mysqlCredentials() async throws -> MySQLCredentials {
+        try await call("GET", "/v1/mysql/credentials")
     }
 
     struct ImportRequest: Encodable {

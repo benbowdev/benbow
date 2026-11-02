@@ -95,6 +95,9 @@ func liveDaemon() async throws {
         await #expect(throws: APIError(code: "not_found", message: #"site "nope" not found"#)) {
             try await api.removeSite("nope")
         }
+        await #expect(throws: APIError(code: "not_found", message: #"site "nope" not found"#)) {
+            try await api.updateSite("nope", php: "8.2")
+        }
         #expect(try await api.xdebug().isEmpty)
     }
     let result = await Result { try await checks() }

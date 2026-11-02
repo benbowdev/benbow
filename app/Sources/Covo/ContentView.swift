@@ -72,7 +72,7 @@ struct ContentView: View {
             }
         } detail: {
             if let site = model.sites.first(where: { $0.id == selection }) {
-                SiteDetail(site: site)
+                SiteDetail(site: site).id(site.id)
             } else {
                 ContentUnavailableView("Select a Site", systemImage: "globe")
             }
