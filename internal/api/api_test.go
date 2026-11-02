@@ -89,6 +89,14 @@ func (f *fake) SetSitePHPSettings(_ context.Context, name string, values map[str
 	return core.SitePHPSettings{}, f.record(fmt.Sprintf("site php %s %q", name, values["memory_limit"]))
 }
 
+func (f *fake) NewAdminerLogin(_ context.Context, site string) (core.AdminerLogin, error) {
+	return core.AdminerLogin{}, f.record("adminer login " + site)
+}
+
+func (f *fake) RedeemAdminerLogin(token string) (core.AdminerCredentials, error) {
+	return core.AdminerCredentials{}, f.record("adminer redeem " + token)
+}
+
 func (f *fake) RemoveSite(_ context.Context, name string) (core.SiteResult, error) {
 	return core.SiteResult{}, f.record("remove " + name)
 }
@@ -194,6 +202,8 @@ func TestRoutes(t *testing.T) {
 		{"POST", "/v1/wordpress", `{"name":"blog","php":"8.4","admin_user":"me"}`, 200, "wordpress blog 8.4 me", ""},
 		{"PATCH", "/v1/sites/demo/php-settings", `{"memory_limit":""}`, 200, `site php demo ""`, ""},
 		{"PATCH", "/v1/sites/demo/php-settings", `{"memory_limit":1}`, 400, "", errcode.InvalidInput},
+		{"POST", "/v1/adminer/login", `{"site":"demo"}`, 200, "adminer login demo", ""},
+		{"POST", "/v1/adminer/redeem", `{"token":"abc"}`, 200, "adminer redeem abc", ""},
 		{"PATCH", "/v1/sites/demo", `{"name":"x"}`, 400, "", errcode.InvalidInput},
 		{"PUT", "/v1/xdebug/8.4", `{"enabled":true}`, 200, "xdebug 8.4 on", ""},
 		{"PUT", "/v1/xdebug/8.4", `{"enabled":false}`, 200, "xdebug 8.4 off", ""},

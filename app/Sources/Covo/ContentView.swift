@@ -97,12 +97,12 @@ struct ContentView: View {
             }
             ToolbarItem(placement: .primaryAction) {
                 Button {
-                    Task { await model.openAdminerAsRoot() }
+                    Task { await model.openAdminer() }
                 } label: {
                     Label("Adminer", systemImage: "cylinder.split.1x2")
                 }
                 .help(model.mysqlReady && model.running
-                      ? "Open Adminer with every database (the root password is copied to the clipboard)"
+                      ? "Open Adminer with every database, already logged in"
                       : "Adminer needs MySQL on and Covo started")
                 .disabled(!model.mysqlReady || !model.running)
             }

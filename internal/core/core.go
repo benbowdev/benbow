@@ -8,6 +8,7 @@ package core
 import (
 	"context"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/getcovo/covo/internal/components"
@@ -37,6 +38,11 @@ type Core struct {
 
 	launchctl *launchd.Launchctl
 	resolver  resolver.Manager
+
+	// adminerLogins are one-time Adminer logins (see adminer.go); they only
+	// live in the daemon's memory.
+	adminerMu     sync.Mutex
+	adminerLogins map[string]adminerLogin
 }
 
 // Open prepares the Covo home and opens the state database.

@@ -197,14 +197,9 @@ struct MySQLSettings: View {
                             }
                         }
                         row("Socket", c.socket)
-                        if let url = model.status?.adminerUrl, let u = URL(string: url) {
-                            LabeledContent("Adminer") {
-                                Button("Open") {
-                                    copyToClipboard(c.password)
-                                    NSWorkspace.shared.open(u)
-                                }
-                                .help("The root password is copied to the clipboard")
-                            }
+                        LabeledContent("Adminer") {
+                            Button("Open") { Task { await model.openAdminer() } }
+                                .help("Every database, already logged in as root")
                         }
                     } else {
                         Button("Show Connection Details") {

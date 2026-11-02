@@ -59,6 +59,6 @@ error_log=/Users/test/Library/Application Support/covo/logs/sites/demo/php-error
 "https://adminer.localhost:8443" {
 	tls internal
 	root * "/Users/test/Library/Application Support/covo/components/adminer/6.2.0-all"
-	rewrite * /adminer.php
+	rewrite * /index.php
 	php_fastcgi "unix//Users/test/Library/Application Support/covo/run/php84.sock"
 }

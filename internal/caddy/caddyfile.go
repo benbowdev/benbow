@@ -29,7 +29,7 @@ type Config struct {
 
 // Adminer is the database manager: one PHP file served by PHP-FPM.
 type Adminer struct {
-	Dir       string // holds adminer.php
+	Dir       string // holds index.php, which loads Adminer
 	FPMSocket string
 }
 
@@ -116,7 +116,7 @@ var tmpl = template.Must(template.New("Caddyfile").Funcs(template.FuncMap{"q": q
 {{q (print "https://adminer.localhost:" $.HTTPSPort)}} {
 	tls internal
 	root * {{q .Dir}}
-	rewrite * /adminer.php
+	rewrite * /index.php
 	php_fastcgi {{q (print "unix/" .FPMSocket)}}
 }
 {{end}}`))

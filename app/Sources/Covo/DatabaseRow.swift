@@ -53,7 +53,7 @@ struct DatabaseRow: View {
                 Text("user \(site.databaseUser ?? "root")").font(.caption).foregroundStyle(.secondary)
             }
             Button("Adminer") { Task { await model.openAdminer(site) } }
-                .help("Opens Adminer; the password is copied to the clipboard")
+                .help("Open this database in Adminer, already logged in")
                 .disabled(!model.mysqlReady || !model.running)
             Menu {
                 Button("Show Credentials…") { Task { credentials = await model.siteDatabase(site) } }

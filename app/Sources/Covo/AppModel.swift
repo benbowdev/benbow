@@ -199,22 +199,15 @@ final class AppModel {
         }
     }
 
-    /// Copies the root password and opens Adminer on every database.
-    func openAdminerAsRoot() async {
-        guard let base = status?.adminerUrl, let cred = await mysqlCredentials() else { return }
-        copyToClipboard(cred.password)
-        var c = URLComponents(string: base)
-        c?.queryItems = [.init(name: "server", value: "localhost"), .init(name: "username", value: cred.user)]
-        if let url = c?.url { NSWorkspace.shared.open(url) }
-    }
-
-    /// Copies the password and opens Adminer on the site's database.
-    func openAdminer(_ site: Site) async {
-        guard let base = status?.adminerUrl, let db = await siteDatabase(site) else { return }
-        copyToClipboard(db.password ?? "")
-        var c = URLComponents(string: base)
-        c?.queryItems = [.init(name: "server", value: "localhost"), .init(name: "username", value: db.user), .init(name: "db", value: db.database)]
-        if let url = c?.url { NSWorkspace.shared.open(url) }
+    /// Opens Adminer already logged in: as root (every database) with nil,
+    /// or as the site's database user. The password never leaves Covo.
+    func openAdminer(_ site: Site? = nil) async {
+        guard let api else { return }
+        do {
+            NSWorkspace.shared.open(try await api.adminerLogin(site: site?.name ?? ""))
+        } catch {
+            self.error = error.localizedDescription
+        }
     }
 
     /// Creates a WordPress site. Throws so the sheet can show the error.

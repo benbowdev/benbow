@@ -31,7 +31,7 @@ import (
 )
 
 // SocketName is the API socket's file name in the run directory.
-const SocketName = "covo.sock"
+const SocketName = core.APISocketName
 
 // maxBody caps request bodies; every request is a few fields.
 const maxBody = 1 << 20
@@ -53,6 +53,8 @@ type Backend interface {
 	NewWordPress(ctx context.Context, req core.WordPressRequest) (core.WordPressResult, error)
 	GetSitePHPSettings(ctx context.Context, name string) (core.SitePHPSettings, error)
 	SetSitePHPSettings(ctx context.Context, name string, values map[string]string) (core.SitePHPSettings, error)
+	NewAdminerLogin(ctx context.Context, site string) (core.AdminerLogin, error)
+	RedeemAdminerLogin(token string) (core.AdminerCredentials, error)
 	SiteLogs(ctx context.Context, name, kind string, lines int) (core.SiteLog, error)
 	ClearSiteLogs(ctx context.Context, name string) (core.SiteLog, error)
 	ListPHP(ctx context.Context) (core.PHPList, error)
@@ -184,6 +186,27 @@ func Handler(b Backend) http.Handler {
 			return nil, err
 		}
 		return b.SetSitePHPSettings(r.Context(), r.PathValue("name"), req)
+	})
+	// A one-time URL that opens Adminer logged in (as root, or as a site's
+	// database user). Only the daemon keeps the token.
+	post("POST", "/v1/adminer/login", func(r *http.Request, body []byte) (any, error) {
+		var req struct {
+			Site string `json:"site"`
+		}
+		if err := decode(body, &req); err != nil {
+			return nil, err
+		}
+		return b.NewAdminerLogin(r.Context(), req.Site)
+	})
+	// Called by Covo's Adminer front file over this same socket.
+	post("POST", "/v1/adminer/redeem", func(_ *http.Request, body []byte) (any, error) {
+		var req struct {
+			Token string `json:"token"`
+		}
+		if err := decode(body, &req); err != nil {
+			return nil, err
+		}
+		return b.RedeemAdminerLogin(req.Token)
 	})
 	get("/v1/databases", func(ctx context.Context) (any, error) { return b.Databases(ctx) })
 	mux.HandleFunc("GET /v1/sites/{name}/database", func(w http.ResponseWriter, r *http.Request) {

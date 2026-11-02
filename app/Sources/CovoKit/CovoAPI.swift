@@ -123,6 +123,17 @@ public struct CovoAPI: Sendable {
             name: name, path: path, php: php, title: title, adminUser: adminUser, adminEmail: adminEmail))
     }
 
+    struct AdminerRequest: Encodable { let site: String }
+    struct AdminerLogin: Decodable { let url: String }
+
+    /// A one-time URL that opens Adminer logged in, as root (site "") or as
+    /// the site's database user.
+    public func adminerLogin(site: String = "") async throws -> URL {
+        let r: AdminerLogin = try await call("POST", "/v1/adminer/login", AdminerRequest(site: site))
+        guard let url = URL(string: r.url) else { throw APIError(code: "internal", message: "Bad Adminer URL") }
+        return url
+    }
+
     public func databases() async throws -> [String] { try await call("GET", "/v1/databases") }
 
     public func siteDatabase(_ name: String) async throws -> SiteDatabase {

@@ -53,9 +53,19 @@ covo db unlink shop --drop --yes  # delete the database and the site's user
 
 While MySQL is enabled, Covo serves Adminer 6.2.0 (MySQL-only build, pinned
 by SHA-256, the same as GitHub's published digest) at
-`https://adminer.localhost:8443/` on PHP 8.4. There is no automatic login:
-the app copies the password to the clipboard and opens Adminer with server,
-user and database filled in. `adminer.localhost` cannot be used by a site.
+`https://adminer.localhost:8443/` on PHP 8.4. `adminer.localhost` cannot be
+used by a site.
+
+The app opens Adminer already logged in: as root (toolbar button, every
+database) or as a site's own user on its database (site detail). It asks
+the daemon for a one-time login (`POST /v1/adminer/login`), a random
+256-bit token valid once for 60 seconds and kept only in the daemon's
+memory, and opens `https://adminer.localhost:8443/?covo_login=<token>`.
+Covo's front file for Adminer (`etc/adminer/index.php`) exchanges the token
+for the credentials over the daemon's Unix socket (`POST
+/v1/adminer/redeem`) and logs in. The password never appears in a URL, the
+clipboard, a file or the browser; a spent or expired token just shows
+Adminer's login form. Without the app, log in with `covo mysql password`.
 
 ## Binary
 
