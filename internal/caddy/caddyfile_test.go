@@ -30,7 +30,8 @@ func TestCaddyfileGolden(t *testing.T) {
 	}{
 		{"no-sites", nil},
 		{"two-sites", []Site{
-			{Name: "demo", Domain: "demo.localhost", Aliases: []string{"shop.test", "www.demo.localhost"}, Root: "/Users/test/Sites/My Demo", FPMSocket: home + "/run/php84.sock"},
+			{Name: "demo", Domain: "demo.localhost", Aliases: []string{"shop.test", "www.demo.localhost"}, Root: "/Users/test/Sites/My Demo", FPMSocket: home + "/run/php84.sock",
+				AccessLog: home + "/logs/sites/demo/access.log", PHPErrorLog: home + "/logs/sites/demo/php-error.log"},
 			{Name: "legacy", Domain: "legacy.localhost", Root: "/Users/test/Sites/legacy", FPMSocket: home + "/run/php82.sock"},
 		}},
 	}

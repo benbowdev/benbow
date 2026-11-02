@@ -108,6 +108,15 @@ public struct CovoAPI: Sendable {
                        SiteChange(php: php, path: path, domain: domain, enabled: enabled, aliases: aliases, force: force))
     }
 
+    /// kind is "access" or "php".
+    public func siteLogs(_ name: String, kind: String, lines: Int = 500) async throws -> SiteLog {
+        try await call("GET", "/v1/sites/\(escape(name))/logs/\(escape(kind))?lines=\(lines)")
+    }
+
+    public func clearSiteLogs(_ name: String) async throws {
+        let _: Ignored = try await call("DELETE", "/v1/sites/\(escape(name))/logs")
+    }
+
     public func removeSite(_ name: String) async throws {
         let _: Ignored = try await call("DELETE", "/v1/sites/" + escape(name))
     }

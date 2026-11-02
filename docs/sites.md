@@ -9,6 +9,8 @@ covo site add shop --php 8.4 --path ~/Sites/shop   # --domain shop.test
 covo site list
 covo site set shop --php 8.2                       # also --path, --domain
 covo site set shop --aliases www.shop.localhost,shop.test   # "" clears
+covo site logs shop --php -n 100                   # PHP errors; without --php: requests
+covo site logs shop --clear
 covo site disable shop                             # keep it, stop serving it
 covo site enable shop
 covo site remove shop                              # the folder is never touched
@@ -23,8 +25,19 @@ the domain (reserved suffixes only, `.test`/`.local` once enabled). Every
 domain and alias belongs to one site only; `.local` aliases are written to
 `/etc/hosts` like domains. At most 20 per site.
 
+## Logs
+
+Each site has its own logs under `logs/sites/<name>/` in the Covo folder:
+`access.log` (requests, written by Caddy, rolled at 5 MiB) and
+`php-error.log` (errors, warnings and notices of that site only, rotated at
+10 MiB on start). `covo site logs` condenses requests to
+`date time  status  method  host/path  duration`. Removing a site deletes
+its logs (never its folder). In the app: the Logs button in the site
+detail, refreshed every 2 seconds.
+
 A disabled site stays in the list but Caddy does not serve it, and a PHP
 version used only by disabled sites is not started.
 
 API: `GET/POST /v1/sites`, `PATCH /v1/sites/{name}` with any of
-`php`, `path`, `domain`, `enabled`, `aliases`, `force`, and `DELETE /v1/sites/{name}`.
+`php`, `path`, `domain`, `enabled`, `aliases`, `force`, `DELETE /v1/sites/{name}`, `GET /v1/sites/{name}/logs/{access|php}?lines=N`
+and `DELETE /v1/sites/{name}/logs`.

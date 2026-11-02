@@ -28,6 +28,10 @@ type statusData struct {
 	CA struct {
 		CertPath string `json:"cert_path"`
 	} `json:"ca"`
+	Sites []struct {
+		Name string `json:"name"`
+		URL  string `json:"url"`
+	} `json:"sites"`
 }
 
 func (h *harness) status() statusData {

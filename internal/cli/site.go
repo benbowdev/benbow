@@ -21,7 +21,7 @@ func (a *app) siteCmd() *cobra.Command {
 		Use:   "site",
 		Short: "Manage sites",
 	}
-	cmd.AddCommand(a.siteAddCmd(), a.siteSetCmd(), a.siteToggleCmd(true), a.siteToggleCmd(false), a.siteListCmd(), a.siteRemoveCmd())
+	cmd.AddCommand(a.siteAddCmd(), a.siteSetCmd(), a.siteToggleCmd(true), a.siteToggleCmd(false), a.siteLogsCmd(), a.siteListCmd(), a.siteRemoveCmd())
 	return cmd
 }
 
@@ -118,6 +118,40 @@ func (a *app) siteToggleCmd(on bool) *cobra.Command {
 			return siteResult(res), err
 		}),
 	}
+}
+
+type siteLogResult core.SiteLog
+
+func (r siteLogResult) Text(w io.Writer) {
+	for _, l := range r.Lines {
+		fmt.Fprintln(w, l)
+	}
+}
+
+func (a *app) siteLogsCmd() *cobra.Command {
+	var php, empty bool
+	var lines int
+	cmd := &cobra.Command{
+		Use:   "logs <name>",
+		Short: "Show the end of a site's access log (or --php for PHP errors)",
+		Args:  cobra.ExactArgs(1),
+		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
+			if empty {
+				res, err := c.ClearSiteLogs(ctx, args[0])
+				return siteLogResult(res), err
+			}
+			kind := core.LogAccess
+			if php {
+				kind = core.LogPHP
+			}
+			res, err := c.SiteLogs(ctx, args[0], kind, lines)
+			return siteLogResult(res), err
+		}),
+	}
+	cmd.Flags().BoolVar(&php, "php", false, "PHP errors, warnings and notices instead of requests")
+	cmd.Flags().IntVarP(&lines, "lines", "n", 50, "number of lines (max 2000)")
+	cmd.Flags().BoolVar(&empty, "clear", false, "empty both logs of the site")
+	return cmd
 }
 
 func absDir(path string) (string, error) {

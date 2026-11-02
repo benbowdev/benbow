@@ -115,6 +115,15 @@ public struct PHPSettings: Codable, Sendable, Hashable {
     public var displayErrors: Bool
 }
 
+/// The end of a site's access log or PHP error log.
+public struct SiteLog: Codable, Sendable, Hashable {
+    public var site: String
+    public var kind: String
+    public var path: String
+    public var size: Int
+    public var lines: [String]
+}
+
 public struct XdebugStatus: Codable, Sendable, Hashable, Identifiable {
     public var php: String
     public var phpVersion: String

@@ -331,6 +331,8 @@ func (c *Core) RemoveSite(ctx context.Context, name string) (SiteResult, error) 
 		if err := c.syncLocal(ctx); err != nil {
 			return err
 		}
+		// Its logs are Covo's own files; the site's folder is never touched.
+		_ = os.RemoveAll(c.siteLogDir(name))
 		res.Applied = applied
 		return nil
 	})

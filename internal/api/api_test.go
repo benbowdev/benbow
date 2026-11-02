@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -58,6 +59,14 @@ func (f *fake) UpdateSite(_ context.Context, req core.UpdateSiteRequest) (core.S
 
 func (f *fake) SetPHPSettings(_ context.Context, minor string, values map[string]string) (core.PHPSettingsResult, error) {
 	return core.PHPSettingsResult{}, f.record("php settings " + minor + " " + values["memory_limit"] + " " + values["display_errors"])
+}
+
+func (f *fake) SiteLogs(_ context.Context, name, kind string, lines int) (core.SiteLog, error) {
+	return core.SiteLog{}, f.record(fmt.Sprintf("logs %s %s %d", name, kind, lines))
+}
+
+func (f *fake) ClearSiteLogs(_ context.Context, name string) (core.SiteLog, error) {
+	return core.SiteLog{}, f.record("clear logs " + name)
 }
 
 func (f *fake) RemoveSite(_ context.Context, name string) (core.SiteResult, error) {
@@ -154,6 +163,10 @@ func TestRoutes(t *testing.T) {
 		{"PATCH", "/v1/php/8.4/settings", `{"short_open_tag":"On"}`, 400, "", errcode.InvalidInput},
 		{"PATCH", "/v1/sites/demo", `{"aliases":["www.demo.localhost"]}`, 200, "update demo   aliases=www.demo.localhost", ""},
 		{"PATCH", "/v1/sites/demo", `{"aliases":[]}`, 200, "update demo   aliases=", ""},
+		{"GET", "/v1/sites/demo/logs/php?lines=20", "", 200, "logs demo php 20", ""},
+		{"GET", "/v1/sites/demo/logs/access", "", 200, "logs demo access 0", ""},
+		{"GET", "/v1/sites/demo/logs/php?lines=x", "", 400, "", errcode.InvalidInput},
+		{"DELETE", "/v1/sites/demo/logs", "", 200, "clear logs demo", ""},
 		{"PATCH", "/v1/sites/demo", `{"name":"x"}`, 400, "", errcode.InvalidInput},
 		{"PUT", "/v1/xdebug/8.4", `{"enabled":true}`, 200, "xdebug 8.4 on", ""},
 		{"PUT", "/v1/xdebug/8.4", `{"enabled":false}`, 200, "xdebug 8.4 off", ""},

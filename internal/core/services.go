@@ -143,11 +143,13 @@ func (c *Core) renderCaddyfile(port int, sites []store.Site) (string, error) {
 	}
 	for _, s := range sites {
 		cfg.Sites = append(cfg.Sites, caddy.Site{
-			Name:      s.Name,
-			Domain:    s.Domain,
-			Aliases:   s.Aliases,
-			Root:      s.Path,
-			FPMSocket: c.Layout.Socket(socketName(s.PHPMinor)),
+			Name:        s.Name,
+			Domain:      s.Domain,
+			Aliases:     s.Aliases,
+			Root:        s.Path,
+			FPMSocket:   c.Layout.Socket(socketName(s.PHPMinor)),
+			AccessLog:   c.siteLogPath(s.Name, LogAccess),
+			PHPErrorLog: c.siteLogPath(s.Name, LogPHP),
 		})
 	}
 	body, err := caddy.Caddyfile(cfg)
@@ -371,6 +373,13 @@ func (c *Core) reconcile(ctx context.Context) (StartResult, error) {
 		agents = append(agents, c.phpAgent(v, hash))
 	}
 
+	names := make([]string, len(sites))
+	for i, s := range sites {
+		names[i] = s.Name
+	}
+	if err := c.ensureSiteLogDirs(names); err != nil {
+		return StartResult{}, err
+	}
 	body, err := c.renderCaddyfile(port, sites)
 	if err != nil {
 		return StartResult{}, err
@@ -598,6 +607,14 @@ func (c *Core) rotateLogs() []string {
 			if os.Rename(p, p+".1") == nil {
 				rotated = append(rotated, e.Name())
 			}
+		}
+	}
+	// Per-site PHP error logs: PHP opens them on every write, nothing to
+	// reopen. Caddy rolls the access logs itself.
+	logs, _ := filepath.Glob(filepath.Join(c.Layout.Logs, "sites", "*", "php-error.log"))
+	for _, p := range logs {
+		if info, err := os.Stat(p); err == nil && info.Size() > maxLogSize {
+			_ = os.Rename(p, p+".1")
 		}
 	}
 	return rotated

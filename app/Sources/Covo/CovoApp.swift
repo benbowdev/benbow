@@ -16,6 +16,12 @@ struct CovoApp: App {
         }
         .windowToolbarStyle(.unified)
 
+        WindowGroup("Logs", id: "logs", for: String.self) { $site in
+            if let site {
+                LogsView(site: site).environment(model)
+            }
+        }
+
         Settings {
             SettingsView().environment(model)
         }

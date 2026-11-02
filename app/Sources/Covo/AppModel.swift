@@ -152,6 +152,16 @@ final class AppModel {
         }
     }
 
+    /// Reads a log without the busy state: the log window polls it.
+    func siteLogs(_ name: String, kind: String) async throws -> SiteLog? {
+        guard let api else { return nil }
+        return try await api.siteLogs(name, kind: kind)
+    }
+
+    func clearSiteLogs(_ name: String) async {
+        await perform("Clearing logs…") { try await $0.clearSiteLogs(name) }
+    }
+
     func installed(_ minor: String) -> Bool {
         php?.installed.contains { $0.minor == minor } ?? false
     }

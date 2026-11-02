@@ -102,6 +102,7 @@ struct ContentView: View {
 
 struct SiteRow: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.openWindow) private var openWindow
     let site: Site
 
     var body: some View {
@@ -126,6 +127,7 @@ struct SiteRow: View {
         .contextMenu {
             Button("Open in Browser") { open(site.url) }
             Button("Show in Finder") { NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: site.path) }
+            Button("Logs") { openWindow(id: "logs", value: site.name) }
         }
     }
 }

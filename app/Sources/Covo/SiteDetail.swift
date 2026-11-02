@@ -6,6 +6,7 @@ import SwiftUI
 
 struct SiteDetail: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.openWindow) private var openWindow
     let site: Site
     @State private var advanced = false
     @State private var confirmRemove = false
@@ -62,6 +63,8 @@ struct SiteDetail: View {
                         Text(site.url).font(.callout).foregroundStyle(.secondary).textSelection(.enabled)
                     }
                     Spacer()
+                    Button("Logs") { openWindow(id: "logs", value: site.name) }
+                        .help("PHP errors and requests of this site")
                     Button("Open") { open(site.url) }
                         .keyboardShortcut("o")
                         .disabled(!model.running || !site.enabled)

@@ -45,6 +45,8 @@ type Backend interface {
 	AddSite(ctx context.Context, req core.AddSiteRequest) (core.SiteResult, error)
 	UpdateSite(ctx context.Context, req core.UpdateSiteRequest) (core.SiteResult, error)
 	RemoveSite(ctx context.Context, name string) (core.SiteResult, error)
+	SiteLogs(ctx context.Context, name, kind string, lines int) (core.SiteLog, error)
+	ClearSiteLogs(ctx context.Context, name string) (core.SiteLog, error)
 	ListPHP(ctx context.Context) (core.PHPList, error)
 	InstallPHP(ctx context.Context, spec string) (core.PHPInstall, error)
 	GetPHPSettings(ctx context.Context, minor string) (core.PHPSettings, error)
@@ -133,6 +135,22 @@ func Handler(b Backend) http.Handler {
 		return b.UpdateSite(r.Context(), core.UpdateSiteRequest{
 			Name: r.PathValue("name"), PHP: req.PHP, Path: req.Path, Domain: req.Domain, Enabled: req.Enabled, Aliases: req.Aliases, Force: req.Force,
 		})
+	})
+	mux.HandleFunc("GET /v1/sites/{name}/logs/{kind}", func(w http.ResponseWriter, r *http.Request) {
+		lines := 0
+		if v := r.URL.Query().Get("lines"); v != "" {
+			n, err := strconv.Atoi(v)
+			if err != nil {
+				reply(w, nil, errcode.Errorf(errcode.InvalidInput, "lines must be a number"))
+				return
+			}
+			lines = n
+		}
+		v, err := b.SiteLogs(r.Context(), r.PathValue("name"), r.PathValue("kind"), lines)
+		reply(w, v, err)
+	})
+	post("DELETE", "/v1/sites/{name}/logs", func(r *http.Request, _ []byte) (any, error) {
+		return b.ClearSiteLogs(r.Context(), r.PathValue("name"))
 	})
 	post("DELETE", "/v1/sites/{name}", func(r *http.Request, _ []byte) (any, error) {
 		return b.RemoveSite(r.Context(), r.PathValue("name"))
