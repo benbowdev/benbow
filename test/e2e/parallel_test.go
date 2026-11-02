@@ -64,4 +64,27 @@ func TestTwoPHPVersionsInParallel(t *testing.T) {
 	if env := h.covo("site", "set", "nope", "--php", "8.2"); env.OK || env.Error.Code != "not_found" {
 		t.Fatalf("set missing site = %+v, want not_found", env)
 	}
+
+	// Disabled sites are not served and need no PHP.
+	h.mustCovo("site", "disable", "demo")
+	h.mustCovo("site", "disable", "legacy")
+	if got := serviceNames(h.status()); got != "caddy" {
+		t.Fatalf("services with every site disabled = %s, want caddy", got)
+	}
+	h.mustCovo("site", "enable", "demo")
+	st = h.status()
+	if got := serviceNames(st); got != "caddy,php-8.2" {
+		t.Fatalf("services after enable = %s, want caddy,php-8.2", got)
+	}
+	if body := h.get(urls["8.4"], st.CA.CertPath); !strings.HasPrefix(body, "8.2.") {
+		t.Errorf("demo served %q after enable, want PHP 8.2.x", body)
+	}
+}
+
+func serviceNames(st statusData) string {
+	var names []string
+	for _, svc := range st.Services {
+		names = append(names, svc.Name)
+	}
+	return strings.Join(names, ",")
 }

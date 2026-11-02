@@ -140,6 +140,12 @@ final class AppModel {
         }
     }
 
+    func setEnabled(_ site: Site, _ on: Bool) async {
+        await perform(on ? "Turning \(site.name) on…" : "Turning \(site.name) off…") {
+            _ = try await $0.updateSite(site.name, enabled: on)
+        }
+    }
+
     func installed(_ minor: String) -> Bool {
         php?.installed.contains { $0.minor == minor } ?? false
     }

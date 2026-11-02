@@ -17,6 +17,14 @@ struct SiteDetail: View {
     var body: some View {
         Form {
             Section {
+                Toggle(isOn: Binding(
+                    get: { site.enabled },
+                    set: { on in Task { await model.setEnabled(site, on) } }
+                )) {
+                    Text("Serve this site")
+                    if !site.enabled { Text("Off: kept in the list, not served.") }
+                }
+                .disabled(model.busy != nil)
                 LabeledContent("Name", value: site.name)
                 LabeledContent("Folder") {
                     HStack {
@@ -55,8 +63,8 @@ struct SiteDetail: View {
                     Spacer()
                     Button("Open") { open(site.url) }
                         .keyboardShortcut("o")
-                        .disabled(!model.running)
-                        .help(model.running ? "Open in your browser" : "Start Covo first")
+                        .disabled(!model.running || !site.enabled)
+                        .help(!site.enabled ? "Turn the site on first" : model.running ? "Open in your browser" : "Start Covo first")
                 }
             }
 

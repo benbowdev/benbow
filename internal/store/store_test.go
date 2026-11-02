@@ -96,7 +96,7 @@ func TestLatestPHP(t *testing.T) {
 func TestSites(t *testing.T) {
 	ctx := context.Background()
 	s, _ := openTest(t)
-	demo := Site{Name: "demo", Path: "/Users/a/My Sites/demo", PHPMinor: "8.4", Domain: "demo.localhost", HTTPS: true, CreatedAt: time.Now()}
+	demo := Site{Name: "demo", Path: "/Users/a/My Sites/demo", PHPMinor: "8.4", Domain: "demo.localhost", HTTPS: true, Enabled: true, CreatedAt: time.Now()}
 	if err := s.AddSite(ctx, demo); err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +104,7 @@ func TestSites(t *testing.T) {
 		t.Fatalf("duplicate add err = %v, want conflict", err)
 	}
 	got, err := s.Site(ctx, "demo")
-	if err != nil || got.Path != demo.Path || !got.HTTPS {
+	if err != nil || got.Path != demo.Path || !got.HTTPS || !got.Enabled {
 		t.Fatalf("Site = %+v, %v", got, err)
 	}
 	other := Site{Name: "other", Path: "/Users/a/other", PHPMinor: "8.2", Domain: "other.localhost", HTTPS: true, CreatedAt: time.Now()}
@@ -112,11 +112,11 @@ func TestSites(t *testing.T) {
 		t.Fatal(err)
 	}
 	moved := demo
-	moved.Path, moved.PHPMinor, moved.Domain = "/Users/a/new", "8.2", "demo.covo.test"
+	moved.Path, moved.PHPMinor, moved.Domain, moved.Enabled = "/Users/a/new", "8.2", "demo.covo.test", false
 	if err := s.UpdateSite(ctx, moved); err != nil {
 		t.Fatal(err)
 	}
-	if got, _ := s.Site(ctx, "demo"); got.Path != moved.Path || got.PHPMinor != "8.2" || got.Domain != moved.Domain || !got.CreatedAt.Equal(demo.CreatedAt.Truncate(time.Second)) {
+	if got, _ := s.Site(ctx, "demo"); got.Path != moved.Path || got.PHPMinor != "8.2" || got.Domain != moved.Domain || got.Enabled || !got.CreatedAt.Equal(demo.CreatedAt.Truncate(time.Second)) {
 		t.Fatalf("after update Site = %+v", got)
 	}
 	moved.Domain = "other.localhost"

@@ -310,6 +310,12 @@ func (c *Core) Start(ctx context.Context, httpsPort int) (StartResult, error) {
 	return res, err
 }
 
+// enabledSites drops the sites that are turned off: Covo does not serve them
+// and does not run PHP for them.
+func enabledSites(sites []store.Site) []store.Site {
+	return slices.DeleteFunc(slices.Clone(sites), func(s store.Site) bool { return !s.Enabled })
+}
+
 // reconcile brings services in line with the stored sites. Callers hold the lock.
 func (c *Core) reconcile(ctx context.Context) (StartResult, error) {
 	port, assigned, err := c.httpsPort(ctx)
@@ -319,10 +325,11 @@ func (c *Core) reconcile(ctx context.Context) (StartResult, error) {
 	if err := c.checkPort(ctx, port); err != nil {
 		return StartResult{}, err
 	}
-	sites, err := c.Store.ListSites(ctx)
+	all, err := c.Store.ListSites(ctx)
 	if err != nil {
 		return StartResult{}, err
 	}
+	sites := enabledSites(all)
 	caddyInst, err := c.ensureCaddy(ctx)
 	if err != nil {
 		return StartResult{}, err
@@ -507,7 +514,7 @@ func (c *Core) Status(ctx context.Context) (Status, error) {
 	}
 	services := []string{caddyService}
 	for _, s := range sites {
-		if svc := phpService(s.PHPMinor); !slices.Contains(services, svc) {
+		if svc := phpService(s.PHPMinor); s.Enabled && !slices.Contains(services, svc) {
 			services = append(services, svc)
 		}
 		st.Sites = append(st.Sites, SiteStatus{Site: s, URL: siteURL(s, st.HTTPSPort)})

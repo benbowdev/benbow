@@ -20,7 +20,7 @@ func (a *app) siteCmd() *cobra.Command {
 		Use:   "site",
 		Short: "Manage sites",
 	}
-	cmd.AddCommand(a.siteAddCmd(), a.siteSetCmd(), a.siteListCmd(), a.siteRemoveCmd())
+	cmd.AddCommand(a.siteAddCmd(), a.siteSetCmd(), a.siteToggleCmd(true), a.siteToggleCmd(false), a.siteListCmd(), a.siteRemoveCmd())
 	return cmd
 }
 
@@ -28,7 +28,9 @@ type siteResult core.SiteResult
 
 func (r siteResult) Text(w io.Writer) {
 	fmt.Fprintf(w, "%s  PHP %s  %s\n  %s\n", r.Name, r.PHPMinor, r.URL, r.Path)
-	if !r.Applied {
+	if !r.Enabled {
+		fmt.Fprintln(w, "Disabled: Covo does not serve it. Turn it on with `covo site enable`.")
+	} else if !r.Applied {
 		fmt.Fprintln(w, "Covo is not running: run `covo start`.")
 	}
 }
@@ -92,6 +94,22 @@ func (a *app) siteSetCmd() *cobra.Command {
 	return cmd
 }
 
+func (a *app) siteToggleCmd(on bool) *cobra.Command {
+	use, short := "disable <name>", "Stop serving a site, keeping it in the list"
+	if on {
+		use, short = "enable <name>", "Serve a site that was disabled"
+	}
+	return &cobra.Command{
+		Use:   use,
+		Short: short,
+		Args:  cobra.ExactArgs(1),
+		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
+			res, err := c.UpdateSite(ctx, core.UpdateSiteRequest{Name: args[0], Enabled: &on})
+			return siteResult(res), err
+		}),
+	}
+}
+
 func absDir(path string) (string, error) {
 	if path == "" {
 		wd, err := os.Getwd()
@@ -114,7 +132,11 @@ func (r siteListResult) Text(w io.Writer) {
 		fmt.Fprintln(w, "No sites. Add one with: covo site add <name> --php 8.4")
 	}
 	for _, s := range r {
-		fmt.Fprintf(w, "%-14s PHP %-4s %-36s %s\n", s.Name, s.PHPMinor, s.URL, s.Path)
+		off := ""
+		if !s.Enabled {
+			off = "  (disabled)"
+		}
+		fmt.Fprintf(w, "%-14s PHP %-4s %-36s %s%s\n", s.Name, s.PHPMinor, s.URL, s.Path, off)
 	}
 }
 

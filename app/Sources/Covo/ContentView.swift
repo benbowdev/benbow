@@ -112,7 +112,17 @@ struct SiteRow: View {
             }
             Spacer()
             Text("PHP \(site.php)").font(.caption).foregroundStyle(.secondary)
+            Toggle("On", isOn: Binding(
+                get: { site.enabled },
+                set: { on in Task { await model.setEnabled(site, on) } }
+            ))
+            .labelsHidden()
+            .toggleStyle(.switch)
+            .controlSize(.mini)
+            .disabled(model.busy != nil)
+            .help(site.enabled ? "Stop serving this site" : "Serve this site")
         }
+        .opacity(site.enabled ? 1 : 0.55)
         .contextMenu {
             Button("Open in Browser") { open(site.url) }
             Button("Show in Finder") { NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: site.path) }

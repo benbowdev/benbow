@@ -193,19 +193,21 @@ func (s *Store) LatestPHP(ctx context.Context, minor string) (PHPVersion, error)
 
 // Site is a local site.
 type Site struct {
-	Name      string    `json:"name"`
-	Path      string    `json:"path"`
-	PHPMinor  string    `json:"php"`
-	Domain    string    `json:"domain"`
-	HTTPS     bool      `json:"https"`
+	Name     string `json:"name"`
+	Path     string `json:"path"`
+	PHPMinor string `json:"php"`
+	Domain   string `json:"domain"`
+	HTTPS    bool   `json:"https"`
+	// Enabled is false for a site kept in the list but not served.
+	Enabled   bool      `json:"enabled"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
 // AddSite inserts a site. Duplicate names or domains are a Conflict.
 func (s *Store) AddSite(ctx context.Context, site Site) error {
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO sites (name, path, php_minor, domain, https, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
-		site.Name, site.Path, site.PHPMinor, site.Domain, site.HTTPS, site.CreatedAt.UTC().Format(time.RFC3339))
+		`INSERT INTO sites (name, path, php_minor, domain, https, enabled, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		site.Name, site.Path, site.PHPMinor, site.Domain, site.HTTPS, site.Enabled, site.CreatedAt.UTC().Format(time.RFC3339))
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
 			return errcode.Errorf(errcode.Conflict, fmt.Sprintf("site %q already exists", site.Name))
@@ -234,7 +236,7 @@ func (s *Store) ListSites(ctx context.Context) ([]Site, error) {
 
 func (s *Store) querySites(ctx context.Context, tail string, args ...any) ([]Site, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT name, path, php_minor, domain, https, created_at FROM sites `+tail, args...)
+		`SELECT name, path, php_minor, domain, https, enabled, created_at FROM sites `+tail, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query sites: %w", err)
 	}
@@ -243,7 +245,7 @@ func (s *Store) querySites(ctx context.Context, tail string, args ...any) ([]Sit
 	for rows.Next() {
 		var site Site
 		var at string
-		if err := rows.Scan(&site.Name, &site.Path, &site.PHPMinor, &site.Domain, &site.HTTPS, &at); err != nil {
+		if err := rows.Scan(&site.Name, &site.Path, &site.PHPMinor, &site.Domain, &site.HTTPS, &site.Enabled, &at); err != nil {
 			return nil, fmt.Errorf("scan site: %w", err)
 		}
 		site.CreatedAt, _ = time.Parse(time.RFC3339, at)
@@ -255,12 +257,12 @@ func (s *Store) querySites(ctx context.Context, tail string, args ...any) ([]Sit
 	return out, nil
 }
 
-// UpdateSite replaces the path, PHP version, domain and HTTPS flag of the
+// UpdateSite replaces the path, PHP version, domain, HTTPS and enabled flags of the
 // site called site.Name. A domain used by another site is a Conflict.
 func (s *Store) UpdateSite(ctx context.Context, site Site) error {
 	res, err := s.db.ExecContext(ctx,
-		`UPDATE sites SET path = ?, php_minor = ?, domain = ?, https = ? WHERE name = ?`,
-		site.Path, site.PHPMinor, site.Domain, site.HTTPS, site.Name)
+		`UPDATE sites SET path = ?, php_minor = ?, domain = ?, https = ?, enabled = ? WHERE name = ?`,
+		site.Path, site.PHPMinor, site.Domain, site.HTTPS, site.Enabled, site.Name)
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
 			return errcode.Errorf(errcode.Conflict, fmt.Sprintf("domain %q is used by another site", site.Domain))

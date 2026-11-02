@@ -13,6 +13,8 @@ public struct Site: Codable, Sendable, Identifiable, Hashable {
     public var php: String
     public var domain: String
     public var https: Bool
+    /// False for a site kept in the list but not served.
+    public var enabled: Bool
     public var url: String
     public var id: String { name }
 }

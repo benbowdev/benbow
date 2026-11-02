@@ -46,7 +46,11 @@ func (f *fake) AddSite(_ context.Context, req core.AddSiteRequest) (core.SiteRes
 }
 
 func (f *fake) UpdateSite(_ context.Context, req core.UpdateSiteRequest) (core.SiteResult, error) {
-	return core.SiteResult{}, f.record("update " + req.Name + " " + req.PHP + " " + req.Domain)
+	call := "update " + req.Name + " " + req.PHP + " " + req.Domain
+	if req.Enabled != nil {
+		call += map[bool]string{true: " on", false: " off"}[*req.Enabled]
+	}
+	return core.SiteResult{}, f.record(call)
 }
 
 func (f *fake) RemoveSite(_ context.Context, name string) (core.SiteResult, error) {
@@ -138,6 +142,7 @@ func TestRoutes(t *testing.T) {
 		{"POST", "/v1/sites", `{"name":"demo","php":"8.4","path":"/Users/x/demo","force":true}`, 200, "add", ""},
 		{"DELETE", "/v1/sites/demo", "", 200, "remove demo", ""},
 		{"PATCH", "/v1/sites/demo", `{"php":"8.2","domain":"demo.test"}`, 200, "update demo 8.2 demo.test", ""},
+		{"PATCH", "/v1/sites/demo", `{"enabled":false}`, 200, "update demo   off", ""},
 		{"PATCH", "/v1/sites/demo", `{"name":"x"}`, 400, "", errcode.InvalidInput},
 		{"PUT", "/v1/xdebug/8.4", `{"enabled":true}`, 200, "xdebug 8.4 on", ""},
 		{"PUT", "/v1/xdebug/8.4", `{"enabled":false}`, 200, "xdebug 8.4 off", ""},

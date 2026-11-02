@@ -119,6 +119,7 @@ func (c *Core) insertSite(ctx context.Context, req AddSiteRequest) (store.Site, 
 		PHPMinor:  req.PHP,
 		Domain:    req.Domain,
 		HTTPS:     true,
+		Enabled:   true,
 		CreatedAt: time.Now(),
 	}
 	if err := c.Store.AddSite(ctx, site); err != nil {
@@ -156,12 +157,14 @@ type UpdateSiteRequest struct {
 	PHP    string
 	Path   string
 	Domain string
+	// Enabled turns serving the site on or off when set.
+	Enabled *bool
 	// Force accepts a new folder without index.php or index.html.
 	Force bool
 }
 
-// UpdateSite changes a site's PHP version, folder or domain, installing the
-// PHP version if needed. If Covo is running the change goes live
+// UpdateSite changes a site's PHP version, folder or domain, or turns it on
+// or off, installing the PHP version if needed. If Covo is running the change goes live
 // immediately; if that fails the previous settings are restored.
 func (c *Core) UpdateSite(ctx context.Context, req UpdateSiteRequest) (SiteResult, error) {
 	var res SiteResult
@@ -188,6 +191,9 @@ func (c *Core) UpdateSite(ctx context.Context, req UpdateSiteRequest) (SiteResul
 				return err
 			}
 			site.Domain = req.Domain
+		}
+		if req.Enabled != nil {
+			site.Enabled = *req.Enabled
 		}
 		port, _, err := c.httpsPort(ctx)
 		if err != nil {

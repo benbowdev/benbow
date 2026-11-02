@@ -117,15 +117,18 @@ func Handler(b Backend) http.Handler {
 	})
 	post("PATCH", "/v1/sites/{name}", func(r *http.Request, body []byte) (any, error) {
 		var req struct {
-			PHP    string `json:"php"`
-			Path   string `json:"path"`
-			Domain string `json:"domain"`
-			Force  bool   `json:"force"`
+			PHP     string `json:"php"`
+			Path    string `json:"path"`
+			Domain  string `json:"domain"`
+			Enabled *bool  `json:"enabled"`
+			Force   bool   `json:"force"`
 		}
 		if err := decode(body, &req); err != nil {
 			return nil, err
 		}
-		return b.UpdateSite(r.Context(), core.UpdateSiteRequest{Name: r.PathValue("name"), PHP: req.PHP, Path: req.Path, Domain: req.Domain, Force: req.Force})
+		return b.UpdateSite(r.Context(), core.UpdateSiteRequest{
+			Name: r.PathValue("name"), PHP: req.PHP, Path: req.Path, Domain: req.Domain, Enabled: req.Enabled, Force: req.Force,
+		})
 	})
 	post("DELETE", "/v1/sites/{name}", func(r *http.Request, _ []byte) (any, error) {
 		return b.RemoveSite(r.Context(), r.PathValue("name"))

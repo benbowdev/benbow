@@ -96,12 +96,15 @@ public struct CovoAPI: Sendable {
         let php: String?
         let path: String?
         let domain: String?
+        let enabled: Bool?
         let force: Bool
     }
 
     /// Changes a site; nil fields are left as they are.
-    public func updateSite(_ name: String, php: String? = nil, path: String? = nil, domain: String? = nil, force: Bool = false) async throws -> SiteResult {
-        try await call("PATCH", "/v1/sites/" + escape(name), SiteChange(php: php, path: path, domain: domain, force: force))
+    public func updateSite(_ name: String, php: String? = nil, path: String? = nil, domain: String? = nil,
+                           enabled: Bool? = nil, force: Bool = false) async throws -> SiteResult {
+        try await call("PATCH", "/v1/sites/" + escape(name),
+                       SiteChange(php: php, path: path, domain: domain, enabled: enabled, force: force))
     }
 
     public func removeSite(_ name: String) async throws {
