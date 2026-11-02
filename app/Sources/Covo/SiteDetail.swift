@@ -47,8 +47,11 @@ struct SiteDetail: View {
                 LabeledContent("HTTPS", value: site.https ? "On" : "Off")
                 LabeledContent("Database") { Text("None").foregroundStyle(.secondary) }
             } header: {
-                HStack {
-                    Text(site.url).font(.headline).textSelection(.enabled)
+                HStack(alignment: .firstTextBaseline) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(site.name).font(.title2.weight(.semibold)).foregroundStyle(.primary)
+                        Text(site.url).font(.callout).foregroundStyle(.secondary).textSelection(.enabled)
+                    }
                     Spacer()
                     Button("Open") { open(site.url) }
                         .keyboardShortcut("o")
@@ -89,7 +92,6 @@ struct SiteDetail: View {
             }
         }
         .formStyle(.grouped)
-        .navigationTitle(site.name)
         .onAppear { domain = site.domain }
         .onChange(of: site.domain) { _, new in domain = new }
         .confirmationDialog("Remove \(site.name)?", isPresented: $confirmRemove) {

@@ -90,6 +90,7 @@ struct ContentView: View {
                 .disabled(model.busy != nil)
             }
         }
+        .hidingWindowTitle()
         .onChange(of: model.sites) { _, sites in
             if selection == nil || !sites.contains(where: { $0.id == selection }) {
                 selection = sites.first?.id
@@ -119,28 +120,32 @@ struct SiteRow: View {
     }
 }
 
+/// The one global control: starts or stops every site at once. Status and
+/// action live inside a single toolbar button so nothing spills out of it.
 struct StartStopButton: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        HStack(spacing: 8) {
-            Button {
-                Task { await model.toggleRunning() }
-            } label: {
-                Label(model.running ? "Stop" : "Start", systemImage: model.running ? "stop.fill" : "play.fill")
+        Button {
+            Task { await model.toggleRunning() }
+        } label: {
+            HStack(spacing: 6) {
+                if let busy = model.busy {
+                    ProgressView().controlSize(.small)
+                    Text(busy)
+                } else {
+                    Image(systemName: model.running ? "stop.fill" : "play.fill")
+                    Circle()
+                        .fill(model.running ? Color.green : Color.secondary.opacity(0.5))
+                        .frame(width: 7, height: 7)
+                    Text(model.running ? "All Sites Running" : "All Sites Stopped")
+                }
             }
-            .help(model.running ? "Stop all sites" : "Start all sites")
-            .disabled(model.busy != nil)
-            if let busy = model.busy {
-                ProgressView().controlSize(.small)
-                Text(busy).foregroundStyle(.secondary)
-            } else {
-                Circle()
-                    .fill(model.running ? Color.green : Color.secondary.opacity(0.5))
-                    .frame(width: 8, height: 8)
-                Text(model.running ? "Running" : "Stopped").foregroundStyle(.secondary)
-            }
+            .fixedSize()
+            .padding(.horizontal, 4)
         }
+        .help(model.running ? "Stop every site" : "Start every site")
+        .disabled(model.busy != nil)
     }
 }
 
@@ -165,4 +170,16 @@ struct TrustBanner: View {
 
 func open(_ url: String) {
     if let u = URL(string: url) { NSWorkspace.shared.open(u) }
+}
+
+extension View {
+    /// The window title would sit next to the global Start/Stop control and
+    /// read like the selected site's name; the site is named in the detail.
+    @ViewBuilder func hidingWindowTitle() -> some View {
+        if #available(macOS 15.0, *) {
+            toolbar(removing: .title)
+        } else {
+            navigationTitle("")
+        }
+    }
 }
