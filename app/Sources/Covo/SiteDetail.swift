@@ -35,7 +35,11 @@ struct SiteDetail: View {
                         Button {
                             NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: site.path)
                         } label: {
-                            Image(systemName: "arrow.right.circle.fill")
+                            if let f = ToolApp.finder {
+                                Image(nsImage: f.icon)
+                            } else {
+                                Image(systemName: "folder")
+                            }
                         }
                         .buttonStyle(.borderless)
                         .help("Show in Finder")
@@ -73,9 +77,21 @@ struct SiteDetail: View {
                         Text(site.url).font(.callout).foregroundStyle(.secondary).textSelection(.enabled)
                     }
                     Spacer()
-                    Button("Logs") { openWindow(id: "logs", value: site.name) }
-                        .help("PHP errors and requests of this site")
-                    Button("Open") { open(site.url) }
+                    Button {
+                        openWindow(id: "logs", value: site.name)
+                    } label: {
+                        Label("Logs", systemImage: "doc.text.magnifyingglass")
+                    }
+                    .help("PHP errors and requests of this site")
+                    Button {
+                        open(site.url)
+                    } label: {
+                        if let b = ToolApp.browser {
+                            Label { Text("Open") } icon: { Image(nsImage: b.icon) }
+                        } else {
+                            Label("Open", systemImage: "safari")
+                        }
+                    }
                         .keyboardShortcut("o")
                         .disabled(!model.running || !site.enabled)
                         .help(!site.enabled ? "Turn the site on first" : model.running ? "Open in your browser" : "Start Covo first")

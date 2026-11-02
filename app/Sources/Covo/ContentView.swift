@@ -178,13 +178,13 @@ struct SiteRow: View {
         }
         .opacity(site.enabled ? 1 : 0.55)
         .contextMenu {
-            Button("Open in Browser") { open(site.url) }
-            Button("Show in Finder") { NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: site.path) }
-            Button("Logs") { openWindow(id: "logs", value: site.name) }
+            SiteActions(site: site)
             Divider()
             OpenWithItems(folder: site.path)
             Divider()
-            Button("Duplicate…", action: duplicate)
+            Button(action: duplicate) {
+                Label("Duplicate…", systemImage: "plus.square.on.square")
+            }
         }
     }
 }
