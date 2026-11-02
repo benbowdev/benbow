@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 Andrea Casali
 
+import AppKit
 import CovoKit
 import Foundation
 import Observation
@@ -162,6 +163,51 @@ final class AppModel {
         await perform("Clearing logs…") { try await $0.clearSiteLogs(name) }
     }
 
+    var mysqlReady: Bool { status?.mysql.enabled == true && status?.mysql.running == true }
+
+    func databases() async -> [String] {
+        guard let api else { return [] }
+        do {
+            return try await api.databases()
+        } catch {
+            self.error = error.localizedDescription
+            return []
+        }
+    }
+
+    func siteDatabase(_ site: Site) async -> SiteDatabase? {
+        guard let api, !site.database.isEmpty else { return nil }
+        do {
+            return try await api.siteDatabase(site.name)
+        } catch {
+            self.error = error.localizedDescription
+            return nil
+        }
+    }
+
+    func createDatabase(_ site: Site, name: String = "") async {
+        await perform("Creating the database…") { _ = try await $0.createSiteDatabase(site.name, database: name) }
+    }
+
+    func linkDatabase(_ site: Site, _ db: String) async {
+        await perform("Linking \(db)…") { _ = try await $0.linkSiteDatabase(site.name, database: db) }
+    }
+
+    func unlinkDatabase(_ site: Site, drop: Bool) async {
+        await perform(drop ? "Deleting \(site.database)…" : "Unlinking…") {
+            try await $0.unlinkSiteDatabase(site.name, drop: drop)
+        }
+    }
+
+    /// Copies the password and opens Adminer on the site's database.
+    func openAdminer(_ site: Site) async {
+        guard let base = status?.adminerUrl, let db = await siteDatabase(site) else { return }
+        copyToClipboard(db.password ?? "")
+        var c = URLComponents(string: base)
+        c?.queryItems = [.init(name: "server", value: "localhost"), .init(name: "username", value: db.user), .init(name: "db", value: db.database)]
+        if let url = c?.url { NSWorkspace.shared.open(url) }
+    }
+
     func installed(_ minor: String) -> Bool {
         php?.installed.contains { $0.minor == minor } ?? false
     }
@@ -251,4 +297,9 @@ final class AppModel {
         while out.hasSuffix("-") { out.removeLast() }
         return String(out.prefix(63))
     }
+}
+
+func copyToClipboard(_ s: String) {
+    NSPasteboard.general.clearContents()
+    NSPasteboard.general.setString(s, forType: .string)
 }

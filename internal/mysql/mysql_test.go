@@ -96,31 +96,38 @@ func (f *fakeSecurity) run(_ context.Context, stdin string, args ...string) (str
 	f.calls = append(f.calls, args)
 	f.stdin = append(f.stdin, stdin)
 	notFound := errors.New("exit status 44")
-	switch args[0] {
-	case "-i":
-		fields := strings.Fields(stdin)
-		var svc, pw string
+	const missing = "security: SecKeychainSearchCopyNext: The specified item could not be found in the keychain."
+	flag := func(fields []string, name string) string {
 		for i, a := range fields {
-			switch a {
-			case "-s":
-				svc = strings.Trim(fields[i+1], `"`)
-			case "-w":
-				pw = fields[i+1]
+			if a == name && i+1 < len(fields) {
+				return strings.Trim(fields[i+1], `"`)
 			}
 		}
-		f.items[svc] = pw
+		return ""
+	}
+	if args[0] == "-i" {
+		fields := strings.Fields(stdin)
+		f.items[flag(fields, "-a")+"@"+flag(fields, "-s")] = flag(fields, "-w")
 		return "", nil
+	}
+	acct, svc := flag(args, "-a"), flag(args, "-s")
+	match := ""
+	for key := range f.items {
+		a, s, _ := strings.Cut(key, "@")
+		if s == svc && (acct == "" || a == acct) {
+			match = key
+			break
+		}
+	}
+	if match == "" {
+		return missing, notFound
+	}
+	switch args[0] {
 	case "find-generic-password":
-		if pw, ok := f.items[args[4]]; ok {
-			return pw + "\n", nil
-		}
-		return "security: SecKeychainSearchCopyNext: The specified item could not be found in the keychain.", notFound
+		return f.items[match] + "\n", nil
 	case "delete-generic-password":
-		if _, ok := f.items[args[4]]; ok {
-			delete(f.items, args[4])
-			return "", nil
-		}
-		return "security: SecKeychainSearchCopyNext: The specified item could not be found in the keychain.", notFound
+		delete(f.items, match)
+		return "", nil
 	}
 	return "", errors.New("unexpected")
 }
@@ -170,6 +177,38 @@ func TestKeychain(t *testing.T) {
 }
 
 // A lost `security -i` write (it exits 0 on failure) is detected.
+func TestKeychainAccounts(t *testing.T) {
+	ctx := context.Background()
+	f := &fakeSecurity{items: map[string]string{}}
+	root := Keychain{Path: "/k", Service: "dev.getcovo.mysql", Run: f.run}
+	shop := root.For("shop")
+	rootPW, shopPW := NewPassword(), NewPassword()
+	if err := root.Set(ctx, rootPW); err != nil {
+		t.Fatal(err)
+	}
+	if err := shop.Set(ctx, shopPW); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := root.Get(ctx); got != rootPW {
+		t.Fatalf("root = %q", got)
+	}
+	if got, _ := shop.Get(ctx); got != shopPW {
+		t.Fatalf("shop = %q", got)
+	}
+	if err := root.For("bad name").Set(ctx, NewPassword()); errcode.Code(err) != errcode.InvalidInput {
+		t.Fatalf("bad account err = %v", err)
+	}
+	if ok, err := root.AnyExists(ctx); !ok || err != nil {
+		t.Fatalf("AnyExists = %v, %v", ok, err)
+	}
+	if n, err := root.DeleteAll(ctx); n != 2 || err != nil {
+		t.Fatalf("DeleteAll = %d, %v", n, err)
+	}
+	if ok, err := root.AnyExists(ctx); ok || err != nil {
+		t.Fatalf("AnyExists after DeleteAll = %v, %v", ok, err)
+	}
+}
+
 func TestKeychainSetVerifies(t *testing.T) {
 	f := &fakeSecurity{items: map[string]string{}}
 	k := Keychain{Path: "/k", Service: "s", Run: func(ctx context.Context, stdin string, args ...string) (string, error) {

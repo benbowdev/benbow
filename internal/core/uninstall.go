@@ -104,10 +104,10 @@ func (u *Uninstaller) Plan(ctx context.Context) (UninstallPlan, error) {
 	if err != nil {
 		return plan, err
 	}
-	if ok, err := kc.Exists(ctx); err != nil {
+	if ok, err := kc.AnyExists(ctx); err != nil {
 		return plan, err
 	} else if ok {
-		plan.Keychain = append(plan.Keychain, "MySQL root password ("+kc.Service+")")
+		plan.Keychain = append(plan.Keychain, "MySQL passwords: root and site users ("+kc.Service+")")
 	}
 	for _, zone := range []string{suffixTest} {
 		st, _, err := u.Resolver.State(zone)
@@ -176,7 +176,7 @@ func (u *Uninstaller) Uninstall(ctx context.Context) (UninstallResult, error) {
 	if err != nil {
 		return res, err
 	}
-	if _, err := kc.Delete(ctx); err != nil {
+	if _, err := kc.DeleteAll(ctx); err != nil {
 		return res, err
 	}
 	for _, p := range plan.Paths {

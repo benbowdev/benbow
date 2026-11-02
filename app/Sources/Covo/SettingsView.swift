@@ -197,6 +197,15 @@ struct MySQLSettings: View {
                             }
                         }
                         row("Socket", c.socket)
+                        if let url = model.status?.adminerUrl, let u = URL(string: url) {
+                            LabeledContent("Adminer") {
+                                Button("Open") {
+                                    copyToClipboard(c.password)
+                                    NSWorkspace.shared.open(u)
+                                }
+                                .help("The root password is copied to the clipboard")
+                            }
+                        }
                     } else {
                         Button("Show Connection Details") {
                             Task { credentials = await model.mysqlCredentials() }
@@ -232,8 +241,7 @@ struct MySQLSettings: View {
 
     private func copy(_ value: String) -> some View {
         Button {
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(value, forType: .string)
+            copyToClipboard(value)
         } label: {
             Image(systemName: "doc.on.doc")
         }

@@ -19,6 +19,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"regexp"
 	"strconv"
 	"strings"
 	"text/template"
@@ -151,7 +152,7 @@ func Initialize(ctx context.Context, mysqld, cnf, dataDir, password string) erro
 	return nil
 }
 
-// Query runs sql with the mysql client over TCP on 127.0.0.1:port, passing
+// Query runs sql as root with the mysql client over TCP on 127.0.0.1:port, passing
 // the password through /dev/fd/3, and returns the tab-separated output.
 func Query(ctx context.Context, client string, port int, password, sql string) (string, error) {
 	if err := checkPassword(password); err != nil {
@@ -160,9 +161,12 @@ func Query(ctx context.Context, client string, port int, password, sql string) (
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	var out, errOut bytes.Buffer
+	// The SQL goes through stdin: it may hold passwords, which must never
+	// appear in a process list.
 	cmd := exec.CommandContext(ctx, client, "--defaults-extra-file=/dev/fd/3",
 		"--protocol=TCP", "-h", "127.0.0.1", "-P", strconv.Itoa(port), "-u", User,
-		"--batch", "--skip-column-names", "-e", sql)
+		"--batch", "--skip-column-names")
+	cmd.Stdin = strings.NewReader(sql)
 	cmd.Stdout, cmd.Stderr = &out, &errOut
 	if err := withFD3(cmd, "[client]\npassword="+password+"\n"); err != nil {
 		return "", errcode.New(errcode.Service, fmt.Errorf("mysql: %w: %s", err, strings.TrimSpace(errOut.String())))
@@ -170,10 +174,13 @@ func Query(ctx context.Context, client string, port int, password, sql string) (
 	return out.String(), nil
 }
 
-// Keychain keeps the root password as a generic password item.
+// Keychain keeps MySQL passwords as generic password items: one per
+// account (root, and each site's own user) under one service.
 type Keychain struct {
 	Path    string // keychain file
 	Service string // item service name, e.g. dev.getcovo.mysql
+	// Account is the MySQL user; empty means root.
+	Account string
 	// Run executes /usr/bin/security with stdin; overridable in tests.
 	Run func(ctx context.Context, stdin string, args ...string) (string, error)
 }
@@ -195,17 +202,34 @@ func (k Keychain) run(ctx context.Context, stdin string, args ...string) (string
 	return out.String(), err
 }
 
+func (k Keychain) account() string {
+	if k.Account == "" {
+		return User
+	}
+	return k.Account
+}
+
+// For returns the same keychain entry for another MySQL user.
+func (k Keychain) For(account string) Keychain {
+	k.Account = account
+	return k
+}
+
 // Set stores password, replacing any previous one. The password goes through
 // stdin of `security -i`, never through arguments.
 func (k Keychain) Set(ctx context.Context, password string) error {
 	if err := checkPassword(password); err != nil {
 		return err
 	}
-	if strings.ContainsAny(k.Service+k.Path, "\"\\\n") {
-		return errcode.Errorf(errcode.InvalidInput, "unsupported keychain service or path")
+	if strings.ContainsAny(k.Service+k.Path, "\"\\\n") || !accountRe.MatchString(k.account()) {
+		return errcode.Errorf(errcode.InvalidInput, "unsupported keychain service, path or account")
+	}
+	label := "Covo MySQL (" + k.Service + ")"
+	if k.account() != User {
+		label = "Covo MySQL " + k.account() + " (" + k.Service + ")"
 	}
 	line := fmt.Sprintf("add-generic-password -U -a %s -s \"%s\" -l \"%s\" -j \"Created by Covo. Removed by covo uninstall.\" -w %s \"%s\"\n",
-		User, k.Service, "Covo MySQL ("+k.Service+")", password, k.Path)
+		k.account(), k.Service, label, password, k.Path)
 	if _, err := k.run(ctx, line, "-i"); err != nil {
 		return errcode.New(errcode.Service, fmt.Errorf("store MySQL password in the keychain: %w", err))
 	}
@@ -222,7 +246,7 @@ func (k Keychain) Set(ctx context.Context, password string) error {
 
 // Get returns the stored password, or ErrNoPassword.
 func (k Keychain) Get(ctx context.Context) (string, error) {
-	out, err := k.run(ctx, "", "find-generic-password", "-a", User, "-s", k.Service, "-w", k.Path)
+	out, err := k.run(ctx, "", "find-generic-password", "-a", k.account(), "-s", k.Service, "-w", k.Path)
 	if err != nil {
 		if strings.Contains(out, "could not be found") {
 			return "", ErrNoPassword
@@ -243,7 +267,7 @@ func (k Keychain) Exists(ctx context.Context) (bool, error) {
 
 // Delete removes the stored password. It is a no-op if there is none.
 func (k Keychain) Delete(ctx context.Context) (bool, error) {
-	out, err := k.run(ctx, "", "delete-generic-password", "-a", User, "-s", k.Service, k.Path)
+	out, err := k.run(ctx, "", "delete-generic-password", "-a", k.account(), "-s", k.Service, k.Path)
 	if err != nil {
 		if strings.Contains(out, "could not be found") {
 			return false, nil
@@ -252,3 +276,42 @@ func (k Keychain) Delete(ctx context.Context) (bool, error) {
 	}
 	return true, nil
 }
+
+// DeleteAll removes every password stored under Service, whatever the
+// account, and returns how many were removed.
+func (k Keychain) DeleteAll(ctx context.Context) (int, error) {
+	for n := 0; n < 10000; n++ {
+		out, err := k.run(ctx, "", "delete-generic-password", "-s", k.Service, k.Path)
+		if err != nil {
+			if strings.Contains(out, "could not be found") {
+				return n, nil
+			}
+			return n, errcode.New(errcode.Service, fmt.Errorf("remove MySQL passwords from the keychain: %w: %s", err, strings.TrimSpace(out)))
+		}
+	}
+	return 0, errcode.Errorf(errcode.Service, "too many MySQL passwords in the keychain")
+}
+
+// AnyExists reports whether any password is stored under Service.
+func (k Keychain) AnyExists(ctx context.Context) (bool, error) {
+	out, err := k.run(ctx, "", "find-generic-password", "-s", k.Service, k.Path)
+	if err != nil {
+		if strings.Contains(out, "could not be found") {
+			return false, nil
+		}
+		return false, errcode.New(errcode.Service, fmt.Errorf("search the keychain: %w: %s", err, strings.TrimSpace(out)))
+	}
+	return true, nil
+}
+
+// accountRe is a MySQL user Covo creates: also safe in `security -i`.
+var accountRe = regexp.MustCompile(`^[a-z0-9_]{1,32}$`)
+
+// ValidName reports whether name may be used as a database or user name
+// by Covo: lowercase letters, digits and underscores, so that it never
+// needs quoting beyond backticks.
+func ValidName(name string, maxLen int) bool {
+	return len(name) <= maxLen && nameRe.MatchString(name)
+}
+
+var nameRe = regexp.MustCompile(`^[a-z0-9_]+$`)

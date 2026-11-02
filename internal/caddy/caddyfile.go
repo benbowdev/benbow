@@ -23,7 +23,18 @@ type Config struct {
 	LogFile     string
 	CA          CA
 	Sites       []Site
+	// Adminer, when set, is served at https://adminer.localhost.
+	Adminer *Adminer
 }
+
+// Adminer is the database manager: one PHP file served by PHP-FPM.
+type Adminer struct {
+	Dir       string // holds adminer.php
+	FPMSocket string
+}
+
+// AdminerDomain is reserved for Adminer.
+const AdminerDomain = "adminer.localhost"
 
 // CA is the certificate authority Caddy signs site certificates with. Covo
 // creates it (package ca): Caddy gets the root certificate without its key,
@@ -97,12 +108,24 @@ var tmpl = template.Must(template.New("Caddyfile").Funcs(template.FuncMap{"q": q
 	{{- end}}
 	file_server
 }
+{{end}}
+{{- with .Adminer}}
+# adminer
+{{q (print "https://adminer.localhost:" $.HTTPSPort)}} {
+	tls internal
+	root * {{q .Dir}}
+	rewrite * /adminer.php
+	php_fastcgi {{q (print "unix/" .FPMSocket)}}
+}
 {{end}}`))
 
 // Caddyfile renders cfg. Every path is validated with paths.CheckSafe so that
 // it can be quoted verbatim (spaces are allowed).
 func Caddyfile(cfg Config) (string, error) {
 	check := []string{cfg.AdminSocket, cfg.StorageDir, cfg.LogFile, cfg.CA.RootCert, cfg.CA.IntermediateCert, cfg.CA.IntermediateKey}
+	if cfg.Adminer != nil {
+		check = append(check, cfg.Adminer.Dir, cfg.Adminer.FPMSocket)
+	}
 	for _, s := range cfg.Sites {
 		check = append(check, s.Root, s.FPMSocket)
 		for _, l := range []string{s.AccessLog, s.PHPErrorLog} {

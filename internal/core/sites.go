@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/getcovo/covo/internal/caddy"
 	"github.com/getcovo/covo/internal/errcode"
 	"github.com/getcovo/covo/internal/store"
 )
@@ -177,6 +178,9 @@ const maxAliases = 20
 // checkDomainFree fails if domain is served by a site other than self, or
 // is already one of self's names.
 func (c *Core) checkDomainFree(ctx context.Context, domain, self string) error {
+	if domain == caddy.AdminerDomain {
+		return errcode.Errorf(errcode.Conflict, domain+" is reserved for Adminer")
+	}
 	sites, err := c.Store.ListSites(ctx)
 	if err != nil {
 		return err

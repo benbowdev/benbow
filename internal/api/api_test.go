@@ -69,6 +69,18 @@ func (f *fake) ClearSiteLogs(_ context.Context, name string) (core.SiteLog, erro
 	return core.SiteLog{}, f.record("clear logs " + name)
 }
 
+func (f *fake) CreateSiteDatabase(_ context.Context, name, db string) (core.SiteDatabase, error) {
+	return core.SiteDatabase{}, f.record("create db " + name + " " + db)
+}
+
+func (f *fake) LinkSiteDatabase(_ context.Context, name, db string) (core.SiteDatabase, error) {
+	return core.SiteDatabase{}, f.record("link db " + name + " " + db)
+}
+
+func (f *fake) UnlinkSiteDatabase(_ context.Context, name string, drop bool) (core.SiteDatabase, error) {
+	return core.SiteDatabase{}, f.record(fmt.Sprintf("unlink db %s %v", name, drop))
+}
+
 func (f *fake) RemoveSite(_ context.Context, name string) (core.SiteResult, error) {
 	return core.SiteResult{}, f.record("remove " + name)
 }
@@ -167,6 +179,10 @@ func TestRoutes(t *testing.T) {
 		{"GET", "/v1/sites/demo/logs/access", "", 200, "logs demo access 0", ""},
 		{"GET", "/v1/sites/demo/logs/php?lines=x", "", 400, "", errcode.InvalidInput},
 		{"DELETE", "/v1/sites/demo/logs", "", 200, "clear logs demo", ""},
+		{"POST", "/v1/sites/demo/database", `{}`, 200, "create db demo ", ""},
+		{"POST", "/v1/sites/demo/database", `{"name":"shop","link":true}`, 200, "link db demo shop", ""},
+		{"DELETE", "/v1/sites/demo/database", "", 200, "unlink db demo false", ""},
+		{"DELETE", "/v1/sites/demo/database?drop=true", "", 200, "unlink db demo true", ""},
 		{"PATCH", "/v1/sites/demo", `{"name":"x"}`, 400, "", errcode.InvalidInput},
 		{"PUT", "/v1/xdebug/8.4", `{"enabled":true}`, 200, "xdebug 8.4 on", ""},
 		{"PUT", "/v1/xdebug/8.4", `{"enabled":false}`, 200, "xdebug 8.4 off", ""},

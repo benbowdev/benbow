@@ -108,6 +108,31 @@ public struct CovoAPI: Sendable {
                        SiteChange(php: php, path: path, domain: domain, enabled: enabled, aliases: aliases, force: force))
     }
 
+    public func databases() async throws -> [String] { try await call("GET", "/v1/databases") }
+
+    public func siteDatabase(_ name: String) async throws -> SiteDatabase {
+        try await call("GET", "/v1/sites/\(escape(name))/database")
+    }
+
+    struct DatabaseRequest: Encodable {
+        let name: String
+        let link: Bool
+    }
+
+    /// Creates a database with its own user; an empty name means the site's.
+    public func createSiteDatabase(_ name: String, database: String = "") async throws -> SiteDatabase {
+        try await call("POST", "/v1/sites/\(escape(name))/database", DatabaseRequest(name: database, link: false))
+    }
+
+    public func linkSiteDatabase(_ name: String, database: String) async throws -> SiteDatabase {
+        try await call("POST", "/v1/sites/\(escape(name))/database", DatabaseRequest(name: database, link: true))
+    }
+
+    /// Forgets the site's database; drop also deletes it.
+    public func unlinkSiteDatabase(_ name: String, drop: Bool) async throws {
+        let _: Ignored = try await call("DELETE", "/v1/sites/\(escape(name))/database" + (drop ? "?drop=true" : ""))
+    }
+
     /// kind is "access" or "php".
     public func siteLogs(_ name: String, kind: String, lines: Int = 500) async throws -> SiteLog {
         try await call("GET", "/v1/sites/\(escape(name))/logs/\(escape(kind))?lines=\(lines)")

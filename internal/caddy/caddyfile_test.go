@@ -25,15 +25,16 @@ var testCA = CA{
 
 func TestCaddyfileGolden(t *testing.T) {
 	tests := []struct {
-		name  string
-		sites []Site
+		name    string
+		sites   []Site
+		adminer *Adminer
 	}{
-		{"no-sites", nil},
+		{"no-sites", nil, nil},
 		{"two-sites", []Site{
 			{Name: "demo", Domain: "demo.localhost", Aliases: []string{"shop.test", "www.demo.localhost"}, Root: "/Users/test/Sites/My Demo", FPMSocket: home + "/run/php84.sock",
 				AccessLog: home + "/logs/sites/demo/access.log", PHPErrorLog: home + "/logs/sites/demo/php-error.log"},
 			{Name: "legacy", Domain: "legacy.localhost", Root: "/Users/test/Sites/legacy", FPMSocket: home + "/run/php82.sock"},
-		}},
+		}, &Adminer{Dir: home + "/components/adminer/6.2.0-all", FPMSocket: home + "/run/php84.sock"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -44,6 +45,7 @@ func TestCaddyfileGolden(t *testing.T) {
 				LogFile:     home + "/logs/caddy.log",
 				CA:          testCA,
 				Sites:       tt.sites,
+				Adminer:     tt.adminer,
 			})
 			if err != nil {
 				t.Fatal(err)

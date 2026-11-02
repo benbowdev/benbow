@@ -55,7 +55,7 @@ struct SiteDetail: View {
                 }
                 .disabled(model.busy != nil)
                 LabeledContent("HTTPS", value: site.https ? "On" : "Off")
-                LabeledContent("Database") { Text("None").foregroundStyle(.secondary) }
+                DatabaseRow(site: site)
             } header: {
                 HStack(alignment: .firstTextBaseline) {
                     VStack(alignment: .leading, spacing: 2) {

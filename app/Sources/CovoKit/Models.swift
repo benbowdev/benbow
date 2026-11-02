@@ -17,6 +17,10 @@ public struct Site: Codable, Sendable, Identifiable, Hashable {
     public var enabled: Bool
     /// Extra domains served by the same site.
     public var aliases: [String]
+    /// The linked MySQL database, or "".
+    public var database: String
+    /// The site's own MySQL user, when Covo created the database.
+    public var databaseUser: String?
     public var url: String
     public var id: String { name }
 }
@@ -81,6 +85,8 @@ public struct Status: Codable, Sendable, Hashable {
     public var ca: CAStatus
     public var domains: [Domain]
     public var mysql: MySQLStatus
+    /// Set while MySQL is enabled.
+    public var adminerUrl: String?
     public var orphans: [String]?
 }
 
@@ -113,6 +119,28 @@ public struct PHPSettings: Codable, Sendable, Hashable {
     public var uploadMaxFilesize: String
     public var maxExecutionTime: Int
     public var displayErrors: Bool
+}
+
+/// A site's database and how it connects.
+public struct SiteDatabase: Codable, Sendable, Hashable {
+    public var site: String
+    public var database: String
+    public var user: String
+    public var password: String?
+    public var host: String
+    public var port: Int
+    public var socket: String
+    public var dedicated: Bool
+
+    /// The lines to paste into wp-config.php.
+    public var wpConfig: String {
+        """
+        define( 'DB_NAME', '\(database)' );
+        define( 'DB_USER', '\(user)' );
+        define( 'DB_PASSWORD', '\(password ?? "")' );
+        define( 'DB_HOST', 'localhost' );
+        """
+    }
 }
 
 /// The end of a site's access log or PHP error log.

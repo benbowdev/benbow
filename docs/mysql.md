@@ -24,6 +24,39 @@ Covo's socket and port, so `DB_HOST` `localhost` (socket) and a bare
 `127.0.0.1` both reach Covo's MySQL, never another server on 3306.
 `127.0.0.1:3307` works too.
 
+## Site databases
+
+```
+covo db create shop               # database "shop" + user "shop" that can only use it
+covo db create shop --name shop_wp
+covo db link blog blog_old        # an existing database; the site connects as root
+covo db show shop --json          # credentials, password included
+covo db list
+covo db unlink shop               # forget the link, keep the data
+covo db unlink shop --drop --yes  # delete the database and the site's user
+```
+
+- A created database gets `utf8mb4_unicode_ci` and its own MySQL user
+  (`'<name>'@'localhost'` and `@'127.0.0.1'`, at most 32 characters) with
+  `ALL PRIVILEGES` on that database only. Its 24-character password is stored
+  in the login keychain like root's (same service, account = the user).
+- Names are lowercase letters, digits and underscores; MySQL's own databases
+  (`mysql`, `sys`, …) are never created, linked or dropped.
+- SQL with passwords reaches the `mysql` client on its standard input, never
+  in its arguments.
+- Removing a site keeps its database; only `unlink --drop` deletes data.
+- `covo uninstall` removes every Covo MySQL password from the keychain.
+- In the app: the Database line of the site detail (Add → Create or Link,
+  Adminer, credentials, wp-config.php settings to copy).
+
+## Adminer
+
+While MySQL is enabled, Covo serves Adminer 6.2.0 (MySQL-only build, pinned
+by SHA-256, the same as GitHub's published digest) at
+`https://adminer.localhost:8443/` on PHP 8.4. There is no automatic login:
+the app copies the password to the clipboard and opens Adminer with server,
+user and database filled in. `adminer.localhost` cannot be used by a site.
+
 ## Binary
 
 - `mysql-8.4.13-macos15-arm64.tar.gz` from `cdn.mysql.com`, pinned by

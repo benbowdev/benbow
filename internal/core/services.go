@@ -4,6 +4,7 @@
 package core
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -133,8 +134,9 @@ func (c *Core) caddyBinary(inst CaddyInstall) caddy.Binary {
 func (c *Core) caddyfilePath() string { return filepath.Join(c.Layout.Etc, "caddy", "Caddyfile") }
 
 // renderCaddyfile needs the CA on disk (ensureCA).
-func (c *Core) renderCaddyfile(port int, sites []store.Site) (string, error) {
+func (c *Core) renderCaddyfile(port int, sites []store.Site, adminer *caddy.Adminer) (string, error) {
 	cfg := caddy.Config{
+		Adminer:     adminer,
 		AdminSocket: c.Layout.Socket("caddy-admin.sock"),
 		HTTPSPort:   port,
 		StorageDir:  filepath.Join(c.Layout.Data, "caddy"),
@@ -354,6 +356,13 @@ func (c *Core) reconcile(ctx context.Context) (StartResult, error) {
 			minors = append(minors, s.PHPMinor)
 		}
 	}
+	adminer, err := c.adminer(ctx)
+	if err != nil {
+		return StartResult{}, err
+	}
+	if adminer != nil && !slices.Contains(minors, adminerPHP) {
+		minors = append(minors, adminerPHP)
+	}
 	slices.Sort(minors)
 	var bundleHash string
 	if len(minors) > 0 {
@@ -380,7 +389,7 @@ func (c *Core) reconcile(ctx context.Context) (StartResult, error) {
 	if err := c.ensureSiteLogDirs(names); err != nil {
 		return StartResult{}, err
 	}
-	body, err := c.renderCaddyfile(port, sites)
+	body, err := c.renderCaddyfile(port, sites, adminer)
 	if err != nil {
 		return StartResult{}, err
 	}
@@ -412,7 +421,7 @@ func (c *Core) reconcile(ctx context.Context) (StartResult, error) {
 	if err := c.reopenLogs(ctx, minors, rotated, changes); err != nil {
 		return StartResult{}, err
 	}
-	if err := c.waitReady(ctx, minors, port, len(sites) > 0, dnsPort, mysqlPort); err != nil {
+	if err := c.waitReady(ctx, minors, port, len(sites) > 0 || adminer != nil, dnsPort, mysqlPort); err != nil {
 		return StartResult{}, err
 	}
 	return StartResult{HTTPSPort: port, PortAssigned: assigned, Changes: changes}, nil
@@ -509,6 +518,8 @@ type Status struct {
 	CA        CAStatus        `json:"ca"`
 	Domains   []DomainStatus  `json:"domains"`
 	MySQL     MySQLStatus     `json:"mysql"`
+	// AdminerURL is set while MySQL is enabled.
+	AdminerURL string `json:"adminer_url,omitempty"`
 	// Orphans are loaded Covo agents that no site needs any more.
 	Orphans []string `json:"orphans,omitempty"`
 }
@@ -534,16 +545,22 @@ func (c *Core) Status(ctx context.Context) (Status, error) {
 		}
 		st.Sites = append(st.Sites, SiteStatus{Site: s, URL: siteURL(s, st.HTTPSPort)})
 	}
+	mysqlOn, err := c.mysqlEnabled(ctx)
+	if err != nil {
+		return Status{}, err
+	}
+	if svc := phpService(adminerPHP); mysqlOn && !slices.Contains(services, svc) {
+		services = append(services, svc) // for Adminer
+	}
 	slices.Sort(services[1:])
 	if ok, err := c.domainEnabled(ctx, suffixTest); err != nil {
 		return Status{}, err
 	} else if ok {
 		services = append(services, dnsService)
 	}
-	if ok, err := c.mysqlEnabled(ctx); err != nil {
-		return Status{}, err
-	} else if ok {
+	if mysqlOn {
 		services = append(services, mysqlService)
+		st.AdminerURL = "https://" + caddy.AdminerDomain + ":" + strconv.Itoa(cmp.Or(st.HTTPSPort, defaultHTTPSPort)) + "/"
 	}
 	st.Running = true
 	expected := map[string]bool{}

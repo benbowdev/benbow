@@ -45,6 +45,11 @@ type Backend interface {
 	AddSite(ctx context.Context, req core.AddSiteRequest) (core.SiteResult, error)
 	UpdateSite(ctx context.Context, req core.UpdateSiteRequest) (core.SiteResult, error)
 	RemoveSite(ctx context.Context, name string) (core.SiteResult, error)
+	Databases(ctx context.Context) ([]string, error)
+	GetSiteDatabase(ctx context.Context, name string) (core.SiteDatabase, error)
+	CreateSiteDatabase(ctx context.Context, name, db string) (core.SiteDatabase, error)
+	LinkSiteDatabase(ctx context.Context, name, db string) (core.SiteDatabase, error)
+	UnlinkSiteDatabase(ctx context.Context, name string, drop bool) (core.SiteDatabase, error)
 	SiteLogs(ctx context.Context, name, kind string, lines int) (core.SiteLog, error)
 	ClearSiteLogs(ctx context.Context, name string) (core.SiteLog, error)
 	ListPHP(ctx context.Context) (core.PHPList, error)
@@ -148,6 +153,30 @@ func Handler(b Backend) http.Handler {
 		}
 		v, err := b.SiteLogs(r.Context(), r.PathValue("name"), r.PathValue("kind"), lines)
 		reply(w, v, err)
+	})
+	get("/v1/databases", func(ctx context.Context) (any, error) { return b.Databases(ctx) })
+	mux.HandleFunc("GET /v1/sites/{name}/database", func(w http.ResponseWriter, r *http.Request) {
+		v, err := b.GetSiteDatabase(r.Context(), r.PathValue("name"))
+		reply(w, v, err)
+	})
+	// {"name": "shop"} creates a database and its user; with "link": true
+	// it links an existing one instead.
+	post("POST", "/v1/sites/{name}/database", func(r *http.Request, body []byte) (any, error) {
+		var req struct {
+			Name string `json:"name"`
+			Link bool   `json:"link"`
+		}
+		if err := decode(body, &req); err != nil {
+			return nil, err
+		}
+		if req.Link {
+			return b.LinkSiteDatabase(r.Context(), r.PathValue("name"), req.Name)
+		}
+		return b.CreateSiteDatabase(r.Context(), r.PathValue("name"), req.Name)
+	})
+	// ?drop=true also deletes the database and the site's own user.
+	post("DELETE", "/v1/sites/{name}/database", func(r *http.Request, _ []byte) (any, error) {
+		return b.UnlinkSiteDatabase(r.Context(), r.PathValue("name"), r.URL.Query().Get("drop") == "true")
 	})
 	post("DELETE", "/v1/sites/{name}/logs", func(r *http.Request, _ []byte) (any, error) {
 		return b.ClearSiteLogs(r.Context(), r.PathValue("name"))
