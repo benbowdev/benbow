@@ -81,16 +81,22 @@ func (c *Core) checkSiteRequest(req AddSiteRequest) error {
 	if err := validMinor(req.PHP); err != nil {
 		return err
 	}
+	return c.checkSiteFolder(req.Path, req.Force)
+}
+
+// checkSiteFolder checks a document root: allowed, and with an index file
+// unless force is set.
+func (c *Core) checkSiteFolder(path string, force bool) error {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return fmt.Errorf("resolve home directory: %w", err)
 	}
-	if err := checkSiteDir(req.Path, home, c.Layout.Root); err != nil {
+	if err := checkSiteDir(path, home, c.Layout.Root); err != nil {
 		return err
 	}
-	if !req.Force && !hasIndex(req.Path) {
+	if !force && !hasIndex(path) {
 		return errcode.Errorf(errcode.ConfirmationRequired,
-			fmt.Sprintf("%s has no index.php or index.html; use --force if it is the right folder", req.Path))
+			fmt.Sprintf("%s has no index.php or index.html; use --force if it is the right folder", path))
 	}
 	return nil
 }
@@ -141,6 +147,81 @@ func (c *Core) goLive(ctx context.Context, sites []store.Site) (bool, error) {
 		return false, err
 	}
 	return applied, nil
+}
+
+// UpdateSiteRequest changes an existing site. Empty fields are left as
+// they are.
+type UpdateSiteRequest struct {
+	Name   string
+	PHP    string
+	Path   string
+	Domain string
+	// Force accepts a new folder without index.php or index.html.
+	Force bool
+}
+
+// UpdateSite changes a site's PHP version, folder or domain, installing the
+// PHP version if needed. If Covo is running the change goes live
+// immediately; if that fails the previous settings are restored.
+func (c *Core) UpdateSite(ctx context.Context, req UpdateSiteRequest) (SiteResult, error) {
+	var res SiteResult
+	err := c.locked(ctx, func() error {
+		old, err := c.Store.Site(ctx, req.Name)
+		if err != nil {
+			return err
+		}
+		site := old
+		if req.PHP != "" && req.PHP != old.PHPMinor {
+			if err := validMinor(req.PHP); err != nil {
+				return err
+			}
+			site.PHPMinor = req.PHP
+		}
+		if req.Path != "" && req.Path != old.Path {
+			if err := c.checkSiteFolder(req.Path, req.Force); err != nil {
+				return err
+			}
+			site.Path = req.Path
+		}
+		if req.Domain != "" && req.Domain != old.Domain {
+			if err := c.checkSiteDomain(ctx, req.Domain); err != nil {
+				return err
+			}
+			site.Domain = req.Domain
+		}
+		port, _, err := c.httpsPort(ctx)
+		if err != nil {
+			return err
+		}
+		res = SiteResult{SiteStatus: SiteStatus{Site: site, URL: siteURL(site, port)}}
+		if site == old {
+			res.Applied, err = c.applyIfRunning(ctx)
+			return err
+		}
+		if site.PHPMinor != old.PHPMinor {
+			if _, err := c.ensurePHP(ctx, site.PHPMinor); err != nil {
+				return err
+			}
+		}
+		if err := c.Store.UpdateSite(ctx, site); err != nil {
+			return err
+		}
+		restore := func() {
+			_ = c.Store.UpdateSite(ctx, old)
+			_ = c.syncLocal(ctx)
+			_, _ = c.applyIfRunning(ctx)
+		}
+		if err := c.syncLocal(ctx); err != nil {
+			restore()
+			return err
+		}
+		if res.Applied, err = c.applyIfRunning(ctx); err != nil {
+			restore()
+			return err
+		}
+		return nil
+	})
+	return res, err
 }
 
 // RemoveSite unregisters a site. Its folder is never touched.

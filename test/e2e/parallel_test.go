@@ -44,4 +44,24 @@ func TestTwoPHPVersionsInParallel(t *testing.T) {
 			t.Errorf("%s served %q, want PHP %s.x", url, body, php)
 		}
 	}
+
+	// Switching demo to PHP 8.2 takes effect at once and retires php-8.4.
+	h.mustCovo("site", "set", "demo", "--php", "8.2")
+	st = h.status()
+	names = nil
+	for _, svc := range st.Services {
+		names = append(names, svc.Name)
+	}
+	if got := strings.Join(names, ","); got != "caddy,php-8.2" {
+		t.Fatalf("services after set = %s, want caddy,php-8.2", got)
+	}
+	if body := h.get(urls["8.4"], st.CA.CertPath); !strings.HasPrefix(body, "8.2.") {
+		t.Errorf("demo served %q after set, want PHP 8.2.x", body)
+	}
+	if env := h.covo("site", "set", "demo", "--path", t.TempDir()); env.OK || env.Error.Code != "confirmation_required" {
+		t.Fatalf("set to an empty folder = %+v, want confirmation_required", env)
+	}
+	if env := h.covo("site", "set", "nope", "--php", "8.2"); env.OK || env.Error.Code != "not_found" {
+		t.Fatalf("set missing site = %+v, want not_found", env)
+	}
 }

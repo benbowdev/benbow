@@ -20,6 +20,7 @@ go build -o covo ./cmd/covo
 ./covo start
 ./covo trust          # one macOS confirmation, no sudo
 open https://demo.localhost:8443
+./covo site set demo --php 8.2   # also --path, --domain; applied at once
 ```
 
 Every command supports `--json`.

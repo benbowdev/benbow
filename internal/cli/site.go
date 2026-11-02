@@ -20,7 +20,7 @@ func (a *app) siteCmd() *cobra.Command {
 		Use:   "site",
 		Short: "Manage sites",
 	}
-	cmd.AddCommand(a.siteAddCmd(), a.siteListCmd(), a.siteRemoveCmd())
+	cmd.AddCommand(a.siteAddCmd(), a.siteSetCmd(), a.siteListCmd(), a.siteRemoveCmd())
 	return cmd
 }
 
@@ -58,6 +58,37 @@ func (a *app) siteAddCmd() *cobra.Command {
 	cmd.Flags().StringVar(&path, "path", "", "document root (default: current folder)")
 	cmd.Flags().StringVar(&domain, "domain", "", "local domain, e.g. demo.covo.test (default: <name>.localhost)")
 	cmd.Flags().BoolVar(&force, "force", false, "add the folder even if it has no index.php or index.html")
+	return cmd
+}
+
+func (a *app) siteSetCmd() *cobra.Command {
+	var phpVersion, path, domain string
+	var force bool
+	cmd := &cobra.Command{
+		Use:   "set <name>",
+		Short: "Change a site's PHP version, folder or domain",
+		Args:  cobra.ExactArgs(1),
+		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
+			req := core.UpdateSiteRequest{Name: args[0], PHP: phpVersion, Domain: domain, Force: force}
+			if path != "" {
+				dir, err := absDir(path)
+				if err != nil {
+					return nil, err
+				}
+				req.Path = dir
+			}
+			res, err := c.UpdateSite(ctx, req)
+			if errcode.Code(err) == errcode.ConfirmationRequired && a.confirm(err.Error()+"\nUse it anyway?") {
+				req.Force = true
+				res, err = c.UpdateSite(ctx, req)
+			}
+			return siteResult(res), err
+		}),
+	}
+	cmd.Flags().StringVar(&phpVersion, "php", "", "new PHP version (e.g. 8.3)")
+	cmd.Flags().StringVar(&path, "path", "", "new document root")
+	cmd.Flags().StringVar(&domain, "domain", "", "new local domain, e.g. demo.covo.test")
+	cmd.Flags().BoolVar(&force, "force", false, "accept a folder without index.php or index.html")
 	return cmd
 }
 

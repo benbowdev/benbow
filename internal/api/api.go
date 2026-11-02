@@ -42,6 +42,7 @@ type Backend interface {
 	Stop(ctx context.Context) (core.StopResult, error)
 	ListSites(ctx context.Context) ([]core.SiteStatus, error)
 	AddSite(ctx context.Context, req core.AddSiteRequest) (core.SiteResult, error)
+	UpdateSite(ctx context.Context, req core.UpdateSiteRequest) (core.SiteResult, error)
 	RemoveSite(ctx context.Context, name string) (core.SiteResult, error)
 	ListPHP(ctx context.Context) (core.PHPList, error)
 	InstallPHP(ctx context.Context, spec string) (core.PHPInstall, error)
@@ -113,6 +114,18 @@ func Handler(b Backend) http.Handler {
 			return nil, err
 		}
 		return b.AddSite(r.Context(), core.AddSiteRequest{Name: req.Name, Domain: req.Domain, PHP: req.PHP, Path: req.Path, Force: req.Force})
+	})
+	post("PATCH", "/v1/sites/{name}", func(r *http.Request, body []byte) (any, error) {
+		var req struct {
+			PHP    string `json:"php"`
+			Path   string `json:"path"`
+			Domain string `json:"domain"`
+			Force  bool   `json:"force"`
+		}
+		if err := decode(body, &req); err != nil {
+			return nil, err
+		}
+		return b.UpdateSite(r.Context(), core.UpdateSiteRequest{Name: r.PathValue("name"), PHP: req.PHP, Path: req.Path, Domain: req.Domain, Force: req.Force})
 	})
 	post("DELETE", "/v1/sites/{name}", func(r *http.Request, _ []byte) (any, error) {
 		return b.RemoveSite(r.Context(), r.PathValue("name"))

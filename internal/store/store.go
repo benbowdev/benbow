@@ -255,6 +255,24 @@ func (s *Store) querySites(ctx context.Context, tail string, args ...any) ([]Sit
 	return out, nil
 }
 
+// UpdateSite replaces the path, PHP version, domain and HTTPS flag of the
+// site called site.Name. A domain used by another site is a Conflict.
+func (s *Store) UpdateSite(ctx context.Context, site Site) error {
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE sites SET path = ?, php_minor = ?, domain = ?, https = ? WHERE name = ?`,
+		site.Path, site.PHPMinor, site.Domain, site.HTTPS, site.Name)
+	if err != nil {
+		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+			return errcode.Errorf(errcode.Conflict, fmt.Sprintf("domain %q is used by another site", site.Domain))
+		}
+		return fmt.Errorf("update site %s: %w", site.Name, err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return errcode.Errorf(errcode.NotFound, fmt.Sprintf("site %q not found", site.Name))
+	}
+	return nil
+}
+
 // RemoveSite deletes the site called name.
 func (s *Store) RemoveSite(ctx context.Context, name string) error {
 	res, err := s.db.ExecContext(ctx, `DELETE FROM sites WHERE name = ?`, name)

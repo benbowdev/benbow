@@ -107,6 +107,28 @@ func TestSites(t *testing.T) {
 	if err != nil || got.Path != demo.Path || !got.HTTPS {
 		t.Fatalf("Site = %+v, %v", got, err)
 	}
+	other := Site{Name: "other", Path: "/Users/a/other", PHPMinor: "8.2", Domain: "other.localhost", HTTPS: true, CreatedAt: time.Now()}
+	if err := s.AddSite(ctx, other); err != nil {
+		t.Fatal(err)
+	}
+	moved := demo
+	moved.Path, moved.PHPMinor, moved.Domain = "/Users/a/new", "8.2", "demo.covo.test"
+	if err := s.UpdateSite(ctx, moved); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := s.Site(ctx, "demo"); got.Path != moved.Path || got.PHPMinor != "8.2" || got.Domain != moved.Domain || !got.CreatedAt.Equal(demo.CreatedAt.Truncate(time.Second)) {
+		t.Fatalf("after update Site = %+v", got)
+	}
+	moved.Domain = "other.localhost"
+	if err := s.UpdateSite(ctx, moved); errcode.Code(err) != errcode.Conflict {
+		t.Fatalf("update to a taken domain err = %v, want conflict", err)
+	}
+	if err := s.UpdateSite(ctx, Site{Name: "missing", Domain: "missing.localhost"}); errcode.Code(err) != errcode.NotFound {
+		t.Fatalf("update missing err = %v, want not_found", err)
+	}
+	if err := s.RemoveSite(ctx, "other"); err != nil {
+		t.Fatal(err)
+	}
 	if err := s.RemoveSite(ctx, "demo"); err != nil {
 		t.Fatal(err)
 	}
