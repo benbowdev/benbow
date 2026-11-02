@@ -26,6 +26,11 @@ final class AppModel {
 
     private var api: CovoAPI?
     private var polling: Task<Void, Never>?
+    /// Start-on-launch runs once per app launch, not on reconnects.
+    private var launched = false
+
+    /// UserDefaults key: start every site when the app opens.
+    static let startOnLaunchKey = "startSitesOnLaunch"
 
     var sites: [Site] { status?.sites ?? [] }
     var running: Bool { status?.running ?? false }
@@ -42,6 +47,12 @@ final class AppModel {
             try await refreshAll()
             phase = .ready
             startPolling()
+            if !launched {
+                launched = true
+                if UserDefaults.standard.bool(forKey: Self.startOnLaunchKey), !running {
+                    await perform("Starting…") { try await $0.start() }
+                }
+            }
         } catch {
             phase = .failed(error.localizedDescription)
         }

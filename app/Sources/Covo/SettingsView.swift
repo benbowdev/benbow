@@ -3,6 +3,7 @@
 
 import AppKit
 import CovoKit
+import ServiceManagement
 import SwiftUI
 
 /// Covo → Settings… (⌘,). Things set once, not per site.
@@ -25,6 +26,32 @@ struct SettingsView: View {
 struct GeneralSettings: View {
     @Environment(AppModel.self) private var model
     @State private var port = ""
+    @State private var loginItem = SMAppService.mainApp.status == .enabled
+    @State private var loginError: String?
+    @AppStorage(AppModel.startOnLaunchKey) private var startOnLaunch = false
+
+    private func setLoginItem(_ on: Bool) {
+        loginError = nil
+        do {
+            if on {
+                try SMAppService.mainApp.register()
+            } else {
+                try SMAppService.mainApp.unregister()
+            }
+        } catch {
+            loginError = error.localizedDescription
+        }
+        switch SMAppService.mainApp.status {
+        case .enabled:
+            loginItem = true
+        case .requiresApproval:
+            loginItem = false
+            loginError = "macOS needs your approval in System Settings → General → Login Items."
+            SMAppService.openSystemSettingsLoginItems()
+        default:
+            loginItem = false
+        }
+    }
 
     var body: some View {
         Form {
@@ -40,6 +67,19 @@ struct GeneralSettings: View {
             } footer: {
                 Text("Sites are served at https://<name>.localhost:\(current). Changing it starts Covo if it is stopped.")
                     .font(.caption).foregroundStyle(.secondary)
+            }
+            Section("Startup") {
+                Toggle(isOn: Binding(
+                    get: { loginItem },
+                    set: { setLoginItem($0) }
+                )) {
+                    Text("Open Covo at login")
+                    Text("Listed in System Settings → General → Login Items.")
+                }
+                Toggle("Start all sites when Covo opens", isOn: $startOnLaunch)
+                if let loginError {
+                    Text(loginError).font(.caption).foregroundStyle(.red)
+                }
             }
             Section("Certificate") {
                 LabeledContent("Covo local CA") {
