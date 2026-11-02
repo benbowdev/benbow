@@ -50,6 +50,7 @@ type Backend interface {
 	CreateSiteDatabase(ctx context.Context, name, db string) (core.SiteDatabase, error)
 	LinkSiteDatabase(ctx context.Context, name, db string) (core.SiteDatabase, error)
 	UnlinkSiteDatabase(ctx context.Context, name string, drop bool) (core.SiteDatabase, error)
+	NewWordPress(ctx context.Context, req core.WordPressRequest) (core.WordPressResult, error)
 	SiteLogs(ctx context.Context, name, kind string, lines int) (core.SiteLog, error)
 	ClearSiteLogs(ctx context.Context, name string) (core.SiteLog, error)
 	ListPHP(ctx context.Context) (core.PHPList, error)
@@ -153,6 +154,22 @@ func Handler(b Backend) http.Handler {
 		}
 		v, err := b.SiteLogs(r.Context(), r.PathValue("name"), r.PathValue("kind"), lines)
 		reply(w, v, err)
+	})
+	post("POST", "/v1/wordpress", func(r *http.Request, body []byte) (any, error) {
+		var req struct {
+			Name       string `json:"name"`
+			Path       string `json:"path"`
+			PHP        string `json:"php"`
+			Title      string `json:"title"`
+			AdminUser  string `json:"admin_user"`
+			AdminEmail string `json:"admin_email"`
+		}
+		if err := decode(body, &req); err != nil {
+			return nil, err
+		}
+		return b.NewWordPress(r.Context(), core.WordPressRequest{
+			Name: req.Name, Path: req.Path, PHP: req.PHP, Title: req.Title, AdminUser: req.AdminUser, AdminEmail: req.AdminEmail,
+		})
 	})
 	get("/v1/databases", func(ctx context.Context) (any, error) { return b.Databases(ctx) })
 	mux.HandleFunc("GET /v1/sites/{name}/database", func(w http.ResponseWriter, r *http.Request) {

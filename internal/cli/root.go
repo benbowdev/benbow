@@ -26,6 +26,8 @@ type app struct {
 	json   bool
 	// ran is set once a command's RunE starts; errors before that are usage errors.
 	ran bool
+	// exit overrides a successful exit code (covo wp passes wp-cli's on).
+	exit int
 }
 
 // Execute runs the CLI with args and returns the process exit code. It never
@@ -55,7 +57,7 @@ func execute(ctx context.Context, args []string, stdin io.Reader, stdout, stderr
 		}
 		return 1
 	}
-	return 0
+	return a.exit
 }
 
 func (a *app) rootCmd() *cobra.Command {
@@ -66,7 +68,7 @@ func (a *app) rootCmd() *cobra.Command {
 		SilenceErrors: true,
 	}
 	root.PersistentFlags().BoolVar(&a.json, "json", false, "output JSON with a stable schema")
-	root.AddCommand(a.versionCmd(), a.startCmd(), a.stopCmd(), a.statusCmd(), a.siteCmd(), a.trustCmd(), a.untrustCmd(), a.uninstallCmd(), a.phpCmd(), a.caddyCmd(), a.domainsCmd(), a.dnsCmd(), a.mysqlCmd(), a.importCmd(), a.daemonCmd(), a.dbCmd())
+	root.AddCommand(a.versionCmd(), a.startCmd(), a.stopCmd(), a.statusCmd(), a.siteCmd(), a.trustCmd(), a.untrustCmd(), a.uninstallCmd(), a.phpCmd(), a.caddyCmd(), a.domainsCmd(), a.dnsCmd(), a.mysqlCmd(), a.importCmd(), a.daemonCmd(), a.dbCmd(), a.wpCmd(), a.wordpressCmd())
 	return root
 }
 

@@ -108,6 +108,21 @@ public struct CovoAPI: Sendable {
                        SiteChange(php: php, path: path, domain: domain, enabled: enabled, aliases: aliases, force: force))
     }
 
+    struct WordPressRequest: Encodable {
+        let name: String
+        let path: String
+        let php: String
+        let title: String
+        let adminUser: String
+        let adminEmail: String
+    }
+
+    public func newWordPress(name: String, path: String, php: String, title: String,
+                             adminUser: String, adminEmail: String) async throws -> WordPressResult {
+        try await call("POST", "/v1/wordpress", WordPressRequest(
+            name: name, path: path, php: php, title: title, adminUser: adminUser, adminEmail: adminEmail))
+    }
+
     public func databases() async throws -> [String] { try await call("GET", "/v1/databases") }
 
     public func siteDatabase(_ name: String) async throws -> SiteDatabase {

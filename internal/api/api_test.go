@@ -81,6 +81,10 @@ func (f *fake) UnlinkSiteDatabase(_ context.Context, name string, drop bool) (co
 	return core.SiteDatabase{}, f.record(fmt.Sprintf("unlink db %s %v", name, drop))
 }
 
+func (f *fake) NewWordPress(_ context.Context, req core.WordPressRequest) (core.WordPressResult, error) {
+	return core.WordPressResult{}, f.record("wordpress " + req.Name + " " + req.PHP + " " + req.AdminUser)
+}
+
 func (f *fake) RemoveSite(_ context.Context, name string) (core.SiteResult, error) {
 	return core.SiteResult{}, f.record("remove " + name)
 }
@@ -183,6 +187,7 @@ func TestRoutes(t *testing.T) {
 		{"POST", "/v1/sites/demo/database", `{"name":"shop","link":true}`, 200, "link db demo shop", ""},
 		{"DELETE", "/v1/sites/demo/database", "", 200, "unlink db demo false", ""},
 		{"DELETE", "/v1/sites/demo/database?drop=true", "", 200, "unlink db demo true", ""},
+		{"POST", "/v1/wordpress", `{"name":"blog","php":"8.4","admin_user":"me"}`, 200, "wordpress blog 8.4 me", ""},
 		{"PATCH", "/v1/sites/demo", `{"name":"x"}`, 400, "", errcode.InvalidInput},
 		{"PUT", "/v1/xdebug/8.4", `{"enabled":true}`, 200, "xdebug 8.4 on", ""},
 		{"PUT", "/v1/xdebug/8.4", `{"enabled":false}`, 200, "xdebug 8.4 off", ""},

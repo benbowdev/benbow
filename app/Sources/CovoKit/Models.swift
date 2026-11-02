@@ -121,6 +121,19 @@ public struct PHPSettings: Codable, Sendable, Hashable {
     public var displayErrors: Bool
 }
 
+/// A new WordPress site. The admin password is shown once, never stored.
+public struct WordPressResult: Codable, Sendable, Hashable, Identifiable {
+    public var name: String
+    public var url: String
+    public var path: String
+    public var wordpress: String
+    public var database: String
+    public var adminUrl: String
+    public var adminUser: String
+    public var adminPassword: String
+    public var id: String { name }
+}
+
 /// A site's database and how it connects.
 public struct SiteDatabase: Codable, Sendable, Hashable {
     public var site: String

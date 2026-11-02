@@ -208,6 +208,23 @@ final class AppModel {
         if let url = c?.url { NSWorkspace.shared.open(url) }
     }
 
+    /// Creates a WordPress site. Throws so the sheet can show the error.
+    func newWordPress(name: String, path: String, php: String, title: String,
+                      adminUser: String, adminEmail: String) async throws -> WordPressResult? {
+        guard let api else { return nil }
+        busy = "Installing WordPress…"
+        defer { busy = nil }
+        do {
+            let r = try await api.newWordPress(name: name, path: path, php: php, title: title,
+                                               adminUser: adminUser, adminEmail: adminEmail)
+            try? await refreshAll()
+            return r
+        } catch {
+            try? await refreshAll()
+            throw error
+        }
+    }
+
     func installed(_ minor: String) -> Bool {
         php?.installed.contains { $0.minor == minor } ?? false
     }

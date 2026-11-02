@@ -200,16 +200,37 @@ func (c *Core) writeCaddyfile(ctx context.Context, bin caddy.Binary, body string
 	return nil
 }
 
+// phpINIConfig is php.ini for minor without Xdebug (PHP-FPM adds it).
+func (c *Core) phpINIConfig(ctx context.Context, v store.PHPVersion) (php.INIConfig, error) {
+	sessions := filepath.Join(c.Layout.Data, "php", v.Minor, "sessions")
+	if err := os.MkdirAll(sessions, 0o700); err != nil {
+		return php.INIConfig{}, fmt.Errorf("create %s: %w", sessions, err)
+	}
+	mysqlSocket, mysqlPort, err := c.mysqlPHPSettings(ctx)
+	if err != nil {
+		return php.INIConfig{}, err
+	}
+	settings, err := c.phpSettings(ctx, v.Minor)
+	if err != nil {
+		return php.INIConfig{}, err
+	}
+	return php.INIConfig{
+		Settings:    settings,
+		ErrorLog:    filepath.Join(c.Layout.Logs, "php-"+v.Minor+"-error.log"),
+		SessionDir:  sessions,
+		Timezone:    localTimezone(),
+		CAFile:      c.caBundlePath(),
+		MySQLSocket: mysqlSocket,
+		MySQLPort:   mysqlPort,
+	}, nil
+}
+
 // writePHPConfig writes php-fpm.conf and php.ini for minor and returns a hash
 // of both and of the CA bundle, which goes into the agent so a change
 // restarts FPM.
 func (c *Core) writePHPConfig(ctx context.Context, v store.PHPVersion, bundleHash string) (string, error) {
 	minor := v.Minor
 	dir := filepath.Join(c.Layout.Etc, "php", minor)
-	sessions := filepath.Join(c.Layout.Data, "php", minor, "sessions")
-	if err := os.MkdirAll(sessions, 0o700); err != nil {
-		return "", fmt.Errorf("create %s: %w", sessions, err)
-	}
 	fpm, err := php.FPMConf(php.FPMConfig{
 		Minor:    minor,
 		Socket:   c.Layout.Socket(socketName(minor)),
@@ -219,28 +240,14 @@ func (c *Core) writePHPConfig(ctx context.Context, v store.PHPVersion, bundleHas
 	if err != nil {
 		return "", err
 	}
-	mysqlSocket, mysqlPort, err := c.mysqlPHPSettings(ctx)
+	cfg, err := c.phpINIConfig(ctx, v)
 	if err != nil {
 		return "", err
 	}
-	xdebug, err := c.xdebugPath(ctx, v)
-	if err != nil {
+	if cfg.Xdebug, err = c.xdebugPath(ctx, v); err != nil {
 		return "", err
 	}
-	settings, err := c.phpSettings(ctx, minor)
-	if err != nil {
-		return "", err
-	}
-	ini, err := php.INI(php.INIConfig{
-		Settings:    settings,
-		ErrorLog:    filepath.Join(c.Layout.Logs, "php-"+minor+"-error.log"),
-		SessionDir:  sessions,
-		Timezone:    localTimezone(),
-		CAFile:      c.caBundlePath(),
-		MySQLSocket: mysqlSocket,
-		MySQLPort:   mysqlPort,
-		Xdebug:      xdebug,
-	})
+	ini, err := php.INI(cfg)
 	if err != nil {
 		return "", err
 	}

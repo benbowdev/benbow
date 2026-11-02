@@ -149,6 +149,113 @@
       "files": [
         "adminer.php"
       ]
+    },
+    {
+      "component": "php-cli",
+      "version": "8.4.23",
+      "for": "8.4.23",
+      "arch": "arm64",
+      "url": "https://dl.static-php.dev/static-php-cli/bulk/php-8.4.23-cli-macos-aarch64.tar.gz",
+      "sha256": "4a5dca6df0211f7fb21425cf1c867968b2dfb7c079f98cf37770c5728e0bf709",
+      "files": [
+        "php"
+      ]
+    },
+    {
+      "component": "php-cli",
+      "version": "8.4.23",
+      "for": "8.4.23",
+      "arch": "amd64",
+      "url": "https://dl.static-php.dev/static-php-cli/bulk/php-8.4.23-cli-macos-x86_64.tar.gz",
+      "sha256": "be88a71134d43e8800946f8372da931ee1796c400a1fb4cf2afd718644251ffc",
+      "files": [
+        "php"
+      ]
+    },
+    {
+      "component": "php-cli",
+      "version": "8.2.32",
+      "for": "8.2.32",
+      "arch": "arm64",
+      "url": "https://dl.static-php.dev/static-php-cli/bulk/php-8.2.32-cli-macos-aarch64.tar.gz",
+      "sha256": "3c1c359fe943aaaeb1168933b8e4b1597120c106d33bd66395fac403b6ab3ace",
+      "files": [
+        "php"
+      ]
+    },
+    {
+      "component": "php-cli",
+      "version": "8.2.32",
+      "for": "8.2.32",
+      "arch": "amd64",
+      "url": "https://dl.static-php.dev/static-php-cli/bulk/php-8.2.32-cli-macos-x86_64.tar.gz",
+      "sha256": "6af04840b043391716ec15020d14147bae4aadcdf3608e8ddbfcf46558f82257",
+      "files": [
+        "php"
+      ]
+    },
+    {
+      "component": "php-cli",
+      "version": "8.1.34",
+      "for": "8.1.34",
+      "arch": "arm64",
+      "url": "https://dl.static-php.dev/static-php-cli/bulk/php-8.1.34-cli-macos-aarch64.tar.gz",
+      "sha256": "b721271659d6e3448c29c0dc5755ffc4b8a1498c4709e1aba6602cfb584a84e4",
+      "files": [
+        "php"
+      ]
+    },
+    {
+      "component": "php-cli",
+      "version": "8.1.34",
+      "for": "8.1.34",
+      "arch": "amd64",
+      "url": "https://dl.static-php.dev/static-php-cli/bulk/php-8.1.34-cli-macos-x86_64.tar.gz",
+      "sha256": "5fe69256365f96a270e34208ec574be7012c8c08a23bdf52948d0d16d4d8ec6a",
+      "files": [
+        "php"
+      ]
+    },
+    {
+      "component": "wpcli",
+      "version": "2.12.0",
+      "arch": "all",
+      "format": "file",
+      "url": "https://github.com/wp-cli/wp-cli/releases/download/v2.12.0/wp-cli-2.12.0.phar",
+      "sha256": "ce34ddd838f7351d6759068d09793f26755463b4a4610a5a5c0a97b68220d85c",
+      "sha512": "be928f6b8ca1e8dfb9d2f4b75a13aa4aee0896f8a9a0a1c45cd5d2c98605e6172e6d014dda2e27f88c98befc16c040cbb2bd1bfa121510ea5cdf5f6a30fe8832",
+      "files": [
+        "wp-cli.phar"
+      ]
+    },
+    {
+      "component": "wordpress",
+      "version": "7.1.4",
+      "arch": "all",
+      "url": "https://wordpress.org/wordpress-7.1.4.tar.gz",
+      "sha256": "881e53a4681ff2cd911651b11cccdede5ae477ddf0765af5d6a1a8b219a1d835",
+      "strip": "wordpress",
+      "files": [
+        "index.php",
+        "license.txt",
+        "readme.html",
+        "wp-activate.php",
+        "wp-blog-header.php",
+        "wp-comments-post.php",
+        "wp-config-sample.php",
+        "wp-cron.php",
+        "wp-links-opml.php",
+        "wp-load.php",
+        "wp-login.php",
+        "wp-mail.php",
+        "wp-settings.php",
+        "wp-signup.php",
+        "wp-trackback.php",
+        "xmlrpc.php",
+        "wp-admin/",
+        "wp-content/",
+        "wp-includes/"
+      ]
     }
   ]
 }

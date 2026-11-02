@@ -10,6 +10,7 @@ struct ContentView: View {
     @State private var selection: Site.ID?
     @State private var adding: AddSiteRequest?
     @State private var dropTargeted = false
+    @State private var newWordPress = false
 
     var body: some View {
         @Bindable var model = model
@@ -37,6 +38,9 @@ struct ContentView: View {
         }
         .sheet(item: $adding) { req in
             AddSiteSheet(request: req) { name in selection = name }
+        }
+        .sheet(isPresented: $newWordPress) {
+            WordPressSheet { name in selection = name }
         }
     }
 
@@ -82,11 +86,13 @@ struct ContentView: View {
                 StartStopButton()
             }
             ToolbarItem(placement: .primaryAction) {
-                Button {
-                    adding = AddSiteRequest(folder: nil)
+                Menu {
+                    Button("Add Folder…") { adding = AddSiteRequest(folder: nil) }
+                    Button("New WordPress Site…") { newWordPress = true }
                 } label: {
                     Label("Add Site", systemImage: "plus")
                 }
+                .help("Add a site")
                 .disabled(model.busy != nil)
             }
         }
