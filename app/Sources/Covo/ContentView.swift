@@ -11,6 +11,17 @@ struct ContentView: View {
     @State private var adding: AddSiteRequest?
     @State private var dropTargeted = false
     @State private var newWordPress = false
+    @State private var search = ""
+    @State private var duplicating: Site?
+
+    /// Sites whose name, domain, alias or folder match the search.
+    private var filtered: [Site] {
+        let q = search.trimmingCharacters(in: .whitespaces)
+        guard !q.isEmpty else { return model.sites }
+        return model.sites.filter { s in
+            ([s.name, s.domain, s.path, s.database] + s.aliases).contains { $0.localizedCaseInsensitiveContains(q) }
+        }
+    }
 
     var body: some View {
         @Bindable var model = model
@@ -42,13 +53,17 @@ struct ContentView: View {
         .sheet(isPresented: $newWordPress) {
             WordPressSheet { name in selection = name }
         }
+        .sheet(item: $duplicating) { site in
+            DuplicateSheet(site: site) { name in selection = name }
+        }
     }
 
     private var split: some View {
         NavigationSplitView {
-            List(model.sites, selection: $selection) { site in
-                SiteRow(site: site)
+            List(filtered, selection: $selection) { site in
+                SiteRow(site: site) { duplicating = site }
             }
+            .searchable(text: $search, placement: .sidebar, prompt: "Search sites")
             .overlay {
                 if model.sites.isEmpty {
                     ContentUnavailableView {
@@ -138,6 +153,7 @@ struct SiteRow: View {
     @Environment(AppModel.self) private var model
     @Environment(\.openWindow) private var openWindow
     let site: Site
+    let duplicate: () -> Void
 
     var body: some View {
         HStack {
@@ -162,6 +178,10 @@ struct SiteRow: View {
             Button("Open in Browser") { open(site.url) }
             Button("Show in Finder") { NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: site.path) }
             Button("Logs") { openWindow(id: "logs", value: site.name) }
+            Divider()
+            OpenWithItems(folder: site.path)
+            Divider()
+            Button("Duplicate…", action: duplicate)
         }
     }
 }

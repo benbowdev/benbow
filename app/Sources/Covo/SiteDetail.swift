@@ -39,6 +39,15 @@ struct SiteDetail: View {
                         }
                         .buttonStyle(.borderless)
                         .help("Show in Finder")
+                        Menu {
+                            OpenWithItems(folder: site.path)
+                        } label: {
+                            Image(systemName: "terminal")
+                        }
+                        .menuStyle(.borderlessButton)
+                        .menuIndicator(.hidden)
+                        .fixedSize()
+                        .help("Open the folder in a terminal or editor")
                         Button("Change…") { choosingFolder = true }
                             .disabled(model.busy != nil)
                     }
