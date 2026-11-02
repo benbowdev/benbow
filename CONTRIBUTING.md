@@ -1,6 +1,8 @@
 # Contributing to Covo
 
-Thank you for your interest in Covo.
+Thank you for your interest in Covo. Everyone taking part is expected to
+follow the [Code of Conduct](CODE_OF_CONDUCT.md). To report a security
+problem, see [SECURITY.md](SECURITY.md) instead of opening an issue.
 
 ## External contributions
 

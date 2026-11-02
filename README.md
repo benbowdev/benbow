@@ -47,4 +47,6 @@ A PARTICULAR PURPOSE.
 
 The Covo name and logo are not covered by the license: see
 [TRADEMARKS.md](TRADEMARKS.md). Contributions: see
-[CONTRIBUTING.md](CONTRIBUTING.md).
+[CONTRIBUTING.md](CONTRIBUTING.md) and the
+[Code of Conduct](CODE_OF_CONDUCT.md). Security reports: see
+[SECURITY.md](SECURITY.md).
