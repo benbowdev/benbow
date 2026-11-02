@@ -199,6 +199,15 @@ final class AppModel {
         }
     }
 
+    /// Copies the root password and opens Adminer on every database.
+    func openAdminerAsRoot() async {
+        guard let base = status?.adminerUrl, let cred = await mysqlCredentials() else { return }
+        copyToClipboard(cred.password)
+        var c = URLComponents(string: base)
+        c?.queryItems = [.init(name: "server", value: "localhost"), .init(name: "username", value: cred.user)]
+        if let url = c?.url { NSWorkspace.shared.open(url) }
+    }
+
     /// Copies the password and opens Adminer on the site's database.
     func openAdminer(_ site: Site) async {
         guard let base = status?.adminerUrl, let db = await siteDatabase(site) else { return }

@@ -95,6 +95,23 @@ struct ContentView: View {
                 .help("Add a site")
                 .disabled(model.busy != nil)
             }
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    Task { await model.openAdminerAsRoot() }
+                } label: {
+                    Label("Adminer", systemImage: "cylinder.split.1x2")
+                }
+                .help(model.mysqlReady && model.running
+                      ? "Open Adminer with every database (the root password is copied to the clipboard)"
+                      : "Adminer needs MySQL on and Covo started")
+                .disabled(!model.mysqlReady || !model.running)
+            }
+            ToolbarItem(placement: .primaryAction) {
+                SettingsLink {
+                    Label("Settings", systemImage: "gearshape")
+                }
+                .help("Settings (⌘,)")
+            }
         }
         .hidingWindowTitle()
         .onChange(of: model.sites) { _, sites in
