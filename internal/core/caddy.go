@@ -32,7 +32,7 @@ func (c *Core) InstallCaddy(ctx context.Context) (CaddyInstall, error) {
 }
 
 func (c *Core) ensureCaddy(ctx context.Context) (CaddyInstall, error) {
-	art, err := c.Manifest.Resolve("caddy", "")
+	art, err := c.pinned(ctx, "caddy", "")
 	if err != nil {
 		return CaddyInstall{}, err
 	}

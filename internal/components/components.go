@@ -79,6 +79,9 @@ type Artifact struct {
 
 // Manifest is the set of pinned artifacts.
 type Manifest struct {
+	// Serial grows with every published manifest (YYYYMMDDnn). A signed
+	// manifest is only accepted if it is newer than what Covo has.
+	Serial    int64      `json:"serial"`
 	Artifacts []Artifact `json:"artifacts"`
 }
 

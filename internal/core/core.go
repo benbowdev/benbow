@@ -65,7 +65,7 @@ func Open(ctx context.Context) (*Core, error) {
 		_ = st.Close()
 		return nil, err
 	}
-	return &Core{
+	c := &Core{
 		Layout:   layout,
 		Store:    st,
 		Manifest: manifest,
@@ -76,7 +76,11 @@ func Open(ctx context.Context) (*Core, error) {
 		},
 		launchctl: lc,
 		resolver:  newResolverManager(layout.Root, layout.Tmp),
-	}, nil
+	}
+	// A newer signed manifest accepted earlier (covo update check) adds
+	// versions; a bad or older one is ignored and the embedded one used.
+	c.loadSignedManifest()
+	return c, nil
 }
 
 // Close releases the database.

@@ -55,7 +55,7 @@ func (c *Core) wpCommand(ctx context.Context, site store.Site, args ...string) (
 	if err != nil {
 		return nil, err
 	}
-	art, err := c.Manifest.Resolve("wpcli", "")
+	art, err := c.pinned(ctx, "wpcli", "")
 	if err != nil {
 		return nil, err
 	}

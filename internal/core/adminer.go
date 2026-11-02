@@ -59,7 +59,7 @@ func (c *Core) adminer(ctx context.Context) (*caddy.Adminer, error) {
 	if err != nil || !on {
 		return nil, err
 	}
-	art, err := c.Manifest.Resolve("adminer", "")
+	art, err := c.pinned(ctx, "adminer", "")
 	if err != nil {
 		return nil, err
 	}

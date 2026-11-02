@@ -73,7 +73,34 @@ func Run(ctx context.Context) error {
 	ctx, stop := signal.NotifyContext(ctx, syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 	fmt.Fprintf(os.Stderr, "covo daemon %s listening on %s\n", version.Get().Version, sock)
+	go checkUpdatesDaily(ctx, c)
 	return api.Serve(ctx, ln, c)
+}
+
+// checkUpdatesDaily looks for component updates a few minutes after start
+// and then every day. It only downloads the signed manifest: nothing is
+// installed without the user (covo update apply, or the app).
+func checkUpdatesDaily(ctx context.Context, c *core.Core) {
+	if os.Getenv("COVO_NO_UPDATE_CHECK") != "" {
+		return
+	}
+	wait := 3 * time.Minute
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(wait):
+		}
+		wait = 24 * time.Hour
+		st, err := c.Updates(ctx)
+		if err == nil && st.CheckedAt != nil && time.Since(*st.CheckedAt) < 20*time.Hour {
+			wait = 24*time.Hour - time.Since(*st.CheckedAt)
+			continue
+		}
+		if _, err := c.CheckUpdates(ctx); err != nil {
+			fmt.Fprintf(os.Stderr, "update check: %v\n", err)
+		}
+	}
 }
 
 func agent(c *core.Core, program, hash string) launchd.Agent {

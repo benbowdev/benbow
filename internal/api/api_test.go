@@ -108,6 +108,10 @@ func (f *fake) RemoveSiteAndDatabase(_ context.Context, name string) (core.SiteR
 	return core.SiteResult{}, f.record("remove with database " + name)
 }
 
+func (f *fake) ApplyUpdates(_ context.Context, names []string) (core.UpdatesStatus, error) {
+	return core.UpdatesStatus{}, f.record("apply " + strings.Join(names, ","))
+}
+
 func (f *fake) RemoveSite(_ context.Context, name string) (core.SiteResult, error) {
 	return core.SiteResult{}, f.record("remove " + name)
 }
@@ -219,6 +223,8 @@ func TestRoutes(t *testing.T) {
 		{"POST", "/v1/mail/enable", "", 200, "mail true", ""},
 		{"POST", "/v1/mail/disable", "", 200, "mail false", ""},
 		{"PATCH", "/v1/sites/demo", `{"archived":true}`, 200, "update demo   archived", ""},
+		{"POST", "/v1/updates/apply", `{"components":["caddy","php-8.4"]}`, 200, "apply caddy,php-8.4", ""},
+		{"POST", "/v1/updates/apply", "", 200, "apply ", ""},
 		{"PATCH", "/v1/sites/demo", `{"name":"x"}`, 400, "", errcode.InvalidInput},
 		{"PUT", "/v1/xdebug/8.4", `{"enabled":true}`, 200, "xdebug 8.4 on", ""},
 		{"PUT", "/v1/xdebug/8.4", `{"enabled":false}`, 200, "xdebug 8.4 off", ""},

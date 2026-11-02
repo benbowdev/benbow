@@ -90,7 +90,7 @@ func (c *Core) mailPorts(ctx context.Context) (smtp, ui int, err error) {
 
 // ensureMailpit installs the pinned Mailpit and returns its binary.
 func (c *Core) ensureMailpit(ctx context.Context) (bin, version string, err error) {
-	art, err := c.Manifest.Resolve("mailpit", "")
+	art, err := c.pinned(ctx, "mailpit", "")
 	if err != nil {
 		return "", "", err
 	}
@@ -168,9 +168,7 @@ func (c *Core) mailStatus(ctx context.Context, httpsPort int) (MailStatus, error
 		return st, err
 	}
 	st.Enabled = true
-	if art, err := c.Manifest.Resolve("mailpit", ""); err == nil {
-		st.Version = art.Version
-	}
+	st.Version = c.pinnedVersion(ctx, "mailpit", "")
 	if st.SMTPPort, st.UIPort, err = c.mailPorts(ctx); err != nil {
 		return st, err
 	}

@@ -125,7 +125,7 @@ func (c *Core) mysqlPort(ctx context.Context) (int, error) {
 
 // ensureMySQL installs the pinned MySQL server and checks it runs.
 func (c *Core) ensureMySQL(ctx context.Context) (dir, version string, err error) {
-	art, err := c.Manifest.Resolve("mysql", mysqlSeries)
+	art, err := c.pinned(ctx, "mysql", mysqlSeries)
 	if errcode.Code(err) == errcode.NotFound {
 		return "", "", errcode.Errorf(errcode.Unsupported,
 			fmt.Sprintf("MySQL %s is only available for Apple Silicon Macs (this Mac is %s)", mysqlSeries, runtime.GOARCH))
@@ -299,9 +299,7 @@ func (c *Core) mysqlStatus(ctx context.Context) (MySQLStatus, error) {
 	if !st.Enabled {
 		return st, nil
 	}
-	if art, err := c.Manifest.Resolve("mysql", mysqlSeries); err == nil {
-		st.Version = art.Version
-	}
+	st.Version = c.pinnedVersion(ctx, "mysql", mysqlSeries)
 	if st.Port, err = c.mysqlPort(ctx); err != nil {
 		return st, err
 	}

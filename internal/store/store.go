@@ -154,6 +154,14 @@ func (s *Store) PutPHP(ctx context.Context, v PHPVersion) error {
 	return nil
 }
 
+// RemovePHP forgets an installed PHP version (its files are kept).
+func (s *Store) RemovePHP(ctx context.Context, version string) error {
+	if _, err := s.db.ExecContext(ctx, `DELETE FROM php_versions WHERE version = ?`, version); err != nil {
+		return fmt.Errorf("forget php %s: %w", version, err)
+	}
+	return nil
+}
+
 // ListPHP returns installed PHP versions ordered by version.
 func (s *Store) ListPHP(ctx context.Context) ([]PHPVersion, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT version, minor, path, sha256, installed_at FROM php_versions`)

@@ -58,6 +58,10 @@ type Backend interface {
 	RedeemAdminerLogin(token string) (core.AdminerCredentials, error)
 	Mail(ctx context.Context) (core.MailStatus, error)
 	SetMail(ctx context.Context, on bool) (core.MailResult, error)
+	Updates(ctx context.Context) (core.UpdatesStatus, error)
+	CheckUpdates(ctx context.Context) (core.UpdatesStatus, error)
+	ApplyUpdates(ctx context.Context, names []string) (core.UpdatesStatus, error)
+	RollbackUpdate(ctx context.Context, name string) (core.UpdatesStatus, error)
 	SiteLogs(ctx context.Context, name, kind string, lines int) (core.SiteLog, error)
 	ClearSiteLogs(ctx context.Context, name string) (core.SiteLog, error)
 	ListPHP(ctx context.Context) (core.PHPList, error)
@@ -211,6 +215,26 @@ func Handler(b Backend) http.Handler {
 			return nil, err
 		}
 		return b.RedeemAdminerLogin(req.Token)
+	})
+	get("/v1/updates", func(ctx context.Context) (any, error) { return b.Updates(ctx) })
+	post("POST", "/v1/updates/check", func(r *http.Request, _ []byte) (any, error) { return b.CheckUpdates(r.Context()) })
+	post("POST", "/v1/updates/apply", func(r *http.Request, body []byte) (any, error) {
+		var req struct {
+			Components []string `json:"components"`
+		}
+		if err := decode(body, &req); err != nil {
+			return nil, err
+		}
+		return b.ApplyUpdates(r.Context(), req.Components)
+	})
+	post("POST", "/v1/updates/rollback", func(r *http.Request, body []byte) (any, error) {
+		var req struct {
+			Component string `json:"component"`
+		}
+		if err := decode(body, &req); err != nil {
+			return nil, err
+		}
+		return b.RollbackUpdate(r.Context(), req.Component)
 	})
 	get("/v1/mail", func(ctx context.Context) (any, error) { return b.Mail(ctx) })
 	post("POST", "/v1/mail/enable", func(r *http.Request, _ []byte) (any, error) { return b.SetMail(r.Context(), true) })
