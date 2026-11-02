@@ -1,0 +1,47 @@
+# The app
+
+`app/` is a SwiftPM package (no Xcode project): `CovoKit` (models and the
+API client, tested) and `Covo` (the SwiftUI app, macOS 14+).
+
+```sh
+app/build.sh          # builds app/build/Covo.app (ad-hoc signed)
+app/build.sh test     # Swift tests, including one against a live daemon
+open app/build/Covo.app
+```
+
+`Covo.app` carries `covo` and `covo-hostshelper` in
+`Contents/Resources/bin`. On launch it runs `covo daemon start` and talks to
+the daemon over its socket (`docs/api.md`), refreshing every 2 seconds.
+The app has no logic of its own: every change goes through the core.
+
+## Window
+
+- Toolbar: one Start/Stop for all sites with its status; + (Add Folder,
+  New WordPress Site, Import from MAMP PRO); Mail (when on); Adminer
+  (every database, already logged in); Settings.
+- Sidebar: sites with search, a switch to turn each site on or off, and a
+  context menu (Open in Browser, Show in Finder, Logs, Open in Terminal or an
+  installed editor, Duplicate). Drop a folder to add it; a banner offers
+  to trust the local certificate when needed.
+- Detail: name, folder, PHP version, HTTPS, database, and a collapsed
+  Advanced section (domain, aliases, PHP settings of the site, Xdebug,
+  remove).
+- Logs window per site: PHP errors and requests, refreshed every 2 seconds.
+
+## Settings (⌘, or the gear in the toolbar)
+
+General (HTTPS port, open at login, start sites on launch, certificate),
+PHP (versions, php.ini per version), MySQL, Mail, Domains (`.test`,
+`.local`).
+
+## Menu bar
+
+The C from the brand kit (`docs/brand`), as a template image so macOS tints
+it; dimmed while stopped. It lists the sites for quick opening, Start/Stop,
+Adminer, the mail inbox, and Quit. Closing the window keeps Covo in the menu
+bar.
+
+## Not yet
+
+Signing and notarization, Sparkle updates and the update badge come with
+the public beta.
