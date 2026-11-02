@@ -261,17 +261,31 @@ type siteRemoveResult core.SiteResult
 
 func (r siteRemoveResult) Text(w io.Writer) {
 	fmt.Fprintf(w, "Removed %s (folder %s left untouched)\n", r.Name, r.Path)
+	if r.Database != "" {
+		fmt.Fprintf(w, "Database %s kept (remove with --drop-database deletes it too).\n", r.Database)
+	}
 }
 
 func (a *app) siteRemoveCmd() *cobra.Command {
-	return &cobra.Command{
+	var dropDB, yes bool
+	cmd := &cobra.Command{
 		Use:     "remove <name>",
 		Aliases: []string{"rm"},
 		Short:   "Remove a site (its folder is left untouched)",
 		Args:    cobra.ExactArgs(1),
 		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
-			res, err := c.RemoveSite(ctx, args[0])
+			if !dropDB {
+				res, err := c.RemoveSite(ctx, args[0])
+				return siteRemoveResult(res), err
+			}
+			if !yes && !a.confirm("Remove "+args[0]+" and delete its database with all its data? This cannot be undone.") {
+				return nil, errcode.Errorf(errcode.ConfirmationRequired, "deleting a database needs --yes")
+			}
+			res, err := c.RemoveSiteAndDatabase(ctx, args[0])
 			return siteRemoveResult(res), err
 		}),
 	}
+	cmd.Flags().BoolVar(&dropDB, "drop-database", false, "also delete the site's database and its own MySQL user")
+	cmd.Flags().BoolVar(&yes, "yes", false, "do not ask before deleting the database")
+	return cmd
 }

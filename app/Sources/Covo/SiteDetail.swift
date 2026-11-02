@@ -9,7 +9,6 @@ struct SiteDetail: View {
     @Environment(\.openWindow) private var openWindow
     let site: Site
     @State private var advanced = false
-    @State private var confirmRemove = false
     @State private var choosingFolder = false
     /// A folder without an index file, waiting for "Use Anyway".
     @State private var pendingFolder: URL?
@@ -167,7 +166,7 @@ struct SiteDetail: View {
                                 .help("Put the site away: not served, listed apart; nothing is deleted")
                                 .disabled(model.busy != nil)
                         }
-                        Button("Remove Site…", role: .destructive) { confirmRemove = true }
+                        Button("Remove Site…", role: .destructive) { model.removing = site }
                             .disabled(model.busy != nil)
                     }
                 }
@@ -177,11 +176,6 @@ struct SiteDetail: View {
         .onAppear { domain = site.domain }
         .onChange(of: site.domain) { _, new in domain = new }
         .sheet(isPresented: $editingPHP) { SitePHPSheet(site: site) }
-        .confirmationDialog("Remove \(site.name)?", isPresented: $confirmRemove) {
-            Button("Remove", role: .destructive) { Task { await model.removeSite(site) } }
-        } message: {
-            Text("Covo stops serving it. The folder \(site.path) is not touched.")
-        }
         .fileImporter(isPresented: $choosingFolder, allowedContentTypes: [.folder]) { result in
             if case .success(let url) = result { Task { await changeFolder(url, force: false) } }
         }

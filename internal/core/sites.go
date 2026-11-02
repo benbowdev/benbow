@@ -324,6 +324,22 @@ func siteEqual(a, b store.Site) bool {
 		maps.Equal(a.PHPSettings, b.PHPSettings)
 }
 
+// RemoveSiteAndDatabase deletes the site's database (and its own MySQL
+// user) first, then removes the site. If the database cannot be deleted the
+// site is kept. The folder is never touched.
+func (c *Core) RemoveSiteAndDatabase(ctx context.Context, name string) (SiteResult, error) {
+	site, err := c.Store.Site(ctx, name)
+	if err != nil {
+		return SiteResult{}, err
+	}
+	if site.Database != "" {
+		if _, err := c.UnlinkSiteDatabase(ctx, name, true); err != nil {
+			return SiteResult{}, err
+		}
+	}
+	return c.RemoveSite(ctx, name)
+}
+
 // RemoveSite unregisters a site. Its folder is never touched.
 func (c *Core) RemoveSite(ctx context.Context, name string) (SiteResult, error) {
 	var res SiteResult

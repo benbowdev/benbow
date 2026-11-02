@@ -347,8 +347,11 @@ final class AppModel {
         await perform("Removing trust…") { try await $0.untrust() }
     }
 
-    func removeSite(_ site: Site) async {
-        await perform("Removing \(site.name)…") { try await $0.removeSite(site.name) }
+    /// Set to ask for confirmation before removing a site (from any view).
+    var removing: Site?
+
+    func removeSite(_ site: Site, dropDatabase: Bool = false) async {
+        await perform("Removing \(site.name)…") { try await $0.removeSite(site.name, dropDatabase: dropDatabase) }
     }
 
     func setXdebug(php: String, enabled: Bool) async {

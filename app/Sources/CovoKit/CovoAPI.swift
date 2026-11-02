@@ -187,8 +187,9 @@ public struct CovoAPI: Sendable {
         let _: Ignored = try await call("DELETE", "/v1/sites/\(escape(name))/logs")
     }
 
-    public func removeSite(_ name: String) async throws {
-        let _: Ignored = try await call("DELETE", "/v1/sites/" + escape(name))
+    /// Removes a site; dropDatabase also deletes its database first.
+    public func removeSite(_ name: String, dropDatabase: Bool = false) async throws {
+        let _: Ignored = try await call("DELETE", "/v1/sites/" + escape(name) + (dropDatabase ? "?drop_database=true" : ""))
     }
 
     struct InstallRequest: Encodable { let version: String }

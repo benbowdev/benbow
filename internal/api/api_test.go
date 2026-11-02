@@ -104,6 +104,10 @@ func (f *fake) SetMail(_ context.Context, on bool) (core.MailResult, error) {
 	return core.MailResult{}, f.record(fmt.Sprintf("mail %v", on))
 }
 
+func (f *fake) RemoveSiteAndDatabase(_ context.Context, name string) (core.SiteResult, error) {
+	return core.SiteResult{}, f.record("remove with database " + name)
+}
+
 func (f *fake) RemoveSite(_ context.Context, name string) (core.SiteResult, error) {
 	return core.SiteResult{}, f.record("remove " + name)
 }
@@ -192,6 +196,7 @@ func TestRoutes(t *testing.T) {
 		{"POST", "/v1/start", "", 200, "start", ""},
 		{"POST", "/v1/sites", `{"name":"demo","php":"8.4","path":"/Users/x/demo","force":true}`, 200, "add", ""},
 		{"DELETE", "/v1/sites/demo", "", 200, "remove demo", ""},
+		{"DELETE", "/v1/sites/demo?drop_database=true", "", 200, "remove with database demo", ""},
 		{"PATCH", "/v1/sites/demo", `{"php":"8.2","domain":"demo.test"}`, 200, "update demo 8.2 demo.test", ""},
 		{"PATCH", "/v1/sites/demo", `{"enabled":false}`, 200, "update demo   off", ""},
 		{"PATCH", "/v1/php/8.4/settings", `{"memory_limit":"1G","display_errors":false}`, 200, "php settings 8.4 1G false", ""},

@@ -55,6 +55,7 @@ struct ContentView: View {
             WordPressSheet { name in selection = name }
         }
         .sheet(isPresented: $model.importing) { ImportSheet() }
+        .sheet(item: $model.removing) { site in RemoveSiteSheet(site: site) }
         .sheet(item: $duplicating) { site in
             DuplicateSheet(site: site) { name in selection = name }
         }
@@ -215,6 +216,13 @@ struct SiteRow: View {
                     Label("Archive", systemImage: "archivebox")
                 }
             }
+            Divider()
+            Button(role: .destructive) {
+                model.removing = site
+            } label: {
+                Label("Remove Site…", systemImage: "trash")
+            }
+            .disabled(model.busy != nil)
         }
     }
 }

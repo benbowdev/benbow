@@ -16,6 +16,7 @@ covo site enable shop
 covo site archive shop                             # put it away: off, listed apart
 covo site unarchive shop                           # back, and served again
 covo site remove shop                              # the folder is never touched
+covo site remove shop --drop-database --yes        # also delete its database
 ```
 
 Changes apply at once when Covo is running; if applying fails, the previous

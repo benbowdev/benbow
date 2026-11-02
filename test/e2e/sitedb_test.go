@@ -160,6 +160,21 @@ func TestSiteDatabase(t *testing.T) {
 	// The user is gone too: creating it again works.
 	h.siteDB("create", "my-shop")
 
+	// Removing a site with its database.
+	if env := h.covo("site", "remove", "my-shop", "--drop-database"); env.OK || env.Error.Code != "confirmation_required" {
+		t.Fatalf("remove --drop-database without --yes = %+v", env)
+	}
+	h.mustCovo("site", "remove", "my-shop", "--drop-database", "--yes")
+	if err := json.Unmarshal(h.mustCovo("db", "list"), &dbs); err != nil || !slices.Equal(dbs, []string{"blog"}) {
+		t.Fatalf("db list after remove --drop-database = %v, %v", dbs, err)
+	}
+	if h.keychainAccount("my_shop") {
+		t.Fatal("site password left after remove --drop-database")
+	}
+	if _, err := os.Stat(shop); err != nil {
+		t.Fatalf("site folder touched: %v", err)
+	}
+
 	h.mustCovo("uninstall", "--yes")
 	if h.keychainAccount("my_shop") || h.keychainItem() {
 		t.Fatal("keychain items left after uninstall")

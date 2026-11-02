@@ -45,6 +45,7 @@ type Backend interface {
 	AddSite(ctx context.Context, req core.AddSiteRequest) (core.SiteResult, error)
 	UpdateSite(ctx context.Context, req core.UpdateSiteRequest) (core.SiteResult, error)
 	RemoveSite(ctx context.Context, name string) (core.SiteResult, error)
+	RemoveSiteAndDatabase(ctx context.Context, name string) (core.SiteResult, error)
 	Databases(ctx context.Context) ([]string, error)
 	GetSiteDatabase(ctx context.Context, name string) (core.SiteDatabase, error)
 	CreateSiteDatabase(ctx context.Context, name, db string) (core.SiteDatabase, error)
@@ -242,6 +243,10 @@ func Handler(b Backend) http.Handler {
 		return b.ClearSiteLogs(r.Context(), r.PathValue("name"))
 	})
 	post("DELETE", "/v1/sites/{name}", func(r *http.Request, _ []byte) (any, error) {
+		// ?drop_database=true also deletes the site's database first.
+		if r.URL.Query().Get("drop_database") == "true" {
+			return b.RemoveSiteAndDatabase(r.Context(), r.PathValue("name"))
+		}
 		return b.RemoveSite(r.Context(), r.PathValue("name"))
 	})
 
