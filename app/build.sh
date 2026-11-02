@@ -31,6 +31,9 @@ mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources/bin"
 cp "$app/Info.plist" "$bundle/Contents/Info.plist"
 cp "$bin/Covo" "$bundle/Contents/MacOS/Covo"
 cp "$out/covo" "$out/covo-hostshelper" "$bundle/Contents/Resources/bin/"
+# Icons come from the brand kit (docs/brand).
+iconutil -c icns "$app/Resources/AppIcon.iconset" -o "$bundle/Contents/Resources/AppIcon.icns"
+cp "$app/Resources/covo-menubar-template.png" "$app/Resources/covo-menubar-template@2x.png" "$bundle/Contents/Resources/"
 
 codesign --force --sign - "$bundle/Contents/Resources/bin/covo" "$bundle/Contents/Resources/bin/covo-hostshelper"
 codesign --force --sign - "$bundle"
