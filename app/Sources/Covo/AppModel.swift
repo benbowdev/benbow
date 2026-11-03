@@ -122,14 +122,55 @@ final class AppModel {
         }
     }
 
-    /// Adds a site. Returns the error code instead of showing it when the
-    /// folder has no index file, so the caller can ask before forcing it.
+    /// Adds a site. Throws so the caller can ask before forcing a folder
+    /// without an index file, and show other errors in place.
     func addSite(name: String, php: String, path: String, force: Bool) async throws {
+        var s = CovoAPI.NewSite(name: name, php: php, path: path)
+        s.force = force
+        try await addSite(s)
+    }
+
+    func addSite(_ site: CovoAPI.NewSite) async throws {
         guard let api else { return }
-        busy = "Adding \(name)…"
+        busy = installed(site.php) ? "Adding \(site.name)…" : "Downloading PHP \(site.php)…"
         defer { busy = nil }
-        _ = try await api.addSite(name: name, php: php, path: path, force: force)
-        try? await refreshAll()
+        do {
+            _ = try await api.addSite(site)
+            try? await refreshAll()
+        } catch {
+            try? await refreshAll()
+            throw error
+        }
+    }
+
+    var groups: [SiteGroup] { status?.groups ?? [] }
+
+    /// Creates a group and returns it (nil on error, shown in the alert).
+    @discardableResult
+    func addGroup(_ name: String, parent: Int64?) async -> SiteGroup? {
+        var made: SiteGroup?
+        await perform("Creating \(name)…") { made = try await $0.addGroup(name: name, parent: parent) }
+        return made
+    }
+
+    func renameGroup(_ group: SiteGroup, to name: String) async {
+        await perform("Renaming…") { _ = try await $0.updateGroup(group.id, name: name) }
+    }
+
+    /// Moves a group into another one (nil: top level).
+    func moveGroup(_ group: SiteGroup, into parent: Int64?) async {
+        guard group.parentId != parent, group.id != parent else { return }
+        await perform("Moving \(group.name)…") { _ = try await $0.updateGroup(group.id, parent: parent ?? 0) }
+    }
+
+    func removeGroup(_ group: SiteGroup) async {
+        await perform("Removing \(group.name)…") { try await $0.removeGroup(group.id) }
+    }
+
+    /// Moves a site into a group (nil: top level).
+    func moveSite(_ site: Site, into group: Int64?) async {
+        guard site.groupId != group else { return }
+        await perform("Moving \(site.name)…") { _ = try await $0.updateSite(site.name, group: group ?? 0) }
     }
 
     /// Changes a site. Throws so the caller can ask before forcing a folder
@@ -236,14 +277,12 @@ final class AppModel {
     }
 
     /// Creates a WordPress site. Throws so the sheet can show the error.
-    func newWordPress(name: String, path: String, php: String, title: String,
-                      adminUser: String, adminEmail: String) async throws -> WordPressResult? {
+    func newWordPress(_ req: CovoAPI.NewWordPress) async throws -> WordPressResult? {
         guard let api else { return nil }
         busy = "Installing WordPress…"
         defer { busy = nil }
         do {
-            let r = try await api.newWordPress(name: name, path: path, php: php, title: title,
-                                               adminUser: adminUser, adminEmail: adminEmail)
+            let r = try await api.newWordPress(req)
             try? await refreshAll()
             return r
         } catch {

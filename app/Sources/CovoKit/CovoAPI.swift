@@ -81,16 +81,39 @@ public struct CovoAPI: Sendable {
 
     public func php() async throws -> PHPList { try await call("GET", "/v1/php") }
 
-    struct NewSite: Encodable {
-        let name: String
-        let domain: String?
-        let php: String
-        let path: String
-        let force: Bool
+    /// Everything a new site can start with. The core applies it in one
+    /// step and undoes it all if any part fails.
+    public struct NewSite: Encodable, Sendable {
+        public var name: String
+        public var domain: String?
+        public var php: String
+        public var path: String
+        public var force = false
+        /// Create the folder (missing or empty) for a new, empty site.
+        public var createFolder = false
+        public var aliases: [String] = []
+        public var groupId: Int64?
+        public var phpSettings: [String: String] = [:]
+        /// A new database with its own user, or an existing one to link.
+        public var newDatabase = false
+        public var linkDatabase: String?
+
+        public init(name: String, domain: String? = nil, php: String, path: String) {
+            self.name = name
+            self.domain = domain
+            self.php = php
+            self.path = path
+        }
+    }
+
+    public func addSite(_ site: NewSite) async throws -> SiteResult {
+        try await call("POST", "/v1/sites", site)
     }
 
     public func addSite(name: String, domain: String? = nil, php: String, path: String, force: Bool = false) async throws -> SiteResult {
-        try await call("POST", "/v1/sites", NewSite(name: name, domain: domain, php: php, path: path, force: force))
+        var s = NewSite(name: name, domain: domain, php: php, path: path)
+        s.force = force
+        return try await addSite(s)
     }
 
     struct SiteChange: Encodable {
@@ -100,31 +123,71 @@ public struct CovoAPI: Sendable {
         let enabled: Bool?
         let archived: Bool?
         let aliases: [String]?
+        let groupId: Int64?
         let force: Bool
     }
 
-    /// Changes a site; nil fields are left as they are.
+    /// Changes a site; nil fields are left as they are. group 0 moves the
+    /// site to the top level.
     public func updateSite(_ name: String, php: String? = nil, path: String? = nil, domain: String? = nil,
                            enabled: Bool? = nil, archived: Bool? = nil, aliases: [String]? = nil,
-                           force: Bool = false) async throws -> SiteResult {
+                           group: Int64? = nil, force: Bool = false) async throws -> SiteResult {
         try await call("PATCH", "/v1/sites/" + escape(name),
                        SiteChange(php: php, path: path, domain: domain, enabled: enabled, archived: archived,
-                                  aliases: aliases, force: force))
+                                  aliases: aliases, groupId: group, force: force))
     }
 
-    struct WordPressRequest: Encodable {
-        let name: String
-        let path: String
-        let php: String
-        let title: String
-        let adminUser: String
-        let adminEmail: String
+    /// A new WordPress site; domain, aliases, group and php.ini values as
+    /// for NewSite.
+    public struct NewWordPress: Encodable, Sendable {
+        public var name: String
+        public var path: String
+        public var php: String
+        public var title: String
+        public var adminUser: String
+        public var adminEmail: String
+        public var domain: String?
+        public var aliases: [String] = []
+        public var groupId: Int64?
+        public var phpSettings: [String: String] = [:]
+
+        public init(name: String, path: String, php: String, title: String, adminUser: String, adminEmail: String) {
+            self.name = name
+            self.path = path
+            self.php = php
+            self.title = title
+            self.adminUser = adminUser
+            self.adminEmail = adminEmail
+        }
+    }
+
+    public func newWordPress(_ req: NewWordPress) async throws -> WordPressResult {
+        try await call("POST", "/v1/wordpress", req)
     }
 
     public func newWordPress(name: String, path: String, php: String, title: String,
                              adminUser: String, adminEmail: String) async throws -> WordPressResult {
-        try await call("POST", "/v1/wordpress", WordPressRequest(
-            name: name, path: path, php: php, title: title, adminUser: adminUser, adminEmail: adminEmail))
+        try await newWordPress(NewWordPress(name: name, path: path, php: php, title: title,
+                                            adminUser: adminUser, adminEmail: adminEmail))
+    }
+
+    struct GroupRequest: Encodable {
+        let name: String?
+        let parentId: Int64?
+    }
+
+    public func addGroup(name: String, parent: Int64?) async throws -> SiteGroup {
+        try await call("POST", "/v1/groups", GroupRequest(name: name, parentId: parent))
+    }
+
+    /// Renames a group (name) or moves it (parent: 0 for the top level).
+    public func updateGroup(_ id: Int64, name: String? = nil, parent: Int64? = nil) async throws -> SiteGroup {
+        try await call("PATCH", "/v1/groups/\(id)", GroupRequest(name: name, parentId: parent))
+    }
+
+    /// Removes a group; its sites and groups move up one level.
+    public func removeGroup(_ id: Int64) async throws {
+        let _: Ignored = try await call("DELETE", "/v1/groups/\(id)")
     }
 
     struct AdminerRequest: Encodable { let site: String }

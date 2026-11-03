@@ -23,8 +23,21 @@ public struct Site: Codable, Sendable, Identifiable, Hashable {
     public var database: String
     /// The site's own MySQL user, when Covo created the database.
     public var databaseUser: String?
+    /// The group the site is listed in; nil at the top level.
+    public var groupId: Int64?
     public var url: String
     public var id: String { name }
+}
+
+/// A group of the site list. Groups nest; they never change how a site is
+/// served.
+public struct SiteGroup: Codable, Sendable, Identifiable, Hashable {
+    public var id: Int64
+    public var name: String
+    /// The enclosing group; nil at the top level.
+    public var parentId: Int64?
+    /// Full path, e.g. "Clients/Acme".
+    public var path: String
 }
 
 public struct Service: Codable, Sendable, Hashable {
@@ -133,6 +146,7 @@ public struct Status: Codable, Sendable, Hashable {
     /// Set while MySQL is enabled.
     public var adminerUrl: String?
     public var mail: MailStatus?
+    public var groups: [SiteGroup]?
     public var orphans: [String]?
 }
 

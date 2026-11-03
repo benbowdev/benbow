@@ -16,13 +16,18 @@ The app has no logic of its own: every change goes through the core.
 
 ## Window
 
-- Toolbar: one Start/Stop for all sites with its status; + (Add Folder,
-  New WordPress Site, Import from MAMP PRO); Mail (when on); Adminer
-  (every database, already logged in); Settings.
-- Sidebar: sites with search, a switch to turn each site on or off, and a
-  context menu (Open in Browser, Show in Finder, Logs, Open in Terminal or an
-  installed editor, Duplicate). Drop a folder to add it; a banner offers
-  to trust the local certificate when needed.
+- Toolbar: one Start/Stop for all sites with its status; + (New Site,
+  New WordPress Site, New Group, Import from MAMP PRO); Mail (when on);
+  Adminer (every database, already logged in); Settings.
+- New Site sheet: start from an existing folder, a new empty folder or
+  WordPress; name, domain, aliases, PHP version, group, database (none, new,
+  existing) and, collapsed, the site's PHP settings. Created in one step.
+- Sidebar: groups nested to any depth (drag sites and groups onto a group,
+  or Move To in the context menu; collapsed groups are remembered), sites
+  with search (results show their group), a switch to turn each site on or
+  off, and a context menu (Open in Browser, Show in Finder, Logs, Open in
+  Terminal or an installed editor, Duplicate, Move To). Drop a folder to add
+  it; a banner offers to trust the local certificate when needed.
 - Detail: name, folder, PHP version, HTTPS, database, and a collapsed
   Advanced section (domain, aliases, PHP settings of the site, Xdebug,
   remove).

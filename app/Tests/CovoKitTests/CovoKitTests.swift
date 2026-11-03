@@ -112,6 +112,16 @@ func liveDaemon() async throws {
         #expect(up.updates.isEmpty && up.serial > 0)
         let ini = try await api.phpSettings("8.4")
         #expect(ini.memoryLimit == "512M" && ini.displayErrors)
+        let clients = try await api.addGroup(name: "Clients", parent: nil)
+        let acme = try await api.addGroup(name: "Acme", parent: clients.id)
+        #expect(acme.path == "Clients/Acme" && acme.parentId == clients.id)
+        let moved = try await api.updateGroup(acme.id, name: "Acme Corp", parent: 0)
+        #expect(moved.path == "Acme Corp" && moved.parentId == nil)
+        await #expect(throws: APIError(code: "invalid_input", message: "a group cannot go inside itself")) {
+            try await api.updateGroup(clients.id, parent: clients.id)
+        }
+        try await api.removeGroup(clients.id)
+        #expect(try await api.status().groups?.map(\.path) == ["Acme Corp"])
     }
     let result = await Result { try await checks() }
     // Always: stops the daemon and deletes the test home.
