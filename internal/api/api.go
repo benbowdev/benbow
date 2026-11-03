@@ -98,6 +98,11 @@ type Backend interface {
 	NewLaravel(ctx context.Context, req core.LaravelRequest) (core.LaravelResult, error)
 	RunToolCaptured(ctx context.Context, name, tool string, args []string) (core.ToolResult, error)
 	GetPorts(ctx context.Context) (core.PortsStatus, error)
+	ListRemotes(ctx context.Context, site string) ([]store.Remote, error)
+	SetRemote(ctx context.Context, r store.Remote, password *string) (store.Remote, error)
+	RemoveRemote(ctx context.Context, site, name string) error
+	Pull(ctx context.Context, site, remote string, opts core.SyncOptions) (core.SyncResult, error)
+	Push(ctx context.Context, site, remote string, opts core.SyncOptions) (core.SyncResult, error)
 	ListSnapshots(ctx context.Context, name string) ([]store.Snapshot, error)
 	CreateSnapshot(ctx context.Context, name, kind, note string) (store.Snapshot, error)
 	RestoreSnapshot(ctx context.Context, name, id string) (core.RestoreResult, error)
@@ -485,6 +490,53 @@ func Handler(b Backend) http.Handler {
 		}
 		return map[string]int{"keep": req.Keep}, nil
 	})
+	mux.HandleFunc("GET /v1/sites/{name}/remotes", func(w http.ResponseWriter, r *http.Request) {
+		v, err := b.ListRemotes(r.Context(), r.PathValue("name"))
+		reply(w, v, err)
+	})
+	// password: omitted keeps it, "" forgets it; kept in the keychain.
+	post("PUT", "/v1/sites/{name}/remotes/{remote}", func(r *http.Request, body []byte) (any, error) {
+		var req struct {
+			Kind      string   `json:"kind"`
+			Transport string   `json:"transport"`
+			Host      string   `json:"host"`
+			Port      int      `json:"port"`
+			User      string   `json:"user"`
+			Path      string   `json:"path"`
+			URL       string   `json:"url"`
+			Webroot   string   `json:"webroot"`
+			Paths     []string `json:"paths"`
+			Excludes  []string `json:"excludes"`
+			Password  *string  `json:"password"`
+		}
+		if err := decode(body, &req); err != nil {
+			return nil, err
+		}
+		return b.SetRemote(r.Context(), store.Remote{
+			Site: r.PathValue("name"), Name: r.PathValue("remote"), Kind: req.Kind, Transport: req.Transport, Host: req.Host,
+			Port: req.Port, User: req.User, Path: req.Path, URL: req.URL, Webroot: req.Webroot, Paths: req.Paths, Excludes: req.Excludes,
+		}, req.Password)
+	})
+	post("DELETE", "/v1/sites/{name}/remotes/{remote}", func(r *http.Request, _ []byte) (any, error) {
+		return struct{}{}, b.RemoveRemote(r.Context(), r.PathValue("name"), r.PathValue("remote"))
+	})
+	for _, op := range []string{"pull", "push"} {
+		post("POST", "/v1/sites/{name}/remotes/{remote}/"+op, func(r *http.Request, body []byte) (any, error) {
+			var req struct {
+				DryRun     bool `json:"dry_run"`
+				NoFiles    bool `json:"no_files"`
+				NoDatabase bool `json:"no_database"`
+			}
+			if err := decode(body, &req); err != nil {
+				return nil, err
+			}
+			o := core.SyncOptions{DryRun: req.DryRun, NoFiles: req.NoFiles, NoDatabase: req.NoDatabase}
+			if op == "push" {
+				return b.Push(r.Context(), r.PathValue("name"), r.PathValue("remote"), o)
+			}
+			return b.Pull(r.Context(), r.PathValue("name"), r.PathValue("remote"), o)
+		})
+	}
 	get("/v1/phone", func(ctx context.Context) (any, error) { return b.Phone(ctx) })
 	// Opens one site on the private network for minutes (default 30).
 	post("PUT", "/v1/sites/{name}/phone", func(r *http.Request, body []byte) (any, error) {

@@ -20,6 +20,7 @@ struct SiteDetail: View {
     @State private var phoneSheet = false
     @State private var undoingMigration = false
     @State private var snapshotsSheet = false
+    @State private var remoteSheet = false
 
     private var toolTitle: String {
         switch site.framework {
@@ -185,6 +186,12 @@ struct SiteDetail: View {
                             .disabled(model.busy != nil)
                     }
                     LabeledContent {
+                        Button("Show…") { remoteSheet = true }
+                    } label: {
+                        Text("Production and staging")
+                        Text("Pull the live site's database and uploads; push to staging.")
+                    }
+                    LabeledContent {
                         Button("Show…") { snapshotsSheet = true }
                     } label: {
                         Text("Snapshots")
@@ -255,6 +262,7 @@ struct SiteDetail: View {
         .sheet(isPresented: $runningTool) { ToolSheet(site: site) }
         .sheet(isPresented: $phoneSheet) { PhoneSheet(site: site) }
         .sheet(isPresented: $snapshotsSheet) { SnapshotsSheet(site: site) }
+        .sheet(isPresented: $remoteSheet) { RemoteSheet(site: site) }
         .fileImporter(isPresented: $choosingFolder, allowedContentTypes: [.folder]) { result in
             if case .success(let url) = result { Task { await changeFolder(url, force: false) } }
         }

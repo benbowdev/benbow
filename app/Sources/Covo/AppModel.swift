@@ -457,6 +457,35 @@ final class AppModel {
         await perform("Restarting PHP \(s.php)…") { _ = try await $0.setPHPSettings(s) }
     }
 
+    func remotes(_ site: Site) async -> [Remote] {
+        guard let api else { return [] }
+        return (try? await api.remotes(site.name)) ?? []
+    }
+
+    func setRemote(_ r: Remote, password: String?) async -> Bool {
+        await perform("Saving \(r.name)…") { _ = try await $0.setRemote(r, password: password) }
+    }
+
+    func removeRemote(_ site: Site, _ r: Remote) async {
+        await perform("Removing \(r.name)…") { try await $0.removeRemote(site.name, name: r.name) }
+    }
+
+    /// Pull or push; throws so the sheet shows the error in place.
+    func sync(_ op: String, _ site: Site, _ r: Remote, dryRun: Bool, files: Bool, database: Bool) async throws -> SyncResult? {
+        guard let api else { return nil }
+        if dryRun { return try await api.sync(op, site: site.name, remote: r.name, dryRun: true, files: files, database: database) }
+        busy = op == "pull" ? "Pulling from \(r.name)…" : "Pushing to \(r.name)…"
+        defer { busy = nil }
+        do {
+            let res = try await api.sync(op, site: site.name, remote: r.name, dryRun: false, files: files, database: database)
+            try? await refreshAll()
+            return res
+        } catch {
+            try? await refreshAll()
+            throw error
+        }
+    }
+
     func snapshots(_ site: Site) async -> [Snapshot] {
         guard let api else { return [] }
         return (try? await api.snapshots(site.name)) ?? []

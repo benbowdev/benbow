@@ -205,6 +205,44 @@ public struct PhoneStatus: Codable, Sendable, Hashable {
     public var minutesLeft: Int
 }
 
+/// A copy of a site on a server.
+public struct Remote: Codable, Sendable, Hashable, Identifiable {
+    public var site: String
+    public var name: String
+    /// production or staging.
+    public var kind: String
+    /// ssh, sftp, ftps or ftp.
+    public var transport: String
+    public var host: String
+    public var port: Int?
+    public var user: String
+    public var path: String
+    public var url: String
+    public var webroot: String?
+    public var paths: [String]
+    public var excludes: [String]
+    public var id: String { name }
+
+    public init(site: String, name: String, kind: String, transport: String, host: String, port: Int?, user: String,
+                path: String, url: String, webroot: String?, paths: [String], excludes: [String]) {
+        self.site = site; self.name = name; self.kind = kind; self.transport = transport; self.host = host
+        self.port = port; self.user = user; self.path = path; self.url = url; self.webroot = webroot
+        self.paths = paths; self.excludes = excludes
+    }
+}
+
+/// What a pull or push did (or would do).
+public struct SyncResult: Codable, Sendable, Hashable {
+    public var remote: String
+    public var dryRun: Bool
+    public var files: [String]
+    public var database: String?
+    public var urlFrom: String?
+    public var urlTo: String?
+    public var snapshot: String?
+    public var steps: [String]
+}
+
 /// A saved state of a site: files (APFS clones) and database.
 public struct Snapshot: Codable, Sendable, Hashable, Identifiable {
     public var id: String

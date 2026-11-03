@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/getcovo/covo/internal/errcode"
@@ -89,6 +90,17 @@ func (c *Core) phpToolCommand(ctx context.Context, minor, dir, script string, ar
 	// PHPRC: PHP started by the tool itself (Composer's @php scripts) reads
 	// Covo's php.ini too.
 	cmd.Env = append(os.Environ(), "PHP_INI_SCAN_DIR=", "PHPRC="+ini)
+	// Covo's MySQL client tools first on PATH: wp db export/import and
+	// friends use them (never another mysqldump on this Mac).
+	if on, err := c.mysqlEnabled(ctx); err == nil && on {
+		if dir, _, err := c.ensureMySQL(ctx); err == nil {
+			cmd.Env = append(cmd.Env, "PATH="+filepath.Join(dir, "bin")+":"+os.Getenv("PATH"))
+		}
+		if port, err := c.mysqlPort(ctx); err == nil {
+			// "localhost" means Covo's socket for those tools too.
+			cmd.Env = append(cmd.Env, "MYSQL_UNIX_PORT="+c.mysqlSocketPath(), "MYSQL_TCP_PORT="+strconv.Itoa(port))
+		}
+	}
 	return cmd, nil
 }
 

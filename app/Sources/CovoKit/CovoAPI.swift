@@ -82,6 +82,39 @@ public struct CovoAPI: Sendable {
 
     public func ports() async throws -> PortsStatus { try await call("GET", "/v1/ports") }
 
+    public func remotes(_ site: String) async throws -> [Remote] {
+        try await call("GET", "/v1/sites/\(escape(site))/remotes")
+    }
+
+    struct RemoteRequest: Encodable {
+        let kind, transport, host: String
+        let port: Int
+        let user, path, url, webroot: String
+        let paths, excludes: [String]
+        let password: String?
+    }
+
+    /// Saves a remote; password nil keeps the stored one, "" forgets it.
+    public func setRemote(_ r: Remote, password: String?) async throws -> Remote {
+        try await call("PUT", "/v1/sites/\(escape(r.site))/remotes/\(escape(r.name))", RemoteRequest(
+            kind: r.kind, transport: r.transport, host: r.host, port: r.port ?? 0, user: r.user, path: r.path, url: r.url,
+            webroot: r.webroot ?? "", paths: r.paths, excludes: r.excludes, password: password))
+    }
+
+    public func removeRemote(_ site: String, name: String) async throws {
+        let _: Ignored = try await call("DELETE", "/v1/sites/\(escape(site))/remotes/\(escape(name))")
+    }
+
+    struct SyncRequest: Encodable {
+        let dryRun, noFiles, noDatabase: Bool
+    }
+
+    /// "pull" or "push".
+    public func sync(_ op: String, site: String, remote: String, dryRun: Bool, files: Bool, database: Bool) async throws -> SyncResult {
+        try await call("POST", "/v1/sites/\(escape(site))/remotes/\(escape(remote))/\(op)",
+                       SyncRequest(dryRun: dryRun, noFiles: !files, noDatabase: !database))
+    }
+
     public func snapshots(_ site: String) async throws -> [Snapshot] {
         try await call("GET", "/v1/sites/\(escape(site))/snapshots")
     }
