@@ -1,36 +1,84 @@
 # MCP server
 
 `covo mcp` serves the Model Context Protocol over stdin/stdout, so AI agents
-can work with Covo:
+can work with Covo.
+
+Claude Code:
 
 ```sh
 claude mcp add covo -- covo mcp
 ```
 
-(In the app, Settings → General → AI agents shows the command with the full
-path of the `covo` inside the app.)
+Claude Desktop (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "covo": { "command": "/Applications/Covo.app/Contents/Resources/bin/covo", "args": ["mcp"] }
+  }
+}
+```
+
+In the app, Settings → AI Agents shows both lines with the full path of the
+`covo` inside the app.
+
+## Read-only by default
+
+Agents can always read. They can change something only where the user
+allowed it:
+
+```sh
+covo mcp allow mysite     # changes to one site
+covo mcp allow '*'        # changes everywhere (also add sites, start, stop)
+covo mcp deny mysite
+covo mcp status           # what is allowed
+covo mcp log [-n 50]      # what agents did, refused attempts included
+```
+
+The same switches are in Settings → AI Agents, with the recent actions.
+A refused change returns `forbidden: AI agents are read-only for …` and is
+logged. Tools that do not belong to one site (`start`, `stop`, `add_site`,
+`new_wordpress`, `new_laravel`, `import_sites`) need `*`.
+
+Every change tool:
+
+- takes `dry_run`: Covo checks the permission and the arguments and says
+  what it would do, without doing it (`import_sites` is a dry run unless the
+  agent passes `dry_run: false`);
+- takes a snapshot of the site first (kind `mcp`, `snapshots.md`; not for
+  sites that do not exist yet, nor for `create_snapshot` and
+  `restore_snapshot`, which take their own); the result names the snapshot
+  and how to restore it; if the snapshot fails, nothing is changed;
+- is written to the action log (last 1000 kept): time, tool, site,
+  arguments, result, snapshot. No tool takes a password.
+
+## Tools
 
 | Tool | Changes | What |
 |---|---|---|
-| `covo_status` | no | running, services, sites with addresses, MySQL, Mail |
+| `covo_status` | no | running, services, sites with addresses, databases, mail |
 | `list_sites` | no | every site |
 | `site_logs` | no | end of a site's PHP error log or request log |
 | `list_php_versions` | no | installed and available versions, php.net support status |
 | `php_compatibility_check` | no | what would break on another PHP version (`php.md`) |
-| `list_databases` | no | databases on Covo's MySQL |
+| `list_databases` | no | databases on Covo's MySQL and PostgreSQL |
+| `list_snapshots` | no | a site's snapshots |
+| `agent_permissions` | no | what agents may change |
 | `start`, `stop` | yes | all sites and services |
 | `add_site` | yes | folder, PHP, domain, aliases, new folder, database, php.ini values |
 | `update_site` | yes | PHP version, folder, domain, aliases, on/off |
 | `create_site_database` | yes | database with its own user (password returned once) |
-| `new_wordpress` | yes | WordPress in one step (admin password returned once) |
-| `wp` | yes | wp-cli with the site's PHP; output and exit code |
+| `new_wordpress`, `new_laravel` | yes | new project in one step |
+| `wp`, `composer`, `artisan` | yes | the tool with the site's PHP; output and exit code |
+| `create_snapshot`, `restore_snapshot` | yes | `snapshots.md` (restore snapshots the current state first) |
+| `pull` | yes | from a site's remote (`sync.md`); push is not offered to agents |
+| `import_sites` | yes | from MAMP PRO, Local, Herd, Valet, XAMPP (`import.md`) |
 
 Like the CLI, the server is a thin client of the core, opened for each call.
-On purpose there is no tool that removes a site, a database or a group:
-deleting stays with the user. `wp` refuses `--prompt` and `shell` (they need
-a terminal); other wp-cli commands can change or delete data, and the tool
-says so in its annotations. Output is cut at 100 KiB; a wp-cli run stops
-after 10 minutes. Errors come back as tool errors starting with Covo's error
-code (`not_found: …`).
+On purpose there is no tool that removes a site, a database, a snapshot or
+a group, and no push: those stay with the user. `wp` refuses `--prompt` and
+`shell`, `artisan` refuses `tinker` (they need a terminal). Output is cut at
+100 KiB; a tool run stops after 10 minutes. Errors come back as tool errors
+starting with Covo's error code (`not_found: …`).
 
 Built with the official Go SDK (`github.com/modelcontextprotocol/go-sdk`).

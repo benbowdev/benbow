@@ -98,6 +98,9 @@ type Backend interface {
 	NewLaravel(ctx context.Context, req core.LaravelRequest) (core.LaravelResult, error)
 	RunToolCaptured(ctx context.Context, name, tool string, args []string) (core.ToolResult, error)
 	GetPorts(ctx context.Context) (core.PortsStatus, error)
+	GetMCPPermissions(ctx context.Context) (core.MCPPermissions, error)
+	SetMCPPermission(ctx context.Context, scope string, write bool) (core.MCPPermissions, error)
+	MCPActions(ctx context.Context, limit int) ([]store.MCPAction, error)
 	ListRemotes(ctx context.Context, site string) ([]store.Remote, error)
 	SetRemote(ctx context.Context, r store.Remote, password *string) (store.Remote, error)
 	RemoveRemote(ctx context.Context, site, name string) error
@@ -537,6 +540,18 @@ func Handler(b Backend) http.Handler {
 			return b.Pull(r.Context(), r.PathValue("name"), r.PathValue("remote"), o)
 		})
 	}
+	get("/v1/mcp/permissions", func(ctx context.Context) (any, error) { return b.GetMCPPermissions(ctx) })
+	post("PUT", "/v1/mcp/permissions", func(r *http.Request, body []byte) (any, error) {
+		var req struct {
+			Scope string `json:"scope"`
+			Write bool   `json:"write"`
+		}
+		if err := decode(body, &req); err != nil {
+			return nil, err
+		}
+		return b.SetMCPPermission(r.Context(), req.Scope, req.Write)
+	})
+	get("/v1/mcp/actions", func(ctx context.Context) (any, error) { return b.MCPActions(ctx, 200) })
 	get("/v1/phone", func(ctx context.Context) (any, error) { return b.Phone(ctx) })
 	// Opens one site on the private network for minutes (default 30).
 	post("PUT", "/v1/sites/{name}/phone", func(r *http.Request, body []byte) (any, error) {
@@ -678,6 +693,8 @@ func reply(w http.ResponseWriter, v any, err error) {
 // the code in the body; the status is a convenience.
 func httpStatus(code string) int {
 	switch code {
+	case errcode.Forbidden:
+		return http.StatusForbidden
 	case errcode.InvalidInput, errcode.ForbiddenFolder:
 		return http.StatusBadRequest
 	case errcode.NotFound:

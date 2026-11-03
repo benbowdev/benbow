@@ -457,6 +457,16 @@ final class AppModel {
         await perform("Restarting PHP \(s.php)…") { _ = try await $0.setPHPSettings(s) }
     }
 
+    func mcpPermissions() async -> MCPPermissions? { try? await api?.mcpPermissions() }
+
+    func setMCPPermission(_ scope: String, write: Bool) async -> MCPPermissions? {
+        var p: MCPPermissions?
+        await perform("Saving…") { p = try await $0.setMCPPermission(scope, write: write) }
+        return p
+    }
+
+    func mcpActions() async -> [MCPAction] { (try? await api?.mcpActions()) ?? [] }
+
     func remotes(_ site: Site) async -> [Remote] {
         guard let api else { return [] }
         return (try? await api.remotes(site.name)) ?? []

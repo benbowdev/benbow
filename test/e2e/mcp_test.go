@@ -43,6 +43,15 @@ func TestMCP(t *testing.T) {
 		return text
 	}
 
+	// Read-only until the user allows changes.
+	res0, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "add_site", Arguments: map[string]any{"name": "agent", "path": newSite(t), "php": "8.4"}})
+	if err != nil || !res0.IsError || !strings.HasPrefix(res0.Content[0].(*mcp.TextContent).Text, "forbidden:") {
+		t.Fatalf("add_site without permission = %+v, %v", res0, err)
+	}
+	h.mustCovo("mcp", "allow", "*")
+	if !strings.Contains(call("add_site", map[string]any{"name": "agent", "path": newSite(t), "php": "8.4", "dry_run": true}), `"dry_run": true`) {
+		t.Fatal("dry run not reported")
+	}
 	call("add_site", map[string]any{"name": "agent", "path": newSite(t), "php": "8.4"})
 	call("start", nil)
 	var sites []struct {
@@ -56,7 +65,12 @@ func TestMCP(t *testing.T) {
 	if body := h.get(sites[0].URL, st.CA.CertPath); !strings.HasPrefix(body, "8.4.") {
 		t.Fatalf("site added over MCP served %q", body)
 	}
-	call("update_site", map[string]any{"name": "agent", "enabled": false})
+	h.mustCovo("mcp", "deny", "*")
+	h.mustCovo("mcp", "allow", "agent")
+	out := call("update_site", map[string]any{"name": "agent", "enabled": false})
+	if !strings.Contains(out, `"snapshot"`) {
+		t.Fatalf("no snapshot before update_site: %s", out)
+	}
 	if !strings.Contains(call("covo_status", nil), `"enabled": false`) {
 		t.Fatal("update_site did not turn the site off")
 	}
@@ -66,8 +80,24 @@ func TestMCP(t *testing.T) {
 	}
 
 	res, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "update_site", Arguments: map[string]any{"name": "nope", "php": "8.2"}})
-	if err != nil || !res.IsError || !strings.HasPrefix(res.Content[0].(*mcp.TextContent).Text, "not_found:") {
+	if err != nil || !res.IsError || !strings.HasPrefix(res.Content[0].(*mcp.TextContent).Text, "forbidden:") {
 		t.Fatalf("update a missing site = %+v, %v", res, err)
 	}
-	call("stop", nil)
+	// stop needs permission for everything: refused, and logged.
+	res1, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "stop"})
+	if err != nil || !res1.IsError {
+		t.Fatalf("stop with a site permission only = %+v, %v", res1, err)
+	}
+	var log []struct {
+		Tool     string `json:"tool"`
+		Error    string `json:"error"`
+		Snapshot string `json:"snapshot"`
+	}
+	if err := json.Unmarshal(h.mustCovo("mcp", "log"), &log); err != nil || len(log) < 4 || log[0].Tool != "stop" || log[0].Error == "" {
+		t.Fatalf("mcp log = %+v, %v", log, err)
+	}
+	var snaps []any
+	if err := json.Unmarshal(h.mustCovo("snapshot", "list", "agent"), &snaps); err != nil || len(snaps) != 1 {
+		t.Fatalf("snapshots = %v, %v", snaps, err)
+	}
 }

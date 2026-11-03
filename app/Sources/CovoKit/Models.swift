@@ -205,6 +205,24 @@ public struct PhoneStatus: Codable, Sendable, Hashable {
     public var minutesLeft: Int
 }
 
+/// What AI agents may change.
+public struct MCPPermissions: Codable, Sendable, Hashable {
+    public var all: Bool
+    public var sites: [String]
+}
+
+/// One change (or refused attempt) by an AI agent.
+public struct MCPAction: Codable, Sendable, Hashable, Identifiable {
+    public var id: Int64
+    public var at: Date
+    public var tool: String
+    public var site: String?
+    public var ok: Bool
+    public var error: String?
+    public var snapshot: String?
+    public var dryRun: Bool?
+}
+
 /// A copy of a site on a server.
 public struct Remote: Codable, Sendable, Hashable, Identifiable {
     public var site: String

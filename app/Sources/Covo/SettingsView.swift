@@ -15,6 +15,7 @@ struct SettingsView: View {
             MySQLSettings().tabItem { Label("MySQL", systemImage: "cylinder.split.1x2") }
             ServerSettings(server: "postgres").tabItem { Label("PostgreSQL", systemImage: "cylinder") }
             ServerSettings(server: "redis").tabItem { Label("Redis", systemImage: "bolt.horizontal") }
+            AgentsSettings().tabItem { Label("AI Agents", systemImage: "sparkles") }
             MailSettings().tabItem { Label("Mail", systemImage: "envelope") }
             DomainSettings().tabItem { Label("Domains", systemImage: "globe") }
         }
@@ -87,22 +88,6 @@ struct GeneralSettings: View {
                 }
                 .disabled(model.busy != nil)
                 Text("Only valid for .localhost, .test and .local names. Trusting asks macOS for confirmation.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-            Section {
-                let cmd = "claude mcp add covo -- '\(Daemon.binary()?.path ?? "covo")' mcp"
-                LabeledContent("Claude Code") {
-                    HStack {
-                        Text(cmd).font(.system(.caption, design: .monospaced)).lineLimit(1).truncationMode(.middle)
-                            .textSelection(.enabled)
-                        Button { copyToClipboard(cmd) } label: { Image(systemName: "doc.on.doc") }
-                            .buttonStyle(.borderless).help("Copy")
-                    }
-                }
-            } header: {
-                Text("AI agents (MCP)")
-            } footer: {
-                Text("Agents can list and add sites, change PHP versions, read logs, check PHP compatibility and run wp-cli. They cannot remove sites or databases. Other agents: run “covo mcp” over stdio.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("Data") {
@@ -558,5 +543,78 @@ struct SnapshotKeepRow: View {
                 .font(.caption).foregroundStyle(.secondary)
         }
         .task { keep = await model.snapshotKeep() }
+    }
+}
+
+/// AI agents (MCP): how to connect them, what they may change, what they did.
+struct AgentsSettings: View {
+    @Environment(AppModel.self) private var model
+    @State private var perms: MCPPermissions?
+    @State private var actions: [MCPAction] = []
+
+    var body: some View {
+        Form {
+            Section {
+                let bin = Daemon.binary()?.path ?? "covo"
+                command("Claude Code", "claude mcp add covo -- '\(bin)' mcp")
+                command("Claude Desktop", "\"covo\": { \"command\": \"\(bin)\", \"args\": [\"mcp\"] }")
+            } header: {
+                Text("Connect")
+            } footer: {
+                Text("Agents can read sites, logs and databases, check PHP compatibility and run wp-cli, Composer and Artisan. Other agents: run “covo mcp” over stdio. For Claude Desktop, add the line under mcpServers in claude_desktop_config.json.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Section {
+                Toggle(isOn: Binding(get: { perms?.all ?? false }, set: { on in Task { perms = await model.setMCPPermission("*", write: on) } })) {
+                    Text("Allow changes everywhere")
+                    Text("Including creating sites and starting or stopping Covo.")
+                }
+                ForEach(model.sites) { site in
+                    Toggle(site.name, isOn: Binding(
+                        get: { perms?.all == true || perms?.sites.contains(site.name) == true },
+                        set: { on in Task { perms = await model.setMCPPermission(site.name, write: on) } }
+                    ))
+                    .disabled(perms?.all == true)
+                }
+            } header: {
+                Text("What agents may change")
+            } footer: {
+                Text("Off by default: agents can only read. Before an agent changes a site, Covo takes a snapshot you can restore. Covo never lets agents delete sites or databases.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Section("What agents did") {
+                if actions.isEmpty {
+                    Text("Nothing yet.").foregroundStyle(.secondary)
+                }
+                ForEach(actions.prefix(50)) { a in
+                    HStack(alignment: .firstTextBaseline) {
+                        Image(systemName: a.error != nil ? "xmark.circle" : a.dryRun == true ? "eye" : "checkmark.circle")
+                            .foregroundStyle(a.error != nil ? .red : .secondary)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("\(a.tool)\(a.site.map { " · \($0)" } ?? "")").font(.callout)
+                            Text(a.error ?? (a.snapshot.map { "snapshot \($0) taken before" } ?? (a.dryRun == true ? "dry run" : "")))
+                                .font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                        }
+                        Spacer()
+                        Text(a.at.formatted(date: .abbreviated, time: .shortened)).font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .task {
+            perms = await model.mcpPermissions()
+            actions = await model.mcpActions()
+        }
+    }
+
+    private func command(_ title: String, _ text: String) -> some View {
+        LabeledContent(title) {
+            HStack {
+                Text(text).font(.system(.caption, design: .monospaced)).lineLimit(1).truncationMode(.middle).textSelection(.enabled)
+                Button { copyToClipboard(text) } label: { Image(systemName: "doc.on.doc") }
+                    .buttonStyle(.borderless).help("Copy")
+            }
+        }
     }
 }

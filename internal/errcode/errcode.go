@@ -26,6 +26,8 @@ const (
 	ForbiddenFolder = "forbidden_folder"
 	// ConfirmationRequired: the action needs explicit confirmation (--force).
 	ConfirmationRequired = "confirmation_required"
+	// Forbidden: the caller (an AI agent) may not make this change.
+	Forbidden = "forbidden"
 )
 
 // Error is an error carrying a stable code.

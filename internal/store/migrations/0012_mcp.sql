@@ -1,0 +1,15 @@
+CREATE TABLE mcp_permissions (
+    scope TEXT PRIMARY KEY,
+    write INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE mcp_actions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    at TEXT NOT NULL,
+    tool TEXT NOT NULL,
+    site TEXT NOT NULL DEFAULT '',
+    args TEXT NOT NULL DEFAULT '{}',
+    ok INTEGER NOT NULL DEFAULT 0,
+    error TEXT NOT NULL DEFAULT '',
+    snapshot TEXT NOT NULL DEFAULT '',
+    dry_run INTEGER NOT NULL DEFAULT 0
+);

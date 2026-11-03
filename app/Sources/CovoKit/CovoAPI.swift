@@ -82,6 +82,20 @@ public struct CovoAPI: Sendable {
 
     public func ports() async throws -> PortsStatus { try await call("GET", "/v1/ports") }
 
+    public func mcpPermissions() async throws -> MCPPermissions { try await call("GET", "/v1/mcp/permissions") }
+
+    struct MCPPermissionRequest: Encodable {
+        let scope: String
+        let write: Bool
+    }
+
+    /// scope: a site name or "*".
+    public func setMCPPermission(_ scope: String, write: Bool) async throws -> MCPPermissions {
+        try await call("PUT", "/v1/mcp/permissions", MCPPermissionRequest(scope: scope, write: write))
+    }
+
+    public func mcpActions() async throws -> [MCPAction] { try await call("GET", "/v1/mcp/actions") }
+
     public func remotes(_ site: String) async throws -> [Remote] {
         try await call("GET", "/v1/sites/\(escape(site))/remotes")
     }
