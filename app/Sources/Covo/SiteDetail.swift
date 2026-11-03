@@ -242,6 +242,14 @@ struct SiteDetail: View {
                             Text("Migrated from \(m.source)")
                             Text("Database \(m.database)\(m.urlFrom.map { " · was \($0)" } ?? "")")
                         }
+                        ExplainBox(
+                            title: "This site was moved from \(m.source)",
+                            steps: [
+                                "Covo copied its database into Covo's MySQL (\(m.database)); the original in \(m.source) was only read.",
+                                "\(m.configPath.map { ($0 as NSString).lastPathComponent } ?? "The configuration") now points at Covo's copy; the original is backed up in Covo's folder.",
+                            ],
+                            caution: "The folder is shared with \(m.source): opened there, this site does not find its database until you undo the migration."
+                        )
                         .confirmationDialog("Undo the migration of \(site.name)?", isPresented: $undoingMigration) {
                             Button("Undo Migration", role: .destructive) { Task { await model.undoMigration(site) } }
                         } message: {

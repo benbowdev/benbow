@@ -87,6 +87,15 @@ struct ImportSheet: View {
                 Text("Without this, the sites use the folder as is and you set the database by hand.")
             }
             if migrate {
+                ExplainBox(
+                    title: "What migrating does, for each selected site",
+                    steps: [
+                        "Covo reads the database from \(title)'s MySQL (only reads: \(title) and its data are not changed) and copies it into Covo's MySQL, with its own user.",
+                        "It saves a backup of wp-config.php (or .env) in Covo's folder, then changes only the database name, user, password and host in it.",
+                        "It replaces the old address (e.g. http://site.local:8888) with the Covo one in the database copy.",
+                    ],
+                    caution: "The project folder is shared with \(title): from now on the site opened in \(title) no longer finds its database. Undo Migration (site → Advanced) puts wp-config.php back and deletes the database copy Covo made."
+                )
                 HStack {
                     Picker("If Covo already has the database", selection: $existing) {
                         Text("Use it").tag("use")

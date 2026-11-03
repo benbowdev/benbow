@@ -116,76 +116,48 @@ struct ContentView: View {
                     RoundedRectangle(cornerRadius: 8).strokeBorder(.tint, lineWidth: 2).padding(4)
                 }
             }
-            .safeAreaInset(edge: .bottom) {
-                if let status = model.status, !status.ca.trusted {
-                    TrustBanner()
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                VStack(spacing: 0) {
+                    if let status = model.status, !status.ca.trusted {
+                        TrustBanner()
+                    }
+                    Divider()
+                    HStack(spacing: 0) {
+                        Menu {
+                            Button("New Site…") { adding = NewSiteRequest() }
+                            Button("New WordPress Site…") { adding = NewSiteRequest(source: .wordpress) }
+                            Button("New Laravel Project…") { adding = NewSiteRequest(source: .laravel) }
+                            Button("New Group…") { askGroupName(.create(parent: nil)) }
+                            Divider()
+                            Button("Import from Another Tool…") { model.importing = true }
+                        } label: {
+                            Image(systemName: "plus").frame(width: 24, height: 20)
+                        }
+                        .menuStyle(.borderlessButton)
+                        .menuIndicator(.hidden)
+                        .fixedSize()
+                        .help("Add a site, a group, or import")
+                        .disabled(model.busy != nil)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
                 }
+                .background(.bar)
             }
         } detail: {
-            if let site = model.sites.first(where: { $0.id == selection }) {
-                SiteDetail(site: site).id(site.id)
-            } else {
-                ContentUnavailableView("Select a Site", systemImage: "globe")
+            Group {
+                if let site = model.sites.first(where: { $0.id == selection }) {
+                    SiteDetail(site: site).id(site.id)
+                } else {
+                    ContentUnavailableView("Select a Site", systemImage: "globe")
+                }
             }
+            .toolbar { trailingToolbar }
         }
         .toolbar {
             ToolbarItem(placement: .navigation) {
                 StartStopButton()
-            }
-            ToolbarItem(placement: .primaryAction) {
-                Menu {
-                    Button("New Site…") { adding = NewSiteRequest() }
-                    Button("New WordPress Site…") { adding = NewSiteRequest(source: .wordpress) }
-                    Button("New Group…") { askGroupName(.create(parent: nil)) }
-                    Divider()
-                    Button("Import from Another Tool…") { model.importing = true }
-                } label: {
-                    Label("Add Site", systemImage: "plus")
-                }
-                .help("Add a site")
-                .disabled(model.busy != nil)
-            }
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    Task { await model.openAdminer() }
-                } label: {
-                    Label("Adminer", systemImage: "cylinder.split.1x2")
-                }
-                .help((model.mysqlReady || model.postgresReady) && model.running
-                      ? "Open Adminer with every database, already logged in"
-                      : "Adminer needs MySQL or PostgreSQL on and Covo started")
-                .disabled(!(model.mysqlReady || model.postgresReady) || !model.running)
-            }
-            ToolbarItem(placement: .primaryAction) {
-                UpdatesBadge()
-            }
-            if let phone = model.status?.phone {
-                ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        phoneSite = model.sites.first { $0.name == phone.site }
-                    } label: {
-                        Label("\(phone.site) on phone (\(phone.minutesLeft) min)", systemImage: "iphone.radiowaves.left.and.right")
-                    }
-                    .labelStyle(.titleAndIcon)
-                    .help("\(phone.site) is open on your local network: \(phone.url)")
-                }
-            }
-            if let mail = model.status?.mail, mail.enabled, let u = mail.url, let url = URL(string: u) {
-                ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        NSWorkspace.shared.open(url)
-                    } label: {
-                        Label("Mail", systemImage: "envelope")
-                    }
-                    .help("Open the inbox of the mail your sites sent")
-                    .disabled(!mail.running)
-                }
-            }
-            ToolbarItem(placement: .primaryAction) {
-                SettingsLink {
-                    Label("Settings", systemImage: "gearshape")
-                }
-                .help("Settings (⌘,)")
             }
         }
         .hidingWindowTitle()
@@ -195,6 +167,55 @@ struct ContentView: View {
             }
         }
         .onAppear { selection = selection ?? model.sites.first?.id }
+    }
+
+    /// Right side of the window: databases, updates, phone, mail, settings.
+    @ToolbarContentBuilder private var trailingToolbar: some ToolbarContent {
+        if #available(macOS 26.0, *) {
+            ToolbarSpacer(.flexible)
+        }
+        ToolbarItem(placement: .automatic) {
+            Button {
+                Task { await model.openAdminer() }
+            } label: {
+                Label("Adminer", systemImage: "cylinder.split.1x2")
+            }
+            .help((model.mysqlReady || model.postgresReady) && model.running
+                  ? "Open Adminer with every database, already logged in"
+                  : "Adminer needs MySQL or PostgreSQL on and Covo started")
+            .disabled(!(model.mysqlReady || model.postgresReady) || !model.running)
+        }
+        ToolbarItem(placement: .automatic) {
+            UpdatesBadge()
+        }
+        if let phone = model.status?.phone {
+            ToolbarItem(placement: .automatic) {
+                Button {
+                    phoneSite = model.sites.first { $0.name == phone.site }
+                } label: {
+                    Label("\(phone.site) on phone (\(phone.minutesLeft) min)", systemImage: "iphone.radiowaves.left.and.right")
+                }
+                .labelStyle(.titleAndIcon)
+                .help("\(phone.site) is open on your local network: \(phone.url)")
+            }
+        }
+        if let mail = model.status?.mail, mail.enabled, let u = mail.url, let url = URL(string: u) {
+            ToolbarItem(placement: .automatic) {
+                Button {
+                    NSWorkspace.shared.open(url)
+                } label: {
+                    Label("Mail", systemImage: "envelope")
+                }
+                .help("Open the inbox of the mail your sites sent")
+                .disabled(!mail.running)
+            }
+        }
+        ToolbarItem(placement: .automatic) {
+            SettingsLink {
+                Label("Settings", systemImage: "gearshape")
+            }
+            .help("Settings (⌘,)")
+        }
     }
 }
 
