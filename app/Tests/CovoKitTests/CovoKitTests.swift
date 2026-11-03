@@ -134,3 +134,10 @@ extension Result where Failure == Error {
         do { self = .success(try await body()) } catch { self = .failure(error) }
     }
 }
+
+@Test func decodesGoDates() throws {
+    let json = #"{"schema":1,"ok":true,"data":[{"id":"20261103-124501.123","site":"s","created_at":"2026-11-03T12:45:01.123456789+01:00","kind":"manual","bytes":0},{"id":"b","site":"s","created_at":"2026-11-03T11:45:01Z","kind":"manual","bytes":0}]}"#
+    let list = try EnvelopeDecoder.decode([Snapshot].self, from: Data(json.utf8))
+    #expect(list.count == 2)
+    #expect(list[0].createdAt.timeIntervalSince(list[1].createdAt) < 1)
+}

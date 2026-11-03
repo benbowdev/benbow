@@ -98,6 +98,12 @@ type Backend interface {
 	NewLaravel(ctx context.Context, req core.LaravelRequest) (core.LaravelResult, error)
 	RunToolCaptured(ctx context.Context, name, tool string, args []string) (core.ToolResult, error)
 	GetPorts(ctx context.Context) (core.PortsStatus, error)
+	ListSnapshots(ctx context.Context, name string) ([]store.Snapshot, error)
+	CreateSnapshot(ctx context.Context, name, kind, note string) (store.Snapshot, error)
+	RestoreSnapshot(ctx context.Context, name, id string) (core.RestoreResult, error)
+	DeleteSnapshot(ctx context.Context, name, id string) error
+	SnapshotKeep(ctx context.Context) (int, error)
+	SetSnapshotKeep(ctx context.Context, n int) error
 	Phone(ctx context.Context) (*core.PhoneStatus, error)
 	SharePhone(ctx context.Context, name string, minutes int) (core.PhoneStatus, error)
 	StopPhone(ctx context.Context) error
@@ -443,6 +449,41 @@ func Handler(b Backend) http.Handler {
 			return nil, err
 		}
 		return b.CheckPHP(r.Context(), r.PathValue("name"), req.Target, req.All)
+	})
+	mux.HandleFunc("GET /v1/sites/{name}/snapshots", func(w http.ResponseWriter, r *http.Request) {
+		v, err := b.ListSnapshots(r.Context(), r.PathValue("name"))
+		reply(w, v, err)
+	})
+	post("POST", "/v1/sites/{name}/snapshots", func(r *http.Request, body []byte) (any, error) {
+		var req struct {
+			Note string `json:"note"`
+		}
+		if err := decode(body, &req); err != nil {
+			return nil, err
+		}
+		return b.CreateSnapshot(r.Context(), r.PathValue("name"), core.SnapshotManual, req.Note)
+	})
+	post("POST", "/v1/sites/{name}/snapshots/{id}/restore", func(r *http.Request, _ []byte) (any, error) {
+		return b.RestoreSnapshot(r.Context(), r.PathValue("name"), r.PathValue("id"))
+	})
+	post("DELETE", "/v1/sites/{name}/snapshots/{id}", func(r *http.Request, _ []byte) (any, error) {
+		return struct{}{}, b.DeleteSnapshot(r.Context(), r.PathValue("name"), r.PathValue("id"))
+	})
+	get("/v1/snapshots/keep", func(ctx context.Context) (any, error) {
+		n, err := b.SnapshotKeep(ctx)
+		return map[string]int{"keep": n}, err
+	})
+	post("PUT", "/v1/snapshots/keep", func(r *http.Request, body []byte) (any, error) {
+		var req struct {
+			Keep int `json:"keep"`
+		}
+		if err := decode(body, &req); err != nil {
+			return nil, err
+		}
+		if err := b.SetSnapshotKeep(r.Context(), req.Keep); err != nil {
+			return nil, err
+		}
+		return map[string]int{"keep": req.Keep}, nil
 	})
 	get("/v1/phone", func(ctx context.Context) (any, error) { return b.Phone(ctx) })
 	// Opens one site on the private network for minutes (default 30).

@@ -205,6 +205,22 @@ public struct PhoneStatus: Codable, Sendable, Hashable {
     public var minutesLeft: Int
 }
 
+/// A saved state of a site: files (APFS clones) and database.
+public struct Snapshot: Codable, Sendable, Hashable, Identifiable {
+    public var id: String
+    public var site: String
+    public var createdAt: Date
+    public var kind: String
+    public var note: String?
+    public var database: String?
+    public var bytes: Int64
+}
+
+public struct RestoreResult: Codable, Sendable, Hashable {
+    public var restored: Snapshot
+    public var before: Snapshot
+}
+
 /// A new Laravel project.
 public struct LaravelResult: Codable, Sendable, Hashable {
     public var name: String

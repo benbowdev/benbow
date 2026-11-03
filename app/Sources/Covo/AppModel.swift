@@ -457,6 +457,29 @@ final class AppModel {
         await perform("Restarting PHP \(s.php)…") { _ = try await $0.setPHPSettings(s) }
     }
 
+    func snapshots(_ site: Site) async -> [Snapshot] {
+        guard let api else { return [] }
+        return (try? await api.snapshots(site.name)) ?? []
+    }
+
+    func createSnapshot(_ site: Site, note: String) async {
+        await perform("Taking a snapshot…") { _ = try await $0.createSnapshot(site.name, note: note) }
+    }
+
+    func restoreSnapshot(_ site: Site, _ snap: Snapshot) async {
+        await perform("Restoring \(site.name)…") { _ = try await $0.restoreSnapshot(site.name, id: snap.id) }
+    }
+
+    func deleteSnapshot(_ site: Site, _ snap: Snapshot) async {
+        await perform("Deleting the snapshot…") { try await $0.deleteSnapshot(site.name, id: snap.id) }
+    }
+
+    func snapshotKeep() async -> Int { (try? await api?.snapshotKeep()) ?? 10 }
+
+    func setSnapshotKeep(_ n: Int) async {
+        await perform("Saving…") { try await $0.setSnapshotKeep(n) }
+    }
+
     func sharePhone(_ site: Site, minutes: Int) async {
         await perform("Opening \(site.name) on the network…") { _ = try await $0.sharePhone(site.name, minutes: minutes) }
     }

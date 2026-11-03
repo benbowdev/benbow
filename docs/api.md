@@ -51,6 +51,7 @@ Request bodies are strict JSON (unknown fields are refused).
 | `POST /v1/sites/{name}/php-check` | `{target, all}` | `covo php check` |
 | `GET /v1/postgres`, `POST /v1/postgres/{enable,disable}`, `GET /v1/postgres/{credentials,databases}` | `{port}` | `covo postgres`, `covo db list --engine pgsql` |
 | `GET /v1/redis`, `POST /v1/redis/{enable,disable}` | `{port}` | `covo redis` |
+| `GET`, `POST /v1/sites/{name}/snapshots`, `POST …/snapshots/{id}/restore`, `DELETE …/snapshots/{id}`, `GET`, `PUT /v1/snapshots/keep` | `{note}`, `{keep}` | `covo snapshot` |
 | `GET /v1/phone`, `PUT /v1/sites/{name}/phone`, `DELETE /v1/phone` | `{minutes}` | `covo phone` |
 | `POST /v1/import/{mamp,local,herd,valet,xampp}` | `{dry_run, localhost, sites, migrate, existing, dump_file, source_user, source_password}` | `covo import <source>` |
 | `POST /v1/sites/{name}/migration/undo` | | `covo import undo` |

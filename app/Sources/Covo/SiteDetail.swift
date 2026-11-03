@@ -19,6 +19,7 @@ struct SiteDetail: View {
     @State private var runningTool = false
     @State private var phoneSheet = false
     @State private var undoingMigration = false
+    @State private var snapshotsSheet = false
 
     private var toolTitle: String {
         switch site.framework {
@@ -184,6 +185,12 @@ struct SiteDetail: View {
                             .disabled(model.busy != nil)
                     }
                     LabeledContent {
+                        Button("Show…") { snapshotsSheet = true }
+                    } label: {
+                        Text("Snapshots")
+                        Text("Save and restore the files and the database.")
+                    }
+                    LabeledContent {
                         Button(model.status?.phone?.site == site.name ? "Showing…" : "Open…") { phoneSheet = true }
                     } label: {
                         Text("Open on phone")
@@ -247,6 +254,7 @@ struct SiteDetail: View {
         .sheet(isPresented: $checkingPHP) { PHPCheckSheet(site: site) }
         .sheet(isPresented: $runningTool) { ToolSheet(site: site) }
         .sheet(isPresented: $phoneSheet) { PhoneSheet(site: site) }
+        .sheet(isPresented: $snapshotsSheet) { SnapshotsSheet(site: site) }
         .fileImporter(isPresented: $choosingFolder, allowedContentTypes: [.folder]) { result in
             if case .success(let url) = result { Task { await changeFolder(url, force: false) } }
         }

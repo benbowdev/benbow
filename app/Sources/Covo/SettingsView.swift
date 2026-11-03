@@ -73,6 +73,7 @@ struct GeneralSettings: View {
             Section("Updates") {
                 UpdatesList()
             }
+            SnapshotKeepRow()
             Section("Certificate") {
                 LabeledContent("Covo local CA") {
                     if model.status?.ca.trusted == true {
@@ -538,5 +539,24 @@ struct ServerSettings: View {
     private var newPort: Int? {
         guard let p = Int(port), (1024...65535).contains(p), p != (status?.port ?? defaultPort) else { return nil }
         return p
+    }
+}
+
+/// How many snapshots Covo keeps per site.
+struct SnapshotKeepRow: View {
+    @Environment(AppModel.self) private var model
+    @State private var keep = 10
+
+    var body: some View {
+        Section {
+            Stepper("Keep the last \(keep) snapshots of each site", value: $keep, in: 1...100)
+                .onChange(of: keep) { _, n in Task { await model.setSnapshotKeep(n) } }
+        } header: {
+            Text("Snapshots")
+        } footer: {
+            Text("Older ones are deleted when a new one is taken. Snapshots live in Covo's folder; removing a site deletes its snapshots.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+        .task { keep = await model.snapshotKeep() }
     }
 }

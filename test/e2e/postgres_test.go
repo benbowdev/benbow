@@ -77,6 +77,21 @@ func TestPostgresRedis(t *testing.T) {
 		t.Fatalf("page = %q", body)
 	}
 
+	// A snapshot restores the PostgreSQL database too (each request adds a row).
+	var snap struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(h.mustCovo("snapshot", "create", "pgshop"), &snap); err != nil {
+		t.Fatal(err)
+	}
+	if body := h.get(site.URL, st.CA.CertPath); body != "2|ok" {
+		t.Fatalf("second request = %q", body)
+	}
+	h.mustCovo("snapshot", "restore", "pgshop", snap.ID, "--yes")
+	if body := h.get(site.URL, st.CA.CertPath); body != "2|ok" {
+		t.Fatalf("after restore = %q (want the snapshot's 1 row plus this one)", body)
+	}
+
 	var dbs []string
 	if err := json.Unmarshal(h.mustCovo("db", "list", "--engine", "pgsql"), &dbs); err != nil || strings.Join(dbs, ",") != "pgshop" {
 		t.Fatalf("db list = %v, %v", dbs, err)

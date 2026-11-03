@@ -113,3 +113,49 @@ func Ident(s string) string { return `"` + strings.ReplaceAll(s, `"`, `""`) + `"
 
 // Literal quotes a string literal.
 func Literal(s string) string { return `'` + strings.ReplaceAll(s, `'`, `''`) + `'` }
+
+// pgpassEnv writes a password file for the superuser on 127.0.0.1:port and
+// returns the environment for Covo's PostgreSQL tools and a cleanup.
+func pgpassEnv(port int, password, tmpDir string) ([]string, func(), error) {
+	pass, remove, err := secretFile(tmpDir, "127.0.0.1:"+strconv.Itoa(port)+":*:"+Superuser+":"+passEscape(password)+"\n")
+	if err != nil {
+		return nil, nil, err
+	}
+	return append(cleanEnv(), "PGPASSFILE="+pass, "PGCONNECT_TIMEOUT=10"), remove, nil
+}
+
+// Dump writes db in pg_dump's custom format to path.
+func Dump(ctx context.Context, binDir string, port int, password, db, path, tmpDir string) error {
+	env, remove, err := pgpassEnv(port, password, tmpDir)
+	if err != nil {
+		return err
+	}
+	defer remove()
+	cmd := exec.CommandContext(ctx, filepath.Join(binDir, "pg_dump"), "-h", "127.0.0.1", "-p", strconv.Itoa(port), "-U", Superuser,
+		"-Fc", "-f", path, db)
+	cmd.Env = env
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return errcode.New(errcode.Service, fmt.Errorf("pg_dump %s: %w: %s", db, err, strings.TrimSpace(string(out))))
+	}
+	return nil
+}
+
+// Restore loads a custom-format dump into db (which must exist and be
+// empty), creating its objects as role (the site's own user) when set.
+func Restore(ctx context.Context, binDir string, port int, password, db, role, path, tmpDir string) error {
+	env, remove, err := pgpassEnv(port, password, tmpDir)
+	if err != nil {
+		return err
+	}
+	defer remove()
+	args := []string{"-h", "127.0.0.1", "-p", strconv.Itoa(port), "-U", Superuser, "-d", db, "--no-owner", "--no-privileges", "--exit-on-error"}
+	if role != "" {
+		args = append(args, "--role="+role)
+	}
+	cmd := exec.CommandContext(ctx, filepath.Join(binDir, "pg_restore"), append(args, path)...)
+	cmd.Env = env
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return errcode.New(errcode.Service, fmt.Errorf("pg_restore %s: %w: %s", db, err, strings.TrimSpace(string(out))))
+	}
+	return nil
+}

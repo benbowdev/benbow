@@ -28,7 +28,19 @@ public enum EnvelopeDecoder {
     static let decoder: JSONDecoder = {
         let d = JSONDecoder()
         d.keyDecodingStrategy = .convertFromSnakeCase
-        d.dateDecodingStrategy = .iso8601
+        // RFC 3339 with or without fractional seconds (Go's time.Time).
+        d.dateDecodingStrategy = .custom { decoder in
+            let text = try decoder.singleValueContainer().decode(String.self)
+            if let date = try? Date(text, strategy: .iso8601.year().month().day().time(includingFractionalSeconds: true).timeZone(separator: .omitted)) {
+                return date
+            }
+            for fractional in [true, false] {
+                let f = ISO8601DateFormatter()
+                f.formatOptions = fractional ? [.withInternetDateTime, .withFractionalSeconds] : [.withInternetDateTime]
+                if let date = f.date(from: text) { return date }
+            }
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "bad date \(text)"))
+        }
         return d
     }()
 
@@ -69,6 +81,35 @@ public struct CovoAPI: Sendable {
     public func status() async throws -> Status { try await call("GET", "/v1/status") }
 
     public func ports() async throws -> PortsStatus { try await call("GET", "/v1/ports") }
+
+    public func snapshots(_ site: String) async throws -> [Snapshot] {
+        try await call("GET", "/v1/sites/\(escape(site))/snapshots")
+    }
+
+    struct NoteRequest: Encodable { let note: String }
+
+    public func createSnapshot(_ site: String, note: String) async throws -> Snapshot {
+        try await call("POST", "/v1/sites/\(escape(site))/snapshots", NoteRequest(note: note))
+    }
+
+    public func restoreSnapshot(_ site: String, id: String) async throws -> RestoreResult {
+        try await call("POST", "/v1/sites/\(escape(site))/snapshots/\(escape(id))/restore")
+    }
+
+    public func deleteSnapshot(_ site: String, id: String) async throws {
+        let _: Ignored = try await call("DELETE", "/v1/sites/\(escape(site))/snapshots/\(escape(id))")
+    }
+
+    struct KeepRequest: Codable { let keep: Int }
+
+    public func snapshotKeep() async throws -> Int {
+        let r: KeepRequest = try await call("GET", "/v1/snapshots/keep")
+        return r.keep
+    }
+
+    public func setSnapshotKeep(_ n: Int) async throws {
+        let _: Ignored = try await call("PUT", "/v1/snapshots/keep", KeepRequest(keep: n))
+    }
 
     struct PhoneRequest: Encodable { let minutes: Int }
 
