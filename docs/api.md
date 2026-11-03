@@ -44,8 +44,11 @@ Request bodies are strict JSON (unknown fields are refused).
 | `POST /v1/start` | `{https_port}` (optional) | `covo start` |
 | `POST /v1/stop` | | `covo stop` |
 | `GET /v1/sites` | | `covo site list` |
-| `POST /v1/sites` | `{name, domain, php, path, force}` | `covo site add` |
-| `PATCH /v1/sites/{name}` | any of `{php, path, domain, enabled, archived, aliases, force}` | `covo site set`, `enable`, `disable`, `archive`, `unarchive` |
+| `POST /v1/sites` | `{name, domain, php, path, force, create_folder, aliases, group_id, php_settings, new_database, link_database}` | `covo site add` |
+| `PATCH /v1/sites/{name}` | any of `{php, path, domain, enabled, archived, aliases, group_id, force}` (`group_id` 0: top level) | `covo site set`, `enable`, `disable`, `archive`, `unarchive` |
+| `GET`, `POST /v1/groups` | `{name, parent_id}` | `covo group list`, `add` |
+| `PATCH /v1/groups/{id}` | any of `{name, parent_id}` (0: top level) | `covo group rename`, `move` |
+| `DELETE /v1/groups/{id}` | | `covo group remove` |
 | `DELETE /v1/sites/{name}` | `?drop_database=true` | `covo site remove [--drop-database]` |
 | `GET /v1/sites/{name}/logs/{access\|php}` | `?lines=N` | `covo site logs` |
 | `DELETE /v1/sites/{name}/logs` | | `covo site logs --clear` |
@@ -54,7 +57,7 @@ Request bodies are strict JSON (unknown fields are refused).
 | `POST /v1/sites/{name}/database` | `{name, link}` | `covo db create`, `covo db link` |
 | `DELETE /v1/sites/{name}/database` | `?drop=true` | `covo db unlink` |
 | `GET /v1/databases` | | `covo db list` |
-| `POST /v1/wordpress` | `{name, path, php, title, admin_user, admin_email}` | `covo wordpress` |
+| `POST /v1/wordpress` | `{name, path, php, title, admin_user, admin_email, domain, aliases, group_id, php_settings}` | `covo wordpress` |
 | `GET`, `POST /v1/php` | `{version}` | `covo php list`, `install` |
 | `GET`, `PATCH /v1/php/{minor}/settings` | `{memory_limit, upload_max_filesize, max_execution_time, display_errors}` | `covo php settings` |
 | `GET /v1/xdebug`, `PUT /v1/xdebug/{php}` | `{enabled}` | `covo php xdebug` |

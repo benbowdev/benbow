@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -37,6 +38,22 @@ func (f *fake) Status(context.Context) (core.Status, error) {
 	return core.Status{Running: true, HTTPSPort: 8443}, f.record("status")
 }
 
+func (f *fake) AddGroup(_ context.Context, name string, parent int64) (core.GroupInfo, error) {
+	return core.GroupInfo{}, f.record(fmt.Sprintf("group add %s %d", name, parent))
+}
+
+func (f *fake) UpdateGroup(_ context.Context, req core.UpdateGroupRequest) (core.GroupInfo, error) {
+	call := fmt.Sprintf("group update %d %q", req.ID, req.Name)
+	if req.Parent != nil {
+		call += fmt.Sprintf(" parent=%d", *req.Parent)
+	}
+	return core.GroupInfo{}, f.record(call)
+}
+
+func (f *fake) RemoveGroup(_ context.Context, id int64) (core.GroupInfo, error) {
+	return core.GroupInfo{}, f.record(fmt.Sprintf("group remove %d", id))
+}
+
 func (f *fake) Start(_ context.Context, port int) (core.StartResult, error) {
 	return core.StartResult{HTTPSPort: port}, f.record("start")
 }
@@ -56,6 +73,9 @@ func (f *fake) UpdateSite(_ context.Context, req core.UpdateSiteRequest) (core.S
 	}
 	if req.Aliases != nil {
 		call += " aliases=" + strings.Join(*req.Aliases, ",")
+	}
+	if req.Group != nil {
+		call += fmt.Sprintf(" group=%d", *req.Group)
 	}
 	return core.SiteResult{}, f.record(call)
 }
@@ -223,6 +243,14 @@ func TestRoutes(t *testing.T) {
 		{"POST", "/v1/mail/enable", "", 200, "mail true", ""},
 		{"POST", "/v1/mail/disable", "", 200, "mail false", ""},
 		{"PATCH", "/v1/sites/demo", `{"archived":true}`, 200, "update demo   archived", ""},
+		{"PATCH", "/v1/sites/demo", `{"group_id":0}`, 200, "update demo   group=0", ""},
+		{"PATCH", "/v1/sites/demo", `{"group_id":3}`, 200, "update demo   group=3", ""},
+		{"POST", "/v1/groups", `{"name":"Clients","parent_id":2}`, 200, "group add Clients 2", ""},
+		{"POST", "/v1/groups", `{"name":"Clients","color":"red"}`, 400, "", errcode.InvalidInput},
+		{"PATCH", "/v1/groups/4", `{"name":"Acme"}`, 200, `group update 4 "Acme"`, ""},
+		{"PATCH", "/v1/groups/4", `{"parent_id":0}`, 200, `group update 4 "" parent=0`, ""},
+		{"PATCH", "/v1/groups/x", `{}`, 400, "", errcode.InvalidInput},
+		{"DELETE", "/v1/groups/4", ``, 200, "group remove 4", ""},
 		{"POST", "/v1/updates/apply", `{"components":["caddy","php-8.4"]}`, 200, "apply caddy,php-8.4", ""},
 		{"POST", "/v1/updates/apply", "", 200, "apply ", ""},
 		{"PATCH", "/v1/sites/demo", `{"name":"x"}`, 400, "", errcode.InvalidInput},
@@ -260,7 +288,7 @@ func TestRoutes(t *testing.T) {
 			}
 		})
 	}
-	if want := (core.AddSiteRequest{Name: "demo", PHP: "8.4", Path: "/Users/x/demo", Force: true}); f.added != want {
+	if want := (core.AddSiteRequest{Name: "demo", PHP: "8.4", Path: "/Users/x/demo", Force: true}); !reflect.DeepEqual(f.added, want) {
 		t.Fatalf("add request = %+v", f.added)
 	}
 }

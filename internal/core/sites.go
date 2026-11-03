@@ -15,6 +15,7 @@ import (
 
 	"github.com/getcovo/covo/internal/caddy"
 	"github.com/getcovo/covo/internal/errcode"
+	"github.com/getcovo/covo/internal/paths"
 	"github.com/getcovo/covo/internal/store"
 )
 
@@ -32,6 +33,18 @@ type AddSiteRequest struct {
 	Path   string // absolute path of the document root
 	// Force accepts a folder without index.php or index.html.
 	Force bool
+	// CreateFolder creates Path (missing or empty) for a new, empty site.
+	CreateFolder bool
+	// Aliases are extra domains for the site.
+	Aliases []string
+	// Group lists the site in a group (0: top level).
+	Group int64
+	// PHPSettings are the site's own php.ini values (see SetSitePHPSettings).
+	PHPSettings map[string]string
+	// NewDatabase creates a database with its own user for the site;
+	// LinkDatabase links an existing one instead. Both need MySQL running.
+	NewDatabase  bool
+	LinkDatabase string
 }
 
 // SiteResult is a site with its URL and whether services were (re)applied.
@@ -41,15 +54,44 @@ type SiteResult struct {
 	Applied bool `json:"applied"`
 }
 
-// AddSite registers a site, installing its PHP version if needed. If Covo is
-// running the site goes live immediately; if that fails the site is removed
-// again and the previous configuration restored.
+// AddSite registers a site, installing its PHP version if needed, with its
+// aliases, group, php.ini values and database. If Covo is running the site
+// goes live immediately. If any step fails, everything it did is undone:
+// the site, its database and the folder it created.
 func (c *Core) AddSite(ctx context.Context, req AddSiteRequest) (SiteResult, error) {
-	if err := c.checkSiteRequest(req); err != nil {
-		return SiteResult{}, err
-	}
 	if req.Domain == "" {
 		req.Domain = req.Name + "." + suffixLocalhost
+	}
+	if req.NewDatabase && req.LinkDatabase != "" {
+		return SiteResult{}, errcode.Errorf(errcode.InvalidInput, "choose a new database or an existing one, not both")
+	}
+	if req.NewDatabase || req.LinkDatabase != "" {
+		if _, _, _, err := c.mysqlRoot(ctx); err != nil {
+			return SiteResult{}, err
+		}
+	}
+	created := false
+	if req.CreateFolder {
+		if err := c.checkSiteFields(req); err != nil {
+			return SiteResult{}, err
+		}
+		if err := paths.CheckSafe(req.Path); err != nil {
+			return SiteResult{}, err
+		}
+		var err error
+		if created, err = prepareEmptyDir(req.Path); err != nil {
+			return SiteResult{}, err
+		}
+		req.Force = true
+	}
+	undoFolder := func() {
+		if req.CreateFolder {
+			cleanupDir(req.Path, created)
+		}
+	}
+	if err := c.checkSiteRequest(req); err != nil {
+		undoFolder()
+		return SiteResult{}, err
 	}
 	var res SiteResult
 	err := c.locked(ctx, func() error {
@@ -66,11 +108,39 @@ func (c *Core) AddSite(ctx context.Context, req AddSiteRequest) (SiteResult, err
 		res.Applied, err = c.goLive(ctx, []store.Site{site})
 		return err
 	})
-	return res, err
+	if err != nil {
+		undoFolder()
+		return res, err
+	}
+	if req.NewDatabase || req.LinkDatabase != "" {
+		var dbErr error
+		if req.NewDatabase {
+			_, dbErr = c.CreateSiteDatabase(ctx, req.Name, "")
+		} else {
+			_, dbErr = c.LinkSiteDatabase(ctx, req.Name, req.LinkDatabase)
+		}
+		if dbErr != nil {
+			_, _ = c.RemoveSite(context.WithoutCancel(ctx), req.Name)
+			undoFolder()
+			return SiteResult{}, dbErr
+		}
+		if res.Site, err = c.Store.Site(ctx, req.Name); err != nil {
+			return res, err
+		}
+	}
+	return res, nil
 }
 
 // checkSiteRequest validates a request without touching any state.
 func (c *Core) checkSiteRequest(req AddSiteRequest) error {
+	if err := c.checkSiteFields(req); err != nil {
+		return err
+	}
+	return c.checkSiteFolder(req.Path, req.Force)
+}
+
+// checkSiteFields validates everything in a request but its folder.
+func (c *Core) checkSiteFields(req AddSiteRequest) error {
 	if !siteNameRe.MatchString(req.Name) {
 		return errcode.Errorf(errcode.InvalidInput,
 			fmt.Sprintf("site name %q must be lowercase letters, digits and dashes", req.Name))
@@ -85,7 +155,8 @@ func (c *Core) checkSiteRequest(req AddSiteRequest) error {
 	if err := validMinor(req.PHP); err != nil {
 		return err
 	}
-	return c.checkSiteFolder(req.Path, req.Force)
+	_, err := withSitePHPValues(nil, req.PHPSettings)
+	return err
 }
 
 // checkSiteFolder checks a document root: allowed, and with an index file
@@ -117,6 +188,21 @@ func (c *Core) insertSite(ctx context.Context, req AddSiteRequest) (store.Site, 
 	if err := c.checkDomainFree(ctx, req.Domain, ""); err != nil {
 		return store.Site{}, err
 	}
+	groups, err := c.Store.ListGroups(ctx)
+	if err != nil {
+		return store.Site{}, err
+	}
+	if !groupExists(groups, req.Group) {
+		return store.Site{}, errcode.Errorf(errcode.NotFound, fmt.Sprintf("group %d not found", req.Group))
+	}
+	settings, err := withSitePHPValues(nil, req.PHPSettings)
+	if err != nil {
+		return store.Site{}, err
+	}
+	aliases, err := c.checkAliases(ctx, store.Site{Name: req.Name, Domain: req.Domain}, req.Aliases)
+	if err != nil {
+		return store.Site{}, err
+	}
 	if _, err := c.ensurePHP(ctx, req.PHP); err != nil {
 		return store.Site{}, err
 	}
@@ -127,11 +213,16 @@ func (c *Core) insertSite(ctx context.Context, req AddSiteRequest) (store.Site, 
 		Domain:      req.Domain,
 		HTTPS:       true,
 		Enabled:     true,
-		Aliases:     []string{},
-		PHPSettings: map[string]string{},
+		Aliases:     aliases,
+		PHPSettings: settings,
+		GroupID:     req.Group,
 		CreatedAt:   time.Now(),
 	}
 	if err := c.Store.AddSite(ctx, site); err != nil {
+		return store.Site{}, err
+	}
+	if err := c.Store.SetAliases(ctx, site.Name, aliases); err != nil {
+		_ = c.Store.RemoveSite(ctx, site.Name)
 		return store.Site{}, err
 	}
 	return site, nil
@@ -173,6 +264,8 @@ type UpdateSiteRequest struct {
 	Archived *bool
 	// Aliases, when set, replace the site's extra domains (empty clears).
 	Aliases *[]string
+	// Group, when set, moves the site into a group (0: top level).
+	Group *int64
 	// Force accepts a new folder without index.php or index.html.
 	Force bool
 }
@@ -278,11 +371,34 @@ func (c *Core) UpdateSite(ctx context.Context, req UpdateSiteRequest) (SiteResul
 				return err
 			}
 		}
+		if req.Group != nil {
+			groups, err := c.Store.ListGroups(ctx)
+			if err != nil {
+				return err
+			}
+			if !groupExists(groups, *req.Group) {
+				return errcode.Errorf(errcode.NotFound, fmt.Sprintf("group %d not found", *req.Group))
+			}
+			site.GroupID = *req.Group
+		}
 		port, _, err := c.httpsPort(ctx)
 		if err != nil {
 			return err
 		}
 		res = SiteResult{SiteStatus: SiteStatus{Site: site, URL: siteURL(site, port)}}
+		if site.GroupID != old.GroupID {
+			// The group only matters to the list: store it, nothing to apply.
+			moved := old
+			moved.GroupID = site.GroupID
+			if err := c.Store.UpdateSite(ctx, moved); err != nil {
+				return err
+			}
+			if siteEqual(site, moved) {
+				_, res.Applied, err = c.Store.Setting(ctx, settingRunning)
+				return err
+			}
+			old = moved
+		}
 		if siteEqual(site, old) {
 			res.Applied, err = c.applyIfRunning(ctx)
 			return err

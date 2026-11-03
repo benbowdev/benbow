@@ -142,21 +142,8 @@ func (c *Core) SetSitePHPSettings(ctx context.Context, name string, values map[s
 			return err
 		}
 		site := old
-		site.PHPSettings = maps.Clone(old.PHPSettings)
-		for k, v := range values {
-			if !slices.Contains(php.SettingNames, k) {
-				return errcode.Errorf(errcode.InvalidInput,
-					fmt.Sprintf("unknown PHP setting %q; Covo manages %s", k, strings.Join(php.SettingNames, ", ")))
-			}
-			if strings.TrimSpace(v) == "" {
-				delete(site.PHPSettings, k)
-				continue
-			}
-			probe := php.DefaultSettings()
-			if err := probe.Set(k, v); err != nil {
-				return err
-			}
-			site.PHPSettings[k] = normalized(probe, k)
+		if site.PHPSettings, err = withSitePHPValues(old.PHPSettings, values); err != nil {
+			return err
 		}
 		effective, err := c.sitePHPSettings(ctx, site)
 		if err != nil {
@@ -177,6 +164,31 @@ func (c *Core) SetSitePHPSettings(ctx context.Context, name string, values map[s
 		return nil
 	})
 	return res, err
+}
+
+// withSitePHPValues returns current with values applied (name → value; ""
+// removes the site's own value), each checked and normalized.
+func withSitePHPValues(current, values map[string]string) (map[string]string, error) {
+	out := maps.Clone(current)
+	if out == nil {
+		out = map[string]string{}
+	}
+	for k, v := range values {
+		if !slices.Contains(php.SettingNames, k) {
+			return nil, errcode.Errorf(errcode.InvalidInput,
+				fmt.Sprintf("unknown PHP setting %q; Covo manages %s", k, strings.Join(php.SettingNames, ", ")))
+		}
+		if strings.TrimSpace(v) == "" {
+			delete(out, k)
+			continue
+		}
+		probe := php.DefaultSettings()
+		if err := probe.Set(k, v); err != nil {
+			return nil, err
+		}
+		out[k] = normalized(probe, k)
+	}
+	return out, nil
 }
 
 // normalized is the stored form of one setting (e.g. "1g" → "1G", "no" → "off").

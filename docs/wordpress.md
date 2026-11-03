@@ -6,6 +6,7 @@
 covo wordpress blog                       # ~/Sites/blog, PHP 8.4, admin "admin"
 covo wordpress blog --path ~/Work/blog --php 8.2 --title "Client Blog" \
   --admin-user andrea --admin-email me@example.com
+covo wordpress blog --domain blog.covo.test --group Clients/Acme --ini memory_limit=1G
 ```
 
 In one step Covo:
@@ -21,7 +22,9 @@ The admin password is generated (24 characters), shown once and not kept.
 Passwords reach wp-cli on its standard input, never as arguments.
 If any step fails, everything created so far is removed again; a folder
 that already existed is emptied, not deleted. MySQL must be on and Covo
-running. In the app: + → New WordPress Site….
+running. `--domain`, `--aliases`, `--group` and `--ini` work as for
+`covo site add`. In the app: + → New WordPress Site… (or New Site… →
+WordPress).
 
 ## wp-cli
 
@@ -40,4 +43,4 @@ there is no `--json` envelope. wp-cli's cache and packages live in
 `data/wp-cli` inside the Covo folder, not in `~/.wp-cli`.
 
 API: `POST /v1/wordpress` with `name`, `path`, `php`, `title`, `admin_user`,
-`admin_email`.
+`admin_email`, `domain`, `aliases`, `group_id`, `php_settings`.

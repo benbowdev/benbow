@@ -43,18 +43,32 @@ func (r siteResult) Text(w io.Writer) {
 }
 
 func (a *app) siteAddCmd() *cobra.Command {
-	var phpVersion, path, domain string
-	var force bool
+	var req core.AddSiteRequest
+	var path, group, database string
+	var ini []string
 	cmd := &cobra.Command{
 		Use:   "add <name>",
 		Short: "Add a site served at https://<name>.localhost (or --domain)",
 		Args:  cobra.ExactArgs(1),
 		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
-			dir, err := absDir(path)
-			if err != nil {
+			req.Name = args[0]
+			var err error
+			if req.Path, err = absDir(path); err != nil {
 				return nil, err
 			}
-			req := core.AddSiteRequest{Name: args[0], Domain: domain, PHP: phpVersion, Path: dir, Force: force}
+			if req.Group, err = c.ResolveGroup(ctx, group); err != nil {
+				return nil, err
+			}
+			if req.PHPSettings, err = iniFlags(ini); err != nil {
+				return nil, err
+			}
+			switch database {
+			case "":
+			case "new":
+				req.NewDatabase = true
+			default:
+				req.LinkDatabase = database
+			}
 			res, err := c.AddSite(ctx, req)
 			if errcode.Code(err) == errcode.ConfirmationRequired && a.confirm(err.Error()+"\nAdd it anyway?") {
 				req.Force = true
@@ -63,26 +77,54 @@ func (a *app) siteAddCmd() *cobra.Command {
 			return siteResult(res), err
 		}),
 	}
-	cmd.Flags().StringVar(&phpVersion, "php", "8.4", "PHP version (e.g. 8.4, 8.2)")
+	cmd.Flags().StringVar(&req.PHP, "php", "8.4", "PHP version (e.g. 8.4, 8.2)")
 	cmd.Flags().StringVar(&path, "path", "", "document root (default: current folder)")
-	cmd.Flags().StringVar(&domain, "domain", "", "local domain, e.g. demo.covo.test (default: <name>.localhost)")
-	cmd.Flags().BoolVar(&force, "force", false, "add the folder even if it has no index.php or index.html")
+	cmd.Flags().StringVar(&req.Domain, "domain", "", "local domain, e.g. demo.covo.test (default: <name>.localhost)")
+	cmd.Flags().BoolVar(&req.Force, "force", false, "add the folder even if it has no index.php or index.html")
+	cmd.Flags().BoolVar(&req.CreateFolder, "create-folder", false, "create the document root (missing or empty) for a new site")
+	cmd.Flags().StringSliceVar(&req.Aliases, "aliases", nil, "extra domains, comma separated")
+	cmd.Flags().StringVar(&group, "group", "", "list the site in this group, e.g. Clients/Acme (see covo group)")
+	cmd.Flags().StringVar(&database, "database", "", `"new" for a database with its own user, or the name of an existing one to link`)
+	cmd.Flags().StringArrayVar(&ini, "ini", nil, "php.ini value of this site, name=value (repeatable)")
 	return cmd
 }
 
+// iniFlags parses repeated name=value flags.
+func iniFlags(flags []string) (map[string]string, error) {
+	if len(flags) == 0 {
+		return nil, nil
+	}
+	out := map[string]string{}
+	for _, kv := range flags {
+		name, value, ok := strings.Cut(kv, "=")
+		if !ok {
+			return nil, errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("%q: want name=value", kv))
+		}
+		out[strings.TrimSpace(name)] = strings.TrimSpace(value)
+	}
+	return out, nil
+}
+
 func (a *app) siteSetCmd() *cobra.Command {
-	var phpVersion, path, domain string
+	var phpVersion, path, domain, group string
 	var aliases []string
 	var force bool
 	var cmd *cobra.Command
 	cmd = &cobra.Command{
 		Use:   "set <name>",
-		Short: "Change a site's PHP version, folder, domain or aliases",
+		Short: "Change a site's PHP version, folder, domain, aliases or group",
 		Args:  cobra.ExactArgs(1),
 		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
 			req := core.UpdateSiteRequest{Name: args[0], PHP: phpVersion, Domain: domain, Force: force}
 			if cmd.Flags().Changed("aliases") {
 				req.Aliases = &aliases
+			}
+			if cmd.Flags().Changed("group") {
+				id, err := c.ResolveGroup(ctx, group)
+				if err != nil {
+					return nil, err
+				}
+				req.Group = &id
 			}
 			if path != "" {
 				dir, err := absDir(path)
@@ -103,6 +145,7 @@ func (a *app) siteSetCmd() *cobra.Command {
 	cmd.Flags().StringVar(&path, "path", "", "new document root")
 	cmd.Flags().StringVar(&domain, "domain", "", "new local domain, e.g. demo.covo.test")
 	cmd.Flags().StringSliceVar(&aliases, "aliases", nil, `extra domains, comma separated, replacing the current ones ("" clears)`)
+	cmd.Flags().StringVar(&group, "group", "", `move the site into a group, e.g. Clients/Acme ("" for the top level)`)
 	cmd.Flags().BoolVar(&force, "force", false, "accept a folder without index.php or index.html")
 	return cmd
 }

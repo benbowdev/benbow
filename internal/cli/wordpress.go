@@ -52,6 +52,8 @@ func (r wordpressResult) Text(w io.Writer) {
 
 func (a *app) wordpressCmd() *cobra.Command {
 	var req core.WordPressRequest
+	var group string
+	var ini []string
 	cmd := &cobra.Command{
 		Use:   "wordpress <name>",
 		Short: "Create a new WordPress site: folder, database, wp-config.php, installation",
@@ -65,6 +67,13 @@ func (a *app) wordpressCmd() *cobra.Command {
 				}
 				req.Path = dir
 			}
+			var err error
+			if req.Group, err = c.ResolveGroup(ctx, group); err != nil {
+				return nil, err
+			}
+			if req.PHPSettings, err = iniFlags(ini); err != nil {
+				return nil, err
+			}
 			res, err := c.NewWordPress(ctx, req)
 			return wordpressResult(res), err
 		}),
@@ -73,6 +82,10 @@ func (a *app) wordpressCmd() *cobra.Command {
 	cmd.Flags().StringVar(&req.PHP, "php", "8.4", "PHP version")
 	cmd.Flags().StringVar(&req.Title, "title", "", "site title (default: the name)")
 	cmd.Flags().StringVar(&req.AdminUser, "admin-user", "admin", "administrator user name")
-	cmd.Flags().StringVar(&req.AdminEmail, "admin-email", "", "administrator email (default admin@<name>.localhost)")
+	cmd.Flags().StringVar(&req.AdminEmail, "admin-email", "", "administrator email (default admin@<domain>)")
+	cmd.Flags().StringVar(&req.Domain, "domain", "", "local domain, e.g. blog.covo.test (default: <name>.localhost)")
+	cmd.Flags().StringSliceVar(&req.Aliases, "aliases", nil, "extra domains, comma separated")
+	cmd.Flags().StringVar(&group, "group", "", "list the site in this group, e.g. Clients/Acme (see covo group)")
+	cmd.Flags().StringArrayVar(&ini, "ini", nil, "php.ini value of this site, name=value (repeatable)")
 	return cmd
 }

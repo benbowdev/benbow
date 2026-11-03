@@ -562,6 +562,8 @@ type Status struct {
 	// AdminerURL is set while MySQL is enabled.
 	AdminerURL string     `json:"adminer_url,omitempty"`
 	Mail       MailStatus `json:"mail"`
+	// Groups organize the site list (see Site.GroupID).
+	Groups []GroupInfo `json:"groups"`
 	// Orphans are loaded Covo agents that no site needs any more.
 	Orphans []string `json:"orphans,omitempty"`
 }
@@ -577,6 +579,9 @@ func (c *Core) Status(ctx context.Context) (Status, error) {
 		return Status{}, err
 	}
 	st := Status{Home: c.Layout.Root, Services: []ServiceStatus{}, Sites: []SiteStatus{}}
+	if st.Groups, err = c.ListGroups(ctx); err != nil {
+		return Status{}, err
+	}
 	if v, ok, err := c.Store.Setting(ctx, settingHTTPSPort); err == nil && ok {
 		st.HTTPSPort, _ = strconv.Atoi(v)
 	}

@@ -80,6 +80,10 @@ type Backend interface {
 	Trust(ctx context.Context, beforePrompt func()) (core.TrustResult, error)
 	Untrust(ctx context.Context) (core.TrustResult, error)
 	ImportMAMP(ctx context.Context, opts core.ImportOptions) (core.ImportPlan, error)
+	ListGroups(ctx context.Context) ([]core.GroupInfo, error)
+	AddGroup(ctx context.Context, name string, parent int64) (core.GroupInfo, error)
+	UpdateGroup(ctx context.Context, req core.UpdateGroupRequest) (core.GroupInfo, error)
+	RemoveGroup(ctx context.Context, id int64) (core.GroupInfo, error)
 }
 
 // Handler routes /v1 requests to b.
@@ -126,16 +130,26 @@ func Handler(b Backend) http.Handler {
 	get("/v1/sites", func(ctx context.Context) (any, error) { return b.ListSites(ctx) })
 	post("POST", "/v1/sites", func(r *http.Request, body []byte) (any, error) {
 		var req struct {
-			Name   string `json:"name"`
-			Domain string `json:"domain"`
-			PHP    string `json:"php"`
-			Path   string `json:"path"`
-			Force  bool   `json:"force"`
+			Name         string            `json:"name"`
+			Domain       string            `json:"domain"`
+			PHP          string            `json:"php"`
+			Path         string            `json:"path"`
+			Force        bool              `json:"force"`
+			CreateFolder bool              `json:"create_folder"`
+			Aliases      []string          `json:"aliases"`
+			GroupID      int64             `json:"group_id"`
+			PHPSettings  map[string]string `json:"php_settings"`
+			NewDatabase  bool              `json:"new_database"`
+			LinkDatabase string            `json:"link_database"`
 		}
 		if err := decode(body, &req); err != nil {
 			return nil, err
 		}
-		return b.AddSite(r.Context(), core.AddSiteRequest{Name: req.Name, Domain: req.Domain, PHP: req.PHP, Path: req.Path, Force: req.Force})
+		return b.AddSite(r.Context(), core.AddSiteRequest{
+			Name: req.Name, Domain: req.Domain, PHP: req.PHP, Path: req.Path, Force: req.Force,
+			CreateFolder: req.CreateFolder, Aliases: req.Aliases, Group: req.GroupID, PHPSettings: req.PHPSettings,
+			NewDatabase: req.NewDatabase, LinkDatabase: req.LinkDatabase,
+		})
 	})
 	post("PATCH", "/v1/sites/{name}", func(r *http.Request, body []byte) (any, error) {
 		var req struct {
@@ -145,14 +159,48 @@ func Handler(b Backend) http.Handler {
 			Enabled  *bool     `json:"enabled"`
 			Archived *bool     `json:"archived"`
 			Aliases  *[]string `json:"aliases"`
+			GroupID  *int64    `json:"group_id"`
 			Force    bool      `json:"force"`
 		}
 		if err := decode(body, &req); err != nil {
 			return nil, err
 		}
 		return b.UpdateSite(r.Context(), core.UpdateSiteRequest{
-			Name: r.PathValue("name"), PHP: req.PHP, Path: req.Path, Domain: req.Domain, Enabled: req.Enabled, Archived: req.Archived, Aliases: req.Aliases, Force: req.Force,
+			Name: r.PathValue("name"), PHP: req.PHP, Path: req.Path, Domain: req.Domain, Enabled: req.Enabled,
+			Archived: req.Archived, Aliases: req.Aliases, Group: req.GroupID, Force: req.Force,
 		})
+	})
+	get("/v1/groups", func(ctx context.Context) (any, error) { return b.ListGroups(ctx) })
+	post("POST", "/v1/groups", func(r *http.Request, body []byte) (any, error) {
+		var req struct {
+			Name     string `json:"name"`
+			ParentID int64  `json:"parent_id"`
+		}
+		if err := decode(body, &req); err != nil {
+			return nil, err
+		}
+		return b.AddGroup(r.Context(), req.Name, req.ParentID)
+	})
+	post("PATCH", "/v1/groups/{id}", func(r *http.Request, body []byte) (any, error) {
+		id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+		if err != nil {
+			return nil, errcode.Errorf(errcode.InvalidInput, "group id must be a number")
+		}
+		var req struct {
+			Name     string `json:"name"`
+			ParentID *int64 `json:"parent_id"`
+		}
+		if err := decode(body, &req); err != nil {
+			return nil, err
+		}
+		return b.UpdateGroup(r.Context(), core.UpdateGroupRequest{ID: id, Name: req.Name, Parent: req.ParentID})
+	})
+	post("DELETE", "/v1/groups/{id}", func(r *http.Request, _ []byte) (any, error) {
+		id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+		if err != nil {
+			return nil, errcode.Errorf(errcode.InvalidInput, "group id must be a number")
+		}
+		return b.RemoveGroup(r.Context(), id)
 	})
 	mux.HandleFunc("GET /v1/sites/{name}/logs/{kind}", func(w http.ResponseWriter, r *http.Request) {
 		lines := 0
@@ -169,18 +217,23 @@ func Handler(b Backend) http.Handler {
 	})
 	post("POST", "/v1/wordpress", func(r *http.Request, body []byte) (any, error) {
 		var req struct {
-			Name       string `json:"name"`
-			Path       string `json:"path"`
-			PHP        string `json:"php"`
-			Title      string `json:"title"`
-			AdminUser  string `json:"admin_user"`
-			AdminEmail string `json:"admin_email"`
+			Name        string            `json:"name"`
+			Path        string            `json:"path"`
+			PHP         string            `json:"php"`
+			Title       string            `json:"title"`
+			AdminUser   string            `json:"admin_user"`
+			AdminEmail  string            `json:"admin_email"`
+			Domain      string            `json:"domain"`
+			Aliases     []string          `json:"aliases"`
+			GroupID     int64             `json:"group_id"`
+			PHPSettings map[string]string `json:"php_settings"`
 		}
 		if err := decode(body, &req); err != nil {
 			return nil, err
 		}
 		return b.NewWordPress(r.Context(), core.WordPressRequest{
 			Name: req.Name, Path: req.Path, PHP: req.PHP, Title: req.Title, AdminUser: req.AdminUser, AdminEmail: req.AdminEmail,
+			Domain: req.Domain, Aliases: req.Aliases, Group: req.GroupID, PHPSettings: req.PHPSettings,
 		})
 	})
 	mux.HandleFunc("GET /v1/sites/{name}/php-settings", func(w http.ResponseWriter, r *http.Request) {

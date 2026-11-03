@@ -4,6 +4,7 @@
 package core
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -143,6 +144,11 @@ type WordPressRequest struct {
 	Title      string
 	AdminUser  string
 	AdminEmail string
+	// Domain, Aliases, Group and PHPSettings are as in AddSiteRequest.
+	Domain      string
+	Aliases     []string
+	Group       int64
+	PHPSettings map[string]string
 }
 
 // WordPressResult is the new site and how to log in. The admin password is
@@ -188,7 +194,7 @@ func (c *Core) NewWordPress(ctx context.Context, req WordPressRequest) (WordPres
 		return res, errcode.Errorf(errcode.InvalidInput, "admin user must be lowercase letters, digits and underscores")
 	}
 	if req.AdminEmail == "" {
-		req.AdminEmail = "admin@" + req.Name + "." + suffixLocalhost
+		req.AdminEmail = "admin@" + cmp.Or(req.Domain, req.Name+"."+suffixLocalhost)
 	}
 	if strings.ContainsAny(req.AdminEmail, " \n\"'") || !strings.Contains(req.AdminEmail, "@") {
 		return res, errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("admin email %q is not valid", req.AdminEmail))
@@ -230,7 +236,10 @@ func (c *Core) NewWordPress(ctx context.Context, req WordPressRequest) (WordPres
 		undo()
 		return res, err
 	}
-	if site, err = c.AddSite(ctx, AddSiteRequest{Name: req.Name, PHP: req.PHP, Path: req.Path}); err != nil {
+	if site, err = c.AddSite(ctx, AddSiteRequest{
+		Name: req.Name, Domain: req.Domain, PHP: req.PHP, Path: req.Path,
+		Aliases: req.Aliases, Group: req.Group, PHPSettings: req.PHPSettings,
+	}); err != nil {
 		undo()
 		return res, err
 	}
