@@ -156,9 +156,25 @@ public struct PHPVersion: Codable, Sendable, Hashable {
     public var path: String
 }
 
+/// How long php.net maintains a PHP version.
+public struct PHPSupport: Codable, Sendable, Hashable {
+    public var minor: String
+    /// "active", "security" (security fixes only) or "eol" (no fixes).
+    public var status: String
+    public var activeUntil: String?
+    public var securityUntil: String?
+
+    public var isEOL: Bool { status == "eol" }
+}
+
 public struct PHPList: Codable, Sendable, Hashable {
     public var installed: [PHPVersion]
     public var available: [String]
+    public var support: [PHPSupport]?
+
+    public func support(for minor: String) -> PHPSupport? {
+        support?.first { $0.minor == minor }
+    }
 
     /// Minor versions Covo can serve, newest first ("8.4", "8.2", …).
     public var minors: [String] {

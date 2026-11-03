@@ -32,6 +32,9 @@ func (r siteResult) Text(w io.Writer) {
 	if len(r.Aliases) > 0 {
 		fmt.Fprintf(w, "  also: %s\n", strings.Join(r.Aliases, ", "))
 	}
+	if r.Warning != "" {
+		fmt.Fprintf(w, "Warning: %s.\n", r.Warning)
+	}
 	switch {
 	case r.Archived:
 		fmt.Fprintln(w, "Archived: not served. Bring it back with `covo site unarchive`.")

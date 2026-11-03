@@ -20,8 +20,9 @@ struct DuplicateSheet: View {
             Section {
                 TextField("Name", text: $name)
                 Picker("PHP", selection: $php) {
-                    ForEach(model.php?.minors ?? [site.php], id: \.self) { Text($0).tag($0) }
+                    ForEach(model.php?.minors ?? [site.php], id: \.self) { Text(model.phpLabel($0)).tag($0) }
                 }
+                PHPSupportNote(minor: php)
                 LabeledContent("Folder") {
                     Text(site.path).lineLimit(1).truncationMode(.middle).foregroundStyle(.secondary)
                 }

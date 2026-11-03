@@ -346,6 +346,16 @@ final class AppModel {
         await perform("Updating…") { _ = try await $0.applyUpdates(components) }
     }
 
+    func phpSupport(_ minor: String) -> PHPSupport? { php?.support(for: minor) }
+
+    /// A PHP version for pickers: "8.1 · unsupported (download)".
+    func phpLabel(_ minor: String, prefix: String = "") -> String {
+        var s = prefix + minor
+        if phpSupport(minor)?.isEOL == true { s += " · unsupported" }
+        if !installed(minor) { s += " (download)" }
+        return s
+    }
+
     func installed(_ minor: String) -> Bool {
         php?.installed.contains { $0.minor == minor } ?? false
     }

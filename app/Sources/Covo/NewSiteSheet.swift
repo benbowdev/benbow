@@ -125,9 +125,10 @@ struct NewSiteSheet: View {
                 }
                 Picker("PHP", selection: $php) {
                     ForEach(model.php?.minors ?? [], id: \.self) { minor in
-                        Text(model.installed(minor) ? minor : "\(minor) (downloads)").tag(minor)
+                        Text(model.phpLabel(minor)).tag(minor)
                     }
                 }
+                PHPSupportNote(minor: php)
                 GroupPicker(selection: $group)
             }
 

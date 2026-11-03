@@ -134,7 +134,7 @@ struct PHPSettingsTab: View {
         Form {
             Section {
                 ForEach(model.php?.minors ?? [], id: \.self) { minor in
-                    LabeledContent("PHP \(minor)") {
+                    LabeledContent {
                         if let v = model.php?.installed.first(where: { $0.minor == minor }) {
                             HStack {
                                 Text(v.version).foregroundStyle(.secondary)
@@ -147,18 +147,42 @@ struct PHPSettingsTab: View {
                             Button("Download") { Task { await model.installPHP(minor) } }
                                 .disabled(model.busy != nil)
                         }
+                    } label: {
+                        let s = model.phpSupport(minor)
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack(spacing: 4) {
+                                Text("PHP \(minor)")
+                                if s?.isEOL == true {
+                                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                                        .help("No security fixes since \(PHPSupportNote.date(s?.securityUntil))")
+                                }
+                            }
+                            switch s?.status {
+                            case "eol":
+                                Text("Too old: no security fixes since \(PHPSupportNote.date(s?.securityUntil)). Not recommended.")
+                                    .font(.caption).foregroundStyle(.orange)
+                            case "security":
+                                Text("Security fixes only, until \(PHPSupportNote.date(s?.securityUntil))")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            default:
+                                if let until = s?.securityUntil {
+                                    Text("Supported until \(PHPSupportNote.date(until))")
+                                        .font(.caption).foregroundStyle(.secondary)
+                                }
+                            }
+                        }
                     }
                 }
             } header: {
                 Text("Versions")
             } footer: {
-                Text("Versions are also downloaded when a site needs them. Change a site's version in its detail.")
+                Text("Versions are also downloaded when a site needs them. Change a site's version in its detail. Old versions are offered for old sites only: they no longer get security fixes from php.net.")
                     .font(.caption).foregroundStyle(.secondary)
             }
 
             Section {
                 Picker("Version", selection: $minor) {
-                    ForEach(model.php?.minors ?? [], id: \.self) { Text("PHP \($0)").tag($0) }
+                    ForEach(model.php?.minors ?? [], id: \.self) { Text(model.phpLabel($0, prefix: "PHP ")).tag($0) }
                 }
                 if let d = Binding($draft) {
                     TextField("Memory limit", text: d.memoryLimit, prompt: Text("512M"))

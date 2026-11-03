@@ -16,6 +16,7 @@ import (
 	"github.com/getcovo/covo/internal/caddy"
 	"github.com/getcovo/covo/internal/errcode"
 	"github.com/getcovo/covo/internal/paths"
+	"github.com/getcovo/covo/internal/php"
 	"github.com/getcovo/covo/internal/store"
 )
 
@@ -52,6 +53,17 @@ type SiteResult struct {
 	SiteStatus
 	// Applied is true when Covo was running and the change is already live.
 	Applied bool `json:"applied"`
+	// Warning is set when the site's PHP version no longer gets security fixes.
+	Warning string `json:"warning,omitempty"`
+}
+
+// phpWarning warns about PHP versions php.net no longer fixes.
+func phpWarning(minor string) string {
+	s := php.SupportOf(minor, time.Now())
+	if s.Status != php.SupportEOL {
+		return ""
+	}
+	return fmt.Sprintf("PHP %s has had no security fixes since %s: use it only to run old code locally, and plan an upgrade", minor, s.SecurityUntil)
 }
 
 // AddSite registers a site, installing its PHP version if needed, with its
@@ -104,7 +116,7 @@ func (c *Core) AddSite(ctx context.Context, req AddSiteRequest) (SiteResult, err
 			_ = c.Store.RemoveSite(ctx, site.Name)
 			return err
 		}
-		res = SiteResult{SiteStatus: SiteStatus{Site: site, URL: siteURL(site, port)}}
+		res = SiteResult{SiteStatus: SiteStatus{Site: site, URL: siteURL(site, port)}, Warning: phpWarning(site.PHPMinor)}
 		res.Applied, err = c.goLive(ctx, []store.Site{site})
 		return err
 	})
@@ -386,6 +398,9 @@ func (c *Core) UpdateSite(ctx context.Context, req UpdateSiteRequest) (SiteResul
 			return err
 		}
 		res = SiteResult{SiteStatus: SiteStatus{Site: site, URL: siteURL(site, port)}}
+		if site.PHPMinor != old.PHPMinor {
+			res.Warning = phpWarning(site.PHPMinor)
+		}
 		if site.GroupID != old.GroupID {
 			// The group only matters to the list: store it, nothing to apply.
 			moved := old

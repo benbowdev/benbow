@@ -73,10 +73,11 @@ struct SiteDetail: View {
                     }
                 )) {
                     ForEach(phpChoices, id: \.self) { minor in
-                        Text(model.installed(minor) ? minor : "\(minor) (download)").tag(minor)
+                        Text(model.phpLabel(minor)).tag(minor)
                     }
                 }
                 .disabled(model.busy != nil)
+                PHPSupportNote(minor: site.php)
                 LabeledContent("HTTPS", value: site.https ? "On" : "Off")
                 DatabaseRow(site: site)
             } header: {

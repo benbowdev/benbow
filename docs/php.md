@@ -10,6 +10,16 @@ covo php settings 8.4                # show php.ini settings
 covo php settings 8.4 memory_limit=1G upload_max_filesize=256M max_execution_time=0 display_errors=off
 ```
 
+## Versions
+
+PHP 8.0 to 8.5 are offered (static-php-cli publishes no builds older than
+8.0). `covo php list --json` reports php.net's support dates for each
+version (`support`: `active`, `security` for security fixes only, `eol`).
+Versions past their end of life (8.0 and 8.1 as of November 2026) stay
+available for old sites, with a warning in the app and from
+`covo site add`/`set` (`warning` in the JSON): they no longer get security
+fixes. Xdebug builds exist only for the versions listed in `xdebug.md`.
+
 | Setting | Default | Values |
 |---|---|---|
 | `memory_limit` | 512M | size (`K`, `M`, `G`) or `-1` (no limit) |

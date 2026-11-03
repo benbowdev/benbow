@@ -56,6 +56,14 @@ func (r phpListResult) Text(w io.Writer) {
 		fmt.Fprintf(w, "%-8s %s\n", v.Version, v.Path)
 	}
 	fmt.Fprintf(w, "Available: %s\n", strings.Join(r.Available, ", "))
+	for _, s := range r.Support {
+		switch s.Status {
+		case php.SupportEOL:
+			fmt.Fprintf(w, "PHP %s: no security fixes since %s, not recommended\n", s.Minor, s.SecurityUntil)
+		case php.SupportSecurity:
+			fmt.Fprintf(w, "PHP %s: security fixes only, until %s\n", s.Minor, s.SecurityUntil)
+		}
+	}
 }
 
 func (a *app) phpListCmd() *cobra.Command {

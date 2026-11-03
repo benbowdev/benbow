@@ -12,10 +12,12 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/getcovo/covo/internal/errcode"
+	"github.com/getcovo/covo/internal/php"
 	"github.com/getcovo/covo/internal/store"
 )
 
@@ -99,6 +101,9 @@ func (c *Core) ensurePHP(ctx context.Context, minor string) (store.PHPVersion, e
 type PHPList struct {
 	Installed []store.PHPVersion `json:"installed"`
 	Available []string           `json:"available"`
+	// Support tells, per minor version (installed or available), whether
+	// php.net still fixes it.
+	Support []php.Support `json:"support"`
 }
 
 // ListPHP returns installed versions and the versions Covo can install.
@@ -110,7 +115,24 @@ func (c *Core) ListPHP(ctx context.Context) (PHPList, error) {
 	if inst == nil {
 		inst = []store.PHPVersion{}
 	}
-	return PHPList{Installed: inst, Available: c.Manifest.Versions("php", runtime.GOARCH)}, nil
+	list := PHPList{Installed: inst, Available: c.Manifest.Versions("php", runtime.GOARCH), Support: []php.Support{}}
+	seen := map[string]bool{}
+	for _, v := range append(list.Available, minorsOf(inst)...) {
+		if m := minorOf(v); !seen[m] {
+			seen[m] = true
+			list.Support = append(list.Support, php.SupportOf(m, time.Now()))
+		}
+	}
+	slices.SortFunc(list.Support, func(a, b php.Support) int { return -store.CompareVersions(a.Minor, b.Minor) })
+	return list, nil
+}
+
+func minorsOf(vs []store.PHPVersion) []string {
+	out := make([]string, 0, len(vs))
+	for _, v := range vs {
+		out = append(out, v.Minor)
+	}
+	return out
 }
 
 func validMinor(v string) error {
