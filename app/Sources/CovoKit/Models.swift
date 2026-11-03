@@ -134,9 +134,28 @@ public struct MailStatus: Codable, Sendable, Hashable {
     public var url: String?
 }
 
+/// Covo's web ports. 443 and 80 are forwarded by Covo's helper to the
+/// high ports Caddy listens on.
+public struct PortsStatus: Codable, Sendable, Hashable {
+    public struct Forward: Codable, Sendable, Hashable {
+        public var from: Int
+        public var to: Int
+    }
+
+    public var httpsPort: Int
+    public var httpsListenPort: Int
+    /// nil: no HTTP redirect.
+    public var httpPort: Int?
+    public var httpListenPort: Int?
+    public var forwarded: Bool
+    public var active: [Forward]
+    public var error: String?
+}
+
 public struct Status: Codable, Sendable, Hashable {
     public var running: Bool
     public var httpsPort: Int?
+    public var httpPort: Int?
     public var home: String
     public var services: [Service]
     public var sites: [Site]

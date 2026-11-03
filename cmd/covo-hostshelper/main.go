@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 Andrea Casali
 
-// Command covo-hostshelper is Covo's privileged helper for .local domains.
+// Command covo-hostshelper is Covo's privileged helper for .local domains
+// and the standard ports.
 // It is a separate, small binary (standard library, x/sys and Covo's hosts
 // package only): see package hostshelper for exactly what it may do.
 //
@@ -37,6 +38,7 @@ func run() int {
 		hostsF  = flag.String("hosts", hostshelper.HostsPath, "hosts file")
 		flush   = flag.Bool("flush", true, "flush the DNS cache after a change")
 		label   = flag.String("label", "", "launchd label to unload after uninstall")
+		pfctl   = flag.String("pfctl", hostshelper.PFCtl, `pfctl to run for port forwards ("" disables them)`)
 		version = flag.Bool("version", false, "print the protocol version and exit")
 		remove  files
 	)
@@ -66,7 +68,11 @@ func run() int {
 		SelfFiles:  remove,
 		Label:      *label,
 	}}
+	if *pfctl != "" {
+		srv.PF = hostshelper.RunPFCtl(*pfctl)
+	}
 	err = srv.Serve(ctx, ln)
+	srv.Shutdown()
 	_ = os.Remove(*socket)
 	if err != nil && !errors.Is(err, hostshelper.ErrUninstalled) && ctx.Err() == nil {
 		fmt.Fprintln(os.Stderr, err)

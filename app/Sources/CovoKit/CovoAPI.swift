@@ -68,6 +68,19 @@ public struct CovoAPI: Sendable {
 
     public func status() async throws -> Status { try await call("GET", "/v1/status") }
 
+    public func ports() async throws -> PortsStatus { try await call("GET", "/v1/ports") }
+
+    struct PortsRequest: Encodable {
+        let httpsPort: Int
+        let httpPort: Int
+    }
+
+    /// Sets the HTTPS port and the HTTP redirect port (0: off). 443 and 80
+    /// make macOS ask for an administrator password once.
+    public func setPorts(https: Int, http: Int) async throws -> PortsStatus {
+        try await call("PUT", "/v1/ports", PortsRequest(httpsPort: https, httpPort: http))
+    }
+
     struct StartRequest: Encodable { let httpsPort: Int? }
 
     /// Starts Covo; a non-nil port also changes the HTTPS port.

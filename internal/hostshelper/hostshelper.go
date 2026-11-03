@@ -1,26 +1,32 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 Andrea Casali
 
-// Package hostshelper is the privileged helper behind Covo's .local domains
-// (MAMP compatibility mode), and its client.
+// Package hostshelper is Covo's privileged helper, and its client. It
+// serves .local domains (MAMP compatibility mode) and the standard ports
+// (443 and 80 without a port in addresses).
 //
 // The helper runs as root, as the LaunchDaemon dev.getcovo.hostshelper. It
-// does exactly four things, all on Covo's block in the hosts file (package
-// hosts):
+// does exactly five things:
 //
-//   - status: report its version and the names in the block (read only);
-//   - sync: make the block hold exactly the given .local names;
+//   - status: report its version, the names in Covo's hosts block and the
+//     active port forwards (read only);
+//   - sync: make Covo's block in the hosts file (package hosts) hold exactly
+//     the given .local names;
 //   - clear: remove the block;
-//   - uninstall: remove the block, then its own binary and plist, then
-//     unload itself.
+//   - ports: make Covo's pf anchor forward exactly the given loopback ports
+//     (e.g. 443 → 8443), or nothing;
+//   - uninstall: remove the block and the forwards, then its own binary and
+//     plist, then unload itself.
 //
-// It takes no paths, addresses or commands from requests: the hosts file,
-// the IP addresses (127.0.0.1 and ::1) and its own files are fixed when it is
-// installed. It only accepts connections from the user who installed it
-// (checked with LOCAL_PEERCRED), one small JSON request per connection. It
-// never runs a shell; the only programs it starts are dscacheutil and killall
-// (to flush the DNS cache) and launchctl (to unload itself), with fixed
-// arguments.
+// It takes no paths, addresses or commands from requests, only names and
+// port numbers: the hosts file, the IP addresses (127.0.0.1 and ::1), the pf
+// anchor and its own files are fixed when it is installed. Forwards only go
+// from a privileged port (below 1024) to an unprivileged one, on the
+// loopback interface. It only accepts connections from the user who
+// installed it (checked with LOCAL_PEERCRED), one small JSON request per
+// connection. It never runs a shell; the only programs it starts are
+// dscacheutil and killall (to flush the DNS cache), pfctl (on Covo's anchor
+// only) and launchctl (to unload itself), with fixed arguments.
 package hostshelper
 
 import (
@@ -35,6 +41,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"slices"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -45,7 +54,7 @@ import (
 )
 
 // Version is the helper protocol version. A different version is reinstalled.
-const Version = "1"
+const Version = "2"
 
 // Fixed locations of the installed helper.
 const (
@@ -54,6 +63,10 @@ const (
 	PlistPath  = "/Library/LaunchDaemons/" + Label + ".plist"
 	SocketPath = "/var/run/" + Label + ".sock"
 	HostsPath  = "/etc/hosts"
+	// Anchor is Covo's pf anchor, inside the com.apple anchor point that
+	// macOS's /etc/pf.conf already evaluates: pf.conf is never changed.
+	Anchor = "com.apple/" + Label
+	PFCtl  = "/sbin/pfctl"
 )
 
 const (
@@ -67,21 +80,33 @@ const (
 	OpSync      = "sync"
 	OpClear     = "clear"
 	OpUninstall = "uninstall"
+	OpPorts     = "ports"
 )
+
+// Forward sends loopback TCP connections to port From on to port To.
+type Forward struct {
+	From int `json:"from"`
+	To   int `json:"to"`
+}
+
+// maxForwards: HTTPS and HTTP.
+const maxForwards = 2
 
 // Request is one call to the helper.
 type Request struct {
-	Op    string   `json:"op"`
-	Names []string `json:"names,omitempty"`
+	Op       string    `json:"op"`
+	Names    []string  `json:"names,omitempty"`
+	Forwards []Forward `json:"forwards,omitempty"`
 }
 
 // Response is the helper's answer.
 type Response struct {
-	OK      bool     `json:"ok"`
-	Error   string   `json:"error,omitempty"`
-	Version string   `json:"version"`
-	Names   []string `json:"names"`
-	Changed bool     `json:"changed,omitempty"`
+	OK       bool      `json:"ok"`
+	Error    string    `json:"error,omitempty"`
+	Version  string    `json:"version"`
+	Names    []string  `json:"names"`
+	Forwards []Forward `json:"forwards"`
+	Changed  bool      `json:"changed,omitempty"`
 }
 
 // Config is fixed when the helper starts.
@@ -93,6 +118,22 @@ type Config struct {
 	// SelfFiles are deleted by uninstall; Label, if set, is then unloaded.
 	SelfFiles []string
 	Label     string
+	// PF runs pfctl with args and stdin and returns its combined output.
+	// Nil refuses port forwards.
+	PF func(args []string, stdin string) (string, error)
+}
+
+// RunPFCtl runs pfctl at path (fixed when the helper starts).
+func RunPFCtl(path string) func(args []string, stdin string) (string, error) {
+	return func(args []string, stdin string) (string, error) {
+		cmd := exec.Command(path, args...)
+		cmd.Stdin = strings.NewReader(stdin)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			return string(out), fmt.Errorf("pfctl %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(string(out)))
+		}
+		return string(out), nil
+	}
 }
 
 // ErrUninstalled is returned by Serve after a successful uninstall.
@@ -101,7 +142,10 @@ var ErrUninstalled = errors.New("helper uninstalled")
 // Server serves Config on a Unix socket.
 type Server struct {
 	Config
-	mu sync.Mutex
+	mu       sync.Mutex
+	forwards []Forward
+	// token is pfctl -E's reference: pf stays enabled while Covo holds it.
+	token string
 }
 
 // Serve accepts connections until ctx is done or uninstall succeeds.
@@ -138,6 +182,9 @@ func (s *Server) handle(conn *net.UnixConn) (uninstalled bool) {
 		if r.Names == nil {
 			r.Names = []string{}
 		}
+		if r.Forwards == nil {
+			r.Forwards = []Forward{}
+		}
 		_ = json.NewEncoder(conn).Encode(r)
 	}
 	uid, err := peerUID(conn)
@@ -161,8 +208,8 @@ func (s *Server) do(req Request) (Response, bool) {
 	fail := func(err error) (Response, bool) { return Response{Error: err.Error()}, false }
 	switch req.Op {
 	case OpStatus:
-		if len(req.Names) > 0 {
-			return fail(errors.New("status takes no names"))
+		if len(req.Names) > 0 || len(req.Forwards) > 0 {
+			return fail(errors.New("status takes no arguments"))
 		}
 		content, _, err := readHosts(s.HostsPath)
 		if err != nil {
@@ -172,8 +219,20 @@ func (s *Server) do(req Request) (Response, bool) {
 		if err != nil {
 			return fail(err)
 		}
-		return Response{OK: true, Names: names}, false
+		return Response{OK: true, Names: names, Forwards: slices.Clone(s.forwards)}, false
+	case OpPorts:
+		if len(req.Names) > 0 {
+			return fail(errors.New("ports takes no names"))
+		}
+		changed, err := s.setForwards(req.Forwards)
+		if err != nil {
+			return fail(err)
+		}
+		return Response{OK: true, Forwards: slices.Clone(s.forwards), Changed: changed}, false
 	case OpSync, OpClear, OpUninstall:
+		if len(req.Forwards) > 0 {
+			return fail(fmt.Errorf("%s takes no forwards", req.Op))
+		}
 		names := req.Names
 		if req.Op != OpSync {
 			if len(names) > 0 {
@@ -188,6 +247,9 @@ func (s *Server) do(req Request) (Response, bool) {
 		if req.Op != OpUninstall {
 			now, _ := hosts.Normalize(names)
 			return Response{OK: true, Names: now, Changed: changed}, false
+		}
+		if _, err := s.setForwards(nil); err != nil {
+			return fail(err)
 		}
 		for _, f := range s.SelfFiles {
 			if err := os.Remove(f); err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -224,6 +286,93 @@ func (s *Server) sync(names []string) (bool, error) {
 		_ = exec.Command("/usr/bin/killall", "-HUP", "mDNSResponder").Run()
 	}
 	return true, nil
+}
+
+// CheckForwards validates forwards: at most one per source port, from a
+// privileged port to an unprivileged one.
+func CheckForwards(fw []Forward) error {
+	if len(fw) > maxForwards {
+		return fmt.Errorf("at most %d forwards", maxForwards)
+	}
+	seen := map[int]bool{}
+	for _, f := range fw {
+		if f.From < 1 || f.From > 1023 {
+			return fmt.Errorf("forwards must start from a port below 1024, got %d", f.From)
+		}
+		if f.To < 1024 || f.To > 65535 {
+			return fmt.Errorf("forwards must go to a port from 1024 to 65535, got %d", f.To)
+		}
+		if seen[f.From] {
+			return fmt.Errorf("port %d is forwarded twice", f.From)
+		}
+		seen[f.From] = true
+	}
+	return nil
+}
+
+// Rules are the pf rules for fw, built from numbers only: loopback
+// connections (IPv4 and IPv6) to From go to To instead.
+func Rules(fw []Forward) string {
+	var b strings.Builder
+	for _, f := range fw {
+		fmt.Fprintf(&b, "rdr pass on lo0 inet proto tcp from any to 127.0.0.1 port %d -> 127.0.0.1 port %d\n", f.From, f.To)
+		fmt.Fprintf(&b, "rdr pass on lo0 inet6 proto tcp from any to ::1 port %d -> ::1 port %d\n", f.From, f.To)
+	}
+	return b.String()
+}
+
+var tokenRe = regexp.MustCompile(`Token : (\d+)`)
+
+// setForwards loads exactly fw into Covo's anchor (an empty fw flushes it)
+// and keeps pf enabled while there is something to forward.
+func (s *Server) setForwards(fw []Forward) (bool, error) {
+	if err := CheckForwards(fw); err != nil {
+		return false, err
+	}
+	slices.SortFunc(fw, func(a, b Forward) int { return a.From - b.From })
+	if slices.Equal(fw, s.forwards) && (len(fw) == 0) == (s.token == "") {
+		return false, nil
+	}
+	if s.PF == nil {
+		if len(fw) == 0 {
+			return false, nil
+		}
+		return false, errors.New("port forwarding is not available in this helper")
+	}
+	if len(fw) == 0 {
+		_, flushErr := s.PF([]string{"-a", Anchor, "-F", "all"}, "")
+		if s.token != "" {
+			if _, err := s.PF([]string{"-X", s.token}, ""); err != nil {
+				return false, err
+			}
+			s.token = ""
+		}
+		s.forwards = nil
+		return true, flushErr
+	}
+	if _, err := s.PF([]string{"-a", Anchor, "-f", "-"}, Rules(fw)); err != nil {
+		return false, err
+	}
+	if s.token == "" {
+		out, err := s.PF([]string{"-E"}, "")
+		if err != nil {
+			return false, err
+		}
+		m := tokenRe.FindStringSubmatch(out)
+		if m == nil {
+			return false, fmt.Errorf("pfctl -E gave no token: %s", strings.TrimSpace(out))
+		}
+		s.token = m[1]
+	}
+	s.forwards = slices.Clone(fw)
+	return true, nil
+}
+
+// Shutdown removes the forwards; the helper calls it when it stops.
+func (s *Server) Shutdown() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, _ = s.setForwards(nil)
 }
 
 // unload removes the helper from launchd; it does not return when it works.

@@ -6,12 +6,15 @@ package ports
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os/exec"
 	"strconv"
 	"strings"
 	"time"
+
+	"golang.org/x/sys/unix"
 
 	"github.com/getcovo/covo/internal/errcode"
 )
@@ -116,4 +119,27 @@ func Describe(ls []Listener) string {
 		parts[i] = fmt.Sprintf("%s (pid %d)", l.Command, l.PID)
 	}
 	return strings.Join(parts, ", ")
+}
+
+// FreeAnywhere reports whether nothing listens on port on any address,
+// privileged ports included: macOS lets any user bind the wildcard address
+// to them. The probe does not set SO_REUSEADDR, so a listener on one
+// specific address (e.g. 127.0.0.1) also counts.
+func FreeAnywhere(port int) bool {
+	for _, fam := range []int{unix.AF_INET, unix.AF_INET6} {
+		fd, err := unix.Socket(fam, unix.SOCK_STREAM, 0)
+		if err != nil {
+			continue
+		}
+		var sa unix.Sockaddr = &unix.SockaddrInet4{Port: port}
+		if fam == unix.AF_INET6 {
+			sa = &unix.SockaddrInet6{Port: port}
+		}
+		err = unix.Bind(fd, sa)
+		_ = unix.Close(fd)
+		if errors.Is(err, unix.EADDRINUSE) {
+			return false
+		}
+	}
+	return true
 }

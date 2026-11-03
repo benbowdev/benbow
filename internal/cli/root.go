@@ -68,7 +68,7 @@ func (a *app) rootCmd() *cobra.Command {
 		SilenceErrors: true,
 	}
 	root.PersistentFlags().BoolVar(&a.json, "json", false, "output JSON with a stable schema")
-	root.AddCommand(a.versionCmd(), a.startCmd(), a.stopCmd(), a.statusCmd(), a.siteCmd(), a.trustCmd(), a.untrustCmd(), a.uninstallCmd(), a.phpCmd(), a.caddyCmd(), a.domainsCmd(), a.dnsCmd(), a.mysqlCmd(), a.importCmd(), a.daemonCmd(), a.dbCmd(), a.wpCmd(), a.wordpressCmd(), a.mailCmd(), a.updateCmd(), a.groupCmd())
+	root.AddCommand(a.versionCmd(), a.startCmd(), a.stopCmd(), a.statusCmd(), a.siteCmd(), a.trustCmd(), a.untrustCmd(), a.uninstallCmd(), a.phpCmd(), a.caddyCmd(), a.domainsCmd(), a.dnsCmd(), a.mysqlCmd(), a.importCmd(), a.daemonCmd(), a.dbCmd(), a.wpCmd(), a.wordpressCmd(), a.mailCmd(), a.updateCmd(), a.groupCmd(), a.portsCmd())
 	return root
 }
 

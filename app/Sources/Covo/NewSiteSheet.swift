@@ -120,7 +120,7 @@ struct NewSiteSheet: View {
                 ), prompt: Text("my-site.localhost"))
                 TextField("Aliases", text: $aliases, prompt: Text("www.my-site.localhost (optional)"))
                 LabeledContent("Address") {
-                    Text(effectiveDomain.isEmpty ? "—" : "https://\(effectiveDomain):\(model.status?.httpsPort ?? 8443)")
+                    Text(effectiveDomain.isEmpty ? "—" : model.address(effectiveDomain))
                         .foregroundStyle(.secondary).textSelection(.enabled)
                 }
                 Picker("PHP", selection: $php) {

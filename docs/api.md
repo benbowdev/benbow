@@ -46,6 +46,7 @@ Request bodies are strict JSON (unknown fields are refused).
 | `GET /v1/sites` | | `covo site list` |
 | `POST /v1/sites` | `{name, domain, php, path, force, create_folder, aliases, group_id, php_settings, new_database, link_database}` | `covo site add` |
 | `PATCH /v1/sites/{name}` | any of `{php, path, domain, enabled, archived, aliases, group_id, force}` (`group_id` 0: top level) | `covo site set`, `enable`, `disable`, `archive`, `unarchive` |
+| `GET /v1/ports`, `PUT /v1/ports` | `{https_port, http_port}` (0: off) | `covo ports` |
 | `GET`, `POST /v1/groups` | `{name, parent_id}` | `covo group list`, `add` |
 | `PATCH /v1/groups/{id}` | any of `{name, parent_id}` (0: top level) | `covo group rename`, `move` |
 | `DELETE /v1/groups/{id}` | | `covo group remove` |

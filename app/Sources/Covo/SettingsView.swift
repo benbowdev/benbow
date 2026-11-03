@@ -25,7 +25,6 @@ struct SettingsView: View {
 
 struct GeneralSettings: View {
     @Environment(AppModel.self) private var model
-    @State private var port = ""
     @State private var loginItem = SMAppService.mainApp.status == .enabled
     @State private var loginError: String?
     @AppStorage(AppModel.startOnLaunchKey) private var startOnLaunch = false
@@ -55,19 +54,7 @@ struct GeneralSettings: View {
 
     var body: some View {
         Form {
-            Section {
-                LabeledContent("HTTPS port") {
-                    HStack {
-                        TextField("HTTPS port", text: $port, prompt: Text("8443"))
-                            .labelsHidden().frame(width: 80).multilineTextAlignment(.trailing)
-                            .onSubmit(save)
-                        Button("Apply", action: save).disabled(newPort == nil || model.busy != nil)
-                    }
-                }
-            } footer: {
-                Text("Sites are served at https://<name>.localhost:\(current). Changing it starts Covo if it is stopped.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
+            PortsSection()
             Section("Startup") {
                 Toggle(isOn: Binding(
                     get: { loginItem },
@@ -108,19 +95,98 @@ struct GeneralSettings: View {
             }
         }
         .formStyle(.grouped)
-        .onAppear { port = String(current) }
+    }
+}
+
+/// HTTPS and HTTP ports, like MAMP: standard (no port in addresses) or any
+/// port from 1024.
+struct PortsSection: View {
+    @Environment(AppModel.self) private var model
+    @State private var httpsStandard = false
+    @State private var httpsCustom = ""
+    @State private var httpMode = HTTPMode.off
+    @State private var httpCustom = ""
+    @State private var loaded = false
+
+    enum HTTPMode: Hashable { case off, standard, custom }
+
+    var body: some View {
+        Section {
+            Picker("HTTPS", selection: $httpsStandard) {
+                Text("443 – no port in addresses").tag(true)
+                Text("Custom port").tag(false)
+            }
+            if !httpsStandard {
+                LabeledContent("HTTPS port") {
+                    TextField("HTTPS port", text: $httpsCustom, prompt: Text("8443"))
+                        .labelsHidden().frame(width: 80).multilineTextAlignment(.trailing)
+                }
+            }
+            Picker("HTTP", selection: $httpMode) {
+                Text("Off").tag(HTTPMode.off)
+                Text("80 – redirects to HTTPS").tag(HTTPMode.standard)
+                Text("Custom port – redirects to HTTPS").tag(HTTPMode.custom)
+            }
+            if httpMode == .custom {
+                LabeledContent("HTTP port") {
+                    TextField("HTTP port", text: $httpCustom, prompt: Text("8080"))
+                        .labelsHidden().frame(width: 80).multilineTextAlignment(.trailing)
+                }
+            }
+            HStack {
+                Text("Sites: \(model.address("<name>.localhost"))").foregroundStyle(.secondary)
+                Spacer()
+                Button("Apply") { Task { await apply() } }
+                    .disabled(wanted == nil || model.busy != nil)
+            }
+            if let err = model.ports?.error {
+                Text(err).font(.caption).foregroundStyle(.red)
+            }
+        } header: {
+            Text("Ports")
+        } footer: {
+            Text("443 and 80 need your administrator password once: Covo's helper forwards them to Covo, only while Covo is running, and never takes them from another program (e.g. MAMP on 80). WordPress keeps its address in its database: after changing the HTTPS port, update it with “covo wp <site> search-replace”.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+        .task {
+            await model.loadPorts()
+            load()
+        }
+        .onChange(of: model.ports) { _, _ in if !loaded { load() } }
     }
 
-    private var current: Int { model.status?.httpsPort ?? 8443 }
-
-    private var newPort: Int? {
-        guard let p = Int(port), (1024...65535).contains(p), p != current else { return nil }
-        return p
+    private func load() {
+        guard let p = model.ports else { return }
+        loaded = true
+        httpsStandard = p.httpsPort == 443
+        httpsCustom = p.httpsPort == 443 ? "8443" : String(p.httpsPort)
+        switch p.httpPort ?? 0 {
+        case 0: httpMode = .off
+        case 80: httpMode = .standard
+        case let n: httpMode = .custom; httpCustom = String(n)
+        }
     }
 
-    private func save() {
-        guard let p = newPort else { return }
-        Task { await model.setHTTPSPort(p) }
+    /// The ports to set, or nil if invalid or unchanged.
+    private var wanted: (https: Int, http: Int)? {
+        let https = httpsStandard ? 443 : (Int(httpsCustom) ?? 0)
+        let http: Int
+        switch httpMode {
+        case .off: http = 0
+        case .standard: http = 80
+        case .custom: http = Int(httpCustom) ?? 0
+        }
+        guard https == 443 || (1024...65535).contains(https) else { return nil }
+        guard httpMode != .custom || (1024...65535).contains(http), http != https else { return nil }
+        if let p = model.ports, p.httpsPort == https, (p.httpPort ?? 0) == http { return nil }
+        return (https, http)
+    }
+
+    private func apply() async {
+        guard let w = wanted else { return }
+        await model.setPorts(https: w.https, http: w.http)
+        loaded = false
+        load()
     }
 }
 

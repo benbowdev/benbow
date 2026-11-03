@@ -19,6 +19,7 @@ import (
 
 	"github.com/getcovo/covo/internal/errcode"
 	"github.com/getcovo/covo/internal/fsutil"
+	"github.com/getcovo/covo/internal/hostshelper"
 	"github.com/getcovo/covo/internal/launchd"
 	"github.com/getcovo/covo/internal/ports"
 	"github.com/getcovo/covo/internal/resolver"
@@ -249,12 +250,22 @@ func (c *Core) DisableDomain(ctx context.Context, zone string, beforePrompt func
 				fmt.Sprintf("sites still use .%s: %s; remove them first", zone, strings.Join(using, ", ")))
 		}
 		if zone == suffixLocal {
-			changed, err := c.uninstallHelper(ctx)
+			if err := c.Store.DeleteSetting(ctx, settingDomain(zone)); err != nil {
+				return err
+			}
+			needed, err := c.helperNeeded(ctx)
 			if err != nil {
 				return err
 			}
-			res.Changed = changed
-			if err := c.Store.DeleteSetting(ctx, settingDomain(zone)); err != nil {
+			if needed {
+				// The standard ports still use the helper: only clear the hosts lines.
+				client, _ := helperClient()
+				res.Changed = true
+				if _, err := client.Do(ctx, hostshelper.Request{Op: hostshelper.OpClear}); err != nil {
+					return wrapHelperErr(err)
+				}
+			} else if res.Changed, err = c.uninstallHelper(ctx); err != nil {
+				_ = c.Store.SetSetting(ctx, settingDomain(zone), "1")
 				return err
 			}
 			res.DomainStatus, err = c.domainStatus(ctx, zone)

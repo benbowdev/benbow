@@ -54,6 +54,10 @@ func (f *fake) RemoveGroup(_ context.Context, id int64) (core.GroupInfo, error) 
 	return core.GroupInfo{}, f.record(fmt.Sprintf("group remove %d", id))
 }
 
+func (f *fake) SetPorts(_ context.Context, https, http int, _ func()) (core.PortsStatus, error) {
+	return core.PortsStatus{}, f.record(fmt.Sprintf("ports %d %d", https, http))
+}
+
 func (f *fake) Start(_ context.Context, port int) (core.StartResult, error) {
 	return core.StartResult{HTTPSPort: port}, f.record("start")
 }
@@ -251,6 +255,8 @@ func TestRoutes(t *testing.T) {
 		{"PATCH", "/v1/groups/4", `{"parent_id":0}`, 200, `group update 4 "" parent=0`, ""},
 		{"PATCH", "/v1/groups/x", `{}`, 400, "", errcode.InvalidInput},
 		{"DELETE", "/v1/groups/4", ``, 200, "group remove 4", ""},
+		{"PUT", "/v1/ports", `{"https_port":443,"http_port":80}`, 200, "ports 443 80", ""},
+		{"PUT", "/v1/ports", `{"https_port":443,"admin":true}`, 400, "", errcode.InvalidInput},
 		{"POST", "/v1/updates/apply", `{"components":["caddy","php-8.4"]}`, 200, "apply caddy,php-8.4", ""},
 		{"POST", "/v1/updates/apply", "", 200, "apply ", ""},
 		{"PATCH", "/v1/sites/demo", `{"name":"x"}`, 400, "", errcode.InvalidInput},

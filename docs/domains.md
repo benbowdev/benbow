@@ -70,14 +70,16 @@ SMAppService):
   Its arguments are fixed at install: the user id allowed to talk to it and
   its own two files.
 
-The helper does exactly four things, all on Covo's block in `/etc/hosts`:
+The helper does exactly five things: four on Covo's block in `/etc/hosts`,
+one on Covo's pf anchor for the standard ports (see `ports.md`):
 
 | Operation | Effect |
 |---|---|
-| `status` | read only: helper version and the names in the block |
+| `status` | read only: helper version, the names in the block, the active port forwards |
 | `sync` | make the block hold exactly the given names |
 | `clear` | remove the block |
-| `uninstall` | remove the block, then its binary and plist, then unload itself |
+| `ports` | make Covo's pf anchor forward exactly the given loopback ports (e.g. 443 → 8443), or nothing |
+| `uninstall` | remove the block and the forwards, then its binary and plist, then unload itself |
 
 How it is kept to that:
 
@@ -101,7 +103,9 @@ How it is kept to that:
   only the installing user's uid (LOCAL_PEERCRED); one JSON request of at most
   64 KiB per connection, 5 s deadline.
 - **No shell**: the only programs it starts are `/usr/bin/dscacheutil
-  -flushcache`, `/usr/bin/killall -HUP mDNSResponder` and `/bin/launchctl
+  -flushcache`, `/usr/bin/killall -HUP mDNSResponder`, `/sbin/pfctl` on
+  Covo's anchor (`-a com.apple/dev.getcovo.hostshelper -f -` with rules built
+  from port numbers, `-F all`, `-E`, `-X <token>`) and `/bin/launchctl
   bootout system/dev.getcovo.hostshelper`, with fixed arguments.
 
 Worst case, any process running as the user can make the helper write
@@ -110,7 +114,8 @@ Covo.
 
 Removal needs no password: `covo domains disable local` (refused while
 `.local` sites exist) and `covo uninstall` ask the helper to clear the block
-and remove itself. Uninstall only does so if this Covo home installed the
+and remove itself (`domains disable local` keeps it while 443 or 80 are in
+use). Uninstall only does so if this Covo home installed the
 helper (`data/hostshelper.installed`).
 
 Verified on the real Mac (2026-10-29, macOS 26.2, MAMP PRO running with 54

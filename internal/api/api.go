@@ -84,6 +84,8 @@ type Backend interface {
 	AddGroup(ctx context.Context, name string, parent int64) (core.GroupInfo, error)
 	UpdateGroup(ctx context.Context, req core.UpdateGroupRequest) (core.GroupInfo, error)
 	RemoveGroup(ctx context.Context, id int64) (core.GroupInfo, error)
+	GetPorts(ctx context.Context) (core.PortsStatus, error)
+	SetPorts(ctx context.Context, https, http int, beforePrompt func()) (core.PortsStatus, error)
 }
 
 // Handler routes /v1 requests to b.
@@ -380,6 +382,18 @@ func Handler(b Backend) http.Handler {
 		return b.SetXdebug(r.Context(), r.PathValue("php"), *req.Enabled)
 	})
 
+	get("/v1/ports", func(ctx context.Context) (any, error) { return b.GetPorts(ctx) })
+	// 443 and 80 install Covo's helper: macOS shows an administrator dialog.
+	post("PUT", "/v1/ports", func(r *http.Request, body []byte) (any, error) {
+		var req struct {
+			HTTPSPort int `json:"https_port"`
+			HTTPPort  int `json:"http_port"`
+		}
+		if err := decode(body, &req); err != nil {
+			return nil, err
+		}
+		return b.SetPorts(r.Context(), req.HTTPSPort, req.HTTPPort, nil)
+	})
 	get("/v1/domains", func(ctx context.Context) (any, error) { return b.Domains(ctx) })
 	post("POST", "/v1/domains/{zone}/enable", func(r *http.Request, _ []byte) (any, error) {
 		return b.EnableDomain(r.Context(), r.PathValue("zone"), nil)

@@ -4,7 +4,6 @@
 package core
 
 import (
-	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -111,7 +110,8 @@ func (c *Core) checkPort(ctx context.Context, port int) error {
 // setHTTPSPort changes the HTTPS port. It must be free.
 func (c *Core) setHTTPSPort(ctx context.Context, port int) error {
 	if port < 1024 || port > 65535 {
-		return errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("HTTPS port must be between 1024 and 65535, got %d", port))
+		return errcode.Errorf(errcode.InvalidInput, fmt.Sprintf(
+			"HTTPS port must be between 1024 and 65535, got %d; for 443 use `covo ports --https 443`", port))
 	}
 	cur, _, err := c.httpsPort(ctx)
 	if err != nil {
@@ -134,7 +134,7 @@ func (c *Core) caddyBinary(inst CaddyInstall) caddy.Binary {
 func (c *Core) caddyfilePath() string { return filepath.Join(c.Layout.Etc, "caddy", "Caddyfile") }
 
 // renderCaddyfile needs the CA on disk (ensureCA).
-func (c *Core) renderCaddyfile(ctx context.Context, port int, sites []store.Site, adminer *caddy.Adminer) (string, error) {
+func (c *Core) renderCaddyfile(ctx context.Context, p Ports, sites []store.Site, adminer *caddy.Adminer) (string, error) {
 	var mailUI int
 	if on, err := c.mailEnabled(ctx); err != nil {
 		return "", err
@@ -147,7 +147,9 @@ func (c *Core) renderCaddyfile(ctx context.Context, port int, sites []store.Site
 		MailUIPort:  mailUI,
 		Adminer:     adminer,
 		AdminSocket: c.Layout.Socket("caddy-admin.sock"),
-		HTTPSPort:   port,
+		HTTPSPort:   p.HTTPSListen,
+		HTTPPort:    p.HTTPListen,
+		PublicHTTPS: p.HTTPS,
 		StorageDir:  filepath.Join(c.Layout.Data, "caddy"),
 		LogFile:     filepath.Join(c.Layout.Logs, "caddy.log"),
 		CA:          c.caddyCA(),
@@ -354,12 +356,18 @@ func enabledSites(sites []store.Site) []store.Site {
 
 // reconcile brings services in line with the stored sites. Callers hold the lock.
 func (c *Core) reconcile(ctx context.Context) (StartResult, error) {
-	port, assigned, err := c.httpsPort(ctx)
+	webPorts, assigned, err := c.ports(ctx)
 	if err != nil {
 		return StartResult{}, err
 	}
+	port := webPorts.HTTPSListen
 	if err := c.checkPort(ctx, port); err != nil {
 		return StartResult{}, err
+	}
+	if webPorts.HTTP != 0 {
+		if err := c.checkPort(ctx, webPorts.HTTPListen); err != nil {
+			return StartResult{}, err
+		}
 	}
 	all, err := c.Store.ListSites(ctx)
 	if err != nil {
@@ -415,7 +423,7 @@ func (c *Core) reconcile(ctx context.Context) (StartResult, error) {
 	if err := c.ensureSiteLogDirs(names); err != nil {
 		return StartResult{}, err
 	}
-	body, err := c.renderCaddyfile(ctx, port, sites, adminer)
+	body, err := c.renderCaddyfile(ctx, webPorts, sites, adminer)
 	if err != nil {
 		return StartResult{}, err
 	}
@@ -461,7 +469,10 @@ func (c *Core) reconcile(ctx context.Context) (StartResult, error) {
 	if err := c.waitReady(ctx, minors, port, len(sites) > 0 || adminer != nil || mailUI != 0, dnsPort, mysqlPort, extra...); err != nil {
 		return StartResult{}, err
 	}
-	return StartResult{HTTPSPort: port, PortAssigned: assigned, Changes: changes}, nil
+	if err := c.syncForwards(ctx, webPorts); err != nil {
+		return StartResult{}, err
+	}
+	return StartResult{HTTPSPort: webPorts.HTTPS, PortAssigned: assigned, Changes: changes}, nil
 }
 
 // waitReady waits until every socket accepts connections.
@@ -523,7 +534,11 @@ func (c *Core) Stop(ctx context.Context) (StopResult, error) {
 		}
 		changes, err := c.launchctl.StopAll(ctx)
 		res.Changes = changes
-		return err
+		if err != nil {
+			return err
+		}
+		// 443 and 80 go back to whoever wants them while Covo is off.
+		return c.clearForwards(ctx)
 	})
 	return res, err
 }
@@ -551,14 +566,16 @@ type CAStatus struct {
 
 // Status is the overall state of Covo.
 type Status struct {
-	Running   bool            `json:"running"`
-	HTTPSPort int             `json:"https_port,omitempty"`
-	Home      string          `json:"home"`
-	Services  []ServiceStatus `json:"services"`
-	Sites     []SiteStatus    `json:"sites"`
-	CA        CAStatus        `json:"ca"`
-	Domains   []DomainStatus  `json:"domains"`
-	MySQL     MySQLStatus     `json:"mysql"`
+	Running   bool `json:"running"`
+	HTTPSPort int  `json:"https_port,omitempty"`
+	// HTTPPort redirects to HTTPS; 0 is off.
+	HTTPPort int             `json:"http_port,omitempty"`
+	Home     string          `json:"home"`
+	Services []ServiceStatus `json:"services"`
+	Sites    []SiteStatus    `json:"sites"`
+	CA       CAStatus        `json:"ca"`
+	Domains  []DomainStatus  `json:"domains"`
+	MySQL    MySQLStatus     `json:"mysql"`
 	// AdminerURL is set while MySQL is enabled.
 	AdminerURL string     `json:"adminer_url,omitempty"`
 	Mail       MailStatus `json:"mail"`
@@ -584,6 +601,9 @@ func (c *Core) Status(ctx context.Context) (Status, error) {
 	}
 	if v, ok, err := c.Store.Setting(ctx, settingHTTPSPort); err == nil && ok {
 		st.HTTPSPort, _ = strconv.Atoi(v)
+	}
+	if v, ok, err := c.Store.Setting(ctx, settingHTTPPort); err == nil && ok {
+		st.HTTPPort, _ = strconv.Atoi(v)
 	}
 	services := []string{caddyService}
 	for _, s := range sites {
@@ -611,7 +631,7 @@ func (c *Core) Status(ctx context.Context) (Status, error) {
 	}
 	if mysqlOn {
 		services = append(services, mysqlService)
-		st.AdminerURL = "https://" + caddy.AdminerDomain + ":" + strconv.Itoa(cmp.Or(st.HTTPSPort, defaultHTTPSPort)) + "/"
+		st.AdminerURL = httpsURL(caddy.AdminerDomain, st.HTTPSPort) + "/"
 	}
 	if mailOn {
 		services = append(services, mailService)
@@ -651,11 +671,17 @@ func (c *Core) Status(ctx context.Context) (Status, error) {
 	return st, nil
 }
 
-func siteURL(s store.Site, port int) string {
-	if port == 0 {
+func siteURL(s store.Site, port int) string { return httpsURL(s.Domain, port) }
+
+// httpsURL is https://host with the port, which 443 leaves out.
+func httpsURL(host string, port int) string {
+	switch port {
+	case 0:
 		port = defaultHTTPSPort
+	case standardHTTPS:
+		return "https://" + host
 	}
-	return "https://" + s.Domain + ":" + strconv.Itoa(port)
+	return "https://" + host + ":" + strconv.Itoa(port)
 }
 
 // rotateLogs keeps logs bounded: any log over maxLogSize is moved to

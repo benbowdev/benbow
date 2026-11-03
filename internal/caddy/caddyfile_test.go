@@ -48,12 +48,30 @@ func TestCaddyfileGolden(t *testing.T) {
 				Sites:       tt.sites,
 				Adminer:     tt.adminer,
 				MailUIPort:  map[bool]int{true: 8025}[tt.adminer != nil],
+				// 443 and 80 forwarded to 8443 and 8080.
+				HTTPPort:    map[bool]int{true: 8080}[tt.adminer != nil],
+				PublicHTTPS: map[bool]int{true: 443}[tt.adminer != nil],
 			})
 			if err != nil {
 				t.Fatal(err)
 			}
 			golden(t, filepath.Join("testdata", tt.name+".Caddyfile"), got)
 		})
+	}
+}
+
+func TestRedirectPort(t *testing.T) {
+	for _, tt := range []struct {
+		cfg  Config
+		want string
+	}{
+		{Config{HTTPSPort: 8443, PublicHTTPS: 443}, ""},
+		{Config{HTTPSPort: 8443}, ":8443"},
+		{Config{HTTPSPort: 9443, PublicHTTPS: 9443}, ":9443"},
+	} {
+		if got := tt.cfg.RedirectPort(); got != tt.want {
+			t.Errorf("RedirectPort(%+v) = %q, want %q", tt.cfg, got, tt.want)
+		}
 	}
 }
 

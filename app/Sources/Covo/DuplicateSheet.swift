@@ -27,7 +27,7 @@ struct DuplicateSheet: View {
                     Text(site.path).lineLimit(1).truncationMode(.middle).foregroundStyle(.secondary)
                 }
                 LabeledContent("Address") {
-                    Text(name.isEmpty ? "—" : "https://\(name).localhost:\(model.status?.httpsPort ?? 8443)")
+                    Text(name.isEmpty ? "—" : model.address("\(name).localhost"))
                         .foregroundStyle(.secondary)
                 }
             } header: {

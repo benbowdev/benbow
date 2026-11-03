@@ -21,6 +21,7 @@ final class AppModel {
     private(set) var php: PHPList?
     private(set) var xdebug: [XdebugStatus] = []
     private(set) var updates: UpdatesStatus?
+    private(set) var ports: PortsStatus?
     /// Set while a change is in progress (disables the controls).
     private(set) var busy: String?
     /// Set by File → Import from MAMP PRO… to show the import sheet.
@@ -95,6 +96,7 @@ final class AppModel {
         php = try await api.php()
         xdebug = try await api.xdebug()
         updates = try? await api.updates()
+        ports = try? await api.ports()
     }
 
     /// Runs a change, then refreshes. Errors are shown in an alert.
@@ -379,8 +381,24 @@ final class AppModel {
         await perform("Restarting PHP \(s.php)…") { _ = try await $0.setPHPSettings(s) }
     }
 
-    func setHTTPSPort(_ port: Int) async {
-        await perform("Changing the HTTPS port…") { try await $0.start(httpsPort: port) }
+    /// Changes the web ports; 443 or 80 make macOS ask for a password once.
+    func setPorts(https: Int, http: Int) async {
+        let standard = https < 1024 || (http != 0 && http < 1024)
+        await perform(standard ? "Waiting for macOS…" : "Changing ports…") { [weak self] api in
+            let p = try await api.setPorts(https: https, http: http)
+            await MainActor.run { self?.ports = p }
+        }
+    }
+
+    func loadPorts() async {
+        guard let api else { return }
+        ports = try? await api.ports()
+    }
+
+    /// The address of a domain with the current HTTPS port (none for 443).
+    func address(_ domain: String) -> String {
+        let port = status?.httpsPort ?? 8443
+        return port == 443 ? "https://\(domain)" : "https://\(domain):\(port)"
     }
 
     /// Turns a domain suffix on or off. Both need an administrator password.

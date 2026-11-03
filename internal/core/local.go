@@ -168,7 +168,7 @@ func (c *Core) installHelper(ctx context.Context, beforePrompt func()) (bool, er
 		beforePrompt()
 	}
 	if err := resolver.Admin(ctx,
-		"Covo wants to install its helper for .local domains. It only manages Covo's lines in /etc/hosts.", cmd); err != nil {
+		"Covo wants to install its helper. It only manages Covo's lines in /etc/hosts (.local domains) and forwards ports 443 and 80 to Covo while it runs.", cmd); err != nil {
 		return false, err
 	}
 	if _, err := fsutil.WriteAtomic(helperMarker(c.Layout), []byte(time.Now().UTC().Format(time.RFC3339)+"\n"), 0o600); err != nil {

@@ -35,6 +35,9 @@ The app has no logic of its own: every change goes through the core.
 
 ## Settings (⌘, or the gear in the toolbar)
 
+General → Ports: HTTPS on 443 (no port in addresses) or a custom port,
+HTTP off, 80 or a custom port (redirects to HTTPS); see `ports.md`.
+
 General (HTTPS port, open at login, start sites on launch, certificate),
 PHP (versions, php.ini per version), MySQL, Mail, Domains (`.test`,
 `.local`).

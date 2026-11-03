@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 	"text/template"
 
@@ -19,6 +20,11 @@ import (
 type Config struct {
 	AdminSocket string
 	HTTPSPort   int
+	// HTTPPort, if set, redirects http:// on that port to HTTPS on
+	// PublicHTTPS (the port in addresses, which may be forwarded to
+	// HTTPSPort).
+	HTTPPort    int
+	PublicHTTPS int
 	StorageDir  string
 	LogFile     string
 	CA          CA
@@ -125,6 +131,12 @@ var tmpl = template.Must(template.New("Caddyfile").Funcs(template.FuncMap{"q": q
 	php_fastcgi {{q (print "unix/" .FPMSocket)}}
 }
 {{end}}
+{{- if .HTTPPort}}
+# http → https
+{{q (print "http://:" .HTTPPort)}} {
+	redir {{q (print "https://{host}" .RedirectPort "{uri}")}} 308
+}
+{{end}}
 {{- if .MailUIPort}}
 # mail
 {{q (print "https://mail.localhost:" $.HTTPSPort)}} {
@@ -182,3 +194,15 @@ var phpValueRe = regexp.MustCompile(`^[a-z_.]+=[^"\\{}$\x00-\x1f]+$`)
 // quote wraps s in double quotes. CheckSafe guarantees s holds no quote,
 // backslash or brace that would need escaping.
 func quote(s string) string { return `"` + s + `"` }
+
+// RedirectPort is ":port" for http → https redirects, or "" for 443.
+func (cfg Config) RedirectPort() string {
+	p := cfg.PublicHTTPS
+	if p == 0 {
+		p = cfg.HTTPSPort
+	}
+	if p == 443 {
+		return ""
+	}
+	return ":" + strconv.Itoa(p)
+}

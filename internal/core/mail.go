@@ -4,7 +4,6 @@
 package core
 
 import (
-	"cmp"
 	"context"
 	"fmt"
 	"os"
@@ -177,7 +176,7 @@ func (c *Core) mailStatus(ctx context.Context, httpsPort int) (MailStatus, error
 		return st, err
 	}
 	st.Running = loaded[c.labelFor(mailService)].Running
-	st.URL = "https://" + caddy.MailDomain + ":" + strconv.Itoa(cmp.Or(httpsPort, defaultHTTPSPort)) + "/"
+	st.URL = httpsURL(caddy.MailDomain, httpsPort) + "/"
 	return st, nil
 }
 

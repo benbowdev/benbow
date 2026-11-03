@@ -54,6 +54,8 @@ type harness struct {
 	hostsFile, hostsOriginal string
 	// helperFiles stand in for the helper's binary and plist.
 	helperFiles []string
+	// pfLog records what the test helper asked pfctl to do.
+	pfLog string
 }
 
 func newHarness(t *testing.T) *harness {
@@ -119,7 +121,14 @@ func (h *harness) startHelper(bin string) string {
 		t.Fatal(err)
 	}
 	sock := filepath.Join(dir, "h.sock")
-	args := []string{"--uid", strconv.Itoa(os.Getuid()), "--socket", sock, "--hosts", h.hostsFile, "--flush=false"}
+	// Never the real pf: a stand-in records each call and its rules.
+	h.pfLog = filepath.Join(dir, "pfctl.log")
+	fakePF := filepath.Join(dir, "pfctl")
+	script := "#!/bin/sh\n{ echo \"pfctl $*\"; cat; } >> '" + h.pfLog + "'\n[ \"$1\" = -E ] && echo 'Token : 42'\nexit 0\n"
+	if err := os.WriteFile(fakePF, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	args := []string{"--uid", strconv.Itoa(os.Getuid()), "--socket", sock, "--hosts", h.hostsFile, "--flush=false", "--pfctl", fakePF}
 	for _, name := range []string{"helper-binary", "helper-plist"} {
 		p := filepath.Join(dir, name)
 		if err := os.WriteFile(p, nil, 0o644); err != nil {

@@ -63,6 +63,11 @@ error_log=/Users/test/Library/Application Support/covo/logs/sites/demo/php-error
 	php_fastcgi "unix//Users/test/Library/Application Support/covo/run/php84.sock"
 }
 
+# http → https
+"http://:8080" {
+	redir "https://{host}{uri}" 308
+}
+
 # mail
 "https://mail.localhost:8443" {
 	tls internal
