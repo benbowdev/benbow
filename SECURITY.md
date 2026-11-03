@@ -10,7 +10,8 @@ Please **do not open a public issue** for security problems.
 
 Report privately by either:
 
-- email to **security@getcovo.dev**, or
+- email to **hello@getcovo.dev** with a subject starting with `[security]`,
+  or
 - GitHub's private vulnerability reporting ("Report a vulnerability" in the
   Security tab of `getcovo/covo`).
 
