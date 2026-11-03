@@ -23,7 +23,8 @@ open https://demo.localhost:8443
 ./covo site set demo --php 8.2   # also --path, --domain; applied at once
 ```
 
-Every command supports `--json`.
+Every command supports `--json`. AI agents can use Covo through its MCP
+server: `claude mcp add covo -- covo mcp` (see `docs/mcp.md`).
 
 ## Development
 

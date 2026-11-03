@@ -86,6 +86,22 @@ struct GeneralSettings: View {
                 Text("Only valid for .localhost, .test and .local names. Trusting asks macOS for confirmation.")
                     .font(.caption).foregroundStyle(.secondary)
             }
+            Section {
+                let cmd = "claude mcp add covo -- '\(Daemon.binary()?.path ?? "covo")' mcp"
+                LabeledContent("Claude Code") {
+                    HStack {
+                        Text(cmd).font(.system(.caption, design: .monospaced)).lineLimit(1).truncationMode(.middle)
+                            .textSelection(.enabled)
+                        Button { copyToClipboard(cmd) } label: { Image(systemName: "doc.on.doc") }
+                            .buttonStyle(.borderless).help("Copy")
+                    }
+                }
+            } header: {
+                Text("AI agents (MCP)")
+            } footer: {
+                Text("Agents can list and add sites, change PHP versions, read logs, check PHP compatibility and run wp-cli. They cannot remove sites or databases. Other agents: run “covo mcp” over stdio.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             Section("Data") {
                 LabeledContent("Covo folder") {
                     Button("Show in Finder") {
