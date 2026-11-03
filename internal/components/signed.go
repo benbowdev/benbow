@@ -16,7 +16,9 @@ import (
 // TrustedKeys are the public keys (base64, ed25519) whose signatures Covo
 // accepts on a published manifest. The private key only exists as a secret
 // of getcovo/covo-binaries' GitHub Actions.
-var TrustedKeys = []string{}
+var TrustedKeys = []string{
+	"o9ILY4BHSpZIeAppoLZPL9zXQ+uabEHfPbeqfqz03EI=", // 2026-11-03
+}
 
 // ParseKeys decodes base64 ed25519 public keys.
 func ParseKeys(encoded []string) ([]ed25519.PublicKey, error) {
