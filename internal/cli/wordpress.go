@@ -14,11 +14,28 @@ import (
 )
 
 func (a *app) wpCmd() *cobra.Command {
+	return a.toolCmd(core.ToolWP, "Run wp-cli for a site, with its PHP version and Covo's MySQL",
+		"Run wp-cli for a site, e.g. `covo wp shop plugin list`.")
+}
+
+func (a *app) composerCmd() *cobra.Command {
+	return a.toolCmd(core.ToolComposer, "Run Composer in a site's project folder, with its PHP version",
+		"Run Composer for a site, e.g. `covo composer shop require guzzlehttp/guzzle`.\n"+
+			"Composer 2.11 (2.2 LTS for PHP older than 7.3); its cache is in Covo's folder.")
+}
+
+func (a *app) artisanCmd() *cobra.Command {
+	return a.toolCmd(core.ToolArtisan, "Run Laravel's artisan for a site, with its PHP version",
+		"Run artisan for a Laravel site, e.g. `covo artisan shop migrate`.")
+}
+
+// toolCmd runs a site tool: every argument after the site name goes to the
+// tool unchanged, and its output and exit code are passed through.
+func (a *app) toolCmd(tool, short, long string) *cobra.Command {
 	return &cobra.Command{
-		Use:   "wp <site> [wp-cli arguments...]",
-		Short: "Run wp-cli for a site, with its PHP version and Covo's MySQL",
-		Long: "Run wp-cli for a site, e.g. `covo wp shop plugin list`.\n\n" +
-			"Every argument after the site name goes to wp-cli unchanged, and its\n" +
+		Use:   tool + " <site> [" + tool + " arguments...]",
+		Short: short,
+		Long: long + "\n\nEvery argument after the site name goes to " + tool + " unchanged, and its\n" +
 			"output and exit code are passed through (no --json envelope).",
 		Args:               cobra.MinimumNArgs(1),
 		DisableFlagParsing: true,
@@ -36,7 +53,7 @@ func (a *app) wpCmd() *cobra.Command {
 			if len(rest) > 0 && rest[0] == "--" {
 				rest = rest[1:]
 			}
-			a.exit, err = c.RunWP(cmd.Context(), args[0], rest, os.Stdin, a.stdout, a.stderr)
+			a.exit, err = c.RunTool(cmd.Context(), args[0], tool, rest, os.Stdin, a.stdout, a.stderr)
 			return err
 		},
 	}

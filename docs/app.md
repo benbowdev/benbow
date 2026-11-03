@@ -19,8 +19,8 @@ The app has no logic of its own: every change goes through the core.
 - Toolbar: one Start/Stop for all sites with its status; + (New Site,
   New WordPress Site, New Group, Import from MAMP PRO); Mail (when on);
   Adminer (every database, already logged in); Settings.
-- New Site sheet: start from an existing folder, a new empty folder or
-  WordPress; name, domain, aliases, PHP version, group, database (none, new,
+- New Site sheet: start from an existing folder (Laravel and WordPress are
+  recognised), a new empty folder, WordPress or Laravel; name, domain, aliases, PHP version, group, database (none, new,
   existing) and, collapsed, the site's PHP settings. Created in one step.
 - Sidebar: groups nested to any depth (drag sites and groups onto a group,
   or Move To in the context menu; collapsed groups are remembered), sites

@@ -85,6 +85,8 @@ type Backend interface {
 	UpdateGroup(ctx context.Context, req core.UpdateGroupRequest) (core.GroupInfo, error)
 	RemoveGroup(ctx context.Context, id int64) (core.GroupInfo, error)
 	CheckPHP(ctx context.Context, name, target string, all bool) (core.PHPCheckResult, error)
+	NewLaravel(ctx context.Context, req core.LaravelRequest) (core.LaravelResult, error)
+	RunToolCaptured(ctx context.Context, name, tool string, args []string) (core.ToolResult, error)
 	GetPorts(ctx context.Context) (core.PortsStatus, error)
 	SetPorts(ctx context.Context, https, http int, beforePrompt func()) (core.PortsStatus, error)
 }
@@ -383,6 +385,36 @@ func Handler(b Backend) http.Handler {
 		return b.SetXdebug(r.Context(), r.PathValue("php"), *req.Enabled)
 	})
 
+	post("POST", "/v1/laravel", func(r *http.Request, body []byte) (any, error) {
+		var req struct {
+			Name        string            `json:"name"`
+			Path        string            `json:"path"`
+			PHP         string            `json:"php"`
+			Database    string            `json:"database"`
+			Domain      string            `json:"domain"`
+			Aliases     []string          `json:"aliases"`
+			GroupID     int64             `json:"group_id"`
+			PHPSettings map[string]string `json:"php_settings"`
+		}
+		if err := decode(body, &req); err != nil {
+			return nil, err
+		}
+		return b.NewLaravel(r.Context(), core.LaravelRequest{
+			Name: req.Name, Path: req.Path, PHP: req.PHP, Database: req.Database, Domain: req.Domain,
+			Aliases: req.Aliases, Group: req.GroupID, PHPSettings: req.PHPSettings,
+		})
+	})
+	// wp-cli, Composer or Artisan without input; output cut at 256 KiB.
+	post("POST", "/v1/sites/{name}/run", func(r *http.Request, body []byte) (any, error) {
+		var req struct {
+			Tool string   `json:"tool"`
+			Args []string `json:"args"`
+		}
+		if err := decode(body, &req); err != nil {
+			return nil, err
+		}
+		return b.RunToolCaptured(r.Context(), r.PathValue("name"), req.Tool, req.Args)
+	})
 	// Takes minutes on a large site: the client waits.
 	post("POST", "/v1/sites/{name}/php-check", func(r *http.Request, body []byte) (any, error) {
 		var req struct {

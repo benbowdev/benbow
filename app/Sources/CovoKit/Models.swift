@@ -25,6 +25,15 @@ public struct Site: Codable, Sendable, Identifiable, Hashable {
     public var databaseUser: String?
     /// The group the site is listed in; nil at the top level.
     public var groupId: Int64?
+    /// "wordpress", "laravel" or nil.
+    public var framework: String?
+    /// The project folder when it differs from the document root (Laravel).
+    public var appRoot: String?
+    /// "mysql" (or nil) or "pgsql".
+    public var databaseEngine: String?
+
+    /// Where the project's files are: the Laravel root, else the folder.
+    public var projectRoot: String { appRoot ?? path }
     public var url: String
     public var id: String { name }
 }
@@ -173,6 +182,21 @@ public struct PHPVersion: Codable, Sendable, Hashable {
     public var version: String
     public var minor: String
     public var path: String
+}
+
+/// A new Laravel project.
+public struct LaravelResult: Codable, Sendable, Hashable {
+    public var name: String
+    public var url: String
+    public var laravel: String
+    public var database: String
+}
+
+/// A tool run (wp-cli, Composer, Artisan).
+public struct ToolResult: Codable, Sendable, Hashable {
+    public var exitCode: Int
+    public var output: String
+    public var errors: String?
 }
 
 /// What in a site's code would break on another PHP version.

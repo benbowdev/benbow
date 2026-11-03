@@ -278,6 +278,27 @@ final class AppModel {
         }
     }
 
+    /// Creates a Laravel project. Throws so the sheet can show the error.
+    func newLaravel(_ req: CovoAPI.NewLaravel) async throws -> LaravelResult? {
+        guard let api else { return nil }
+        busy = "Creating the Laravel project…"
+        defer { busy = nil }
+        do {
+            let r = try await api.newLaravel(req)
+            try? await refreshAll()
+            return r
+        } catch {
+            try? await refreshAll()
+            throw error
+        }
+    }
+
+    /// Runs wp-cli, Composer or Artisan; throws so the sheet shows errors.
+    func runTool(_ site: Site, tool: String, args: [String]) async throws -> ToolResult? {
+        guard let api else { return nil }
+        return try await api.runTool(site.name, tool: tool, args: args)
+    }
+
     /// Creates a WordPress site. Throws so the sheet can show the error.
     func newWordPress(_ req: CovoAPI.NewWordPress) async throws -> WordPressResult? {
         guard let api else { return nil }

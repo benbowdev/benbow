@@ -221,15 +221,23 @@ type Site struct {
 	// on top of its PHP version's.
 	PHPSettings map[string]string `json:"php_settings"`
 	// GroupID is the group the site is listed in, or 0 at the top level.
-	GroupID   int64     `json:"group_id,omitempty"`
+	GroupID int64 `json:"group_id,omitempty"`
+	// Framework is "wordpress", "laravel" or "" (detected from the folder).
+	Framework string `json:"framework,omitempty"`
+	// AppRoot is the project folder when it differs from the document root
+	// (Laravel: AppRoot holds artisan, Path is AppRoot/public).
+	AppRoot string `json:"app_root,omitempty"`
+	// DBEngine is the engine of Database: "mysql" (also when empty) or "pgsql".
+	DBEngine  string    `json:"database_engine,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
 // AddSite inserts a site. Duplicate names or domains are a Conflict.
 func (s *Store) AddSite(ctx context.Context, site Site) error {
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO sites (name, path, php_minor, domain, https, enabled, archived, db_name, db_user, php_settings, group_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		site.Name, site.Path, site.PHPMinor, site.Domain, site.HTTPS, site.Enabled, site.Archived, site.Database, site.DBUser, encodeSettings(site.PHPSettings), nullID(site.GroupID), site.CreatedAt.UTC().Format(time.RFC3339))
+		`INSERT INTO sites (name, path, php_minor, domain, https, enabled, archived, db_name, db_user, php_settings, group_id, framework, app_root, db_engine, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		site.Name, site.Path, site.PHPMinor, site.Domain, site.HTTPS, site.Enabled, site.Archived, site.Database, site.DBUser, encodeSettings(site.PHPSettings), nullID(site.GroupID),
+		site.Framework, site.AppRoot, site.DBEngine, site.CreatedAt.UTC().Format(time.RFC3339))
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
 			return errcode.Errorf(errcode.Conflict, fmt.Sprintf("site %q already exists", site.Name))
@@ -258,7 +266,7 @@ func (s *Store) ListSites(ctx context.Context) ([]Site, error) {
 
 func (s *Store) querySites(ctx context.Context, tail string, args ...any) ([]Site, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT name, path, php_minor, domain, https, enabled, archived, db_name, db_user, php_settings, group_id, created_at FROM sites `+tail, args...)
+		`SELECT name, path, php_minor, domain, https, enabled, archived, db_name, db_user, php_settings, group_id, framework, app_root, db_engine, created_at FROM sites `+tail, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query sites: %w", err)
 	}
@@ -268,7 +276,7 @@ func (s *Store) querySites(ctx context.Context, tail string, args ...any) ([]Sit
 		var site Site
 		var at, settings string
 		var group sql.NullInt64
-		if err := rows.Scan(&site.Name, &site.Path, &site.PHPMinor, &site.Domain, &site.HTTPS, &site.Enabled, &site.Archived, &site.Database, &site.DBUser, &settings, &group, &at); err != nil {
+		if err := rows.Scan(&site.Name, &site.Path, &site.PHPMinor, &site.Domain, &site.HTTPS, &site.Enabled, &site.Archived, &site.Database, &site.DBUser, &settings, &group, &site.Framework, &site.AppRoot, &site.DBEngine, &at); err != nil {
 			return nil, fmt.Errorf("scan site: %w", err)
 		}
 		site.PHPSettings = map[string]string{}
@@ -348,8 +356,9 @@ func (s *Store) SetAliases(ctx context.Context, name string, aliases []string) e
 // site called site.Name. A domain used by another site is a Conflict.
 func (s *Store) UpdateSite(ctx context.Context, site Site) error {
 	res, err := s.db.ExecContext(ctx,
-		`UPDATE sites SET path = ?, php_minor = ?, domain = ?, https = ?, enabled = ?, archived = ?, db_name = ?, db_user = ?, php_settings = ?, group_id = ? WHERE name = ?`,
-		site.Path, site.PHPMinor, site.Domain, site.HTTPS, site.Enabled, site.Archived, site.Database, site.DBUser, encodeSettings(site.PHPSettings), nullID(site.GroupID), site.Name)
+		`UPDATE sites SET path = ?, php_minor = ?, domain = ?, https = ?, enabled = ?, archived = ?, db_name = ?, db_user = ?, php_settings = ?, group_id = ?, framework = ?, app_root = ?, db_engine = ? WHERE name = ?`,
+		site.Path, site.PHPMinor, site.Domain, site.HTTPS, site.Enabled, site.Archived, site.Database, site.DBUser, encodeSettings(site.PHPSettings), nullID(site.GroupID),
+		site.Framework, site.AppRoot, site.DBEngine, site.Name)
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
 			return errcode.Errorf(errcode.Conflict, fmt.Sprintf("domain %q is used by another site", site.Domain))
@@ -401,4 +410,12 @@ func CompareVersions(a, b string) int {
 		}
 	}
 	return 0
+}
+
+// SetFramework records a site's detected framework and project root only.
+func (s *Store) SetFramework(ctx context.Context, name, framework, appRoot string) error {
+	if _, err := s.db.ExecContext(ctx, `UPDATE sites SET framework = ?, app_root = ? WHERE name = ?`, framework, appRoot, name); err != nil {
+		return fmt.Errorf("set framework of %s: %w", name, err)
+	}
+	return nil
 }

@@ -44,18 +44,55 @@ func (c *Core) ensurePHPCLI(ctx context.Context, v store.PHPVersion) (string, er
 	return bin, nil
 }
 
-// wpCommand prepares wp-cli for a site: its PHP version, Covo's php.ini
-// (MySQL socket, CA bundle) without Xdebug, and wp-cli's cache inside the
-// Covo folder.
+// phpCLI prepares the command-line PHP for minor: the build matching its
+// PHP-FPM exactly and Covo's php.ini (MySQL socket and port, CA bundle,
+// Mailpit; no Xdebug). It returns the binary and the ini file.
+func (c *Core) phpCLI(ctx context.Context, minor string) (bin, ini string, err error) {
+	v, err := c.ensurePHP(ctx, minor)
+	if err != nil {
+		return "", "", err
+	}
+	if bin, err = c.ensurePHPCLI(ctx, v); err != nil {
+		return "", "", err
+	}
+	if _, err := c.ensureCABundle(ctx); err != nil {
+		return "", "", err
+	}
+	cfg, err := c.phpINIConfig(ctx, v)
+	if err != nil {
+		return "", "", err
+	}
+	body, err := php.INI(cfg)
+	if err != nil {
+		return "", "", err
+	}
+	ini = filepath.Join(c.Layout.Etc, "php", v.Minor, "php-cli.ini")
+	if _, err := fsutil.WriteAtomic(ini, []byte(body), 0o644); err != nil {
+		return "", "", err
+	}
+	return bin, ini, nil
+}
+
+// phpToolCommand runs script (a .phar or artisan) with args for a site:
+// its PHP version, Covo's php.ini, no memory limit, errors on stderr, in
+// the project folder, never reading .ini files from outside Covo.
+func (c *Core) phpToolCommand(ctx context.Context, minor, dir, script string, args ...string) (*exec.Cmd, error) {
+	bin, ini, err := c.phpCLI(ctx, minor)
+	if err != nil {
+		return nil, err
+	}
+	argv := append([]string{"-c", ini, "-d", "display_errors=stderr", "-d", "memory_limit=-1", script}, args...)
+	cmd := exec.CommandContext(ctx, bin, argv...)
+	cmd.Dir = dir
+	// PHPRC: PHP started by the tool itself (Composer's @php scripts) reads
+	// Covo's php.ini too.
+	cmd.Env = append(os.Environ(), "PHP_INI_SCAN_DIR=", "PHPRC="+ini)
+	return cmd, nil
+}
+
+// wpCommand prepares wp-cli for a site, with its cache inside the Covo
+// folder.
 func (c *Core) wpCommand(ctx context.Context, site store.Site, args ...string) (*exec.Cmd, error) {
-	v, err := c.ensurePHP(ctx, site.PHPMinor)
-	if err != nil {
-		return nil, err
-	}
-	bin, err := c.ensurePHPCLI(ctx, v)
-	if err != nil {
-		return nil, err
-	}
 	art, err := c.pinned(ctx, "wpcli", "")
 	if err != nil {
 		return nil, err
@@ -64,28 +101,12 @@ func (c *Core) wpCommand(ctx context.Context, site store.Site, args ...string) (
 	if err != nil {
 		return nil, err
 	}
-	if _, err := c.ensureCABundle(ctx); err != nil {
-		return nil, err
-	}
-	cfg, err := c.phpINIConfig(ctx, v)
+	cmd, err := c.phpToolCommand(ctx, site.PHPMinor, site.Path, filepath.Join(inst.Dir, art.Files[0]), append([]string{"--path=" + site.Path}, args...)...)
 	if err != nil {
-		return nil, err
-	}
-	ini, err := php.INI(cfg)
-	if err != nil {
-		return nil, err
-	}
-	iniPath := filepath.Join(c.Layout.Etc, "php", v.Minor, "php-cli.ini")
-	if _, err := fsutil.WriteAtomic(iniPath, []byte(ini), 0o644); err != nil {
 		return nil, err
 	}
 	data := filepath.Join(c.Layout.Data, "wp-cli")
-	argv := append([]string{"-c", iniPath, "-d", "display_errors=stderr", "-d", "memory_limit=-1",
-		filepath.Join(inst.Dir, art.Files[0]), "--path=" + site.Path}, args...)
-	cmd := exec.CommandContext(ctx, bin, argv...)
-	cmd.Dir = site.Path
-	cmd.Env = append(os.Environ(),
-		"PHP_INI_SCAN_DIR=",
+	cmd.Env = append(cmd.Env,
 		"WP_CLI_CACHE_DIR="+filepath.Join(data, "cache"),
 		"WP_CLI_PACKAGES_DIR="+filepath.Join(data, "packages"),
 		"WP_CLI_CONFIG_PATH="+filepath.Join(data, "config.yml"),
@@ -96,24 +117,7 @@ func (c *Core) wpCommand(ctx context.Context, site store.Site, args ...string) (
 // RunWP runs wp-cli for a site with the given arguments and streams. It
 // returns wp-cli's exit code.
 func (c *Core) RunWP(ctx context.Context, name string, args []string, stdin io.Reader, stdout, stderr io.Writer) (int, error) {
-	site, err := c.Store.Site(ctx, name)
-	if err != nil {
-		return 1, err
-	}
-	cmd, err := c.wpCommand(ctx, site, args...)
-	if err != nil {
-		return 1, err
-	}
-	cmd.Stdin, cmd.Stdout, cmd.Stderr = stdin, stdout, stderr
-	err = cmd.Run()
-	var exit *exec.ExitError
-	if errors.As(err, &exit) {
-		return exit.ExitCode(), nil
-	}
-	if err != nil {
-		return 1, errcode.New(errcode.Service, fmt.Errorf("run wp-cli: %w", err))
-	}
-	return 0, nil
+	return c.RunTool(ctx, name, ToolWP, args, stdin, stdout, stderr)
 }
 
 // wp runs wp-cli quietly, feeding secret (if any) on stdin for --prompt.

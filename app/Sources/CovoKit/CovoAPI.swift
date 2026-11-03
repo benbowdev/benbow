@@ -194,6 +194,40 @@ public struct CovoAPI: Sendable {
                                             adminUser: adminUser, adminEmail: adminEmail))
     }
 
+    public struct NewLaravel: Encodable, Sendable {
+        public var name: String
+        public var path: String
+        public var php: String
+        /// "new" or "sqlite".
+        public var database: String
+        public var domain: String?
+        public var aliases: [String] = []
+        public var groupId: Int64?
+        public var phpSettings: [String: String] = [:]
+
+        public init(name: String, path: String, php: String, database: String) {
+            self.name = name
+            self.path = path
+            self.php = php
+            self.database = database
+        }
+    }
+
+    /// Creates a Laravel project with Composer (a minute or more).
+    public func newLaravel(_ req: NewLaravel) async throws -> LaravelResult {
+        try await call("POST", "/v1/laravel", req)
+    }
+
+    struct ToolRequest: Encodable {
+        let tool: String
+        let args: [String]
+    }
+
+    /// Runs wp-cli, Composer or Artisan for a site, without input.
+    public func runTool(_ site: String, tool: String, args: [String]) async throws -> ToolResult {
+        try await call("POST", "/v1/sites/\(escape(site))/run", ToolRequest(tool: tool, args: args))
+    }
+
     struct GroupRequest: Encodable {
         let name: String?
         let parentId: Int64?

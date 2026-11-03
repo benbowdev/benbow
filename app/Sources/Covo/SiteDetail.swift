@@ -16,6 +16,15 @@ struct SiteDetail: View {
     @State private var alias = ""
     @State private var editingPHP = false
     @State private var checkingPHP = false
+    @State private var runningTool = false
+
+    private var toolTitle: String {
+        switch site.framework {
+        case "laravel": "Artisan and Composer"
+        case "wordpress": "wp-cli and Composer"
+        default: "Composer"
+        }
+    }
 
     var body: some View {
         Form {
@@ -38,12 +47,22 @@ struct SiteDetail: View {
                     }
                     .disabled(model.busy != nil)
                 }
-                LabeledContent("Name", value: site.name)
-                LabeledContent("Folder") {
+                LabeledContent("Name") {
+                    HStack(spacing: 6) {
+                        if let fw = site.framework {
+                            Text(fw == "laravel" ? "Laravel" : fw == "wordpress" ? "WordPress" : fw)
+                                .font(.caption.weight(.medium))
+                                .padding(.horizontal, 6).padding(.vertical, 1)
+                                .background(.quaternary, in: Capsule())
+                        }
+                        Text(site.name)
+                    }
+                }
+                LabeledContent {
                     HStack {
-                        Text(site.path).lineLimit(1).truncationMode(.middle).textSelection(.enabled)
+                        Text(site.projectRoot).lineLimit(1).truncationMode(.middle).textSelection(.enabled)
                         Button {
-                            NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: site.path)
+                            NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: site.projectRoot)
                         } label: {
                             if let f = ToolApp.finder {
                                 Image(nsImage: f.icon)
@@ -54,7 +73,7 @@ struct SiteDetail: View {
                         .buttonStyle(.borderless)
                         .help("Show in Finder")
                         Menu {
-                            OpenWithItems(folder: site.path)
+                            OpenWithItems(folder: site.projectRoot)
                         } label: {
                             Image(systemName: "terminal")
                         }
@@ -64,6 +83,11 @@ struct SiteDetail: View {
                         .help("Open the folder in a terminal or editor")
                         Button("Change…") { choosingFolder = true }
                             .disabled(model.busy != nil)
+                    }
+                } label: {
+                    Text("Folder")
+                    if site.appRoot != nil {
+                        Text("Served from public/").font(.caption)
                     }
                 }
                 Picker("PHP", selection: Binding(
@@ -158,6 +182,12 @@ struct SiteDetail: View {
                             .disabled(model.busy != nil)
                     }
                     LabeledContent {
+                        Button("Run…") { runningTool = true }
+                    } label: {
+                        Text(toolTitle)
+                        Text("Commands with this site's PHP version, in its project folder.")
+                    }
+                    LabeledContent {
                         Button("Check…") { checkingPHP = true }
                     } label: {
                         Text("PHP compatibility")
@@ -191,6 +221,7 @@ struct SiteDetail: View {
         .onChange(of: site.domain) { _, new in domain = new }
         .sheet(isPresented: $editingPHP) { SitePHPSheet(site: site) }
         .sheet(isPresented: $checkingPHP) { PHPCheckSheet(site: site) }
+        .sheet(isPresented: $runningTool) { ToolSheet(site: site) }
         .fileImporter(isPresented: $choosingFolder, allowedContentTypes: [.folder]) { result in
             if case .success(let url) = result { Task { await changeFolder(url, force: false) } }
         }

@@ -46,6 +46,10 @@ type AddSiteRequest struct {
 	// LinkDatabase links an existing one instead. Both need MySQL running.
 	NewDatabase  bool
 	LinkDatabase string
+
+	// Set by AddSite from the folder (or by NewLaravel): the project root
+	// when the document root is inside it, and the framework.
+	appRoot, framework string
 }
 
 // SiteResult is a site with its URL and whether services were (re)applied.
@@ -100,6 +104,9 @@ func (c *Core) AddSite(ctx context.Context, req AddSiteRequest) (SiteResult, err
 		if req.CreateFolder {
 			cleanupDir(req.Path, created)
 		}
+	}
+	if !req.CreateFolder && req.appRoot == "" {
+		req.Path, req.appRoot, req.framework = detectFramework(req.Path)
 	}
 	if err := c.checkSiteRequest(req); err != nil {
 		undoFolder()
@@ -228,6 +235,8 @@ func (c *Core) insertSite(ctx context.Context, req AddSiteRequest) (store.Site, 
 		Aliases:     aliases,
 		PHPSettings: settings,
 		GroupID:     req.Group,
+		Framework:   req.framework,
+		AppRoot:     req.appRoot,
 		CreatedAt:   time.Now(),
 	}
 	if err := c.Store.AddSite(ctx, site); err != nil {
@@ -355,10 +364,11 @@ func (c *Core) UpdateSite(ctx context.Context, req UpdateSiteRequest) (SiteResul
 			site.PHPMinor = req.PHP
 		}
 		if req.Path != "" && req.Path != old.Path {
-			if err := c.checkSiteFolder(req.Path, req.Force); err != nil {
+			docroot, appRoot, fw := detectFramework(req.Path)
+			if err := c.checkSiteFolder(docroot, req.Force); err != nil {
 				return err
 			}
-			site.Path = req.Path
+			site.Path, site.AppRoot, site.Framework = docroot, appRoot, fw
 		}
 		if req.Domain != "" && req.Domain != old.Domain {
 			if err := c.checkSiteDomain(ctx, req.Domain); err != nil {
@@ -450,7 +460,7 @@ func (c *Core) UpdateSite(ctx context.Context, req UpdateSiteRequest) (SiteResul
 }
 
 func siteEqual(a, b store.Site) bool {
-	return a.Path == b.Path && a.PHPMinor == b.PHPMinor && a.Domain == b.Domain &&
+	return a.Path == b.Path && a.AppRoot == b.AppRoot && a.Framework == b.Framework && a.PHPMinor == b.PHPMinor && a.Domain == b.Domain &&
 		a.HTTPS == b.HTTPS && a.Enabled == b.Enabled && a.Archived == b.Archived && slices.Equal(a.Aliases, b.Aliases) &&
 		maps.Equal(a.PHPSettings, b.PHPSettings)
 }

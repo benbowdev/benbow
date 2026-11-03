@@ -6,13 +6,14 @@ import SwiftUI
 
 /// What a new site starts from.
 enum SiteSource: String, CaseIterable, Identifiable {
-    case existing, empty, wordpress
+    case existing, empty, wordpress, laravel
     var id: String { rawValue }
     var title: String {
         switch self {
         case .existing: "Existing Folder"
         case .empty: "Empty Folder"
         case .wordpress: "WordPress"
+        case .laravel: "Laravel"
         }
     }
 }
@@ -55,6 +56,7 @@ struct NewSiteSheet: View {
     @State private var working = false
     @State private var error: String?
     @State private var result: WordPressResult?
+    @State private var laravelDB = "new"
 
     enum DatabaseChoice: Hashable { case none, new, existing }
 
@@ -78,7 +80,7 @@ struct NewSiteSheet: View {
     private var path: URL? {
         switch source {
         case .existing: folder
-        case .empty, .wordpress: name.isEmpty ? nil : parent.appending(path: name)
+        case .empty, .wordpress, .laravel: name.isEmpty ? nil : parent.appending(path: name)
         }
     }
 
@@ -86,10 +88,21 @@ struct NewSiteSheet: View {
         aliases.split(whereSeparator: { $0 == "," || $0 == " " }).map(String.init)
     }
 
-    private var needsMySQL: Bool { source == .wordpress || database != .none }
+    private var needsMySQL: Bool {
+        switch source {
+        case .wordpress: true
+        case .laravel: laravelDB == "new"
+        case .existing, .empty: database != .none
+        }
+    }
+
+    /// Laravel needs PHP 8.2 or newer.
+    private var phpTooOld: Bool {
+        source == .laravel && php.compare("8.2", options: .numeric) == .orderedAscending
+    }
 
     private var canCreate: Bool {
-        !name.isEmpty && !php.isEmpty && path != nil && !working
+        !name.isEmpty && !php.isEmpty && path != nil && !working && !phpTooOld
             && (!needsMySQL || model.mysqlReady)
             && (source == .wordpress || database != .existing || !existingDB.isEmpty)
     }
@@ -132,7 +145,22 @@ struct NewSiteSheet: View {
                 GroupPicker(selection: $group)
             }
 
-            if source == .wordpress {
+            if source == .laravel {
+                Section {
+                    Picker("Database", selection: $laravelDB) {
+                        Text("New database").tag("new")
+                        Text("SQLite (a file in the project)").tag("sqlite")
+                    }
+                    if phpTooOld {
+                        Text("Laravel needs PHP 8.2 or newer.").foregroundStyle(.orange).font(.callout)
+                    }
+                } footer: {
+                    Text(laravelDB == "new" && !model.mysqlReady
+                         ? (model.status?.mysql.enabled == true ? "Start Covo first: the database needs MySQL running." : "Turn MySQL on in Settings first, or choose SQLite.")
+                         : "Covo runs composer create-project and fills .env: APP_URL, the database and Mailpit.")
+                        .font(.caption).foregroundStyle(needsMySQL && !model.mysqlReady ? .orange : .secondary)
+                }
+            } else if source == .wordpress {
                 Section("WordPress") {
                     TextField("Title", text: $title, prompt: Text(name.isEmpty ? "My Site" : name))
                     TextField("Admin user", text: $adminUser)
@@ -185,7 +213,7 @@ struct NewSiteSheet: View {
                 Button("Cancel") { dismiss() }.disabled(working)
             }
             ToolbarItem(placement: .confirmationAction) {
-                Button(source == .wordpress ? "Create" : "Add Site") { Task { await create(force: false) } }
+                Button(source == .wordpress || source == .laravel ? "Create" : "Add Site") { Task { await create(force: false) } }
                     .disabled(!canCreate)
             }
         }
@@ -212,6 +240,7 @@ struct NewSiteSheet: View {
             let minors = model.php?.minors ?? []
             php = minors.first(where: model.installed) ?? minors.first ?? ""
             if let f = request.folder { pick(f) }
+            laravelDB = model.mysqlReady ? "new" : "sqlite"
         }
         .task(id: database) {
             if database == .existing, model.mysqlReady, databases.isEmpty {
@@ -230,7 +259,7 @@ struct NewSiteSheet: View {
                     Button("Choose…") { choosing = true }
                 }
             }
-        case .empty, .wordpress:
+        case .empty, .wordpress, .laravel:
             LabeledContent("Folder") {
                 HStack {
                     Text(parent.appending(path: name.isEmpty ? "<name>" : name).path)
@@ -246,6 +275,7 @@ struct NewSiteSheet: View {
         case .existing: "Serve a folder you already have. Covo never changes its files."
         case .empty: "Covo creates a new empty folder for the site."
         case .wordpress: "Covo downloads WordPress (checksum verified), creates the folder, a database with its own user and wp-config.php, and installs it."
+        case .laravel: "A new Laravel project, served from its public folder. Existing Laravel projects: choose Existing Folder, Covo recognises them."
         }
     }
 
@@ -279,6 +309,18 @@ struct NewSiteSheet: View {
         error = nil
         let dom = domainEdited ? domain : nil
         do {
+            if source == .laravel {
+                var req = CovoAPI.NewLaravel(name: name, path: path.path, php: php, database: laravelDB)
+                req.domain = dom
+                req.aliases = aliasList
+                req.groupId = group
+                req.phpSettings = iniValues
+                if try await model.newLaravel(req) != nil {
+                    added(name)
+                    dismiss()
+                }
+                return
+            }
             if source == .wordpress {
                 var req = CovoAPI.NewWordPress(name: name, path: path.path, php: php, title: title,
                                                adminUser: adminUser, adminEmail: adminEmail)

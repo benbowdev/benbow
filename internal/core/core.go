@@ -80,6 +80,7 @@ func Open(ctx context.Context) (*Core, error) {
 	// A newer signed manifest accepted earlier (covo update check) adds
 	// versions; a bad or older one is ignored and the embedded one used.
 	c.loadSignedManifest()
+	c.backfillFrameworks(ctx)
 	return c, nil
 }
 

@@ -12,7 +12,7 @@ import (
 // Components whose version stays fixed until the user updates it (covo
 // update). PHP is per installed version (see php.go); the CA bundle and
 // WordPress for new sites always use the newest in the manifest.
-var pinnedComponents = []string{"caddy", "mysql", "mailpit", "adminer", "wpcli"}
+var pinnedComponents = []string{"caddy", "mysql", "mailpit", "adminer", "wpcli", "composer", "composer-lts"}
 
 func settingPin(component string) string      { return "pin_" + component }
 func settingPrevious(component string) string { return "previous_" + component }
