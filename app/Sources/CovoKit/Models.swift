@@ -175,6 +175,33 @@ public struct PHPVersion: Codable, Sendable, Hashable {
     public var path: String
 }
 
+/// What in a site's code would break on another PHP version.
+public struct PHPCheckResult: Codable, Sendable, Hashable {
+    public struct Message: Codable, Sendable, Hashable {
+        public var line: Int
+        public var column: Int
+        public var type: String
+        public var message: String
+        public var source: String
+    }
+
+    public struct File: Codable, Sendable, Hashable, Identifiable {
+        public var path: String
+        public var messages: [Message]
+        public var id: String { path }
+    }
+
+    public var site: String
+    public var php: String
+    public var target: String
+    public var wordpress: Bool
+    public var scanned: [String]
+    public var errors: Int
+    public var warnings: Int
+    public var files: [File]
+    public var seconds: Double
+}
+
 /// How long php.net maintains a PHP version.
 public struct PHPSupport: Codable, Sendable, Hashable {
     public var minor: String

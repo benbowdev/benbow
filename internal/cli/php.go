@@ -20,7 +20,7 @@ func (a *app) phpCmd() *cobra.Command {
 		Use:   "php",
 		Short: "Manage PHP versions",
 	}
-	cmd.AddCommand(a.phpInstallCmd(), a.phpListCmd(), a.phpXdebugCmd(), a.phpSettingsCmd())
+	cmd.AddCommand(a.phpInstallCmd(), a.phpListCmd(), a.phpXdebugCmd(), a.phpSettingsCmd(), a.phpCheckCmd())
 	return cmd
 }
 

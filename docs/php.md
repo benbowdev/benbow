@@ -20,6 +20,26 @@ available for old sites, with a warning in the app and from
 `covo site add`/`set` (`warning` in the JSON): they no longer get security
 fixes. Xdebug builds exist only for the versions listed in `xdebug.md`.
 
+## Compatibility check
+
+```sh
+covo php check shop                 # against the newest fully supported PHP
+covo php check shop --target 8.2    # a WordPress site: wp-content only; --all for core too
+```
+
+Before switching a legacy site to a newer PHP, Covo lists what in its code
+would break: PHP_CodeSniffer 4.0.4 with PHPCompatibility 10.0.0-alpha2 (and,
+for WordPress, PHPCompatibilityWP, which knows WordPress's polyfills). All are
+pinned by SHA-256 in the manifest (PHP_CodeSniffer's against GitHub's
+published digest) and run with Covo's PHP 8.4 CLI, without php.ini. The code
+is only read. Errors break on the target version; warnings are deprecations.
+`node_modules`, `.git`, `wp-content/uploads` and `wp-content/cache` are
+skipped. PHPCompatibility 10 is still an alpha, but it is the only release
+that knows PHP 8. In the app: the site's Advanced section → PHP
+compatibility, or the button under the warning of an outdated PHP version.
+
+API: `POST /v1/sites/{name}/php-check` with `target`, `all`.
+
 | Setting | Default | Values |
 |---|---|---|
 | `memory_limit` | 512M | size (`K`, `M`, `G`) or `-1` (no limit) |

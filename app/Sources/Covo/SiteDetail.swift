@@ -15,6 +15,7 @@ struct SiteDetail: View {
     @State private var domain = ""
     @State private var alias = ""
     @State private var editingPHP = false
+    @State private var checkingPHP = false
 
     var body: some View {
         Form {
@@ -78,6 +79,12 @@ struct SiteDetail: View {
                 }
                 .disabled(model.busy != nil)
                 PHPSupportNote(minor: site.php)
+                if model.phpSupport(site.php)?.isEOL == true, let rec = model.recommendedPHP {
+                    HStack {
+                        Spacer()
+                        Button("Check Compatibility with PHP \(rec)…") { checkingPHP = true }
+                    }
+                }
                 LabeledContent("HTTPS", value: site.https ? "On" : "Off")
                 DatabaseRow(site: site)
             } header: {
@@ -150,6 +157,12 @@ struct SiteDetail: View {
                         Button("Edit…") { editingPHP = true }
                             .disabled(model.busy != nil)
                     }
+                    LabeledContent {
+                        Button("Check…") { checkingPHP = true }
+                    } label: {
+                        Text("PHP compatibility")
+                        Text("What in the code would break on a newer PHP version.")
+                    }
                     if let x = model.xdebug(for: site.php), x.available {
                         Toggle(isOn: Binding(
                             get: { x.enabled },
@@ -177,6 +190,7 @@ struct SiteDetail: View {
         .onAppear { domain = site.domain }
         .onChange(of: site.domain) { _, new in domain = new }
         .sheet(isPresented: $editingPHP) { SitePHPSheet(site: site) }
+        .sheet(isPresented: $checkingPHP) { PHPCheckSheet(site: site) }
         .fileImporter(isPresented: $choosingFolder, allowedContentTypes: [.folder]) { result in
             if case .success(let url) = result { Task { await changeFolder(url, force: false) } }
         }

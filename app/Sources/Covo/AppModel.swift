@@ -350,6 +350,17 @@ final class AppModel {
 
     func phpSupport(_ minor: String) -> PHPSupport? { php?.support(for: minor) }
 
+    /// The newest PHP version php.net fully supports.
+    var recommendedPHP: String? {
+        php?.minors.first { phpSupport($0)?.status == "active" }
+    }
+
+    /// Runs the compatibility check; throws so the sheet shows errors.
+    func checkPHP(_ site: Site, target: String, all: Bool) async throws -> PHPCheckResult? {
+        guard let api else { return nil }
+        return try await api.checkPHP(site.name, target: target, all: all)
+    }
+
     /// A PHP version for pickers: "8.1 · unsupported (download)".
     func phpLabel(_ minor: String, prefix: String = "") -> String {
         var s = prefix + minor

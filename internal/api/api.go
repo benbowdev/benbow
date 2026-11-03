@@ -84,6 +84,7 @@ type Backend interface {
 	AddGroup(ctx context.Context, name string, parent int64) (core.GroupInfo, error)
 	UpdateGroup(ctx context.Context, req core.UpdateGroupRequest) (core.GroupInfo, error)
 	RemoveGroup(ctx context.Context, id int64) (core.GroupInfo, error)
+	CheckPHP(ctx context.Context, name, target string, all bool) (core.PHPCheckResult, error)
 	GetPorts(ctx context.Context) (core.PortsStatus, error)
 	SetPorts(ctx context.Context, https, http int, beforePrompt func()) (core.PortsStatus, error)
 }
@@ -382,6 +383,17 @@ func Handler(b Backend) http.Handler {
 		return b.SetXdebug(r.Context(), r.PathValue("php"), *req.Enabled)
 	})
 
+	// Takes minutes on a large site: the client waits.
+	post("POST", "/v1/sites/{name}/php-check", func(r *http.Request, body []byte) (any, error) {
+		var req struct {
+			Target string `json:"target"`
+			All    bool   `json:"all"`
+		}
+		if err := decode(body, &req); err != nil {
+			return nil, err
+		}
+		return b.CheckPHP(r.Context(), r.PathValue("name"), req.Target, req.All)
+	})
 	get("/v1/ports", func(ctx context.Context) (any, error) { return b.GetPorts(ctx) })
 	// 443 and 80 install Covo's helper: macOS shows an administrator dialog.
 	post("PUT", "/v1/ports", func(r *http.Request, body []byte) (any, error) {

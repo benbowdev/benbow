@@ -70,6 +70,16 @@ public struct CovoAPI: Sendable {
 
     public func ports() async throws -> PortsStatus { try await call("GET", "/v1/ports") }
 
+    struct PHPCheckRequest: Encodable {
+        let target: String
+        let all: Bool
+    }
+
+    /// Checks a site's code against a PHP version (minutes on a large site).
+    public func checkPHP(_ site: String, target: String, all: Bool = false) async throws -> PHPCheckResult {
+        try await call("POST", "/v1/sites/\(escape(site))/php-check", PHPCheckRequest(target: target, all: all))
+    }
+
     struct PortsRequest: Encodable {
         let httpsPort: Int
         let httpPort: Int
