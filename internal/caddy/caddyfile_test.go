@@ -28,14 +28,19 @@ func TestCaddyfileGolden(t *testing.T) {
 		name    string
 		sites   []Site
 		adminer *Adminer
+		phone   *Phone
 	}{
-		{"no-sites", nil, nil},
+		{"no-sites", nil, nil, nil},
 		{"two-sites", []Site{
 			{Name: "demo", Domain: "demo.localhost", Aliases: []string{"shop.test", "www.demo.localhost"}, Root: "/Users/test/Sites/My Demo", FPMSocket: home + "/run/php84.sock",
 				AccessLog: home + "/logs/sites/demo/access.log",
 				PHPValue:  "memory_limit=1G\ndisplay_errors=Off\nerror_log=" + home + "/logs/sites/demo/php-error.log"},
 			{Name: "legacy", Domain: "legacy.localhost", Root: "/Users/test/Sites/legacy", FPMSocket: home + "/run/php82.sock"},
-		}, &Adminer{Dir: home + "/components/adminer/6.2.0-all", FPMSocket: home + "/run/php84.sock"}},
+		}, &Adminer{Dir: home + "/components/adminer/6.2.0-all", FPMSocket: home + "/run/php84.sock"},
+			&Phone{Site: "demo", Host: "demo-mac.local", Port: 9443, Binds: []string{"192.168.1.5", "10.0.0.2"},
+				Root: "/Users/test/Sites/My Demo", FPMSocket: home + "/run/php84.sock",
+				PHPValue: "memory_limit=1G\nauto_prepend_file=" + home + "/data/phone/prepend.php",
+				LocalURL: "https://demo.localhost", PhoneURL: "https://demo-mac.local:9443", CAPort: 9444, CADir: home + "/data/phone/ca"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -51,12 +56,24 @@ func TestCaddyfileGolden(t *testing.T) {
 				// 443 and 80 forwarded to 8443 and 8080.
 				HTTPPort:    map[bool]int{true: 8080}[tt.adminer != nil],
 				PublicHTTPS: map[bool]int{true: 443}[tt.adminer != nil],
+				Phone:       tt.phone,
 			})
 			if err != nil {
 				t.Fatal(err)
 			}
 			golden(t, filepath.Join("testdata", tt.name+".Caddyfile"), got)
 		})
+	}
+}
+
+func TestCaddyfileRejectsPublicPhoneAddress(t *testing.T) {
+	_, err := Caddyfile(Config{
+		AdminSocket: home + "/run/caddy-admin.sock", StorageDir: home + "/data/caddy", LogFile: home + "/logs/caddy.log", CA: testCA,
+		Phone: &Phone{Site: "x", Host: "x-mac.local", Port: 9443, Binds: []string{"8.8.8.8"}, Root: "/Users/test/x",
+			FPMSocket: home + "/run/php84.sock", PHPValue: "memory_limit=1G", LocalURL: "https://x.localhost", PhoneURL: "https://x-mac.local:9443", CADir: "/x"},
+	})
+	if errcode.Code(err) != errcode.InvalidInput {
+		t.Fatalf("public address err = %v", err)
 	}
 }
 

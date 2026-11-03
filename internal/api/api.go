@@ -27,6 +27,7 @@ import (
 	"github.com/getcovo/covo/internal/core"
 	"github.com/getcovo/covo/internal/envelope"
 	"github.com/getcovo/covo/internal/errcode"
+	"github.com/getcovo/covo/internal/store"
 	"github.com/getcovo/covo/internal/version"
 )
 
@@ -48,13 +49,21 @@ type Backend interface {
 	RemoveSiteAndDatabase(ctx context.Context, name string) (core.SiteResult, error)
 	Databases(ctx context.Context) ([]string, error)
 	GetSiteDatabase(ctx context.Context, name string) (core.SiteDatabase, error)
-	CreateSiteDatabase(ctx context.Context, name, db string) (core.SiteDatabase, error)
-	LinkSiteDatabase(ctx context.Context, name, db string) (core.SiteDatabase, error)
+	CreateSiteDatabaseOn(ctx context.Context, name, db, engine string) (core.SiteDatabase, error)
+	LinkSiteDatabaseOn(ctx context.Context, name, db, engine string) (core.SiteDatabase, error)
+	PostgresDatabases(ctx context.Context) ([]string, error)
+	Postgres(ctx context.Context) (core.PostgresStatus, error)
+	EnablePostgres(ctx context.Context, port int) (core.PostgresResult, error)
+	DisablePostgres(ctx context.Context) (core.PostgresResult, error)
+	PostgresCredentials(ctx context.Context) (core.MySQLCredentials, error)
+	Redis(ctx context.Context) (core.RedisStatus, error)
+	EnableRedis(ctx context.Context, port int) (core.RedisResult, error)
+	DisableRedis(ctx context.Context) (core.RedisResult, error)
 	UnlinkSiteDatabase(ctx context.Context, name string, drop bool) (core.SiteDatabase, error)
 	NewWordPress(ctx context.Context, req core.WordPressRequest) (core.WordPressResult, error)
 	GetSitePHPSettings(ctx context.Context, name string) (core.SitePHPSettings, error)
 	SetSitePHPSettings(ctx context.Context, name string, values map[string]string) (core.SitePHPSettings, error)
-	NewAdminerLogin(ctx context.Context, site string) (core.AdminerLogin, error)
+	NewAdminerLogin(ctx context.Context, site, engine string) (core.AdminerLogin, error)
 	RedeemAdminerLogin(token string) (core.AdminerCredentials, error)
 	Mail(ctx context.Context) (core.MailStatus, error)
 	SetMail(ctx context.Context, on bool) (core.MailResult, error)
@@ -79,7 +88,8 @@ type Backend interface {
 	MySQLCredentials(ctx context.Context) (core.MySQLCredentials, error)
 	Trust(ctx context.Context, beforePrompt func()) (core.TrustResult, error)
 	Untrust(ctx context.Context) (core.TrustResult, error)
-	ImportMAMP(ctx context.Context, opts core.ImportOptions) (core.ImportPlan, error)
+	Import(ctx context.Context, opts core.ImportOptions) (core.ImportPlan, error)
+	UndoMigration(ctx context.Context, name string) (store.Migration, error)
 	ListGroups(ctx context.Context) ([]core.GroupInfo, error)
 	AddGroup(ctx context.Context, name string, parent int64) (core.GroupInfo, error)
 	UpdateGroup(ctx context.Context, req core.UpdateGroupRequest) (core.GroupInfo, error)
@@ -88,6 +98,9 @@ type Backend interface {
 	NewLaravel(ctx context.Context, req core.LaravelRequest) (core.LaravelResult, error)
 	RunToolCaptured(ctx context.Context, name, tool string, args []string) (core.ToolResult, error)
 	GetPorts(ctx context.Context) (core.PortsStatus, error)
+	Phone(ctx context.Context) (*core.PhoneStatus, error)
+	SharePhone(ctx context.Context, name string, minutes int) (core.PhoneStatus, error)
+	StopPhone(ctx context.Context) error
 	SetPorts(ctx context.Context, https, http int, beforePrompt func()) (core.PortsStatus, error)
 }
 
@@ -146,6 +159,7 @@ func Handler(b Backend) http.Handler {
 			PHPSettings  map[string]string `json:"php_settings"`
 			NewDatabase  bool              `json:"new_database"`
 			LinkDatabase string            `json:"link_database"`
+			Engine       string            `json:"database_engine"`
 		}
 		if err := decode(body, &req); err != nil {
 			return nil, err
@@ -153,7 +167,7 @@ func Handler(b Backend) http.Handler {
 		return b.AddSite(r.Context(), core.AddSiteRequest{
 			Name: req.Name, Domain: req.Domain, PHP: req.PHP, Path: req.Path, Force: req.Force,
 			CreateFolder: req.CreateFolder, Aliases: req.Aliases, Group: req.GroupID, PHPSettings: req.PHPSettings,
-			NewDatabase: req.NewDatabase, LinkDatabase: req.LinkDatabase,
+			NewDatabase: req.NewDatabase, LinkDatabase: req.LinkDatabase, DatabaseEngine: req.Engine,
 		})
 	})
 	post("PATCH", "/v1/sites/{name}", func(r *http.Request, body []byte) (any, error) {
@@ -257,12 +271,13 @@ func Handler(b Backend) http.Handler {
 	// database user). Only the daemon keeps the token.
 	post("POST", "/v1/adminer/login", func(r *http.Request, body []byte) (any, error) {
 		var req struct {
-			Site string `json:"site"`
+			Site   string `json:"site"`
+			Engine string `json:"engine"`
 		}
 		if err := decode(body, &req); err != nil {
 			return nil, err
 		}
-		return b.NewAdminerLogin(r.Context(), req.Site)
+		return b.NewAdminerLogin(r.Context(), req.Site, req.Engine)
 	})
 	// Called by Covo's Adminer front file over this same socket.
 	post("POST", "/v1/adminer/redeem", func(_ *http.Request, body []byte) (any, error) {
@@ -298,6 +313,7 @@ func Handler(b Backend) http.Handler {
 	post("POST", "/v1/mail/enable", func(r *http.Request, _ []byte) (any, error) { return b.SetMail(r.Context(), true) })
 	post("POST", "/v1/mail/disable", func(r *http.Request, _ []byte) (any, error) { return b.SetMail(r.Context(), false) })
 	get("/v1/databases", func(ctx context.Context) (any, error) { return b.Databases(ctx) })
+	get("/v1/postgres/databases", func(ctx context.Context) (any, error) { return b.PostgresDatabases(ctx) })
 	mux.HandleFunc("GET /v1/sites/{name}/database", func(w http.ResponseWriter, r *http.Request) {
 		v, err := b.GetSiteDatabase(r.Context(), r.PathValue("name"))
 		reply(w, v, err)
@@ -306,16 +322,17 @@ func Handler(b Backend) http.Handler {
 	// it links an existing one instead.
 	post("POST", "/v1/sites/{name}/database", func(r *http.Request, body []byte) (any, error) {
 		var req struct {
-			Name string `json:"name"`
-			Link bool   `json:"link"`
+			Name   string `json:"name"`
+			Link   bool   `json:"link"`
+			Engine string `json:"engine"`
 		}
 		if err := decode(body, &req); err != nil {
 			return nil, err
 		}
 		if req.Link {
-			return b.LinkSiteDatabase(r.Context(), r.PathValue("name"), req.Name)
+			return b.LinkSiteDatabaseOn(r.Context(), r.PathValue("name"), req.Name, req.Engine)
 		}
-		return b.CreateSiteDatabase(r.Context(), r.PathValue("name"), req.Name)
+		return b.CreateSiteDatabaseOn(r.Context(), r.PathValue("name"), req.Name, req.Engine)
 	})
 	// ?drop=true also deletes the database and the site's own user.
 	post("DELETE", "/v1/sites/{name}/database", func(r *http.Request, _ []byte) (any, error) {
@@ -391,6 +408,7 @@ func Handler(b Backend) http.Handler {
 			Path        string            `json:"path"`
 			PHP         string            `json:"php"`
 			Database    string            `json:"database"`
+			Engine      string            `json:"database_engine"`
 			Domain      string            `json:"domain"`
 			Aliases     []string          `json:"aliases"`
 			GroupID     int64             `json:"group_id"`
@@ -400,7 +418,7 @@ func Handler(b Backend) http.Handler {
 			return nil, err
 		}
 		return b.NewLaravel(r.Context(), core.LaravelRequest{
-			Name: req.Name, Path: req.Path, PHP: req.PHP, Database: req.Database, Domain: req.Domain,
+			Name: req.Name, Path: req.Path, PHP: req.PHP, Database: req.Database, Engine: req.Engine, Domain: req.Domain,
 			Aliases: req.Aliases, Group: req.GroupID, PHPSettings: req.PHPSettings,
 		})
 	})
@@ -425,6 +443,20 @@ func Handler(b Backend) http.Handler {
 			return nil, err
 		}
 		return b.CheckPHP(r.Context(), r.PathValue("name"), req.Target, req.All)
+	})
+	get("/v1/phone", func(ctx context.Context) (any, error) { return b.Phone(ctx) })
+	// Opens one site on the private network for minutes (default 30).
+	post("PUT", "/v1/sites/{name}/phone", func(r *http.Request, body []byte) (any, error) {
+		var req struct {
+			Minutes int `json:"minutes"`
+		}
+		if err := decode(body, &req); err != nil {
+			return nil, err
+		}
+		return b.SharePhone(r.Context(), r.PathValue("name"), req.Minutes)
+	})
+	post("DELETE", "/v1/phone", func(r *http.Request, _ []byte) (any, error) {
+		return struct{}{}, b.StopPhone(r.Context())
 	})
 	get("/v1/ports", func(ctx context.Context) (any, error) { return b.GetPorts(ctx) })
 	// 443 and 80 install Covo's helper: macOS shows an administrator dialog.
@@ -461,18 +493,60 @@ func Handler(b Backend) http.Handler {
 	})
 	get("/v1/mysql/credentials", func(ctx context.Context) (any, error) { return b.MySQLCredentials(ctx) })
 
-	post("POST", "/v1/trust", func(r *http.Request, _ []byte) (any, error) { return b.Trust(r.Context(), nil) })
-	post("POST", "/v1/untrust", func(r *http.Request, _ []byte) (any, error) { return b.Untrust(r.Context()) })
-
-	post("POST", "/v1/import/mamp", func(r *http.Request, body []byte) (any, error) {
+	get("/v1/postgres", func(ctx context.Context) (any, error) { return b.Postgres(ctx) })
+	post("POST", "/v1/postgres/enable", func(r *http.Request, body []byte) (any, error) {
 		var req struct {
-			DryRun    bool `json:"dry_run"`
-			Localhost bool `json:"localhost"`
+			Port int `json:"port"`
 		}
 		if err := decode(body, &req); err != nil {
 			return nil, err
 		}
-		return b.ImportMAMP(r.Context(), core.ImportOptions{DryRun: req.DryRun, Localhost: req.Localhost})
+		return b.EnablePostgres(r.Context(), req.Port)
+	})
+	post("POST", "/v1/postgres/disable", func(r *http.Request, _ []byte) (any, error) {
+		return b.DisablePostgres(r.Context())
+	})
+	get("/v1/postgres/credentials", func(ctx context.Context) (any, error) { return b.PostgresCredentials(ctx) })
+	get("/v1/redis", func(ctx context.Context) (any, error) { return b.Redis(ctx) })
+	post("POST", "/v1/redis/enable", func(r *http.Request, body []byte) (any, error) {
+		var req struct {
+			Port int `json:"port"`
+		}
+		if err := decode(body, &req); err != nil {
+			return nil, err
+		}
+		return b.EnableRedis(r.Context(), req.Port)
+	})
+	post("POST", "/v1/redis/disable", func(r *http.Request, _ []byte) (any, error) {
+		return b.DisableRedis(r.Context())
+	})
+
+	post("POST", "/v1/trust", func(r *http.Request, _ []byte) (any, error) { return b.Trust(r.Context(), nil) })
+	post("POST", "/v1/untrust", func(r *http.Request, _ []byte) (any, error) { return b.Untrust(r.Context()) })
+
+	// source: mamp, local, herd, valet or xampp. The source's password is
+	// used for this request only.
+	post("POST", "/v1/import/{source}", func(r *http.Request, body []byte) (any, error) {
+		var req struct {
+			DryRun         bool     `json:"dry_run"`
+			Localhost      bool     `json:"localhost"`
+			Sites          []string `json:"sites"`
+			Migrate        bool     `json:"migrate"`
+			Existing       string   `json:"existing"`
+			DumpFile       string   `json:"dump_file"`
+			SourceUser     string   `json:"source_user"`
+			SourcePassword string   `json:"source_password"`
+		}
+		if err := decode(body, &req); err != nil {
+			return nil, err
+		}
+		return b.Import(r.Context(), core.ImportOptions{
+			Source: r.PathValue("source"), DryRun: req.DryRun, Localhost: req.Localhost, Sites: req.Sites, Migrate: req.Migrate,
+			Migration: core.MigrateOptions{Existing: req.Existing, DumpFile: req.DumpFile, SourceUser: req.SourceUser, SourcePassword: req.SourcePassword},
+		})
+	})
+	post("POST", "/v1/sites/{name}/migration/undo", func(r *http.Request, _ []byte) (any, error) {
+		return b.UndoMigration(r.Context(), r.PathValue("name"))
 	})
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {

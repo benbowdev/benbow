@@ -7,6 +7,7 @@ package caddy
 import (
 	"bytes"
 	"fmt"
+	"net"
 	"regexp"
 	"strconv"
 	"strings"
@@ -25,10 +26,12 @@ type Config struct {
 	// HTTPSPort).
 	HTTPPort    int
 	PublicHTTPS int
-	StorageDir  string
-	LogFile     string
-	CA          CA
-	Sites       []Site
+	// Phone, if set, serves one site on the private network addresses.
+	Phone      *Phone
+	StorageDir string
+	LogFile    string
+	CA         CA
+	Sites      []Site
 	// Adminer, when set, is served at https://adminer.localhost.
 	Adminer *Adminer
 	// MailUIPort, when set, proxies https://mail.localhost to Mailpit.
@@ -137,6 +140,31 @@ var tmpl = template.Must(template.New("Caddyfile").Funcs(template.FuncMap{"q": q
 	redir {{q (print "https://{host}" .RedirectPort "{uri}")}} 308
 }
 {{end}}
+{{- with .Phone}}
+# phone: {{.Site}}
+{{q (print "https://" .Host ":" .Port)}} {
+	bind{{range .Binds}} {{.}}{{end}}
+	tls internal
+	root * {{q .Root}}
+	header >Location {{q .LocalURL}} {{q .PhoneURL}}
+	php_fastcgi {{q (print "unix/" .FPMSocket)}} {
+		env PHP_VALUE {{q .PHPValue}}
+		env COVO_PHONE_URL {{q .PhoneURL}}
+		env COVO_LOCAL_URL {{q .LocalURL}}
+		{{- if .Laravel}}
+		env APP_URL {{q .PhoneURL}}
+		{{- end}}
+	}
+	file_server
+}
+{{q (print "http://:" .CAPort)}} {
+	bind{{range .Binds}} {{.}}{{end}}
+	root * {{q .CADir}}
+	header /covo-ca.mobileconfig Content-Type application/x-apple-aspen-config
+	header /covo-ca.crt Content-Type application/x-x509-ca-cert
+	file_server
+}
+{{end}}
 {{- if .MailUIPort}}
 # mail
 {{q (print "https://mail.localhost:" $.HTTPSPort)}} {
@@ -145,12 +173,53 @@ var tmpl = template.Must(template.New("Caddyfile").Funcs(template.FuncMap{"q": q
 }
 {{end}}`))
 
+// Phone is a site opened on a phone: served under Host on the Mac's private
+// addresses (Binds) only, plus a plain-HTTP page that installs the CA.
+type Phone struct {
+	Site      string
+	Host      string
+	Port      int
+	Binds     []string
+	Root      string
+	FPMSocket string
+	// PHPValue includes Covo's auto_prepend_file for these requests.
+	PHPValue string
+	// LocalURL is replaced by PhoneURL in redirects (and, by the prepend
+	// file, in pages).
+	LocalURL, PhoneURL string
+	// Laravel gets APP_URL from the environment.
+	Laravel bool
+	CAPort  int
+	CADir   string
+}
+
 // Caddyfile renders cfg. Every path is validated with paths.CheckSafe so that
 // it can be quoted verbatim (spaces are allowed).
 func Caddyfile(cfg Config) (string, error) {
 	check := []string{cfg.AdminSocket, cfg.StorageDir, cfg.LogFile, cfg.CA.RootCert, cfg.CA.IntermediateCert, cfg.CA.IntermediateKey}
 	if cfg.Adminer != nil {
 		check = append(check, cfg.Adminer.Dir, cfg.Adminer.FPMSocket)
+	}
+	if p := cfg.Phone; p != nil {
+		check = append(check, p.Root, p.FPMSocket, p.CADir)
+		if !hostRe.MatchString(p.Host) {
+			return "", errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("bad phone host %q", p.Host))
+		}
+		for _, b := range p.Binds {
+			if ip := net.ParseIP(b); ip == nil || !ip.IsPrivate() {
+				return "", errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("phone address %q is not a private IP", b))
+			}
+		}
+		for _, line := range strings.Split(p.PHPValue, "\n") {
+			if !phpValueRe.MatchString(line) {
+				return "", errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("bad PHP value %q", line))
+			}
+		}
+		for _, u := range []string{p.LocalURL, p.PhoneURL} {
+			if strings.ContainsAny(u, "\"\\{} \n") {
+				return "", errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("bad URL %q", u))
+			}
+		}
 	}
 	for _, s := range cfg.Sites {
 		check = append(check, s.Root, s.FPMSocket)

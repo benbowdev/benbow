@@ -46,6 +46,20 @@ type Host struct {
 	SSL          bool     `json:"ssl"`
 	Aliases      []string `json:"aliases"`
 	Databases    []string `json:"databases"`
+	// DB is how to reach the host's database server on the source (for
+	// importers that know it: Local runs one MySQL per site).
+	DB *DBServer `json:"db,omitempty"`
+}
+
+// DBServer is a source tool's MySQL server, only ever read from.
+type DBServer struct {
+	Host   string `json:"host,omitempty"`
+	Port   int    `json:"port,omitempty"`
+	Socket string `json:"socket,omitempty"`
+	User   string `json:"user,omitempty"`
+	// Password is the tool's documented default (e.g. root/root); never
+	// shown or stored.
+	Password string `json:"-"`
 }
 
 // ReadCopy copies path into tmpDir, reads the hosts from the copy and

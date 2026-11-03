@@ -7,6 +7,7 @@ package e2e
 
 import (
 	"encoding/json"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -16,7 +17,11 @@ import (
 func TestOldestAndNewestPHP(t *testing.T) {
 	h := newHarness(t)
 	urls := map[string]string{}
-	for _, minor := range []string{"8.0", "8.5"} {
+	minors := []string{"8.0", "8.5"}
+	if runtime.GOARCH == "arm64" {
+		minors = append(minors, "5.6", "7.4") // covo-binaries' legacy builds
+	}
+	for _, minor := range minors {
 		var res struct {
 			URL     string `json:"url"`
 			Warning string `json:"warning"`
@@ -25,7 +30,7 @@ func TestOldestAndNewestPHP(t *testing.T) {
 		if err := json.Unmarshal(h.mustCovo("site", "add", name, "--php", minor, "--path", newSite(t)), &res); err != nil {
 			t.Fatal(err)
 		}
-		if got := strings.Contains(res.Warning, "no security fixes"); got != (minor == "8.0") {
+		if got := strings.Contains(res.Warning, "no security fixes"); got != (minor != "8.5") {
 			t.Errorf("PHP %s warning = %q", minor, res.Warning)
 		}
 		urls[minor] = res.URL

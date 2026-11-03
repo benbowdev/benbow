@@ -81,7 +81,9 @@ func (c *Core) phpToolCommand(ctx context.Context, minor, dir, script string, ar
 	if err != nil {
 		return nil, err
 	}
-	argv := append([]string{"-c", ini, "-d", "display_errors=stderr", "-d", "memory_limit=-1", script}, args...)
+	// Deprecation notices of the tools' own code (wp-cli on a newer PHP)
+	// are noise here; the site's code is checked with covo php check.
+	argv := append([]string{"-c", ini, "-d", "display_errors=stderr", "-d", "error_reporting=E_ALL&~E_DEPRECATED", "-d", "memory_limit=-1", script}, args...)
 	cmd := exec.CommandContext(ctx, bin, argv...)
 	cmd.Dir = dir
 	// PHPRC: PHP started by the tool itself (Composer's @php scripts) reads

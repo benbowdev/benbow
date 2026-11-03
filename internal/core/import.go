@@ -14,12 +14,20 @@ import (
 	"strings"
 
 	"github.com/getcovo/covo/internal/errcode"
+	"github.com/getcovo/covo/internal/importers"
 	"github.com/getcovo/covo/internal/mamp"
 	"github.com/getcovo/covo/internal/store"
 )
 
 // EnvMAMPSettings points the importer at another settings6.plist (tests).
 const EnvMAMPSettings = "COVO_MAMP_SETTINGS"
+
+// EnvImportHome replaces the home folder (and / for XAMPP) where the other
+// importers look (tests).
+const EnvImportHome = "COVO_IMPORT_HOME"
+
+// mampDB is MAMP PRO's MySQL with its default credentials.
+var mampDB = mamp.DBServer{Host: "127.0.0.1", Port: 3306, Socket: "/Applications/MAMP/tmp/mysql/mysql.sock", User: "root", Password: "root"}
 
 // legacyPHP is where PHP versions older than any Covo offers go.
 const legacyPHP = "8.1"
@@ -47,6 +55,8 @@ type ImportItem struct {
 	Database string `json:"database,omitempty"`
 	// Warnings are differences from MAMP the user should know about.
 	Warnings []string `json:"warnings"`
+	// Migration is what migrating the new site does (with Migrate).
+	Migration *MigrationPlan `json:"migration,omitempty"`
 }
 
 // ImportPlan is the outcome of an import, or what it would do.
@@ -59,14 +69,29 @@ type ImportPlan struct {
 	// NeedsLocal is true when sites keep .local names and .local domains
 	// are not enabled yet.
 	NeedsLocal bool `json:"needs_local"`
-	// Databases are listed, never imported: export them from MAMP.
+	// NeedsTest: same for .test names (Valet, Herd).
+	NeedsTest bool `json:"needs_test"`
+	// Databases the source links to its hosts.
 	Databases []string `json:"databases"`
 	Applied   bool     `json:"applied"`
+	// Kind is the source: mamp, local, herd, valet or xampp.
+	Kind string `json:"kind"`
+	// Migrated counts the sites whose migration succeeded.
+	Migrated int `json:"migrated,omitempty"`
 }
 
 // ImportOptions tunes an import.
 type ImportOptions struct {
+	// Source is mamp (default), local, herd, valet or xampp.
+	Source string
 	DryRun bool
+	// Sites limits the import to these hosts (server name, or the Covo
+	// site name it would get); empty imports every host.
+	Sites []string
+	// Migrate also copies each new site's database and points its
+	// configuration at Covo (see MigrateOptions).
+	Migrate   bool
+	Migration MigrateOptions
 	// Localhost serves imported sites as <name>.localhost instead of keeping
 	// their .local names.
 	Localhost bool
@@ -76,14 +101,63 @@ type ImportOptions struct {
 // document roots. MAMP is never modified: its settings are read from a
 // temporary copy. With DryRun nothing is created.
 func (c *Core) ImportMAMP(ctx context.Context, opts ImportOptions) (ImportPlan, error) {
-	src := os.Getenv(EnvMAMPSettings)
-	if src == "" {
+	opts.Source = importers.MAMP
+	return c.Import(ctx, opts)
+}
+
+// readImportSource reads the hosts of a source tool, only reading its files.
+func (c *Core) readImportSource(ctx context.Context, source string) ([]mamp.Host, string, error) {
+	home := os.Getenv(EnvImportHome)
+	if home == "" {
 		var err error
-		if src, err = mamp.DefaultSettings(); err != nil {
-			return ImportPlan{}, err
+		if home, err = os.UserHomeDir(); err != nil {
+			return nil, "", fmt.Errorf("resolve home directory: %w", err)
 		}
 	}
-	hosts, err := mamp.ReadCopy(ctx, src, c.Layout.Tmp)
+	switch source {
+	case "", importers.MAMP:
+		src := os.Getenv(EnvMAMPSettings)
+		if src == "" {
+			var err error
+			if src, err = mamp.DefaultSettings(); err != nil {
+				return nil, "", err
+			}
+		}
+		hosts, err := mamp.ReadCopy(ctx, src, c.Layout.Tmp)
+		for i := range hosts {
+			db := mampDB
+			hosts[i].DB = &db
+		}
+		return hosts, src, err
+	case importers.Local:
+		h, err := importers.ReadLocal(home)
+		return h, "Local", err
+	case importers.Herd:
+		h, err := importers.ReadHerd(home)
+		return h, "Laravel Herd", err
+	case importers.Valet:
+		h, err := importers.ReadValet(home)
+		return h, "Laravel Valet", err
+	case importers.XAMPP:
+		root := "/"
+		if os.Getenv(EnvImportHome) != "" {
+			root = home
+		}
+		h, err := importers.ReadXAMPP(root)
+		return h, "XAMPP", err
+	}
+	return nil, "", errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("unknown source %q (%s)", source, strings.Join(importers.Names, ", ")))
+}
+
+// Import recreates another tool's sites as Covo sites, same names and
+// folders, reading its configuration only. With Migrate, each new site's
+// database is copied and its configuration pointed at Covo. With DryRun
+// nothing changes.
+func (c *Core) Import(ctx context.Context, opts ImportOptions) (ImportPlan, error) {
+	if opts.Source == "" {
+		opts.Source = importers.MAMP
+	}
+	hosts, src, err := c.readImportSource(ctx, opts.Source)
 	if err != nil {
 		return ImportPlan{}, err
 	}
@@ -93,19 +167,38 @@ func (c *Core) ImportMAMP(ctx context.Context, opts ImportOptions) (ImportPlan, 
 		if plan, err = c.planImport(ctx, src, hosts, opts); err != nil {
 			return err
 		}
+		plan.Kind = opts.Source
+		if opts.Migrate {
+			if opts.Migration.DumpFile != "" && plan.Create != 1 {
+				return errcode.Errorf(errcode.InvalidInput, "a dump file is for one site: choose it with --site")
+			}
+			for i := range plan.Items {
+				it := &plan.Items[i]
+				if it.Action != ImportCreate {
+					continue
+				}
+				m := c.planMigration(ctx, previewSite(*it), it.MAMP, httpsURL(it.Domain, c.publicHTTPS(ctx)), opts.Migration)
+				it.Migration = &m
+			}
+		}
 		if opts.DryRun || plan.Create == 0 {
 			return nil
 		}
 		if plan.NeedsLocal {
 			return errcode.Errorf(errcode.ConfirmationRequired,
-				"these MAMP sites keep their .local names, which needs `covo domains enable local` first; or pass --localhost to serve them as <name>.localhost")
+				"these sites keep their .local names, which needs `covo domains enable local` first; or pass --localhost to serve them as <name>.localhost")
+		}
+		if plan.NeedsTest {
+			return errcode.Errorf(errcode.ConfirmationRequired,
+				"these sites keep their .test names, which needs `covo domains enable test` first; or pass --localhost to serve them as <name>.localhost")
 		}
 		var added []store.Site
 		for _, it := range plan.Items {
 			if it.Action != ImportCreate {
 				continue
 			}
-			site, err := c.insertSite(ctx, AddSiteRequest{Name: it.Name, Domain: it.Domain, PHP: it.PHP, Path: it.MAMP.DocumentRoot, Force: true})
+			docroot, appRoot, fw := detectFramework(it.MAMP.DocumentRoot)
+			site, err := c.insertSite(ctx, AddSiteRequest{Name: it.Name, Domain: it.Domain, PHP: it.PHP, Path: docroot, Force: true, appRoot: appRoot, framework: fw})
 			if err != nil {
 				for _, s := range added {
 					_ = c.Store.RemoveSite(ctx, s.Name)
@@ -125,10 +218,50 @@ func (c *Core) ImportMAMP(ctx context.Context, opts ImportOptions) (ImportPlan, 
 		if plan.Applied, err = c.goLive(ctx, added); err != nil {
 			return err
 		}
-		c.linkImportedDatabases(ctx, &plan)
+		if !opts.Migrate {
+			c.linkImportedDatabases(ctx, &plan)
+		}
 		return nil
 	})
-	return plan, err
+	if err != nil || opts.DryRun || !opts.Migrate {
+		return plan, err
+	}
+	// Each site's migration on its own: one failing leaves the others.
+	for i := range plan.Items {
+		it := &plan.Items[i]
+		if it.Action != ImportCreate || it.Migration == nil || it.Migration.Problem != "" {
+			continue
+		}
+		site, err := c.Store.Site(ctx, it.Name)
+		if err != nil {
+			it.Migration.Error = err.Error()
+			continue
+		}
+		m, err := c.migrateSite(ctx, opts.Source, site, it.MAMP, siteURL(site, c.publicHTTPS(ctx)), opts.Migration)
+		if err != nil {
+			m.Error = err.Error()
+		}
+		*it.Migration = m
+		if m.Done {
+			plan.Migrated++
+		}
+	}
+	return plan, nil
+}
+
+// previewSite is the site an import item would create, for planning.
+func previewSite(it ImportItem) store.Site {
+	docroot, appRoot, fw := detectFramework(it.MAMP.DocumentRoot)
+	return store.Site{Name: it.Name, Domain: it.Domain, Path: docroot, AppRoot: appRoot, Framework: fw, PHPMinor: it.PHP}
+}
+
+// publicHTTPS is the HTTPS port in addresses.
+func (c *Core) publicHTTPS(ctx context.Context) int {
+	p, _, err := c.httpsPort(ctx)
+	if err != nil {
+		return defaultHTTPSPort
+	}
+	return p
 }
 
 // linkImportedDatabases links each new site to its MAMP database when MAMP
@@ -173,6 +306,10 @@ func (c *Core) planImport(ctx context.Context, src string, hosts []mamp.Host, op
 	if err != nil {
 		return plan, err
 	}
+	testOn, err := c.domainEnabled(ctx, suffixTest)
+	if err != nil {
+		return plan, err
+	}
 	available := c.Manifest.Versions("php", runtime.GOARCH)
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -197,6 +334,10 @@ func (c *Core) planImport(ctx context.Context, src string, hosts []mamp.Host, op
 			continue
 		}
 		it.Warnings = append(it.Warnings, warn...)
+		if len(opts.Sites) > 0 && !slices.Contains(opts.Sites, h.ServerName) && !slices.Contains(opts.Sites, name) {
+			skip("not selected")
+			continue
+		}
 		if domains[domain] {
 			skip("a Covo site already uses " + domain)
 			continue
@@ -216,7 +357,13 @@ func (c *Core) planImport(ctx context.Context, src string, hosts []mamp.Host, op
 		if !hasIndex(h.DocumentRoot) {
 			it.Warnings = append(it.Warnings, "no index.php or index.html in the folder")
 		}
-		php, warn, err := importPHP(h.PHPVersion, available)
+		version := h.PHPVersion
+		if version == "" {
+			// The tool's default version: unknown here.
+			version = c.recommendedPHP()
+			it.Warnings = append(it.Warnings, "PHP version not set in "+importers.Title(opts.Source)+": uses PHP "+version)
+		}
+		php, warn, err := importPHP(version, available)
 		if err != nil {
 			skip(err.Error())
 			continue
@@ -250,6 +397,9 @@ func (c *Core) planImport(ctx context.Context, src string, hosts []mamp.Host, op
 		if strings.HasSuffix(domain, "."+suffixLocal) && !localOn {
 			plan.NeedsLocal = true
 		}
+		if strings.HasSuffix(domain, "."+suffixTest) && !testOn {
+			plan.NeedsTest = true
+		}
 		plan.Items = append(plan.Items, it)
 		plan.Create++
 	}
@@ -272,7 +422,11 @@ func importDomain(serverName string, toLocalhost bool) (domain, name string, war
 		label = n
 	default:
 		if s, err := domainSuffix(n); err == nil && s != suffixLocal {
-			return n, siteName(strings.TrimSuffix(n, "."+s)), warnings, nil
+			label := strings.TrimSuffix(n, "."+s)
+			if toLocalhost && s == suffixTest {
+				return label + "." + suffixLocalhost, siteName(label), warnings, nil
+			}
+			return n, siteName(label), warnings, nil
 		}
 		return "", "", nil, fmt.Errorf("%q is not under .local, .test or .localhost", serverName)
 	}

@@ -74,12 +74,27 @@ func Run(ctx context.Context) error {
 	defer stop()
 	fmt.Fprintf(os.Stderr, "covo daemon %s listening on %s\n", version.Get().Version, sock)
 	go checkUpdatesDaily(ctx, c)
+	go expirePhone(ctx, c)
 	return api.Serve(ctx, ln, c)
 }
 
 // checkUpdatesDaily looks for component updates a few minutes after start
 // and then every day. It only downloads the signed manifest: nothing is
 // installed without the user (covo update apply, or the app).
+// expirePhone turns "Open on phone" off when its time is up.
+func expirePhone(ctx context.Context, c *core.Core) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(30 * time.Second):
+		}
+		if _, err := c.ExpirePhone(ctx); err != nil {
+			fmt.Fprintf(os.Stderr, "phone expiry: %v\n", err)
+		}
+	}
+}
+
 func checkUpdatesDaily(ctx context.Context, c *core.Core) {
 	if os.Getenv("COVO_NO_UPDATE_CHECK") != "" {
 		return

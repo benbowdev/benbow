@@ -232,6 +232,30 @@ final class AppModel {
     }
 
     var mysqlReady: Bool { status?.mysql.enabled == true && status?.mysql.running == true }
+    var postgresReady: Bool { status?.postgres?.enabled == true && status?.postgres?.running == true }
+
+    /// Turns PostgreSQL or Redis on or off (server: "postgres" or "redis").
+    func setServer(_ server: String, enabled: Bool, port: Int? = nil) async {
+        let name = server == "postgres" ? "PostgreSQL" : "Redis"
+        await perform(enabled ? "Starting \(name)…" : "Stopping \(name)…") {
+            try await $0.setServer(server, enabled: enabled, port: port)
+        }
+    }
+
+    func postgresCredentials() async -> MySQLCredentials? {
+        guard let api else { return nil }
+        do {
+            return try await api.postgresCredentials()
+        } catch {
+            self.error = error.localizedDescription
+            return nil
+        }
+    }
+
+    func postgresDatabases() async -> [String] {
+        guard let api else { return [] }
+        return (try? await api.postgresDatabases()) ?? []
+    }
 
     func databases() async -> [String] {
         guard let api else { return [] }
@@ -253,12 +277,12 @@ final class AppModel {
         }
     }
 
-    func createDatabase(_ site: Site, name: String = "") async {
-        await perform("Creating the database…") { _ = try await $0.createSiteDatabase(site.name, database: name) }
+    func createDatabase(_ site: Site, name: String = "", engine: String = "mysql") async {
+        await perform("Creating the database…") { _ = try await $0.createSiteDatabase(site.name, database: name, engine: engine) }
     }
 
-    func linkDatabase(_ site: Site, _ db: String) async {
-        await perform("Linking \(db)…") { _ = try await $0.linkSiteDatabase(site.name, database: db) }
+    func linkDatabase(_ site: Site, _ db: String, engine: String = "mysql") async {
+        await perform("Linking \(db)…") { _ = try await $0.linkSiteDatabase(site.name, database: db, engine: engine) }
     }
 
     func unlinkDatabase(_ site: Site, drop: Bool) async {
@@ -269,10 +293,10 @@ final class AppModel {
 
     /// Opens Adminer already logged in: as root (every database) with nil,
     /// or as the site's database user. The password never leaves Covo.
-    func openAdminer(_ site: Site? = nil) async {
+    func openAdminer(_ site: Site? = nil, engine: String = "") async {
         guard let api else { return }
         do {
-            NSWorkspace.shared.open(try await api.adminerLogin(site: site?.name ?? ""))
+            NSWorkspace.shared.open(try await api.adminerLogin(site: site?.name ?? "", engine: engine))
         } catch {
             self.error = error.localizedDescription
         }
@@ -333,6 +357,26 @@ final class AppModel {
     }
 
     /// Previews or runs the MAMP PRO import. Throws so the sheet shows errors.
+    /// Previews or runs an import from any source. Throws for the sheet.
+    func importSites(from source: String, _ opts: CovoAPI.ImportOptions) async throws -> ImportPlan? {
+        guard let api else { return nil }
+        if opts.dryRun { return try await api.importSites(from: source, opts) }
+        busy = opts.migrate ? "Importing and migrating…" : "Importing…"
+        defer { busy = nil }
+        do {
+            let plan = try await api.importSites(from: source, opts)
+            try? await refreshAll()
+            return plan
+        } catch {
+            try? await refreshAll()
+            throw error
+        }
+    }
+
+    func undoMigration(_ site: Site) async {
+        await perform("Undoing the migration of \(site.name)…") { try await $0.undoMigration(site.name) }
+    }
+
     func importMAMP(dryRun: Bool, localhost: Bool) async throws -> ImportPlan? {
         guard let api else { return nil }
         if dryRun { return try await api.importMAMP(dryRun: true, localhost: localhost) }
@@ -411,6 +455,14 @@ final class AppModel {
     /// Saves php.ini values; PHP restarts with them if Covo is running.
     func setPHPSettings(_ s: PHPSettings) async -> Bool {
         await perform("Restarting PHP \(s.php)…") { _ = try await $0.setPHPSettings(s) }
+    }
+
+    func sharePhone(_ site: Site, minutes: Int) async {
+        await perform("Opening \(site.name) on the network…") { _ = try await $0.sharePhone(site.name, minutes: minutes) }
+    }
+
+    func stopPhone() async {
+        await perform("Closing the phone access…") { try await $0.stopPhone() }
     }
 
     /// Changes the web ports; 443 or 80 make macOS ask for a password once.

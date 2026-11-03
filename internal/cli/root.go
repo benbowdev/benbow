@@ -13,6 +13,8 @@ import (
 	"os"
 	"strings"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/getcovo/covo/internal/core"
 	"github.com/getcovo/covo/internal/errcode"
 	"github.com/spf13/cobra"
@@ -68,7 +70,7 @@ func (a *app) rootCmd() *cobra.Command {
 		SilenceErrors: true,
 	}
 	root.PersistentFlags().BoolVar(&a.json, "json", false, "output JSON with a stable schema")
-	root.AddCommand(a.versionCmd(), a.startCmd(), a.stopCmd(), a.statusCmd(), a.siteCmd(), a.trustCmd(), a.untrustCmd(), a.uninstallCmd(), a.phpCmd(), a.caddyCmd(), a.domainsCmd(), a.dnsCmd(), a.mysqlCmd(), a.importCmd(), a.daemonCmd(), a.dbCmd(), a.wpCmd(), a.wordpressCmd(), a.mailCmd(), a.updateCmd(), a.groupCmd(), a.portsCmd(), a.mcpCmd(), a.composerCmd(), a.artisanCmd(), a.laravelCmd())
+	root.AddCommand(a.versionCmd(), a.startCmd(), a.stopCmd(), a.statusCmd(), a.siteCmd(), a.trustCmd(), a.untrustCmd(), a.uninstallCmd(), a.phpCmd(), a.caddyCmd(), a.domainsCmd(), a.dnsCmd(), a.mysqlCmd(), a.importCmd(), a.daemonCmd(), a.dbCmd(), a.wpCmd(), a.wordpressCmd(), a.mailCmd(), a.updateCmd(), a.groupCmd(), a.portsCmd(), a.mcpCmd(), a.composerCmd(), a.artisanCmd(), a.laravelCmd(), a.postgresCmd(), a.redisCmd(), a.phoneCmd())
 	return root
 }
 
@@ -132,4 +134,26 @@ func (a *app) confirm(question string) bool {
 	line, _ := bufio.NewReader(a.stdin).ReadString('\n')
 	answer := strings.ToLower(strings.TrimSpace(line))
 	return answer == "y" || answer == "yes"
+}
+
+// readSecret asks for a secret on the terminal without echoing it; from a
+// pipe it reads one line. It is never stored.
+func (a *app) readSecret(prompt string) (string, error) {
+	fd := int(os.Stdin.Fd())
+	if t, err := unix.IoctlGetTermios(fd, unix.TIOCGETA); err == nil {
+		fmt.Fprint(a.stderr, prompt)
+		noEcho := *t
+		noEcho.Lflag &^= unix.ECHO
+		if err := unix.IoctlSetTermios(fd, unix.TIOCSETA, &noEcho); err == nil {
+			defer func() {
+				_ = unix.IoctlSetTermios(fd, unix.TIOCSETA, t)
+				fmt.Fprintln(a.stderr)
+			}()
+		}
+	}
+	line, err := bufio.NewReader(os.Stdin).ReadString('\n')
+	if err != nil && line == "" {
+		return "", errcode.New(errcode.InvalidInput, fmt.Errorf("read password: %w", err))
+	}
+	return strings.TrimRight(line, "\r\n"), nil
 }

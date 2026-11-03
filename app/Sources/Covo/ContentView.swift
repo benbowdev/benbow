@@ -16,6 +16,7 @@ struct ContentView: View {
     @State private var search = ""
     @State private var duplicating: Site?
     @State private var showArchived = false
+    @State private var phoneSite: Site?
 
     /// Sites whose name, domain, alias or folder match the search.
     private var filtered: [Site] {
@@ -63,6 +64,7 @@ struct ContentView: View {
         }
         .sheet(isPresented: $model.importing) { ImportSheet() }
         .sheet(item: $model.removing) { site in RemoveSiteSheet(site: site) }
+        .sheet(item: $phoneSite) { site in PhoneSheet(site: site) }
         .sheet(item: $duplicating) { site in
             DuplicateSheet(site: site) { name in selection = name }
         }
@@ -136,7 +138,7 @@ struct ContentView: View {
                     Button("New WordPress Site…") { adding = NewSiteRequest(source: .wordpress) }
                     Button("New Group…") { askGroupName(.create(parent: nil)) }
                     Divider()
-                    Button("Import from MAMP PRO…") { model.importing = true }
+                    Button("Import from Another Tool…") { model.importing = true }
                 } label: {
                     Label("Add Site", systemImage: "plus")
                 }
@@ -149,13 +151,24 @@ struct ContentView: View {
                 } label: {
                     Label("Adminer", systemImage: "cylinder.split.1x2")
                 }
-                .help(model.mysqlReady && model.running
+                .help((model.mysqlReady || model.postgresReady) && model.running
                       ? "Open Adminer with every database, already logged in"
-                      : "Adminer needs MySQL on and Covo started")
-                .disabled(!model.mysqlReady || !model.running)
+                      : "Adminer needs MySQL or PostgreSQL on and Covo started")
+                .disabled(!(model.mysqlReady || model.postgresReady) || !model.running)
             }
             ToolbarItem(placement: .primaryAction) {
                 UpdatesBadge()
+            }
+            if let phone = model.status?.phone {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        phoneSite = model.sites.first { $0.name == phone.site }
+                    } label: {
+                        Label("\(phone.site) on phone (\(phone.minutesLeft) min)", systemImage: "iphone.radiowaves.left.and.right")
+                    }
+                    .labelStyle(.titleAndIcon)
+                    .help("\(phone.site) is open on your local network: \(phone.url)")
+                }
             }
             if let mail = model.status?.mail, mail.enabled, let u = mail.url, let url = URL(string: u) {
                 ToolbarItem(placement: .primaryAction) {

@@ -96,12 +96,20 @@ func (f *fake) ClearSiteLogs(_ context.Context, name string) (core.SiteLog, erro
 	return core.SiteLog{}, f.record("clear logs " + name)
 }
 
-func (f *fake) CreateSiteDatabase(_ context.Context, name, db string) (core.SiteDatabase, error) {
-	return core.SiteDatabase{}, f.record("create db " + name + " " + db)
+func (f *fake) CreateSiteDatabaseOn(_ context.Context, name, db, engine string) (core.SiteDatabase, error) {
+	return core.SiteDatabase{}, f.record(strings.TrimSpace("create db " + name + " " + db + " " + engine))
 }
 
-func (f *fake) LinkSiteDatabase(_ context.Context, name, db string) (core.SiteDatabase, error) {
-	return core.SiteDatabase{}, f.record("link db " + name + " " + db)
+func (f *fake) LinkSiteDatabaseOn(_ context.Context, name, db, engine string) (core.SiteDatabase, error) {
+	return core.SiteDatabase{}, f.record(strings.TrimSpace("link db " + name + " " + db + " " + engine))
+}
+
+func (f *fake) EnablePostgres(_ context.Context, port int) (core.PostgresResult, error) {
+	return core.PostgresResult{}, f.record(fmt.Sprintf("postgres enable %d", port))
+}
+
+func (f *fake) EnableRedis(_ context.Context, port int) (core.RedisResult, error) {
+	return core.RedisResult{}, f.record(fmt.Sprintf("redis enable %d", port))
 }
 
 func (f *fake) UnlinkSiteDatabase(_ context.Context, name string, drop bool) (core.SiteDatabase, error) {
@@ -116,8 +124,8 @@ func (f *fake) SetSitePHPSettings(_ context.Context, name string, values map[str
 	return core.SitePHPSettings{}, f.record(fmt.Sprintf("site php %s %q", name, values["memory_limit"]))
 }
 
-func (f *fake) NewAdminerLogin(_ context.Context, site string) (core.AdminerLogin, error) {
-	return core.AdminerLogin{}, f.record("adminer login " + site)
+func (f *fake) NewAdminerLogin(_ context.Context, site, engine string) (core.AdminerLogin, error) {
+	return core.AdminerLogin{}, f.record(strings.TrimSpace("adminer login " + site + " " + engine))
 }
 
 func (f *fake) RedeemAdminerLogin(token string) (core.AdminerCredentials, error) {
@@ -148,7 +156,7 @@ func (f *fake) EnableDomain(_ context.Context, zone string, _ func()) (core.Doma
 	return core.DomainResult{}, f.record("enable " + zone)
 }
 
-func (f *fake) ImportMAMP(_ context.Context, opts core.ImportOptions) (core.ImportPlan, error) {
+func (f *fake) Import(_ context.Context, opts core.ImportOptions) (core.ImportPlan, error) {
 	return core.ImportPlan{DryRun: opts.DryRun}, f.record("import " + map[bool]string{true: "dry", false: "real"}[opts.DryRun])
 }
 
@@ -235,7 +243,7 @@ func TestRoutes(t *testing.T) {
 		{"GET", "/v1/sites/demo/logs/access", "", 200, "logs demo access 0", ""},
 		{"GET", "/v1/sites/demo/logs/php?lines=x", "", 400, "", errcode.InvalidInput},
 		{"DELETE", "/v1/sites/demo/logs", "", 200, "clear logs demo", ""},
-		{"POST", "/v1/sites/demo/database", `{}`, 200, "create db demo ", ""},
+		{"POST", "/v1/sites/demo/database", `{}`, 200, "create db demo", ""},
 		{"POST", "/v1/sites/demo/database", `{"name":"shop","link":true}`, 200, "link db demo shop", ""},
 		{"DELETE", "/v1/sites/demo/database", "", 200, "unlink db demo false", ""},
 		{"DELETE", "/v1/sites/demo/database?drop=true", "", 200, "unlink db demo true", ""},
@@ -256,6 +264,10 @@ func TestRoutes(t *testing.T) {
 		{"PATCH", "/v1/groups/x", `{}`, 400, "", errcode.InvalidInput},
 		{"DELETE", "/v1/groups/4", ``, 200, "group remove 4", ""},
 		{"PUT", "/v1/ports", `{"https_port":443,"http_port":80}`, 200, "ports 443 80", ""},
+		{"POST", "/v1/sites/demo/database", `{"engine":"pgsql"}`, 200, "create db demo  pgsql", ""},
+		{"POST", "/v1/postgres/enable", `{"port":5433}`, 200, "postgres enable 5433", ""},
+		{"POST", "/v1/redis/enable", `{}`, 200, "redis enable 0", ""},
+		{"POST", "/v1/adminer/login", `{"engine":"pgsql"}`, 200, "adminer login  pgsql", ""},
 		{"PUT", "/v1/ports", `{"https_port":443,"admin":true}`, 400, "", errcode.InvalidInput},
 		{"POST", "/v1/updates/apply", `{"components":["caddy","php-8.4"]}`, 200, "apply caddy,php-8.4", ""},
 		{"POST", "/v1/updates/apply", "", 200, "apply ", ""},

@@ -134,7 +134,7 @@ func (c *Core) caddyBinary(inst CaddyInstall) caddy.Binary {
 func (c *Core) caddyfilePath() string { return filepath.Join(c.Layout.Etc, "caddy", "Caddyfile") }
 
 // renderCaddyfile needs the CA on disk (ensureCA).
-func (c *Core) renderCaddyfile(ctx context.Context, p Ports, sites []store.Site, adminer *caddy.Adminer) (string, error) {
+func (c *Core) renderCaddyfile(ctx context.Context, p Ports, sites []store.Site, adminer *caddy.Adminer, phone *caddy.Phone) (string, error) {
 	var mailUI int
 	if on, err := c.mailEnabled(ctx); err != nil {
 		return "", err
@@ -150,6 +150,7 @@ func (c *Core) renderCaddyfile(ctx context.Context, p Ports, sites []store.Site,
 		HTTPSPort:   p.HTTPSListen,
 		HTTPPort:    p.HTTPListen,
 		PublicHTTPS: p.HTTPS,
+		Phone:       phone,
 		StorageDir:  filepath.Join(c.Layout.Data, "caddy"),
 		LogFile:     filepath.Join(c.Layout.Logs, "caddy.log"),
 		CA:          c.caddyCA(),
@@ -428,7 +429,11 @@ func (c *Core) reconcile(ctx context.Context) (StartResult, error) {
 	if err := c.ensureSiteLogDirs(names); err != nil {
 		return StartResult{}, err
 	}
-	body, err := c.renderCaddyfile(ctx, webPorts, sites, adminer)
+	phone, phoneAgents, err := c.phoneConfig(ctx, sites, webPorts.HTTPS)
+	if err != nil {
+		return StartResult{}, err
+	}
+	body, err := c.renderCaddyfile(ctx, webPorts, sites, adminer, phone)
 	if err != nil {
 		return StartResult{}, err
 	}
@@ -448,6 +453,14 @@ func (c *Core) reconcile(ctx context.Context) (StartResult, error) {
 	if err != nil {
 		return StartResult{}, err
 	}
+	pgAgents, pgPort, err := c.postgresAgents(ctx, loaded)
+	if err != nil {
+		return StartResult{}, err
+	}
+	redisAgents, redisPort, err := c.redisAgents(ctx, loaded)
+	if err != nil {
+		return StartResult{}, err
+	}
 	caddyRunning := loaded[c.labelFor(caddyService)].Running
 	if err := c.writeCaddyfile(ctx, bin, body, caddyRunning); err != nil {
 		return StartResult{}, err
@@ -456,6 +469,9 @@ func (c *Core) reconcile(ctx context.Context) (StartResult, error) {
 	agents = append(agents, dnsAgents...)
 	agents = append(agents, mysqlAgents...)
 	agents = append(agents, mailAgents...)
+	agents = append(agents, pgAgents...)
+	agents = append(agents, redisAgents...)
+	agents = append(agents, phoneAgents...)
 
 	rotated := c.rotateLogs()
 	changes, err := c.launchctl.Apply(ctx, c.Layout.Launchd, agents)
@@ -466,6 +482,12 @@ func (c *Core) reconcile(ctx context.Context) (StartResult, error) {
 		return StartResult{}, err
 	}
 	var extra []readyCheck
+	if pgPort != 0 {
+		extra = append(extra, readyCheck{postgresService, "tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(pgPort))})
+	}
+	if redisPort != 0 {
+		extra = append(extra, readyCheck{redisService, "tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(redisPort))})
+	}
 	if mailSMTP != 0 {
 		extra = append(extra,
 			readyCheck{mailService, "tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(mailSMTP))},
@@ -560,6 +582,9 @@ type ServiceStatus struct {
 type SiteStatus struct {
 	store.Site
 	URL string `json:"url"`
+	// Migration is set when Covo migrated the site from another tool (it
+	// can be undone).
+	Migration *store.Migration `json:"migration,omitempty"`
 }
 
 // CAStatus describes the local certificate authority.
@@ -582,8 +607,12 @@ type Status struct {
 	Domains  []DomainStatus  `json:"domains"`
 	MySQL    MySQLStatus     `json:"mysql"`
 	// AdminerURL is set while MySQL is enabled.
-	AdminerURL string     `json:"adminer_url,omitempty"`
-	Mail       MailStatus `json:"mail"`
+	AdminerURL string         `json:"adminer_url,omitempty"`
+	Mail       MailStatus     `json:"mail"`
+	Postgres   PostgresStatus `json:"postgres"`
+	Redis      RedisStatus    `json:"redis"`
+	// Phone is the site open on the phone, if any.
+	Phone *PhoneStatus `json:"phone,omitempty"`
 	// Groups organize the site list (see Site.GroupID).
 	Groups []GroupInfo `json:"groups"`
 	// Orphans are loaded Covo agents that no site needs any more.
@@ -617,11 +646,26 @@ func (c *Core) Status(ctx context.Context) (Status, error) {
 		}
 		st.Sites = append(st.Sites, SiteStatus{Site: s, URL: siteURL(s, st.HTTPSPort)})
 	}
+	if migs, err := c.Store.ListMigrations(ctx); err == nil {
+		for i := range st.Sites {
+			if m, ok := migs[st.Sites[i].Name]; ok {
+				st.Sites[i].Migration = &m
+			}
+		}
+	}
 	mysqlOn, err := c.mysqlEnabled(ctx)
 	if err != nil {
 		return Status{}, err
 	}
-	if svc := phpService(adminerPHP); mysqlOn && !slices.Contains(services, svc) {
+	pgOn, err := c.postgresEnabled(ctx)
+	if err != nil {
+		return Status{}, err
+	}
+	redisOn, err := c.redisEnabled(ctx)
+	if err != nil {
+		return Status{}, err
+	}
+	if svc := phpService(adminerPHP); (mysqlOn || pgOn) && !slices.Contains(services, svc) {
 		services = append(services, svc) // for Adminer
 	}
 	slices.Sort(services[1:])
@@ -636,6 +680,19 @@ func (c *Core) Status(ctx context.Context) (Status, error) {
 	}
 	if mysqlOn {
 		services = append(services, mysqlService)
+	}
+	if pgOn {
+		services = append(services, postgresService)
+	}
+	if redisOn {
+		services = append(services, redisService)
+	}
+	if share, err := c.phoneShare(ctx); err != nil {
+		return Status{}, err
+	} else if share != nil {
+		services = append(services, phoneService)
+	}
+	if mysqlOn || pgOn {
 		st.AdminerURL = httpsURL(caddy.AdminerDomain, st.HTTPSPort) + "/"
 	}
 	if mailOn {
@@ -663,6 +720,15 @@ func (c *Core) Status(ctx context.Context) (Status, error) {
 		return Status{}, err
 	}
 	if st.Mail, err = c.mailStatus(ctx, st.HTTPSPort); err != nil {
+		return Status{}, err
+	}
+	if st.Postgres, err = c.postgresStatus(ctx); err != nil {
+		return Status{}, err
+	}
+	if st.Redis, err = c.redisStatus(ctx); err != nil {
+		return Status{}, err
+	}
+	if st.Phone, err = c.Phone(ctx); err != nil {
 		return Status{}, err
 	}
 	st.CA.CertPath = c.CACertPath()
@@ -776,4 +842,12 @@ func localTimezone() string {
 		}
 	}
 	return "UTC"
+}
+
+// databasesEnabled reports whether MySQL or PostgreSQL is on (Adminer).
+func (c *Core) databasesEnabled(ctx context.Context) (bool, error) {
+	if on, err := c.mysqlEnabled(ctx); err != nil || on {
+		return on, err
+	}
+	return c.postgresEnabled(ctx)
 }

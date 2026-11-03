@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/url"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -40,6 +41,8 @@ type AdminerCredentials struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
 	DB       string `json:"db"`
+	// Driver is Adminer's: "server" (MySQL) or "pgsql".
+	Driver string `json:"driver"`
 }
 
 // AdminerLogin is a URL that logs into Adminer once, within a minute.
@@ -55,11 +58,12 @@ func (c *Core) adminerDir() string { return filepath.Join(c.Layout.Etc, "adminer
 // front file that handles one-time logins, and returns how Caddy serves
 // it, or nil.
 func (c *Core) adminer(ctx context.Context) (*caddy.Adminer, error) {
-	on, err := c.mysqlEnabled(ctx)
+	on, err := c.databasesEnabled(ctx)
 	if err != nil || !on {
 		return nil, err
 	}
-	art, err := c.pinned(ctx, "adminer", "")
+	// The build with every driver: MySQL and PostgreSQL.
+	art, err := c.pinned(ctx, "adminer-full", "")
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +109,7 @@ if (isset($_GET['covo_login']) && empty($_POST['auth']) && preg_match('/^[0-9a-f
 	$answer = json_decode((string) curl_exec($ch), true);
 	if (!empty($answer['ok'])) {
 		$d = $answer['data'];
-		$_POST['auth'] = ['driver' => 'server', 'server' => $d['server'], 'username' => $d['username'],
+		$_POST['auth'] = ['driver' => $d['driver'] ?: 'server', 'server' => $d['server'], 'username' => $d['username'],
 			'password' => $d['password'], 'db' => $d['db'], 'permanent' => ''];
 		define('COVO_LOGIN', true);
 	}
@@ -127,30 +131,40 @@ require '` + adminerPath + `';
 
 // NewAdminerLogin returns a one-time URL that opens Adminer logged in: as
 // the site's database user on its database, or as root with site "".
-func (c *Core) NewAdminerLogin(ctx context.Context, site string) (AdminerLogin, error) {
+func (c *Core) NewAdminerLogin(ctx context.Context, site, engine string) (AdminerLogin, error) {
 	st, err := c.Status(ctx)
 	if err != nil {
 		return AdminerLogin{}, err
 	}
 	if st.AdminerURL == "" {
-		return AdminerLogin{}, errcode.Errorf(errcode.Unsupported, "Adminer needs MySQL: turn it on first (covo mysql enable)")
+		return AdminerLogin{}, errcode.Errorf(errcode.Unsupported, "Adminer needs MySQL or PostgreSQL: turn one on first (covo mysql enable)")
 	}
 	if !st.Running {
 		return AdminerLogin{}, errcode.Errorf(errcode.Conflict, "Covo is stopped: start it first (covo start)")
 	}
 	var creds AdminerCredentials
-	if site == "" {
-		root, err := c.MySQLCredentials(ctx)
-		if err != nil {
-			return AdminerLogin{}, err
-		}
-		creds = AdminerCredentials{Server: "localhost", Username: mysql.User, Password: root.Password}
-	} else {
+	switch {
+	case site != "":
 		db, err := c.GetSiteDatabase(ctx, site)
 		if err != nil {
 			return AdminerLogin{}, err
 		}
-		creds = AdminerCredentials{Server: "localhost", Username: db.User, Password: db.Password, DB: db.Database}
+		creds = AdminerCredentials{Server: "localhost", Username: db.User, Password: db.Password, DB: db.Database, Driver: "server"}
+		if db.Engine == EnginePostgres {
+			creds.Server, creds.Driver = "127.0.0.1:"+strconv.Itoa(db.Port), "pgsql"
+		}
+	case engine == EnginePostgres || (engine == "" && !st.MySQL.Enabled):
+		root, err := c.PostgresCredentials(ctx)
+		if err != nil {
+			return AdminerLogin{}, err
+		}
+		creds = AdminerCredentials{Server: "127.0.0.1:" + strconv.Itoa(root.Port), Username: root.User, Password: root.Password, DB: "postgres", Driver: "pgsql"}
+	default:
+		root, err := c.MySQLCredentials(ctx)
+		if err != nil {
+			return AdminerLogin{}, err
+		}
+		creds = AdminerCredentials{Server: "localhost", Username: mysql.User, Password: root.Password, Driver: "server"}
 	}
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {

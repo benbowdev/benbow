@@ -33,6 +33,11 @@ struct MenuBarContent: View {
                 Button(site.domain) { open(site.url) }
                     .disabled(!model.running)
             }
+            if let phone = model.status?.phone {
+                Divider()
+                Text("\(phone.site) on phone · \(phone.minutesLeft) min left")
+                Button("Stop Sharing \(phone.site)") { Task { await model.stopPhone() } }
+            }
             if let n = model.updates?.ready.count, n > 0 {
                 Divider()
                 Button("Install \(n) Update\(n == 1 ? "" : "s")") { Task { await model.applyUpdates() } }
@@ -41,7 +46,7 @@ struct MenuBarContent: View {
             Divider()
             if model.status?.mysql.enabled == true {
                 Button("Adminer") { Task { await model.openAdminer() } }
-                    .disabled(!model.running || !model.mysqlReady)
+                    .disabled(!model.running || !(model.mysqlReady || model.postgresReady))
             }
             if let mail = model.status?.mail, mail.enabled, let u = mail.url {
                 Button("Mail Inbox") { open(u) }.disabled(!mail.running)

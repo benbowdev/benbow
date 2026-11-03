@@ -51,7 +51,13 @@ func (h *harness) siteDB(args ...string) siteDB {
 }
 
 func (h *harness) keychainAccount(account string) bool {
-	return exec.Command("/usr/bin/security", "find-generic-password", "-a", account, "-s", h.prefix()+".mysql").Run() == nil
+	return h.keychainAccountIn(".mysql", account)
+}
+
+// keychainAccountIn reports whether Covo's keychain service with suffix
+// (".mysql", ".postgres") has an item for account.
+func (h *harness) keychainAccountIn(suffix, account string) bool {
+	return exec.Command("/usr/bin/security", "find-generic-password", "-a", account, "-s", h.prefix()+suffix).Run() == nil
 }
 
 func TestSiteDatabase(t *testing.T) {

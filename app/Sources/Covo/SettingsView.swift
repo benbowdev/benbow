@@ -13,6 +13,8 @@ struct SettingsView: View {
             GeneralSettings().tabItem { Label("General", systemImage: "gearshape") }
             PHPSettingsTab().tabItem { Label("PHP", systemImage: "chevron.left.forwardslash.chevron.right") }
             MySQLSettings().tabItem { Label("MySQL", systemImage: "cylinder.split.1x2") }
+            ServerSettings(server: "postgres").tabItem { Label("PostgreSQL", systemImage: "cylinder") }
+            ServerSettings(server: "redis").tabItem { Label("Redis", systemImage: "bolt.horizontal") }
             MailSettings().tabItem { Label("Mail", systemImage: "envelope") }
             DomainSettings().tabItem { Label("Domains", systemImage: "globe") }
         }
@@ -455,5 +457,86 @@ struct DomainSettings: View {
             Text(detail)
         }
         .disabled(model.busy != nil)
+    }
+}
+
+/// PostgreSQL or Redis, both optional and off by default.
+struct ServerSettings: View {
+    @Environment(AppModel.self) private var model
+    /// "postgres" or "redis".
+    let server: String
+    @State private var credentials: MySQLCredentials?
+    @State private var port = ""
+
+    private var title: String { server == "postgres" ? "PostgreSQL" : "Redis" }
+    private var defaultPort: Int { server == "postgres" ? 5433 : 6380 }
+    private var status: MySQLStatus? { server == "postgres" ? model.status?.postgres : model.status?.redis }
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle(isOn: Binding(
+                    get: { status?.enabled ?? false },
+                    set: { on in Task { await model.setServer(server, enabled: on) } }
+                )) {
+                    Text("\(title) \(status?.version ?? (server == "postgres" ? "18" : "8"))")
+                    Text(statusText).foregroundStyle(.secondary)
+                }
+                .disabled(model.busy != nil)
+                LabeledContent("Port") {
+                    HStack {
+                        TextField("Port", text: $port, prompt: Text(String(defaultPort)))
+                            .labelsHidden().frame(width: 80).multilineTextAlignment(.trailing)
+                        Button("Apply") {
+                            if let p = newPort { Task { await model.setServer(server, enabled: true, port: p) } }
+                        }
+                        .disabled(newPort == nil || model.busy != nil)
+                    }
+                }
+            } footer: {
+                Text(server == "postgres"
+                     ? "Off until you need it. Databases live in Covo's folder; the postgres password is kept in your keychain. Sites get their own database and user from the site detail or New Site."
+                     : "Off until you need it. One Redis for every site on 127.0.0.1, no password: nothing outside this Mac reaches it. New Laravel projects use it for the cache. Redis 8 is distributed under the AGPLv3.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            if server == "postgres", status?.enabled == true {
+                Section("Connection") {
+                    if let c = credentials {
+                        LabeledContent("Host", value: "\(c.host):\(c.port)")
+                        LabeledContent("User", value: c.user)
+                        LabeledContent("Password") {
+                            HStack {
+                                Text(String(repeating: "•", count: 10)).foregroundStyle(.secondary)
+                                Button { copyToClipboard(c.password) } label: { Image(systemName: "doc.on.doc") }
+                                    .buttonStyle(.borderless).help("Copy")
+                            }
+                        }
+                        LabeledContent("Adminer") {
+                            Button("Open") { Task { await model.openAdminer(engine: "pgsql") } }
+                                .help("Every database, already logged in as postgres")
+                                .disabled(!model.running)
+                        }
+                    } else {
+                        Button("Show Connection Details") {
+                            Task { credentials = await model.postgresCredentials() }
+                        }
+                    }
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .onAppear { port = String(status?.port ?? defaultPort) }
+        .onChange(of: status?.port) { _, p in port = String(p ?? defaultPort) }
+    }
+
+    private var statusText: String {
+        guard let s = status, s.enabled else { return "Off" }
+        let at = "\(s.host ?? "127.0.0.1"):\(s.port ?? defaultPort)"
+        return s.running ? "Running on \(at)" : "On, starts with Covo (\(at))"
+    }
+
+    private var newPort: Int? {
+        guard let p = Int(port), (1024...65535).contains(p), p != (status?.port ?? defaultPort) else { return nil }
+        return p
     }
 }

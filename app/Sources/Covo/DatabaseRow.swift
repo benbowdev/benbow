@@ -30,12 +30,18 @@ struct DatabaseRow: View {
     }
 
     @ViewBuilder private var none: some View {
-        if model.mysqlReady {
+        if model.mysqlReady || model.postgresReady {
             HStack {
                 Text("None").foregroundStyle(.secondary)
                 Menu("Add") {
-                    Button("Create Database \(defaultName)") { Task { await model.createDatabase(site) } }
-                    Button("Link Existing Database…") { linking = true }
+                    if model.mysqlReady {
+                        Button("Create MySQL Database \(defaultName)") { Task { await model.createDatabase(site) } }
+                        Button("Link Existing MySQL Database…") { linking = true }
+                    }
+                    if model.postgresReady {
+                        if model.mysqlReady { Divider() }
+                        Button("Create PostgreSQL Database \(defaultName)") { Task { await model.createDatabase(site, engine: "pgsql") } }
+                    }
                 }
                 .fixedSize()
                 .disabled(model.busy != nil)
@@ -50,11 +56,12 @@ struct DatabaseRow: View {
         HStack {
             VStack(alignment: .trailing, spacing: 1) {
                 Text(site.database).textSelection(.enabled)
-                Text("user \(site.databaseUser ?? "root")").font(.caption).foregroundStyle(.secondary)
+                Text("\(site.databaseEngine == "pgsql" ? "PostgreSQL" : "MySQL") · user \(site.databaseUser ?? (site.databaseEngine == "pgsql" ? "postgres" : "root"))")
+                    .font(.caption).foregroundStyle(.secondary)
             }
             Button("Adminer") { Task { await model.openAdminer(site) } }
                 .help("Open this database in Adminer, already logged in")
-                .disabled(!model.mysqlReady || !model.running)
+                .disabled(!(site.databaseEngine == "pgsql" ? model.postgresReady : model.mysqlReady) || !model.running)
             Menu {
                 Button("Show Credentials…") { Task { credentials = await model.siteDatabase(site) } }
                 Button("Copy Password") {

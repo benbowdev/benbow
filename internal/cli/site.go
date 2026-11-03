@@ -47,7 +47,7 @@ func (r siteResult) Text(w io.Writer) {
 
 func (a *app) siteAddCmd() *cobra.Command {
 	var req core.AddSiteRequest
-	var path, group, database string
+	var path, group, database, engine string
 	var ini []string
 	cmd := &cobra.Command{
 		Use:   "add <name>",
@@ -65,6 +65,7 @@ func (a *app) siteAddCmd() *cobra.Command {
 			if req.PHPSettings, err = iniFlags(ini); err != nil {
 				return nil, err
 			}
+			req.DatabaseEngine = engine
 			switch database {
 			case "":
 			case "new":
@@ -89,6 +90,7 @@ func (a *app) siteAddCmd() *cobra.Command {
 	cmd.Flags().StringVar(&group, "group", "", "list the site in this group, e.g. Clients/Acme (see covo group)")
 	cmd.Flags().StringVar(&database, "database", "", `"new" for a database with its own user, or the name of an existing one to link`)
 	cmd.Flags().StringArrayVar(&ini, "ini", nil, "php.ini value of this site, name=value (repeatable)")
+	cmd.Flags().StringVar(&engine, "engine", "mysql", "database engine for --database: mysql or pgsql")
 	return cmd
 }
 

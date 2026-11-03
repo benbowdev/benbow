@@ -109,6 +109,15 @@ func (u *Uninstaller) Plan(ctx context.Context) (UninstallPlan, error) {
 	} else if ok {
 		plan.Keychain = append(plan.Keychain, "MySQL passwords: root and site users ("+kc.Service+")")
 	}
+	pgkc, err := postgresKeychain(u.Launchctl.Prefix)
+	if err != nil {
+		return plan, err
+	}
+	if ok, err := pgkc.AnyExists(ctx); err != nil {
+		return plan, err
+	} else if ok {
+		plan.Keychain = append(plan.Keychain, "PostgreSQL passwords: superuser and site users ("+pgkc.Service+")")
+	}
 	for _, zone := range []string{suffixTest} {
 		st, _, err := u.Resolver.State(zone)
 		if err != nil {
@@ -177,6 +186,13 @@ func (u *Uninstaller) Uninstall(ctx context.Context) (UninstallResult, error) {
 		return res, err
 	}
 	if _, err := kc.DeleteAll(ctx); err != nil {
+		return res, err
+	}
+	pgkc, err := postgresKeychain(u.Launchctl.Prefix)
+	if err != nil {
+		return res, err
+	}
+	if _, err := pgkc.DeleteAll(ctx); err != nil {
 		return res, err
 	}
 	for _, p := range plan.Paths {

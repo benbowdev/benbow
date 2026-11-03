@@ -50,6 +50,7 @@ func (a *app) laravelCmd() *cobra.Command {
 	cmd.Flags().StringVar(&req.Path, "path", "", "new or empty folder (default ~/Sites/<name>)")
 	cmd.Flags().StringVar(&req.PHP, "php", "8.4", "PHP version (8.2 or newer)")
 	cmd.Flags().StringVar(&req.Database, "database", "", `"new" (own MySQL database) or "sqlite" (default: new if MySQL is running)`)
+	cmd.Flags().StringVar(&req.Engine, "engine", "", "engine of the new database: mysql or pgsql (default: whichever is running, MySQL first)")
 	cmd.Flags().StringVar(&req.Domain, "domain", "", "local domain (default: <name>.localhost)")
 	cmd.Flags().StringSliceVar(&req.Aliases, "aliases", nil, "extra domains, comma separated")
 	cmd.Flags().StringVar(&group, "group", "", "list the site in this group")

@@ -98,10 +98,16 @@ func TestImportMAMP(t *testing.T) {
 	if !plan.DryRun || plan.Create != 3 || plan.Skip != 3 || !plan.NeedsLocal {
 		t.Fatalf("dry run = %+v", plan)
 	}
+	// PHP 7.4 exists on Apple Silicon (covo-binaries' legacy builds);
+	// elsewhere it maps to 8.1 with a warning.
+	legacy := "8.1"
+	if runtime.GOARCH == "arm64" {
+		legacy = "7.4"
+	}
 	want := map[string]struct{ action, domain, php string }{
 		"localhost":         {"skip", "", ""},
 		"shop.local":        {"create", "shop.local", "8.1"},
-		"blog.client.local": {"create", "blog.client.local", "8.1"}, // PHP 7.4
+		"blog.client.local": {"create", "blog.client.local", legacy}, // PHP 7.4
 		"intranet":          {"create", "intranet.local", "8.2"},
 		"gone.local":        {"skip", "", ""},
 		"Bad_Name.local":    {"skip", "", ""},
@@ -111,7 +117,7 @@ func TestImportMAMP(t *testing.T) {
 		if it.Action != w.action || it.Domain != w.domain || it.PHP != w.php {
 			t.Errorf("%s: %+v, want %+v", it.MAMP.ServerName, it, w)
 		}
-		if it.MAMP.ServerName == "blog.client.local" && !strings.Contains(strings.Join(it.Warnings, "|"), "PHP 7.4.33 is not available") {
+		if it.MAMP.ServerName == "blog.client.local" && legacy == "8.1" && !strings.Contains(strings.Join(it.Warnings, "|"), "PHP 7.4.33 is not available") {
 			t.Errorf("no PHP warning: %v", it.Warnings)
 		}
 		if it.MAMP.ServerName == "blog.client.local" && strings.Join(it.Aliases, ",") != "www.blog.client.local" {
@@ -157,7 +163,7 @@ func TestImportMAMP(t *testing.T) {
 	}
 	for _, s := range status.Sites {
 		body := h.get(s.URL, status.CA.CertPath)
-		wantBody := map[string]string{"shop": "Shop Site/public 8.1", "blog-client": "blog 8.1", "intranet": "intranet 8.2"}[s.Name]
+		wantBody := map[string]string{"shop": "Shop Site/public 8.1", "blog-client": "blog " + legacy, "intranet": "intranet 8.2"}[s.Name]
 		if body != wantBody {
 			t.Errorf("%s: %q, want %q", s.URL, body, wantBody)
 		}

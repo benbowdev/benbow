@@ -32,6 +32,8 @@ type SiteDatabase struct {
 	Dedicated bool `json:"dedicated"`
 	// Dropped is true when unlink also deleted the database.
 	Dropped bool `json:"dropped,omitempty"`
+	// Engine is "mysql" or "pgsql".
+	Engine string `json:"engine"`
 }
 
 // mysqlRoot returns how to run SQL as root. MySQL must be running.
@@ -112,8 +114,36 @@ func checkDatabaseName(db string) error {
 // with a random password kept in the login keychain, and links it to the
 // site.
 func (c *Core) CreateSiteDatabase(ctx context.Context, name, db string) (SiteDatabase, error) {
+	return c.CreateSiteDatabaseOn(ctx, name, db, EngineMySQL)
+}
+
+// Database engines.
+const (
+	EngineMySQL    = "mysql"
+	EnginePostgres = "pgsql"
+)
+
+func checkEngine(engine string) (string, error) {
+	switch engine {
+	case "", EngineMySQL:
+		return EngineMySQL, nil
+	case EnginePostgres, "postgres", "postgresql":
+		return EnginePostgres, nil
+	}
+	return "", errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("database engine must be mysql or pgsql, got %q", engine))
+}
+
+// CreateSiteDatabaseOn creates a site database on MySQL or PostgreSQL.
+func (c *Core) CreateSiteDatabaseOn(ctx context.Context, name, db, engine string) (SiteDatabase, error) {
+	engine, err := checkEngine(engine)
+	if err != nil {
+		return SiteDatabase{}, err
+	}
+	if engine == EnginePostgres {
+		return c.createPostgresDatabase(ctx, name, db)
+	}
 	var res SiteDatabase
-	err := c.locked(ctx, func() error {
+	err = c.locked(ctx, func() error {
 		site, err := c.Store.Site(ctx, name)
 		if err != nil {
 			return err
@@ -190,8 +220,21 @@ func dropSQL(db, user string) string {
 // LinkSiteDatabase links an existing database to a site. The site connects
 // as root (as with MAMP).
 func (c *Core) LinkSiteDatabase(ctx context.Context, name, db string) (SiteDatabase, error) {
+	return c.LinkSiteDatabaseOn(ctx, name, db, EngineMySQL)
+}
+
+// LinkSiteDatabaseOn links an existing MySQL or PostgreSQL database; the
+// site connects as the server's administrator.
+func (c *Core) LinkSiteDatabaseOn(ctx context.Context, name, db, engine string) (SiteDatabase, error) {
+	engine, err := checkEngine(engine)
+	if err != nil {
+		return SiteDatabase{}, err
+	}
+	if engine == EnginePostgres {
+		return c.linkPostgresDatabase(ctx, name, db)
+	}
 	var res SiteDatabase
-	err := c.locked(ctx, func() error {
+	err = c.locked(ctx, func() error {
 		site, err := c.Store.Site(ctx, name)
 		if err != nil {
 			return err
@@ -232,8 +275,13 @@ func (c *Core) UnlinkSiteDatabase(ctx context.Context, name string, drop bool) (
 		if site.Database == "" {
 			return errcode.Errorf(errcode.NotFound, fmt.Sprintf("%s has no database", name))
 		}
-		res = SiteDatabase{Site: name, Database: site.Database, User: site.DBUser, Dedicated: site.DBUser != ""}
-		if drop {
+		res = SiteDatabase{Site: name, Database: site.Database, User: site.DBUser, Dedicated: site.DBUser != "", Engine: engineOf(site)}
+		if drop && engineOf(site) == EnginePostgres {
+			if err := c.dropPostgresDatabase(ctx, site.Database, site.DBUser); err != nil {
+				return err
+			}
+			res.Dropped = true
+		} else if drop {
 			if _, err := c.rootQuery(ctx, dropSQL(site.Database, site.DBUser)); err != nil {
 				return err
 			}
@@ -248,7 +296,7 @@ func (c *Core) UnlinkSiteDatabase(ctx context.Context, name string, drop bool) (
 			}
 			res.Dropped = true
 		}
-		site.Database, site.DBUser = "", ""
+		site.Database, site.DBUser, site.DBEngine = "", "", ""
 		return c.Store.UpdateSite(ctx, site)
 	})
 	return res, err
@@ -266,14 +314,24 @@ func (c *Core) GetSiteDatabase(ctx context.Context, name string) (SiteDatabase, 
 	return c.siteDatabase(ctx, site)
 }
 
+func engineOf(s store.Site) string {
+	if s.DBEngine == EnginePostgres {
+		return EnginePostgres
+	}
+	return EngineMySQL
+}
+
 func (c *Core) siteDatabase(ctx context.Context, site store.Site) (SiteDatabase, error) {
+	if engineOf(site) == EnginePostgres {
+		return c.postgresSiteDatabase(ctx, site)
+	}
 	st, err := c.mysqlStatus(ctx)
 	if err != nil {
 		return SiteDatabase{}, err
 	}
 	res := SiteDatabase{
 		Site: site.Name, Database: site.Database, User: mysql.User,
-		Host: st.Host, Port: st.Port, Socket: c.mysqlSocketPath(),
+		Host: st.Host, Port: st.Port, Socket: c.mysqlSocketPath(), Engine: EngineMySQL,
 	}
 	kc, err := mysqlKeychain(c.launchctl.Prefix)
 	if err != nil {

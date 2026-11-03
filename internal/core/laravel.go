@@ -131,7 +131,10 @@ type LaravelRequest struct {
 	PHP  string // default 8.4; Laravel needs 8.2 or newer
 	// Database is "new" (the default when MySQL is running: a database
 	// with its own user) or "sqlite" (Laravel's own default).
-	Database    string
+	Database string
+	// Engine of a new database: "mysql" or "pgsql" (default: MySQL if it
+	// is running, else PostgreSQL).
+	Engine      string
 	Domain      string
 	Aliases     []string
 	Group       int64
@@ -166,9 +169,22 @@ func (c *Core) NewLaravel(ctx context.Context, req LaravelRequest) (LaravelResul
 	if compareMinor(req.PHP, minLaravelPHP) < 0 {
 		return res, errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("Laravel needs PHP %s or newer, not %s", minLaravelPHP, req.PHP))
 	}
+	_, _, _, mysqlErr := c.mysqlRoot(ctx)
+	_, _, _, pgErr := c.postgresRoot(ctx)
+	if req.Engine == "" {
+		req.Engine = EngineMySQL
+		if mysqlErr != nil && pgErr == nil {
+			req.Engine = EnginePostgres
+		}
+	}
+	engine, err := checkEngine(req.Engine)
+	if err != nil {
+		return res, err
+	}
+	req.Engine = engine
 	if req.Database == "" {
 		req.Database = "sqlite"
-		if _, _, _, err := c.mysqlRoot(ctx); err == nil {
+		if (engine == EngineMySQL && mysqlErr == nil) || (engine == EnginePostgres && pgErr == nil) {
 			req.Database = "new"
 		}
 	}
@@ -176,8 +192,11 @@ func (c *Core) NewLaravel(ctx context.Context, req LaravelRequest) (LaravelResul
 		return res, errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("database must be new or sqlite, got %q", req.Database))
 	}
 	if req.Database == "new" {
-		if _, _, _, err := c.mysqlRoot(ctx); err != nil {
-			return res, err
+		if engine == EnginePostgres && pgErr != nil {
+			return res, pgErr
+		}
+		if engine == EngineMySQL && mysqlErr != nil {
+			return res, mysqlErr
 		}
 	}
 	home, err := os.UserHomeDir()
@@ -219,7 +238,7 @@ func (c *Core) NewLaravel(ctx context.Context, req LaravelRequest) (LaravelResul
 
 	site, err := c.AddSite(ctx, AddSiteRequest{
 		Name: req.Name, Domain: req.Domain, PHP: req.PHP, Path: req.Path, Aliases: req.Aliases,
-		Group: req.Group, PHPSettings: req.PHPSettings, NewDatabase: req.Database == "new",
+		Group: req.Group, PHPSettings: req.PHPSettings, NewDatabase: req.Database == "new", DatabaseEngine: req.Engine,
 	})
 	if err != nil {
 		undo()
@@ -235,13 +254,27 @@ func (c *Core) NewLaravel(ctx context.Context, req LaravelRequest) (LaravelResul
 			return res, err
 		}
 		res.Database = db.Database
+		conn, host := "mysql", "127.0.0.1"
+		if db.Engine == EnginePostgres {
+			// PostgreSQL through Covo's Unix socket: PDO pgsql in the static
+			// PHP 8 builds (Swoole's driver) hangs over TCP.
+			conn, host = "pgsql", db.Socket
+		}
 		pairs = append(pairs,
-			dotenv.Pair{Key: "DB_CONNECTION", Value: "mysql"},
-			dotenv.Pair{Key: "DB_HOST", Value: "127.0.0.1"},
+			dotenv.Pair{Key: "DB_CONNECTION", Value: conn},
+			dotenv.Pair{Key: "DB_HOST", Value: host},
 			dotenv.Pair{Key: "DB_PORT", Value: strconv.Itoa(db.Port)},
 			dotenv.Pair{Key: "DB_DATABASE", Value: db.Database},
 			dotenv.Pair{Key: "DB_USERNAME", Value: db.User},
 			dotenv.Pair{Key: "DB_PASSWORD", Value: db.Password},
+		)
+	}
+	if r, err := c.redisStatus(ctx); err == nil && r.Enabled {
+		pairs = append(pairs,
+			dotenv.Pair{Key: "REDIS_CLIENT", Value: "phpredis"},
+			dotenv.Pair{Key: "REDIS_HOST", Value: "127.0.0.1"},
+			dotenv.Pair{Key: "REDIS_PORT", Value: strconv.Itoa(r.Port)},
+			dotenv.Pair{Key: "CACHE_STORE", Value: "redis"},
 		)
 	}
 	if mail, err := c.Mail(ctx); err == nil && mail.Enabled {

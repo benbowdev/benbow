@@ -17,7 +17,7 @@ struct CovoApp: App {
         .windowToolbarStyle(.unified)
         .commands {
             CommandGroup(after: .newItem) {
-                Button("Import from MAMP PRO…") { model.importing = true }
+                Button("Import from Another Tool…") { model.importing = true }
                     .disabled(model.phase != .ready || model.busy != nil)
             }
         }

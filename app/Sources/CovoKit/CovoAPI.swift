@@ -70,6 +70,17 @@ public struct CovoAPI: Sendable {
 
     public func ports() async throws -> PortsStatus { try await call("GET", "/v1/ports") }
 
+    struct PhoneRequest: Encodable { let minutes: Int }
+
+    /// Opens a site on the local network for minutes.
+    public func sharePhone(_ site: String, minutes: Int) async throws -> PhoneStatus {
+        try await call("PUT", "/v1/sites/\(escape(site))/phone", PhoneRequest(minutes: minutes))
+    }
+
+    public func stopPhone() async throws {
+        let _: Ignored = try await call("DELETE", "/v1/phone")
+    }
+
     struct PHPCheckRequest: Encodable {
         let target: String
         let all: Bool
@@ -120,6 +131,8 @@ public struct CovoAPI: Sendable {
         /// A new database with its own user, or an existing one to link.
         public var newDatabase = false
         public var linkDatabase: String?
+        /// "mysql" or "pgsql".
+        public var databaseEngine: String?
 
         public init(name: String, domain: String? = nil, php: String, path: String) {
             self.name = name
@@ -200,6 +213,8 @@ public struct CovoAPI: Sendable {
         public var php: String
         /// "new" or "sqlite".
         public var database: String
+        /// Engine of a new database: "mysql" or "pgsql".
+        public var databaseEngine: String?
         public var domain: String?
         public var aliases: [String] = []
         public var groupId: Int64?
@@ -247,13 +262,16 @@ public struct CovoAPI: Sendable {
         let _: Ignored = try await call("DELETE", "/v1/groups/\(id)")
     }
 
-    struct AdminerRequest: Encodable { let site: String }
+    struct AdminerRequest: Encodable {
+        let site: String
+        let engine: String
+    }
     struct AdminerLogin: Decodable { let url: String }
 
     /// A one-time URL that opens Adminer logged in, as root (site "") or as
     /// the site's database user.
-    public func adminerLogin(site: String = "") async throws -> URL {
-        let r: AdminerLogin = try await call("POST", "/v1/adminer/login", AdminerRequest(site: site))
+    public func adminerLogin(site: String = "", engine: String = "") async throws -> URL {
+        let r: AdminerLogin = try await call("POST", "/v1/adminer/login", AdminerRequest(site: site, engine: engine))
         guard let url = URL(string: r.url) else { throw APIError(code: "internal", message: "Bad Adminer URL") }
         return url
     }
@@ -282,15 +300,31 @@ public struct CovoAPI: Sendable {
     struct DatabaseRequest: Encodable {
         let name: String
         let link: Bool
+        let engine: String
     }
 
     /// Creates a database with its own user; an empty name means the site's.
-    public func createSiteDatabase(_ name: String, database: String = "") async throws -> SiteDatabase {
-        try await call("POST", "/v1/sites/\(escape(name))/database", DatabaseRequest(name: database, link: false))
+    public func createSiteDatabase(_ name: String, database: String = "", engine: String = "mysql") async throws -> SiteDatabase {
+        try await call("POST", "/v1/sites/\(escape(name))/database", DatabaseRequest(name: database, link: false, engine: engine))
     }
 
-    public func linkSiteDatabase(_ name: String, database: String) async throws -> SiteDatabase {
-        try await call("POST", "/v1/sites/\(escape(name))/database", DatabaseRequest(name: database, link: true))
+    public func linkSiteDatabase(_ name: String, database: String, engine: String = "mysql") async throws -> SiteDatabase {
+        try await call("POST", "/v1/sites/\(escape(name))/database", DatabaseRequest(name: database, link: true, engine: engine))
+    }
+
+    public func postgresDatabases() async throws -> [String] { try await call("GET", "/v1/postgres/databases") }
+
+    /// "postgres" or "redis": turns an optional server on (with a port) or off.
+    public func setServer(_ server: String, enabled: Bool, port: Int? = nil) async throws {
+        if enabled {
+            let _: Ignored = try await call("POST", "/v1/\(server)/enable", PortRequest(port: port))
+        } else {
+            let _: Ignored = try await call("POST", "/v1/\(server)/disable")
+        }
+    }
+
+    public func postgresCredentials() async throws -> MySQLCredentials {
+        try await call("GET", "/v1/postgres/credentials")
     }
 
     /// Forgets the site's database; drop also deletes it.
@@ -391,8 +425,32 @@ public struct CovoAPI: Sendable {
         let localhost: Bool
     }
 
+    public struct ImportOptions: Encodable, Sendable {
+        public var dryRun = true
+        public var localhost = false
+        public var sites: [String] = []
+        public var migrate = false
+        /// use, recopy or skip.
+        public var existing = "use"
+        public var sourceUser: String?
+        public var sourcePassword: String?
+        public init() {}
+    }
+
+    /// Imports from mamp, local, herd, valet or xampp (dry run by default).
+    public func importSites(from source: String, _ opts: ImportOptions) async throws -> ImportPlan {
+        try await call("POST", "/v1/import/\(source)", opts)
+    }
+
     public func importMAMP(dryRun: Bool, localhost: Bool) async throws -> ImportPlan {
-        try await call("POST", "/v1/import/mamp", ImportRequest(dryRun: dryRun, localhost: localhost))
+        var o = ImportOptions()
+        o.dryRun = dryRun
+        o.localhost = localhost
+        return try await importSites(from: "mamp", o)
+    }
+
+    public func undoMigration(_ site: String) async throws {
+        let _: Ignored = try await call("POST", "/v1/sites/\(escape(site))/migration/undo")
     }
 
     func escape(_ s: String) -> String {

@@ -31,6 +31,8 @@ public struct Site: Codable, Sendable, Identifiable, Hashable {
     public var appRoot: String?
     /// "mysql" (or nil) or "pgsql".
     public var databaseEngine: String?
+    /// Set when Covo migrated the site from another tool.
+    public var migration: SiteMigration?
 
     /// Where the project's files are: the Laravel root, else the folder.
     public var projectRoot: String { appRoot ?? path }
@@ -86,6 +88,7 @@ public struct Domain: Codable, Sendable, Hashable, Identifiable {
 
 public struct MySQLStatus: Codable, Sendable, Hashable {
     public var enabled: Bool
+    public var socket: String?
     public var version: String?
     public var host: String?
     public var port: Int?
@@ -174,6 +177,11 @@ public struct Status: Codable, Sendable, Hashable {
     /// Set while MySQL is enabled.
     public var adminerUrl: String?
     public var mail: MailStatus?
+    /// PostgreSQL and Redis share MySQL's status fields.
+    public var postgres: MySQLStatus?
+    public var redis: MySQLStatus?
+    /// The site open on the phone, if any.
+    public var phone: PhoneStatus?
     public var groups: [SiteGroup]?
     public var orphans: [String]?
 }
@@ -182,6 +190,19 @@ public struct PHPVersion: Codable, Sendable, Hashable {
     public var version: String
     public var minor: String
     public var path: String
+}
+
+/// A site served on the local network for a phone.
+public struct PhoneStatus: Codable, Sendable, Hashable {
+    public var site: String
+    public var host: String
+    public var port: Int
+    public var url: String
+    public var caPageUrl: String
+    public var addresses: [String]
+    /// "off", "on", "block-all" or "unknown".
+    public var firewall: String
+    public var minutesLeft: Int
 }
 
 /// A new Laravel project.
@@ -290,6 +311,8 @@ public struct SiteDatabase: Codable, Sendable, Hashable {
     public var port: Int
     public var socket: String
     public var dedicated: Bool
+    /// "mysql" or "pgsql".
+    public var engine: String?
 
     /// The lines to paste into wp-config.php.
     public var wpConfig: String {
@@ -356,6 +379,8 @@ public struct ImportItem: Codable, Sendable, Hashable {
     /// The MAMP database linked to the new site (already on Covo's MySQL).
     public var database: String?
     public var warnings: [String]
+    /// What migrating the site does (or did).
+    public var migration: MigrationPlan?
 
     public var creates: Bool { action == "create" }
 }
@@ -367,8 +392,37 @@ public struct ImportPlan: Codable, Sendable, Hashable {
     public var create: Int
     public var skip: Int
     public var needsLocal: Bool
+    public var needsTest: Bool?
     public var databases: [String]
     public var applied: Bool
+    public var kind: String?
+    public var migrated: Int?
+}
+
+/// One site's assisted migration.
+public struct MigrationPlan: Codable, Sendable, Hashable {
+    public var framework: String?
+    public var database: String?
+    public var server: String?
+    public var exists: Bool
+    public var config: String?
+    public var urlFrom: String?
+    public var urlTo: String?
+    public var steps: [String]
+    public var manual: [String: String]?
+    public var problem: String?
+    public var done: Bool?
+    public var error: String?
+}
+
+/// What a migration changed (shown in the site detail, undoable).
+public struct SiteMigration: Codable, Sendable, Hashable {
+    public var source: String
+    public var database: String
+    public var configPath: String?
+    public var backupPath: String?
+    public var urlFrom: String?
+    public var createdDatabase: Bool
 }
 
 public struct DaemonInfo: Codable, Sendable, Hashable {

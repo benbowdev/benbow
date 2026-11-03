@@ -7,9 +7,11 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"strings"
 
 	"github.com/getcovo/covo/internal/core"
+	"github.com/getcovo/covo/internal/errcode"
+	"github.com/getcovo/covo/internal/importers"
+	"github.com/getcovo/covo/internal/store"
 	"github.com/spf13/cobra"
 )
 
@@ -20,7 +22,7 @@ func (r importResult) Text(w io.Writer) {
 	if r.DryRun {
 		verb = "Would create"
 	}
-	fmt.Fprintf(w, "MAMP PRO settings: %s (read from a copy; MAMP is not modified)\n\n", r.Source)
+	fmt.Fprintf(w, "%s: %s (only read)\n\n", importers.Title(r.Kind), r.Source)
 	for _, it := range r.Items {
 		if it.Action != core.ImportCreate {
 			continue
@@ -32,6 +34,26 @@ func (r importResult) Text(w io.Writer) {
 		for _, warn := range it.Warnings {
 			fmt.Fprintf(w, "    ! %s\n", warn)
 		}
+		if m := it.Migration; m != nil {
+			switch {
+			case m.Error != "":
+				fmt.Fprintf(w, "    migration failed, undone: %s\n", m.Error)
+			case m.Problem != "":
+				fmt.Fprintf(w, "    not migrated: %s\n", m.Problem)
+				for k, v := range m.Manual {
+					fmt.Fprintf(w, "      set %s to %s\n", k, v)
+				}
+			default:
+				state := "would"
+				if m.Done {
+					state = "did"
+				}
+				fmt.Fprintf(w, "    migration (%s):\n", state)
+				for _, step := range m.Steps {
+					fmt.Fprintf(w, "      - %s\n", step)
+				}
+			}
+		}
 	}
 	for _, it := range r.Items {
 		if it.Action == core.ImportSkip {
@@ -39,8 +61,9 @@ func (r importResult) Text(w io.Writer) {
 		}
 	}
 	fmt.Fprintf(w, "\n%d to create, %d skipped.\n", r.Create, r.Skip)
-	if len(r.Databases) > 0 {
-		fmt.Fprintf(w, "Databases are not copied (export them from MAMP); a site is linked to its database when that already exists on Covo's MySQL: %s\n", strings.Join(r.Databases, ", "))
+	if r.Migrated > 0 {
+		fmt.Fprintf(w, "%d migrated: they now work from Covo. The project files are shared with %s, whose sites no longer reach their old database. Undo one with `covo import undo <site>`.\n",
+			r.Migrated, importers.Title(r.Kind))
 	}
 	if r.NeedsLocal {
 		fmt.Fprintln(w, "Keeping .local names needs `covo domains enable local` first; or pass --localhost.")
@@ -52,31 +75,84 @@ func (r importResult) Text(w io.Writer) {
 	}
 }
 
+type undoResult store.Migration
+
+func (r undoResult) Text(w io.Writer) {
+	fmt.Fprintf(w, "Undid the migration of %s", r.Site)
+	if r.BackupPath != "" {
+		fmt.Fprintf(w, ": %s restored", r.ConfigPath)
+	}
+	if r.CreatedDB {
+		fmt.Fprintf(w, ", database %s deleted", r.DBName)
+	}
+	fmt.Fprintln(w, ".")
+}
+
 func (a *app) importCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "import",
-		Short: "Import sites from another tool",
+		Short: "Import sites from another tool (MAMP PRO, Local, Herd, Valet, XAMPP)",
 	}
-	var opts core.ImportOptions
-	mampCmd := &cobra.Command{
-		Use:   "mamp",
-		Short: "Recreate MAMP PRO's hosts as Covo sites (MAMP is never modified)",
-		Long: `Reads MAMP PRO's host list from a temporary copy of its settings and creates
-one Covo site per host, with the same name and document root. MAMP PRO itself
-is never modified and can keep running.
+	for _, source := range importers.Names {
+		cmd.AddCommand(a.importSourceCmd(source))
+	}
+	cmd.AddCommand(&cobra.Command{
+		Use:   "undo <site>",
+		Short: "Undo a site's migration: restore its configuration, delete the copied database",
+		Args:  cobra.ExactArgs(1),
+		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
+			m, err := c.UndoMigration(ctx, args[0])
+			return undoResult(m), err
+		}),
+	})
+	return cmd
+}
 
-.local names are kept, which needs the MAMP compatibility mode
-(covo domains enable local); --localhost serves them as <name>.localhost
-instead. PHP versions Covo does not offer (7.4 and older) map to PHP 8.1 with
-a warning. Databases are listed, not imported.`,
+func (a *app) importSourceCmd(source string) *cobra.Command {
+	var opts core.ImportOptions
+	var askPassword bool
+	cmd := &cobra.Command{
+		Use:   source,
+		Short: "Recreate " + importers.Title(source) + "'s sites as Covo sites (" + importers.Title(source) + " is never modified)",
+		Long: `Reads ` + importers.Title(source) + `'s site list (its files are only read) and creates one Covo
+site per host, same name and folder. The tool itself is never modified and
+can keep running. .local names are kept (covo domains enable local), or
+served as <name>.localhost with --localhost.
+
+--migrate also brings each new site to work from Covo: its database is
+copied from the tool's MySQL (only read: the tool's MySQL must be running,
+Covo never starts it) or loaded from --dump, the site gets its own MySQL
+user, wp-config.php or .env is backed up in Covo's folder and pointed at
+Covo, and the old address is replaced in the database. The project files
+stay shared: afterwards the tool's copy of the site no longer reaches its
+database. ` + "`covo import undo <site>`" + ` puts things back.`,
 		Args: cobra.NoArgs,
 		RunE: a.withCore(func(ctx context.Context, c *core.Core, _ []string) (Result, error) {
-			res, err := c.ImportMAMP(ctx, opts)
+			opts.Source = source
+			if askPassword {
+				pw, err := a.readSecret("Password of " + importers.Title(source) + "'s MySQL user " + opts.Migration.SourceUser + ": ")
+				if err != nil {
+					return nil, err
+				}
+				opts.Migration.SourcePassword = pw
+			}
+			if opts.Migrate && !opts.DryRun && !a.json && a.stdin != nil {
+				if !a.confirm("After the migration these sites work from Covo; opened from " + importers.Title(source) +
+					" they will no longer reach their database (the project files are shared). Continue?") {
+					return nil, errcode.Errorf(errcode.ConfirmationRequired, "migration not confirmed")
+				}
+			}
+			res, err := c.Import(ctx, opts)
 			return importResult(res), err
 		}),
 	}
-	mampCmd.Flags().BoolVar(&opts.DryRun, "dry-run", false, "show what would be created, change nothing")
-	mampCmd.Flags().BoolVar(&opts.Localhost, "localhost", false, "serve sites as <name>.localhost instead of <name>.local")
-	cmd.AddCommand(mampCmd)
+	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", false, "show what would happen, change nothing")
+	cmd.Flags().BoolVar(&opts.Localhost, "localhost", false, "serve sites as <name>.localhost instead of their .local names")
+	cmd.Flags().StringSliceVar(&opts.Sites, "site", nil, "only these hosts (server name or site name; repeatable)")
+	cmd.Flags().BoolVar(&opts.Migrate, "migrate", false, "also copy databases and point wp-config.php/.env at Covo")
+	cmd.Flags().StringVar(&opts.Migration.Existing, "existing", "use", "when Covo already has the database: use, recopy (after a backup) or skip")
+	cmd.Flags().StringVar(&opts.Migration.DumpFile, "dump", "", "load this .sql or .sql.gz instead of reading the source's MySQL (one --site)")
+	cmd.Flags().StringVar(&opts.Migration.SourceUser, "source-user", "", "MySQL user on the source (default: the one in wp-config.php/.env)")
+	cmd.Flags().BoolVar(&askPassword, "source-password", false, "ask for the source user's password")
 	return cmd
 }

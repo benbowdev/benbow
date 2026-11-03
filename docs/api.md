@@ -49,6 +49,11 @@ Request bodies are strict JSON (unknown fields are refused).
 | `POST /v1/laravel` | `{name, path, php, database, domain, aliases, group_id, php_settings}` | `covo laravel` |
 | `POST /v1/sites/{name}/run` | `{tool, args}` (`wp`, `composer`, `artisan`) | `covo wp`, `covo composer`, `covo artisan` |
 | `POST /v1/sites/{name}/php-check` | `{target, all}` | `covo php check` |
+| `GET /v1/postgres`, `POST /v1/postgres/{enable,disable}`, `GET /v1/postgres/{credentials,databases}` | `{port}` | `covo postgres`, `covo db list --engine pgsql` |
+| `GET /v1/redis`, `POST /v1/redis/{enable,disable}` | `{port}` | `covo redis` |
+| `GET /v1/phone`, `PUT /v1/sites/{name}/phone`, `DELETE /v1/phone` | `{minutes}` | `covo phone` |
+| `POST /v1/import/{mamp,local,herd,valet,xampp}` | `{dry_run, localhost, sites, migrate, existing, dump_file, source_user, source_password}` | `covo import <source>` |
+| `POST /v1/sites/{name}/migration/undo` | | `covo import undo` |
 | `GET /v1/ports`, `PUT /v1/ports` | `{https_port, http_port}` (0: off) | `covo ports` |
 | `GET`, `POST /v1/groups` | `{name, parent_id}` | `covo group list`, `add` |
 | `PATCH /v1/groups/{id}` | any of `{name, parent_id}` (0: top level) | `covo group rename`, `move` |

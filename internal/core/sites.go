@@ -46,6 +46,8 @@ type AddSiteRequest struct {
 	// LinkDatabase links an existing one instead. Both need MySQL running.
 	NewDatabase  bool
 	LinkDatabase string
+	// DatabaseEngine is "mysql" (default) or "pgsql".
+	DatabaseEngine string
 
 	// Set by AddSite from the folder (or by NewLaravel): the project root
 	// when the document root is inside it, and the framework.
@@ -82,7 +84,17 @@ func (c *Core) AddSite(ctx context.Context, req AddSiteRequest) (SiteResult, err
 		return SiteResult{}, errcode.Errorf(errcode.InvalidInput, "choose a new database or an existing one, not both")
 	}
 	if req.NewDatabase || req.LinkDatabase != "" {
-		if _, _, _, err := c.mysqlRoot(ctx); err != nil {
+		engine, err := checkEngine(req.DatabaseEngine)
+		if err != nil {
+			return SiteResult{}, err
+		}
+		req.DatabaseEngine = engine
+		if engine == EnginePostgres {
+			_, _, _, err = c.postgresRoot(ctx)
+		} else {
+			_, _, _, err = c.mysqlRoot(ctx)
+		}
+		if err != nil {
 			return SiteResult{}, err
 		}
 	}
@@ -134,9 +146,9 @@ func (c *Core) AddSite(ctx context.Context, req AddSiteRequest) (SiteResult, err
 	if req.NewDatabase || req.LinkDatabase != "" {
 		var dbErr error
 		if req.NewDatabase {
-			_, dbErr = c.CreateSiteDatabase(ctx, req.Name, "")
+			_, dbErr = c.CreateSiteDatabaseOn(ctx, req.Name, "", req.DatabaseEngine)
 		} else {
-			_, dbErr = c.LinkSiteDatabase(ctx, req.Name, req.LinkDatabase)
+			_, dbErr = c.LinkSiteDatabaseOn(ctx, req.Name, req.LinkDatabase, req.DatabaseEngine)
 		}
 		if dbErr != nil {
 			_, _ = c.RemoveSite(context.WithoutCancel(ctx), req.Name)

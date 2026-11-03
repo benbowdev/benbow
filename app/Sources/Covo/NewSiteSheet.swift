@@ -57,6 +57,7 @@ struct NewSiteSheet: View {
     @State private var error: String?
     @State private var result: WordPressResult?
     @State private var laravelDB = "new"
+    @State private var engine = "mysql"
 
     enum DatabaseChoice: Hashable { case none, new, existing }
 
@@ -96,6 +97,20 @@ struct NewSiteSheet: View {
         }
     }
 
+    /// The database server the choice needs is running.
+    private var serverReady: Bool {
+        source != .wordpress && engine == "pgsql" ? model.postgresReady : model.mysqlReady
+    }
+
+    /// PostgreSQL is offered when it is on.
+    private var enginePicker: some View {
+        Picker("Engine", selection: $engine) {
+            Text("MySQL").tag("mysql")
+            Text("PostgreSQL").tag("pgsql")
+        }
+        .pickerStyle(.segmented)
+    }
+
     /// Laravel needs PHP 8.2 or newer.
     private var phpTooOld: Bool {
         source == .laravel && php.compare("8.2", options: .numeric) == .orderedAscending
@@ -103,7 +118,7 @@ struct NewSiteSheet: View {
 
     private var canCreate: Bool {
         !name.isEmpty && !php.isEmpty && path != nil && !working && !phpTooOld
-            && (!needsMySQL || model.mysqlReady)
+            && (!needsMySQL || serverReady)
             && (source == .wordpress || database != .existing || !existingDB.isEmpty)
     }
 
@@ -151,14 +166,17 @@ struct NewSiteSheet: View {
                         Text("New database").tag("new")
                         Text("SQLite (a file in the project)").tag("sqlite")
                     }
+                    if laravelDB == "new" && model.status?.postgres?.enabled == true {
+                        enginePicker
+                    }
                     if phpTooOld {
                         Text("Laravel needs PHP 8.2 or newer.").foregroundStyle(.orange).font(.callout)
                     }
                 } footer: {
-                    Text(laravelDB == "new" && !model.mysqlReady
-                         ? (model.status?.mysql.enabled == true ? "Start Covo first: the database needs MySQL running." : "Turn MySQL on in Settings first, or choose SQLite.")
-                         : "Covo runs composer create-project and fills .env: APP_URL, the database and Mailpit.")
-                        .font(.caption).foregroundStyle(needsMySQL && !model.mysqlReady ? .orange : .secondary)
+                    Text(laravelDB == "new" && !serverReady
+                         ? "Turn the database server on in Settings and start Covo, or choose SQLite."
+                         : "Covo runs composer create-project and fills .env: APP_URL, the database, Redis (when on) and Mailpit.")
+                        .font(.caption).foregroundStyle(needsMySQL && !serverReady ? .orange : .secondary)
                 }
             } else if source == .wordpress {
                 Section("WordPress") {
@@ -174,6 +192,9 @@ struct NewSiteSheet: View {
                         Text("New database").tag(DatabaseChoice.new)
                         Text("Existing database").tag(DatabaseChoice.existing)
                     }
+                    if database != .none && model.status?.postgres?.enabled == true {
+                        enginePicker
+                    }
                     if database == .existing {
                         Picker("Use", selection: $existingDB) {
                             Text("Choose…").tag("")
@@ -181,7 +202,7 @@ struct NewSiteSheet: View {
                         }
                     }
                 } footer: {
-                    Text(databaseHelp).font(.caption).foregroundStyle(needsMySQL && !model.mysqlReady ? .orange : .secondary)
+                    Text(databaseHelp).font(.caption).foregroundStyle(needsMySQL && !serverReady ? .orange : .secondary)
                 }
             }
 
@@ -240,11 +261,13 @@ struct NewSiteSheet: View {
             let minors = model.php?.minors ?? []
             php = minors.first(where: model.installed) ?? minors.first ?? ""
             if let f = request.folder { pick(f) }
-            laravelDB = model.mysqlReady ? "new" : "sqlite"
+            engine = !model.mysqlReady && model.postgresReady ? "pgsql" : "mysql"
+            laravelDB = model.mysqlReady || model.postgresReady ? "new" : "sqlite"
         }
-        .task(id: database) {
-            if database == .existing, model.mysqlReady, databases.isEmpty {
-                databases = await model.databases()
+        .task(id: "\(database)-\(engine)") {
+            if database == .existing {
+                existingDB = ""
+                databases = engine == "pgsql" ? await model.postgresDatabases() : (model.mysqlReady ? await model.databases() : [])
             }
         }
     }
@@ -280,13 +303,14 @@ struct NewSiteSheet: View {
     }
 
     private var databaseHelp: String {
-        if needsMySQL && !model.mysqlReady {
-            return model.status?.mysql.enabled == true ? "Start Covo first: databases need MySQL running." : "Turn MySQL on in Settings first."
+        if needsMySQL && !serverReady {
+            let name = engine == "pgsql" && source != .wordpress ? "PostgreSQL" : "MySQL"
+            return "Turn \(name) on in Settings and start Covo first."
         }
         switch database {
         case .none: return "You can add one later from the site."
         case .new: return "A database named after the site, with its own user; the password stays in your keychain."
-        case .existing: return "The site connects as root, like MAMP."
+        case .existing: return engine == "pgsql" ? "The site connects as postgres." : "The site connects as root, like MAMP."
         }
     }
 
@@ -311,6 +335,7 @@ struct NewSiteSheet: View {
         do {
             if source == .laravel {
                 var req = CovoAPI.NewLaravel(name: name, path: path.path, php: php, database: laravelDB)
+                req.databaseEngine = engine
                 req.domain = dom
                 req.aliases = aliasList
                 req.groupId = group
@@ -339,6 +364,7 @@ struct NewSiteSheet: View {
             req.phpSettings = iniValues
             req.newDatabase = database == .new
             req.linkDatabase = database == .existing ? existingDB : nil
+            req.databaseEngine = engine
             try await model.addSite(req)
             added(name)
             dismiss()

@@ -17,6 +17,8 @@ struct SiteDetail: View {
     @State private var editingPHP = false
     @State private var checkingPHP = false
     @State private var runningTool = false
+    @State private var phoneSheet = false
+    @State private var undoingMigration = false
 
     private var toolTitle: String {
         switch site.framework {
@@ -182,6 +184,12 @@ struct SiteDetail: View {
                             .disabled(model.busy != nil)
                     }
                     LabeledContent {
+                        Button(model.status?.phone?.site == site.name ? "Showing…" : "Open…") { phoneSheet = true }
+                    } label: {
+                        Text("Open on phone")
+                        Text("This site on your Wi-Fi for a while, with a QR code.")
+                    }
+                    LabeledContent {
                         Button("Run…") { runningTool = true }
                     } label: {
                         Text(toolTitle)
@@ -203,6 +211,22 @@ struct SiteDetail: View {
                         }
                         .disabled(model.busy != nil)
                     }
+                    if let m = site.migration {
+                        LabeledContent {
+                            Button("Undo Migration…") { undoingMigration = true }
+                                .disabled(model.busy != nil)
+                        } label: {
+                            Text("Migrated from \(m.source)")
+                            Text("Database \(m.database)\(m.urlFrom.map { " · was \($0)" } ?? "")")
+                        }
+                        .confirmationDialog("Undo the migration of \(site.name)?", isPresented: $undoingMigration) {
+                            Button("Undo Migration", role: .destructive) { Task { await model.undoMigration(site) } }
+                        } message: {
+                            Text(m.createdDatabase
+                                 ? "\(m.configPath.map { ($0 as NSString).lastPathComponent } ?? "The configuration") is restored from its backup and Covo's copy of the database \(m.database) is deleted, with any change made since."
+                                 : "\(m.configPath.map { ($0 as NSString).lastPathComponent } ?? "The configuration") is restored from its backup; the database is kept.")
+                        }
+                    }
                     HStack {
                         Spacer()
                         if !site.archived {
@@ -222,6 +246,7 @@ struct SiteDetail: View {
         .sheet(isPresented: $editingPHP) { SitePHPSheet(site: site) }
         .sheet(isPresented: $checkingPHP) { PHPCheckSheet(site: site) }
         .sheet(isPresented: $runningTool) { ToolSheet(site: site) }
+        .sheet(isPresented: $phoneSheet) { PhoneSheet(site: site) }
         .fileImporter(isPresented: $choosingFolder, allowedContentTypes: [.folder]) { result in
             if case .success(let url) = result { Task { await changeFolder(url, force: false) } }
         }
