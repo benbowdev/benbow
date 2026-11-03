@@ -12,8 +12,17 @@ covo php settings 8.4 memory_limit=1G upload_max_filesize=256M max_execution_tim
 
 ## Versions
 
-PHP 8.0 to 8.5 are offered (static-php-cli publishes no builds older than
-8.0). `covo php list --json` reports php.net's support dates for each
+PHP 8.0 to 8.5 are offered as static-php-cli builds. PHP 5.6 to 7.4 (there
+was never a PHP 6) come from `getcovo/covo-binaries`' `legacy-php` workflow:
+shivammathur/php's builds, which carry security fixes backported after these
+versions' end of life, made self-contained (every library in `lib/`, shared
+extensions such as 7.4's intl in `ext/`, ad-hoc signed, checked with
+Homebrew moved away). They reach Covo through the signed manifest, for Apple
+Silicon and macOS 15 or later only (`min_macos`; older macOS gets a clear
+error). Covo loads the `.so` files in `ext/` from its php.ini and starts
+PHP-FPM with an empty `PHP_INI_SCAN_DIR`, so a build never reads `.ini`
+files from outside Covo. php-fpm.conf leaves out directives older versions
+do not know (`decorate_workers_output` before 7.3). `covo php list --json` reports php.net's support dates for each
 version (`support`: `active`, `security` for security fixes only, `eol`).
 Versions past their end of life (8.0 and 8.1 as of November 2026) stay
 available for old sites, with a warning in the app and from

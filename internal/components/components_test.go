@@ -428,3 +428,20 @@ func TestEmbeddedManifest(t *testing.T) {
 		}
 	}
 }
+
+func TestCheckMacOS(t *testing.T) {
+	old := macOSVersion
+	t.Cleanup(func() { macOSVersion = old })
+	macOSVersion = func() string { return "14.6" }
+	if err := checkMacOS(Artifact{Component: "php", Version: "7.4.33", MinMacOS: "15.0"}); errcode.Code(err) != errcode.Unsupported {
+		t.Fatalf("macOS 14.6 for 15.0 err = %v", err)
+	}
+	for _, min := range []string{"", "14.0", "14.6"} {
+		if err := checkMacOS(Artifact{MinMacOS: min}); err != nil {
+			t.Errorf("min %q: %v", min, err)
+		}
+	}
+	if v := old(); v == "" {
+		t.Fatal("cannot read the macOS version")
+	}
+}

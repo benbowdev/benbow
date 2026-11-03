@@ -100,3 +100,29 @@ func golden(t *testing.T, path, got string) {
 		t.Errorf("%s mismatch:\n--- got\n%s\n--- want\n%s", path, got, want)
 	}
 }
+
+func TestFPMConfOldVersions(t *testing.T) {
+	for minor, want := range map[string]bool{"5.6": false, "7.2": false, "7.3": true, "8.4": true} {
+		got, err := FPMConf(FPMConfig{Minor: minor, Socket: "/x/s.sock", PIDFile: "/x/p", ErrorLog: "/x/l"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(got, "decorate_workers_output") != want {
+			t.Errorf("PHP %s: decorate_workers_output present = %v, want %v", minor, !want, want)
+		}
+	}
+}
+
+func TestINIExtensions(t *testing.T) {
+	got, err := INI(INIConfig{
+		ErrorLog: "/x/e.log", SessionDir: "/x/s", Timezone: "UTC", CAFile: "/x/ca.pem",
+		Extensions: []string{"/x/ext/intl.so", "/x/ext/opcache.so"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "session.save_path = \"/x/s\"\n\nextension = \"/x/ext/intl.so\"\nzend_extension = \"/x/ext/opcache.so\"\n\nopenssl.cafile"
+	if !strings.Contains(got, want) {
+		t.Fatalf("php.ini lacks\n%s\n---\n%s", want, got)
+	}
+}

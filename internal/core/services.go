@@ -233,7 +233,10 @@ func (c *Core) phpINIConfig(ctx context.Context, v store.PHPVersion) (php.INICon
 	if err != nil {
 		return php.INIConfig{}, err
 	}
+	// Builds of old PHP versions ship some extensions as shared objects.
+	exts, _ := filepath.Glob(filepath.Join(v.Path, "ext", "*.so"))
 	return php.INIConfig{
+		Extensions:   exts,
 		Sendmail:     sendmail,
 		SendmailPort: sendmailPort,
 		Settings:     settings,
@@ -308,7 +311,9 @@ func (c *Core) phpAgent(v store.PHPVersion, configHash string) launchd.Agent {
 		Args:    []string{"--nodaemonize", "-c", filepath.Join(dir, "php.ini"), "--fpm-config", filepath.Join(dir, "php-fpm.conf")},
 		// Not read by FPM: a changed value changes the plist, which makes
 		// launchd.Apply restart the agent after a config change.
-		Env:       map[string]string{"COVO_CONFIG_HASH": configHash},
+		// No scan directory: a build compiled with one (e.g. under
+		// /opt/homebrew) must never load .ini files from outside Covo.
+		Env:       map[string]string{"COVO_CONFIG_HASH": configHash, "PHP_INI_SCAN_DIR": ""},
 		WorkDir:   c.Layout.Root,
 		StdoutLog: out,
 		StderrLog: errLog,

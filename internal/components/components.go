@@ -31,6 +31,8 @@ import (
 
 	_ "embed"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/getcovo/covo/internal/errcode"
 	"github.com/getcovo/covo/internal/store"
 )
@@ -69,6 +71,9 @@ type Artifact struct {
 	// MD5 is the upstream-published checksum when upstream publishes nothing
 	// better (MySQL); it is checked in addition to SHA256.
 	MD5 string `json:"md5,omitempty"`
+	// MinMacOS is the oldest macOS the artifact runs on ("15.0"), if it
+	// needs more than Covo itself.
+	MinMacOS string `json:"min_macos,omitempty"`
 	// Strip is a leading directory removed from every archive entry name.
 	Strip string `json:"strip,omitempty"`
 	// Files are extracted from a .tar.gz. An entry ending in "/" extracts the
@@ -183,6 +188,9 @@ func (in Installer) Dir(a Artifact) string {
 // Install downloads, verifies and extracts a. It is idempotent: an existing
 // install whose marker matches a.SHA256 and whose files exist is reused.
 func (in Installer) Install(ctx context.Context, a Artifact) (Installed, error) {
+	if err := checkMacOS(a); err != nil {
+		return Installed{}, err
+	}
 	dest := in.Dir(a)
 	if in.verified(dest, a) {
 		return Installed{Artifact: a, Dir: dest}, nil
@@ -477,6 +485,22 @@ func writeFile(dst string, r io.Reader, size int64, mode os.FileMode) error {
 	}
 	if err := out.Close(); err != nil {
 		return fmt.Errorf("extract %s: %w", dst, err)
+	}
+	return nil
+}
+
+// macOSVersion is the running macOS version ("26.2"); a variable for tests.
+var macOSVersion = func() string {
+	v, _ := unix.Sysctl("kern.osproductversion")
+	return v
+}
+
+func checkMacOS(a Artifact) error {
+	if a.MinMacOS == "" {
+		return nil
+	}
+	if v := macOSVersion(); v != "" && store.CompareVersions(v, a.MinMacOS) < 0 {
+		return errcode.Errorf(errcode.Unsupported, fmt.Sprintf("%s %s needs macOS %s or later (this Mac has %s)", a.Component, a.Version, a.MinMacOS, v))
 	}
 	return nil
 }
