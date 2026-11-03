@@ -56,14 +56,17 @@ func TestLocalDomains(t *testing.T) {
 	h.mustCovo("site", "set", "shop", "--aliases", "www.shop.local,shop.localhost")
 	got := h.hosts()
 	original := h.hostsOriginal
-	if !strings.HasSuffix(original, "\n") {
-		original += "\n"
-	}
 	wantBlock := beginMarker + "\n" +
 		"127.0.0.1\tblog.covo.local\n::1\t\tblog.covo.local\n" +
 		"127.0.0.1\tshop.local\n::1\t\tshop.local\n" +
 		"127.0.0.1\twww.shop.local\n::1\t\twww.shop.local\n" +
 		endMarker + "\n"
+	// A hosts file without a final newline gets the block after one, and
+	// the block has none of its own (so clearing restores the file exactly).
+	if original != "" && !strings.HasSuffix(original, "\n") {
+		original += "\n"
+		wantBlock = strings.TrimSuffix(wantBlock, "\n")
+	}
 	if got != original+wantBlock {
 		t.Fatalf("hosts file:\n%s", got)
 	}

@@ -112,8 +112,9 @@ func block(names []string) string {
 
 // Sync returns content with Covo's block holding exactly names. With no
 // names the block is removed. Without a block, it is appended at the end.
-// Clearing a block that Sync added restores the original content exactly,
-// provided it ended with a newline.
+// Clearing a block that Sync added restores the original content exactly:
+// a file without a final newline gets the block after a newline and without
+// one of its own, which tells removal to take that newline away again.
 func Sync(content string, names []string) (string, error) {
 	names, err := Normalize(names)
 	if err != nil {
@@ -128,12 +129,21 @@ func Sync(content string, names []string) (string, error) {
 			return content, nil
 		}
 		if content != "" && !strings.HasSuffix(content, "\n") {
-			content += "\n"
+			return content + "\n" + strings.TrimSuffix(block(names), "\n"), nil
 		}
 		return content + block(names), nil
 	}
+	// The block was added to a file that had no final newline.
+	bare := end == len(content) && !strings.HasSuffix(content, "\n")
 	if len(names) == 0 {
+		if bare && start > 0 && content[start-1] == '\n' {
+			return content[:start-1], nil
+		}
 		return content[:start] + content[end:], nil
 	}
-	return content[:start] + block(names) + content[end:], nil
+	b := block(names)
+	if bare {
+		b = strings.TrimSuffix(b, "\n")
+	}
+	return content[:start] + b + content[end:], nil
 }

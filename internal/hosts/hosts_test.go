@@ -166,3 +166,34 @@ func FuzzSync(f *testing.F) {
 		}
 	})
 }
+
+func TestSyncWithoutFinalNewline(t *testing.T) {
+	for _, original := range []string{
+		"127.0.0.1\tlocalhost\n86.107.37.100 example.it",
+		"127.0.0.1\tlocalhost\n",
+		"",
+		"127.0.0.1\tlocalhost",
+	} {
+		one, err := Sync(original, []string{"shop.local"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.HasPrefix(one, strings.TrimSuffix(original, "\n")) || !strings.Contains(one, "127.0.0.1\tshop.local") {
+			t.Fatalf("add to %q = %q", original, one)
+		}
+		two, err := Sync(one, []string{"blog.local", "shop.local"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if n, _ := Names(two); len(n) != 2 {
+			t.Fatalf("names after update = %v", n)
+		}
+		back, err := Sync(two, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if back != original {
+			t.Errorf("clear of %q gave %q", original, back)
+		}
+	}
+}
