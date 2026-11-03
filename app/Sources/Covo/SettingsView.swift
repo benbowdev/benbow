@@ -15,6 +15,7 @@ struct SettingsView: View {
             MySQLSettings().tabItem { Label("MySQL", systemImage: "cylinder.split.1x2") }
             ServerSettings(server: "postgres").tabItem { Label("PostgreSQL", systemImage: "cylinder") }
             ServerSettings(server: "redis").tabItem { Label("Redis", systemImage: "bolt.horizontal") }
+            BlueprintsSettings().tabItem { Label("Blueprints", systemImage: "square.stack.3d.up") }
             AgentsSettings().tabItem { Label("AI Agents", systemImage: "sparkles") }
             MailSettings().tabItem { Label("Mail", systemImage: "envelope") }
             DomainSettings().tabItem { Label("Domains", systemImage: "globe") }
@@ -615,6 +616,117 @@ struct AgentsSettings: View {
                 Button { copyToClipboard(text) } label: { Image(systemName: "doc.on.doc") }
                     .buttonStyle(.borderless).help("Copy")
             }
+        }
+    }
+}
+
+/// Saved blueprints: import, export, delete; the GitHub token for private
+/// repositories.
+struct BlueprintsSettings: View {
+    @Environment(AppModel.self) private var model
+    @State private var list: [BlueprintInfo] = []
+    @State private var importing = false
+    @State private var deleting: BlueprintInfo?
+    @State private var token = ""
+    @State private var hasToken = false
+    @State private var error: String?
+
+    var body: some View {
+        Form {
+            Section {
+                if list.isEmpty {
+                    Text("No blueprints. Save one from a WordPress site (Advanced → Blueprints) or import a JSON file.")
+                        .foregroundStyle(.secondary)
+                }
+                ForEach(list) { b in
+                    HStack {
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(b.name)
+                            Text([b.description ?? "", "\(b.themes) themes, \(b.plugins) plugins"].filter { !$0.isEmpty }.joined(separator: " · "))
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Button("Export…") { Task { await export(b) } }
+                        Button { deleting = b } label: { Image(systemName: "trash") }
+                            .buttonStyle(.borderless).help("Delete this blueprint")
+                    }
+                }
+                HStack {
+                    Spacer()
+                    Button("Import…") { importing = true }
+                }
+                if let error {
+                    Text(error).foregroundStyle(.red).font(.caption).textSelection(.enabled)
+                }
+            } header: {
+                Text("Blueprints")
+            } footer: {
+                Text(BlueprintSheet.notice + " New WordPress sites can start from a blueprint (New Site → WordPress).")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Section {
+                HStack {
+                    SecureField("Token", text: $token, prompt: Text(hasToken ? "Stored in the keychain" : "ghp_… or github_pat_…"))
+                    Button("Save") { Task { hasToken = await model.setGitHubToken(token); token = "" } }
+                        .disabled(token.isEmpty)
+                    if hasToken {
+                        Button("Remove") { Task { hasToken = await model.setGitHubToken("") } }
+                    }
+                }
+            } header: {
+                Text("Private GitHub repositories")
+            } footer: {
+                Text("A fine-grained token with read access to the repositories' contents. Kept in your login keychain.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+        .task { await reload() }
+        .fileImporter(isPresented: $importing, allowedContentTypes: [.json]) { result in
+            if case .success(let url) = result { Task { await importFile(url) } }
+        }
+        .confirmationDialog("Delete blueprint \(deleting?.name ?? "")?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } })) {
+            Button("Delete", role: .destructive) {
+                if let b = deleting { Task { await model.deleteBlueprint(b.name); await reload() } }
+            }
+        } message: {
+            Text("Sites made from it are not changed.")
+        }
+    }
+
+    private func reload() async {
+        list = await model.blueprints()
+        hasToken = await model.hasGitHubToken()
+    }
+
+    private func importFile(_ url: URL) async {
+        error = nil
+        let access = url.startAccessingSecurityScopedResource()
+        defer { if access { url.stopAccessingSecurityScopedResource() } }
+        do {
+            let data = try Data(contentsOf: url)
+            let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+            let name = (obj?["name"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+                ?? url.deletingPathExtension().lastPathComponent.lowercased()
+            _ = try await model.importBlueprint(data, name: name, overwrite: false)
+            await reload()
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    private func export(_ b: BlueprintInfo) async {
+        error = nil
+        do {
+            let data = try await model.blueprintJSON(b.name)
+            let panel = NSSavePanel()
+            panel.nameFieldStringValue = b.name + ".json"
+            panel.allowedContentTypes = [.json]
+            if panel.runModal() == .OK, let url = panel.url {
+                try data.write(to: url)
+            }
+        } catch {
+            self.error = error.localizedDescription
         }
     }
 }

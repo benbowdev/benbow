@@ -9,6 +9,11 @@ public struct APIError: Error, Sendable, Equatable, LocalizedError {
     public let message: String
 
     public var errorDescription: String? { message }
+
+    public init(code: String, message: String) {
+        self.code = code
+        self.message = message
+    }
 }
 
 struct Envelope<T: Decodable>: Decodable {
@@ -81,6 +86,65 @@ public struct CovoAPI: Sendable {
     public func status() async throws -> Status { try await call("GET", "/v1/status") }
 
     public func ports() async throws -> PortsStatus { try await call("GET", "/v1/ports") }
+
+    public func blueprints() async throws -> [BlueprintInfo] { try await call("GET", "/v1/blueprints") }
+
+    /// A blueprint's JSON, as a file would hold it.
+    public func blueprintJSON(_ name: String) async throws -> Data {
+        let resp = try await http.send(method: "GET", path: "/v1/blueprints/" + escape(name), body: nil)
+        guard let env = try JSONSerialization.jsonObject(with: resp.body) as? [String: Any] else {
+            throw APIError(code: "internal", message: "Unexpected answer from the Covo core.")
+        }
+        if env["ok"] as? Bool != true {
+            let e = env["error"] as? [String: Any]
+            throw APIError(code: e?["code"] as? String ?? "internal", message: e?["message"] as? String ?? "The blueprint could not be read.")
+        }
+        return try JSONSerialization.data(withJSONObject: env["data"] ?? [:], options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
+    }
+
+    /// Adds a blueprint from its JSON (name: the file's, unless given).
+    public func importBlueprint(_ json: Data, name: String, overwrite: Bool) async throws -> BlueprintInfo {
+        let resp = try await http.send(method: "PUT", path: "/v1/blueprints/" + escape(name) + (overwrite ? "?overwrite=1" : ""), body: json)
+        return try EnvelopeDecoder.decode(BlueprintInfo.self, from: resp.body)
+    }
+
+    public func deleteBlueprint(_ name: String) async throws {
+        let _: Ignored = try await call("DELETE", "/v1/blueprints/" + escape(name))
+    }
+
+    struct SaveBlueprintRequest: Encodable {
+        let name: String
+        let overwrite: Bool
+    }
+
+    public func saveBlueprint(site: String, name: String, overwrite: Bool) async throws -> SavedBlueprint {
+        try await call("POST", "/v1/sites/\(escape(site))/blueprint", SaveBlueprintRequest(name: name, overwrite: overwrite))
+    }
+
+    struct ApplyBlueprintRequest: Encodable {
+        let site: String
+        let dryRun: Bool
+        let acceptChanges: Bool
+    }
+
+    public func applyBlueprint(_ name: String, site: String, dryRun: Bool, acceptChanges: Bool) async throws -> BlueprintResult {
+        try await call("POST", "/v1/blueprints/\(escape(name))/apply",
+                       ApplyBlueprintRequest(site: site, dryRun: dryRun, acceptChanges: acceptChanges))
+    }
+
+    struct GitHubTokenState: Codable { let stored: Bool }
+    struct GitHubTokenRequest: Encodable { let token: String }
+
+    public func hasGitHubToken() async throws -> Bool {
+        let s: GitHubTokenState = try await call("GET", "/v1/github-token")
+        return s.stored
+    }
+
+    /// token "" removes it.
+    public func setGitHubToken(_ token: String) async throws -> Bool {
+        let s: GitHubTokenState = try await call("PUT", "/v1/github-token", GitHubTokenRequest(token: token))
+        return s.stored
+    }
 
     public func mcpPermissions() async throws -> MCPPermissions { try await call("GET", "/v1/mcp/permissions") }
 
@@ -274,6 +338,9 @@ public struct CovoAPI: Sendable {
         public var aliases: [String] = []
         public var groupId: Int64?
         public var phpSettings: [String: String] = [:]
+        /// A saved blueprint applied after the installation.
+        public var blueprint: String?
+        public var acceptChanges = false
 
         public init(name: String, path: String, php: String, title: String, adminUser: String, adminEmail: String) {
             self.name = name

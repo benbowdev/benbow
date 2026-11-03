@@ -457,6 +457,47 @@ final class AppModel {
         await perform("Restarting PHP \(s.php)…") { _ = try await $0.setPHPSettings(s) }
     }
 
+    func blueprints() async -> [BlueprintInfo] { (try? await api?.blueprints()) ?? [] }
+
+    func blueprintJSON(_ name: String) async throws -> Data {
+        guard let api else { throw APIError(code: "unavailable", message: "Covo's core is not running.") }
+        return try await api.blueprintJSON(name)
+    }
+
+    func importBlueprint(_ json: Data, name: String, overwrite: Bool) async throws -> BlueprintInfo {
+        guard let api else { throw APIError(code: "unavailable", message: "Covo's core is not running.") }
+        return try await api.importBlueprint(json, name: name, overwrite: overwrite)
+    }
+
+    func deleteBlueprint(_ name: String) async {
+        await perform("Deleting…") { try await $0.deleteBlueprint(name) }
+    }
+
+    func saveBlueprint(_ site: Site, name: String, overwrite: Bool) async throws -> SavedBlueprint {
+        guard let api else { throw APIError(code: "unavailable", message: "Covo's core is not running.") }
+        busy = "Reading \(site.name)…"
+        defer { busy = nil }
+        return try await api.saveBlueprint(site: site.name, name: name, overwrite: overwrite)
+    }
+
+    /// Throws so the sheet can offer to accept changed downloads.
+    func applyBlueprint(_ name: String, to site: Site, dryRun: Bool, acceptChanges: Bool = false) async throws -> BlueprintResult {
+        guard let api else { throw APIError(code: "unavailable", message: "Covo's core is not running.") }
+        busy = dryRun ? "Checking…" : "Applying \(name)…"
+        defer { busy = nil }
+        let r = try await api.applyBlueprint(name, site: site.name, dryRun: dryRun, acceptChanges: acceptChanges)
+        if !dryRun { try? await refreshAll() }
+        return r
+    }
+
+    func hasGitHubToken() async -> Bool { (try? await api?.hasGitHubToken()) ?? false }
+
+    func setGitHubToken(_ token: String) async -> Bool {
+        var stored = false
+        await perform("Saving…") { stored = try await $0.setGitHubToken(token) }
+        return stored
+    }
+
     func mcpPermissions() async -> MCPPermissions? { try? await api?.mcpPermissions() }
 
     func setMCPPermission(_ scope: String, write: Bool) async -> MCPPermissions? {

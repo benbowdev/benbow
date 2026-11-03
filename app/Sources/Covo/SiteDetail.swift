@@ -20,6 +20,7 @@ struct SiteDetail: View {
     @State private var phoneSheet = false
     @State private var undoingMigration = false
     @State private var snapshotsSheet = false
+    @State private var blueprintSheet = false
     @State private var remoteSheet = false
 
     private var toolTitle: String {
@@ -191,6 +192,14 @@ struct SiteDetail: View {
                         Text("Production and staging")
                         Text("Pull the live site's database and uploads; push to staging.")
                     }
+                    if site.framework == "wordpress" {
+                        LabeledContent {
+                            Button("Show…") { blueprintSheet = true }
+                        } label: {
+                            Text("Blueprints")
+                            Text("Install a blueprint's themes and plugins, or save this site as one.")
+                        }
+                    }
                     LabeledContent {
                         Button("Show…") { snapshotsSheet = true }
                     } label: {
@@ -262,6 +271,7 @@ struct SiteDetail: View {
         .sheet(isPresented: $runningTool) { ToolSheet(site: site) }
         .sheet(isPresented: $phoneSheet) { PhoneSheet(site: site) }
         .sheet(isPresented: $snapshotsSheet) { SnapshotsSheet(site: site) }
+        .sheet(isPresented: $blueprintSheet) { BlueprintSheet(site: site) }
         .sheet(isPresented: $remoteSheet) { RemoteSheet(site: site) }
         .fileImporter(isPresented: $choosingFolder, allowedContentTypes: [.folder]) { result in
             if case .success(let url) = result { Task { await changeFolder(url, force: false) } }

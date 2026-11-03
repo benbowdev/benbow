@@ -44,3 +44,5 @@ there is no `--json` envelope. wp-cli's cache and packages live in
 
 API: `POST /v1/wordpress` with `name`, `path`, `php`, `title`, `admin_user`,
 `admin_email`, `domain`, `aliases`, `group_id`, `php_settings`.
+
+New sites can start from a blueprint (themes, plugins, options): `covo wordpress <name> --blueprint <blueprint>`, see `blueprints.md`.

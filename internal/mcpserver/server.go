@@ -66,6 +66,8 @@ func New(open Open) *mcp.Server {
 		Description: "The databases on Covo's MySQL (engine mysql, default) or PostgreSQL (engine pgsql)."}, t.listDatabases)
 	mcp.AddTool(s, &mcp.Tool{Name: "list_snapshots", Title: "List snapshots", Annotations: ro,
 		Description: "A site's snapshots (files and database saved by Covo), newest first."}, t.listSnapshots)
+	mcp.AddTool(s, &mcp.Tool{Name: "list_blueprints", Title: "List blueprints", Annotations: ro,
+		Description: "Saved WordPress blueprints (themes, plugins, options); name gives one blueprint's JSON."}, t.listBlueprints)
 	mcp.AddTool(s, &mcp.Tool{Name: "agent_permissions", Title: "What agents may change", Annotations: ro,
 		Description: "Which sites AI agents may change (set by the user in Covo; agents cannot change it)."}, t.permissions)
 
@@ -94,6 +96,11 @@ func New(open Open) *mcp.Server {
 		Description: "Saves a site's files and database now."}, t.createSnapshot)
 	mcp.AddTool(s, &mcp.Tool{Name: "restore_snapshot", Title: "Restore a snapshot", Annotations: replace,
 		Description: "Puts a site's files and database back to a snapshot (the current state is saved first)."}, t.restoreSnapshot)
+	mcp.AddTool(s, &mcp.Tool{Name: "apply_blueprint", Title: "Apply a blueprint", Annotations: network,
+		Description: "Installs a saved blueprint's themes, plugins, options and constants into a WordPress site (third-party code; snapshot first). " +
+			"Stops if a download changed since Covo first saw it: only the user can accept that. dry_run lists what would be installed."}, t.applyBlueprint)
+	mcp.AddTool(s, &mcp.Tool{Name: "save_blueprint", Title: "Save a site as blueprint", Annotations: change,
+		Description: "Saves a WordPress site's wordpress.org themes and plugins, permalinks, timezone and must-use plugins as a blueprint. Needs permission for everything."}, t.saveBlueprint)
 	mcp.AddTool(s, &mcp.Tool{Name: "pull", Title: "Pull from production", Annotations: network,
 		Description: "Copies a remote's (production or staging) database and uploads into the site. dry_run shows what would change."}, t.pull)
 	mcp.AddTool(s, &mcp.Tool{Name: "import_sites", Title: "Import from another tool", Annotations: change,
@@ -367,6 +374,7 @@ type wordpressIn struct {
 	AdminUser  string `json:"admin_user,omitempty" jsonschema:"administrator user (default admin)"`
 	AdminEmail string `json:"admin_email,omitempty" jsonschema:"administrator email"`
 	Domain     string `json:"domain,omitempty" jsonschema:"local domain (default <name>.localhost)"`
+	Blueprint  string `json:"blueprint,omitempty" jsonschema:"saved blueprint to apply (list_blueprints)"`
 	DryRun     bool   `json:"dry_run,omitempty" jsonschema:"only say what would happen"`
 }
 
@@ -375,7 +383,7 @@ func (t tools) newWordPress(ctx context.Context, _ *mcp.CallToolRequest, in word
 		return toolError(errcode.Errorf(errcode.InvalidInput, "path must be absolute")), nil, nil
 	}
 	req := core.WordPressRequest{Name: in.Name, Path: in.Path, PHP: in.PHP, Title: in.Title,
-		AdminUser: in.AdminUser, AdminEmail: in.AdminEmail, Domain: in.Domain}
+		AdminUser: in.AdminUser, AdminEmail: in.AdminEmail, Domain: in.Domain, Blueprint: in.Blueprint}
 	return change(ctx, t.open, "new_wordpress", "", in, in.DryRun, false, func(c *core.Core) (any, error) {
 		if in.DryRun {
 			return "would create WordPress site " + in.Name, nil
@@ -496,5 +504,48 @@ func (t tools) importSites(ctx context.Context, _ *mcp.CallToolRequest, in impor
 	dry := in.DryRun == nil || *in.DryRun
 	return change(ctx, t.open, "import_sites", "", in, dry, false, func(c *core.Core) (core.ImportPlan, error) {
 		return c.Import(ctx, core.ImportOptions{Source: in.Source, Sites: in.Sites, Localhost: in.Localhost, Migrate: in.Migrate, DryRun: dry})
+	})
+}
+
+type blueprintsIn struct {
+	Name string `json:"name,omitempty" jsonschema:"a blueprint's name, to get its JSON"`
+}
+
+func (t tools) listBlueprints(ctx context.Context, _ *mcp.CallToolRequest, in blueprintsIn) (*mcp.CallToolResult, any, error) {
+	return read(ctx, t.open, func(c *core.Core) (any, error) {
+		if in.Name != "" {
+			return c.GetBlueprint(ctx, in.Name)
+		}
+		return c.ListBlueprints(ctx)
+	})
+}
+
+type applyBlueprintIn struct {
+	Blueprint string `json:"blueprint" jsonschema:"the blueprint's name"`
+	Site      string `json:"site" jsonschema:"a WordPress site"`
+	DryRun    bool   `json:"dry_run,omitempty" jsonschema:"only list what would be installed"`
+}
+
+func (t tools) applyBlueprint(ctx context.Context, _ *mcp.CallToolRequest, in applyBlueprintIn) (*mcp.CallToolResult, any, error) {
+	// ApplyBlueprint takes its own snapshot.
+	return change(ctx, t.open, "apply_blueprint", in.Site, in, in.DryRun, true, func(c *core.Core) (core.BlueprintResult, error) {
+		return c.ApplyBlueprint(ctx, in.Site, in.Blueprint, core.ApplyOptions{DryRun: in.DryRun})
+	})
+}
+
+type saveBlueprintIn struct {
+	Site      string `json:"site" jsonschema:"a WordPress site"`
+	Name      string `json:"name" jsonschema:"the blueprint's name: lowercase letters, digits and dashes"`
+	Overwrite bool   `json:"overwrite,omitempty" jsonschema:"replace a blueprint with the same name"`
+}
+
+func (t tools) saveBlueprint(ctx context.Context, _ *mcp.CallToolRequest, in saveBlueprintIn) (*mcp.CallToolResult, any, error) {
+	return change(ctx, t.open, "save_blueprint", "", in, false, true, func(c *core.Core) (any, error) {
+		bp, warnings, err := c.BlueprintFromSite(ctx, in.Site, in.Name)
+		if err != nil {
+			return nil, err
+		}
+		info, err := c.SaveBlueprint(ctx, bp, in.Overwrite)
+		return map[string]any{"blueprint": info, "warnings": warnings}, err
 	})
 }

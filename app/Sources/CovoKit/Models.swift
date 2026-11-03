@@ -205,6 +205,31 @@ public struct PhoneStatus: Codable, Sendable, Hashable {
     public var minutesLeft: Int
 }
 
+/// A saved WordPress blueprint.
+public struct BlueprintInfo: Codable, Sendable, Hashable, Identifiable {
+    public var name: String
+    public var description: String?
+    public var themes: Int
+    public var plugins: Int
+    public var updated: Date
+    public var id: String { name }
+}
+
+/// What applying a blueprint did (or would do, in a dry run).
+public struct BlueprintResult: Codable, Sendable, Hashable {
+    public var blueprint: String
+    public var installed: [String]
+    public var warnings: [String]?
+    public var snapshot: String?
+    public var notice: String
+}
+
+/// A blueprint saved from a site, with what could not be included.
+public struct SavedBlueprint: Codable, Sendable, Hashable {
+    public var blueprint: BlueprintInfo
+    public var warnings: [String]?
+}
+
 /// What AI agents may change.
 public struct MCPPermissions: Codable, Sendable, Hashable {
     public var all: Bool
@@ -370,6 +395,7 @@ public struct WordPressResult: Codable, Sendable, Hashable, Identifiable {
     public var adminUrl: String
     public var adminUser: String
     public var adminPassword: String
+    public var blueprint: BlueprintResult?
     public var id: String { name }
 }
 

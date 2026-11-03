@@ -58,6 +58,8 @@ struct NewSiteSheet: View {
     @State private var result: WordPressResult?
     @State private var laravelDB = "new"
     @State private var engine = "mysql"
+    @State private var blueprint = ""
+    @State private var blueprints: [BlueprintInfo] = []
 
     enum DatabaseChoice: Hashable { case none, new, existing }
 
@@ -184,7 +186,17 @@ struct NewSiteSheet: View {
                     TextField("Admin user", text: $adminUser)
                     TextField("Admin email", text: $adminEmail,
                               prompt: Text("admin@\(effectiveDomain.isEmpty ? "my-site.localhost" : effectiveDomain)"))
+                    if !blueprints.isEmpty {
+                        Picker("Blueprint", selection: $blueprint) {
+                            Text("None").tag("")
+                            ForEach(blueprints) { b in Text(b.name).tag(b.name) }
+                        }
+                        if !blueprint.isEmpty {
+                            Text(BlueprintSheet.notice).font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
                 }
+                .task { blueprints = await model.blueprints() }
             } else {
                 Section {
                     Picker("Database", selection: $database) {
@@ -353,6 +365,7 @@ struct NewSiteSheet: View {
                 req.aliases = aliasList
                 req.groupId = group
                 req.phpSettings = iniValues
+                req.blueprint = blueprint.isEmpty ? nil : blueprint
                 result = try await model.newWordPress(req)
                 return
             }
@@ -435,6 +448,14 @@ struct WordPressDone: View {
             } footer: {
                 Text("Save the password now (e.g. in your password manager): Covo does not keep it. You can reset it later with `covo wp \(r.name) user update \(r.adminUser) --prompt=user_pass`.")
                     .font(.caption).foregroundStyle(.secondary)
+            }
+            if let b = r.blueprint {
+                Section("Blueprint \(b.blueprint)") {
+                    ForEach(b.installed, id: \.self) { Text($0) }
+                    ForEach(b.warnings ?? [], id: \.self) { w in
+                        Text(w).font(.caption).foregroundStyle(.secondary)
+                    }
+                }
             }
         }
         .formStyle(.grouped)

@@ -10,6 +10,7 @@ import (
 	"os"
 
 	"github.com/getcovo/covo/internal/core"
+	"github.com/getcovo/covo/internal/errcode"
 	"github.com/spf13/cobra"
 )
 
@@ -65,12 +66,16 @@ func (r wordpressResult) Text(w io.Writer) {
 	fmt.Fprintf(w, "WordPress %s ready at %s\n  folder    %s\n  database  %s\n  admin     %s\n  user      %s\n  password  %s\n",
 		r.WordPress, r.URL, r.Path, r.Database, r.AdminURL, r.AdminUser, r.AdminPassword)
 	fmt.Fprintln(w, "Save the admin password now: Covo does not keep it.")
+	if r.Blueprint != nil {
+		blueprintApplyResult(*r.Blueprint).Text(w)
+	}
 }
 
 func (a *app) wordpressCmd() *cobra.Command {
 	var req core.WordPressRequest
 	var group string
 	var ini []string
+	var yes bool
 	cmd := &cobra.Command{
 		Use:   "wordpress <name>",
 		Short: "Create a new WordPress site: folder, database, wp-config.php, installation",
@@ -91,6 +96,9 @@ func (a *app) wordpressCmd() *cobra.Command {
 			if req.PHPSettings, err = iniFlags(ini); err != nil {
 				return nil, err
 			}
+			if req.Blueprint != "" && !yes && !a.confirm(core.BlueprintNotice+"\nUse blueprint "+req.Blueprint+"?") {
+				return nil, errcode.Errorf(errcode.ConfirmationRequired, "a blueprint needs --yes")
+			}
 			res, err := c.NewWordPress(ctx, req)
 			return wordpressResult(res), err
 		}),
@@ -104,5 +112,8 @@ func (a *app) wordpressCmd() *cobra.Command {
 	cmd.Flags().StringSliceVar(&req.Aliases, "aliases", nil, "extra domains, comma separated")
 	cmd.Flags().StringVar(&group, "group", "", "list the site in this group, e.g. Clients/Acme (see covo group)")
 	cmd.Flags().StringArrayVar(&ini, "ini", nil, "php.ini value of this site, name=value (repeatable)")
+	cmd.Flags().StringVar(&req.Blueprint, "blueprint", "", "apply this blueprint (see covo blueprint)")
+	cmd.Flags().BoolVar(&req.AcceptChanges, "accept-changes", false, "with --blueprint: accept sources whose content changed since first use")
+	cmd.Flags().BoolVar(&yes, "yes", false, "with --blueprint: do not ask")
 	return cmd
 }

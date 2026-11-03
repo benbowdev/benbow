@@ -4,6 +4,7 @@
 package core
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"errors"
@@ -13,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -120,12 +122,50 @@ func (c *Core) wpCommand(ctx context.Context, site store.Site, args ...string) (
 		return nil, err
 	}
 	data := filepath.Join(c.Layout.Data, "wp-cli")
+	// wp-cli runs some commands again in a child process (rewrite
+	// structure → rewrite flush) through a shell, with its own path
+	// unquoted: Covo's folder ("Application Support") has a space. A
+	// prepend file quotes it first.
+	launch := filepath.Join(data, "launch.php")
+	if err := writeIfChanged(launch, []byte(wpLaunchFix)); err != nil {
+		return nil, err
+	}
+	script := filepath.Join(inst.Dir, art.Files[0])
+	if i := slices.Index(cmd.Args, script); i > 0 {
+		cmd.Args = slices.Insert(cmd.Args, i, "-d", "auto_prepend_file="+launch)
+	}
 	cmd.Env = append(cmd.Env,
 		"WP_CLI_CACHE_DIR="+filepath.Join(data, "cache"),
 		"WP_CLI_PACKAGES_DIR="+filepath.Join(data, "packages"),
 		"WP_CLI_CONFIG_PATH="+filepath.Join(data, "config.yml"),
 	)
 	return cmd, nil
+}
+
+// wpLaunchFix quotes wp-cli's own path in $argv[0], which wp-cli puts
+// into shell commands as it is.
+const wpLaunchFix = `<?php
+// Covo: quote wp-cli's path for the commands it runs again in a shell.
+if (PHP_SAPI === 'cli' && isset($GLOBALS['argv'][0]) && $GLOBALS['argv'][0] !== ''
+	&& $GLOBALS['argv'][0][0] !== "'" && strpbrk($GLOBALS['argv'][0], " \t'\"$` + "`" + `\\") !== false) {
+	$GLOBALS['argv'][0] = escapeshellarg($GLOBALS['argv'][0]);
+	$_SERVER['argv'][0] = $GLOBALS['argv'][0];
+}
+`
+
+// writeIfChanged writes data to p (creating its folder) unless p already
+// holds exactly data.
+func writeIfChanged(p string, data []byte) error {
+	if old, err := os.ReadFile(p); err == nil && bytes.Equal(old, data) {
+		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		return fmt.Errorf("create %s: %w", filepath.Dir(p), err)
+	}
+	if err := os.WriteFile(p, data, 0o644); err != nil { //nolint:gosec // read by PHP
+		return fmt.Errorf("write %s: %w", p, err)
+	}
+	return nil
 }
 
 // RunWP runs wp-cli for a site with the given arguments and streams. It
@@ -167,17 +207,21 @@ type WordPressRequest struct {
 	Aliases     []string
 	Group       int64
 	PHPSettings map[string]string
+	// Blueprint names a saved blueprint applied after the installation.
+	Blueprint     string
+	AcceptChanges bool
 }
 
 // WordPressResult is the new site and how to log in. The admin password is
 // shown once: Covo does not keep it.
 type WordPressResult struct {
 	SiteStatus
-	WordPress     string `json:"wordpress"`
-	Database      string `json:"database"`
-	AdminURL      string `json:"admin_url"`
-	AdminUser     string `json:"admin_user"`
-	AdminPassword string `json:"admin_password"`
+	WordPress     string           `json:"wordpress"`
+	Database      string           `json:"database"`
+	AdminURL      string           `json:"admin_url"`
+	AdminUser     string           `json:"admin_user"`
+	AdminPassword string           `json:"admin_password"`
+	Blueprint     *BlueprintResult `json:"blueprint,omitempty"`
 }
 
 // NewWordPress creates a folder with the pinned WordPress, a site, a
@@ -222,6 +266,12 @@ func (c *Core) NewWordPress(ctx context.Context, req WordPressRequest) (WordPres
 	}
 	if _, _, _, err := c.mysqlRoot(ctx); err != nil {
 		return res, err
+	}
+	var bp Blueprint
+	if req.Blueprint != "" {
+		if bp, err = c.GetBlueprint(ctx, req.Blueprint); err != nil {
+			return res, err
+		}
 	}
 	created, err := prepareEmptyDir(req.Path)
 	if err != nil {
@@ -285,6 +335,17 @@ func (c *Core) NewWordPress(ctx context.Context, req WordPressRequest) (WordPres
 	res = WordPressResult{
 		SiteStatus: SiteStatus{Site: stored, URL: site.URL}, WordPress: art.Version, Database: db.Database,
 		AdminURL: site.URL + "/wp-admin/", AdminUser: req.AdminUser, AdminPassword: adminPW,
+	}
+	if req.Blueprint != "" {
+		applied, err := c.applyBlueprint(ctx, stored, bp, ApplyOptions{AcceptChanges: req.AcceptChanges})
+		if err != nil {
+			undo()
+			return WordPressResult{}, fmt.Errorf("blueprint %s: %w", bp.Name, err)
+		}
+		res.Blueprint = &applied
+		if bp.WordPress.Version != "" {
+			res.WordPress = bp.WordPress.Version
+		}
 	}
 	return res, nil
 }

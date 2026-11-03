@@ -54,6 +54,7 @@ Request bodies are strict JSON (unknown fields are refused).
 | `GET`, `POST /v1/sites/{name}/snapshots`, `POST …/snapshots/{id}/restore`, `DELETE …/snapshots/{id}`, `GET`, `PUT /v1/snapshots/keep` | `{note}`, `{keep}` | `covo snapshot` |
 | `GET /v1/sites/{name}/remotes`, `PUT`, `DELETE …/remotes/{remote}`, `POST …/remotes/{remote}/pull\|push` | see `sync.md` | `covo remote`, `covo pull`, `covo push` |
 | `GET /v1/mcp/permissions`, `PUT` `{scope, write}`, `GET /v1/mcp/actions` | see `mcp.md` | `covo mcp allow\|deny\|status\|log` |
+| `GET /v1/blueprints`, `GET\|PUT\|DELETE /v1/blueprints/{name}` (PUT body: the JSON, `?overwrite=1`), `POST /v1/blueprints/{name}/apply` `{site, dry_run, accept_changes}`, `POST /v1/sites/{name}/blueprint` `{name, overwrite}`, `GET /v1/blueprints/sources`, `GET\|PUT /v1/github-token` | see `blueprints.md`; `POST /v1/wordpress` takes `blueprint`, `accept_changes` | `covo blueprint`, `covo wordpress --blueprint` |
 | `GET /v1/phone`, `PUT /v1/sites/{name}/phone`, `DELETE /v1/phone` | `{minutes}` | `covo phone` |
 | `POST /v1/import/{mamp,local,herd,valet,xampp}` | `{dry_run, localhost, sites, migrate, existing, dump_file, source_user, source_password}` | `covo import <source>` |
 | `POST /v1/sites/{name}/migration/undo` | | `covo import undo` |

@@ -46,8 +46,8 @@ Every change tool:
   what it would do, without doing it (`import_sites` is a dry run unless the
   agent passes `dry_run: false`);
 - takes a snapshot of the site first (kind `mcp`, `snapshots.md`; not for
-  sites that do not exist yet, nor for `create_snapshot` and
-  `restore_snapshot`, which take their own); the result names the snapshot
+  sites that do not exist yet, nor for `create_snapshot`,
+  `restore_snapshot` and `apply_blueprint`, which take their own); the result names the snapshot
   and how to restore it; if the snapshot fails, nothing is changed;
 - is written to the action log (last 1000 kept): time, tool, site,
   arguments, result, snapshot. No tool takes a password.
@@ -63,12 +63,15 @@ Every change tool:
 | `php_compatibility_check` | no | what would break on another PHP version (`php.md`) |
 | `list_databases` | no | databases on Covo's MySQL and PostgreSQL |
 | `list_snapshots` | no | a site's snapshots |
+| `list_blueprints` | no | saved blueprints, or one's JSON |
 | `agent_permissions` | no | what agents may change |
 | `start`, `stop` | yes | all sites and services |
 | `add_site` | yes | folder, PHP, domain, aliases, new folder, database, php.ini values |
 | `update_site` | yes | PHP version, folder, domain, aliases, on/off |
 | `create_site_database` | yes | database with its own user (password returned once) |
-| `new_wordpress`, `new_laravel` | yes | new project in one step |
+| `new_wordpress`, `new_laravel` | yes | new project in one step (WordPress: optional `blueprint`) |
+| `apply_blueprint` | yes | `blueprints.md`; a changed download stops it, and only the user can accept the change |
+| `save_blueprint` | yes | a WordPress site as a blueprint (needs `*`) |
 | `wp`, `composer`, `artisan` | yes | the tool with the site's PHP; output and exit code |
 | `create_snapshot`, `restore_snapshot` | yes | `snapshots.md` (restore snapshots the current state first) |
 | `pull` | yes | from a site's remote (`sync.md`); push is not offered to agents |

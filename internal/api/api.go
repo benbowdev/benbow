@@ -101,6 +101,15 @@ type Backend interface {
 	GetMCPPermissions(ctx context.Context) (core.MCPPermissions, error)
 	SetMCPPermission(ctx context.Context, scope string, write bool) (core.MCPPermissions, error)
 	MCPActions(ctx context.Context, limit int) ([]store.MCPAction, error)
+	ListBlueprints(ctx context.Context) ([]core.BlueprintInfo, error)
+	GetBlueprint(ctx context.Context, name string) (core.Blueprint, error)
+	SaveBlueprint(ctx context.Context, bp core.Blueprint, overwrite bool) (core.BlueprintInfo, error)
+	DeleteBlueprint(ctx context.Context, name string) error
+	BlueprintFromSite(ctx context.Context, site, name string) (core.Blueprint, []string, error)
+	ApplyBlueprint(ctx context.Context, site, name string, opts core.ApplyOptions) (core.BlueprintResult, error)
+	BlueprintSources(ctx context.Context) ([]store.BlueprintSource, error)
+	SetGitHubToken(ctx context.Context, token string) error
+	HasGitHubToken(ctx context.Context) bool
 	ListRemotes(ctx context.Context, site string) ([]store.Remote, error)
 	SetRemote(ctx context.Context, r store.Remote, password *string) (store.Remote, error)
 	RemoveRemote(ctx context.Context, site, name string) error
@@ -260,6 +269,9 @@ func Handler(b Backend) http.Handler {
 			Aliases     []string          `json:"aliases"`
 			GroupID     int64             `json:"group_id"`
 			PHPSettings map[string]string `json:"php_settings"`
+			// Blueprint: a saved blueprint applied after the installation.
+			Blueprint     string `json:"blueprint"`
+			AcceptChanges bool   `json:"accept_changes"`
 		}
 		if err := decode(body, &req); err != nil {
 			return nil, err
@@ -267,6 +279,7 @@ func Handler(b Backend) http.Handler {
 		return b.NewWordPress(r.Context(), core.WordPressRequest{
 			Name: req.Name, Path: req.Path, PHP: req.PHP, Title: req.Title, AdminUser: req.AdminUser, AdminEmail: req.AdminEmail,
 			Domain: req.Domain, Aliases: req.Aliases, Group: req.GroupID, PHPSettings: req.PHPSettings,
+			Blueprint: req.Blueprint, AcceptChanges: req.AcceptChanges,
 		})
 	})
 	mux.HandleFunc("GET /v1/sites/{name}/php-settings", func(w http.ResponseWriter, r *http.Request) {
@@ -552,6 +565,74 @@ func Handler(b Backend) http.Handler {
 		return b.SetMCPPermission(r.Context(), req.Scope, req.Write)
 	})
 	get("/v1/mcp/actions", func(ctx context.Context) (any, error) { return b.MCPActions(ctx, 200) })
+	get("/v1/blueprints", func(ctx context.Context) (any, error) { return b.ListBlueprints(ctx) })
+	get("/v1/blueprints/sources", func(ctx context.Context) (any, error) { return b.BlueprintSources(ctx) })
+	mux.HandleFunc("GET /v1/blueprints/{name}", func(w http.ResponseWriter, r *http.Request) {
+		v, err := b.GetBlueprint(r.Context(), r.PathValue("name"))
+		reply(w, v, err)
+	})
+	// Body: the blueprint's JSON (its name comes from the path). ?overwrite=1
+	// replaces an existing one.
+	post("PUT", "/v1/blueprints/{name}", func(r *http.Request, body []byte) (any, error) {
+		var raw map[string]any
+		if err := decode(body, &raw); err != nil {
+			return nil, err
+		}
+		raw["name"] = r.PathValue("name")
+		data, _ := json.Marshal(raw)
+		bp, err := core.ParseBlueprint(data)
+		if err != nil {
+			return nil, err
+		}
+		return b.SaveBlueprint(r.Context(), bp, r.URL.Query().Get("overwrite") == "1")
+	})
+	post("DELETE", "/v1/blueprints/{name}", func(r *http.Request, _ []byte) (any, error) {
+		return struct{}{}, b.DeleteBlueprint(r.Context(), r.PathValue("name"))
+	})
+	// Saves a WordPress site as blueprint {name}; warnings list what could
+	// not be included.
+	post("POST", "/v1/sites/{site}/blueprint", func(r *http.Request, body []byte) (any, error) {
+		var req struct {
+			Name      string `json:"name"`
+			Overwrite bool   `json:"overwrite"`
+		}
+		if err := decode(body, &req); err != nil {
+			return nil, err
+		}
+		bp, warnings, err := b.BlueprintFromSite(r.Context(), r.PathValue("site"), req.Name)
+		if err != nil {
+			return nil, err
+		}
+		info, err := b.SaveBlueprint(r.Context(), bp, req.Overwrite)
+		return map[string]any{"blueprint": info, "warnings": warnings}, err
+	})
+	post("POST", "/v1/blueprints/{name}/apply", func(r *http.Request, body []byte) (any, error) {
+		var req struct {
+			Site          string `json:"site"`
+			DryRun        bool   `json:"dry_run"`
+			AcceptChanges bool   `json:"accept_changes"`
+		}
+		if err := decode(body, &req); err != nil {
+			return nil, err
+		}
+		return b.ApplyBlueprint(r.Context(), req.Site, r.PathValue("name"), core.ApplyOptions{DryRun: req.DryRun, AcceptChanges: req.AcceptChanges})
+	})
+	get("/v1/github-token", func(ctx context.Context) (any, error) {
+		return map[string]bool{"stored": b.HasGitHubToken(ctx)}, nil
+	})
+	// token "" removes it; kept in the login keychain.
+	post("PUT", "/v1/github-token", func(r *http.Request, body []byte) (any, error) {
+		var req struct {
+			Token string `json:"token"`
+		}
+		if err := decode(body, &req); err != nil {
+			return nil, err
+		}
+		if err := b.SetGitHubToken(r.Context(), req.Token); err != nil {
+			return nil, err
+		}
+		return map[string]bool{"stored": req.Token != ""}, nil
+	})
 	get("/v1/phone", func(ctx context.Context) (any, error) { return b.Phone(ctx) })
 	// Opens one site on the private network for minutes (default 30).
 	post("PUT", "/v1/sites/{name}/phone", func(r *http.Request, body []byte) (any, error) {
