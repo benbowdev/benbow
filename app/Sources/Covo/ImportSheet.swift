@@ -110,9 +110,20 @@ struct ImportSheet: View {
             ProgressView("Reading \(title)…").frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if let p = preview {
             List {
-                Section("\(p.create) can be imported") {
+                Section {
                     ForEach(Array(p.items.enumerated()).filter { $0.element.creates }, id: \.offset) { _, it in
                         row(it)
+                    }
+                } header: {
+                    let all = Set(p.items.filter(\.creates).map(\.mamp.serverName))
+                    HStack {
+                        Text("\(p.create) can be imported")
+                        Spacer()
+                        Button(selected.isEmpty ? "Select All" : "Select None") {
+                            selected = selected.isEmpty ? all : []
+                        }
+                        .buttonStyle(.link)
+                        .disabled(all.isEmpty)
                     }
                 }
                 if p.skip > 0 {
