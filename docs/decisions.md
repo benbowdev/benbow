@@ -186,6 +186,11 @@ Format: **decision** (date) — why. *Not chosen:* alternatives.
 - **Non-obvious operations are explained inline before the user acts
   (`ExplainBox`)** (2026-11-03) — migration, sync, restore and undo have
   side effects that a confirmation alert alone does not convey.
+- **Site tools as tiles, Advanced holds settings only** (2026-11-04) —
+  Advanced mixed settings (domain, php.ini, Xdebug) with features people
+  look for (snapshots, phone, production sync, commands), which got lost.
+  Tiles keep the detail short. *Not chosen:* two collapsed sections (tools
+  stay hidden), a Tools menu in the header (no room for descriptions).
 
 ## Import and migration
 

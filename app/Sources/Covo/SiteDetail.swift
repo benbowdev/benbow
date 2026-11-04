@@ -23,7 +23,6 @@ struct SiteDetail: View {
     @State private var blueprintSheet = false
     @State private var remoteSheet = false
     @State private var agentSheet = false
-    @State private var activitySheet = false
 
     private var toolTitle: String {
         switch site.framework {
@@ -158,6 +157,28 @@ struct SiteDetail: View {
                 }
             }
 
+            Section("Tools") {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 116), spacing: 8)], spacing: 8) {
+                    ToolTile(title: "Snapshots", symbol: "clock.arrow.circlepath",
+                             help: "Save and restore the files and the database.") { snapshotsSheet = true }
+                    ToolTile(title: "Open on Phone", symbol: "iphone",
+                             help: "This site on your Wi-Fi for a while, with a QR code.",
+                             active: model.status?.phone?.site == site.name) { phoneSheet = true }
+                        .disabled(site.archived)
+                    ToolTile(title: "Production", symbol: "arrow.up.arrow.down",
+                             help: "Pull the live site's database and uploads; push to staging.") { remoteSheet = true }
+                    ToolTile(title: toolTitle, symbol: "apple.terminal",
+                             help: "Commands with this site's PHP version, in its project folder.") { runningTool = true }
+                    ToolTile(title: "PHP Check", symbol: "checkmark.seal",
+                             help: "What in the code would break on a newer PHP version.") { checkingPHP = true }
+                    if site.framework == "wordpress" {
+                        ToolTile(title: "Blueprints", symbol: "square.stack.3d.up",
+                                 help: "Install a blueprint's themes and plugins, or save this site as one.") { blueprintSheet = true }
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+
             Section {
                 DisclosureGroup("Advanced", isExpanded: $advanced) {
                     LabeledContent("Domain") {
@@ -200,53 +221,6 @@ struct SiteDetail: View {
                         Button("Edit…") { editingPHP = true }
                             .disabled(model.busy != nil)
                     }
-                    LabeledContent {
-                        Button("Show…") { remoteSheet = true }
-                    } label: {
-                        Text("Production and staging")
-                        Text("Pull the live site's database and uploads; push to staging.")
-                    }
-                    if site.framework == "wordpress" {
-                        LabeledContent {
-                            Button("Show…") { blueprintSheet = true }
-                        } label: {
-                            Text("Blueprints")
-                            Text("Install a blueprint's themes and plugins, or save this site as one.")
-                        }
-                    }
-                    LabeledContent {
-                        Button("Show…") { snapshotsSheet = true }
-                    } label: {
-                        Text("Snapshots")
-                        Text("Save and restore the files and the database.")
-                    }
-                    LabeledContent {
-                        Button("Activity…") { activitySheet = true }
-                            .disabled(model.session(for: site) == nil)
-                    } label: {
-                        Text("AI agent activity")
-                        Text(model.session(for: site) == nil
-                             ? "No agent session open. One opens when an agent works on this site."
-                             : "What the agent changed (files and database tables) and did through Covo.")
-                    }
-                    LabeledContent {
-                        Button(model.status?.phone?.site == site.name ? "Showing…" : "Open…") { phoneSheet = true }
-                    } label: {
-                        Text("Open on phone")
-                        Text("This site on your Wi-Fi for a while, with a QR code.")
-                    }
-                    LabeledContent {
-                        Button("Run…") { runningTool = true }
-                    } label: {
-                        Text(toolTitle)
-                        Text("Commands with this site's PHP version, in its project folder.")
-                    }
-                    LabeledContent {
-                        Button("Check…") { checkingPHP = true }
-                    } label: {
-                        Text("PHP compatibility")
-                        Text("What in the code would break on a newer PHP version.")
-                    }
                     if let x = model.xdebug(for: site.php), x.available {
                         Toggle(isOn: Binding(
                             get: { x.enabled },
@@ -282,6 +256,8 @@ struct SiteDetail: View {
                         }
                     }
                     HStack {
+                        Text("Archive keeps everything but stops serving the site.")
+                            .font(.caption).foregroundStyle(.secondary)
                         Spacer()
                         if !site.archived {
                             Button("Archive") { Task { await model.setArchived(site, true) } }
@@ -305,9 +281,6 @@ struct SiteDetail: View {
         .sheet(isPresented: $blueprintSheet) { BlueprintSheet(site: site) }
         .sheet(isPresented: $remoteSheet) { RemoteSheet(site: site) }
         .sheet(isPresented: $agentSheet) { WorkWithAgentSheet(site: site) }
-        .sheet(isPresented: $activitySheet) {
-            if let session = model.session(for: site) { AgentActivitySheet(site: site, session: session) }
-        }
         .fileImporter(isPresented: $choosingFolder, allowedContentTypes: [.folder]) { result in
             if case .success(let url) = result { Task { await changeFolder(url, force: false) } }
         }
@@ -358,5 +331,38 @@ struct SiteDetail: View {
         } catch {
             model.error = error.localizedDescription
         }
+    }
+}
+
+/// One of the site's tools: an icon over a short name, the description on hover.
+private struct ToolTile: View {
+    let title: String
+    let symbol: String
+    let help: String
+    var active = false
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 6) {
+                Image(systemName: symbol)
+                    .font(.title3)
+                    .foregroundStyle(active ? Color.green : Color.accentColor)
+                    .frame(height: 22)
+                Text(title)
+                    .font(.caption.weight(.medium))
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: .infinity, minHeight: 58)
+            .padding(.vertical, 6)
+            .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+            .overlay {
+                if active { RoundedRectangle(cornerRadius: 8).strokeBorder(.green.opacity(0.6)) }
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 8))
+        }
+        .buttonStyle(.plain)
+        .help(active ? "\(help) Showing now." : help)
     }
 }

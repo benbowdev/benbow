@@ -28,9 +28,11 @@ The app has no logic of its own: every change goes through the core.
   off, and a context menu (Open in Browser, Show in Finder, Logs, Open in
   Terminal or an installed editor, Duplicate, Move To). Drop a folder to add
   it; a banner offers to trust the local certificate when needed.
-- Detail: name, folder, PHP version, HTTPS, database, and a collapsed
-  Advanced section (domain, aliases, PHP settings of the site, Xdebug,
-  remove).
+- Detail: name, folder, PHP version, HTTPS, database; a Tools row of tiles
+  (Snapshots, Open on Phone, Production, wp-cli/Artisan/Composer, PHP Check,
+  Blueprints for WordPress; description on hover); a collapsed Advanced
+  section with settings only (domain, aliases, PHP settings of the site,
+  Xdebug, migration, archive, remove).
 - Logs window per site: PHP errors and requests, refreshed every 2 seconds.
 
 ## Settings (⌘, or the gear in the toolbar)
