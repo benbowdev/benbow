@@ -5,7 +5,9 @@ package core
 
 import (
 	"context"
+	"fmt"
 	"slices"
+	"time"
 
 	"github.com/getcovo/covo/internal/errcode"
 	"github.com/getcovo/covo/internal/store"
@@ -93,4 +95,69 @@ func (c *Core) MCPActions(ctx context.Context, limit int) ([]store.MCPAction, er
 		limit = 200
 	}
 	return c.Store.MCPActions(ctx, limit)
+}
+
+// AgentChange is one change an AI agent asks for.
+type AgentChange struct {
+	Tool string
+	// Site is the site changed ("" for a change outside any site, which
+	// needs the permission for everything).
+	Site string
+	// Args are logged as given (secrets are the caller's to leave out).
+	Args   string
+	Agent  string
+	DryRun bool
+	// Risky takes a checkpoint first (the caller knows the tool's
+	// arguments; a tool that takes its own snapshot passes false).
+	Risky bool
+}
+
+// AgentChangeResult is what the agent is told besides the change's result.
+type AgentChangeResult struct {
+	// Checkpoint is the snapshot taken just before, if any.
+	Checkpoint string
+	// SessionStart is the agent session's starting snapshot, if any.
+	SessionStart string
+}
+
+// RunAgentChange is the only way an agent changes anything: the user's
+// permission for the site, the site's agent session (opened if needed,
+// with its starting snapshot, and its database dump finished), a
+// checkpoint if the change is risky, the change itself, and an entry in
+// the action log, in this order. A dry run only checks the permission.
+// fn takes the lock itself if it needs it.
+func (c *Core) RunAgentChange(ctx context.Context, ch AgentChange, fn func() error) (AgentChangeResult, error) {
+	var res AgentChangeResult
+	act := store.MCPAction{At: time.Now(), Tool: ch.Tool, Site: ch.Site, Args: ch.Args, DryRun: ch.DryRun}
+	logged := func(err error) error {
+		act.OK = err == nil
+		if err != nil {
+			act.Error = err.Error()
+		}
+		act.Snapshot = res.Checkpoint
+		_ = c.Store.AddMCPAction(context.WithoutCancel(ctx), act)
+		return err
+	}
+	if err := c.CheckMCPWrite(ctx, ch.Site); err != nil {
+		return res, logged(err)
+	}
+	if ch.Site != "" && !ch.DryRun {
+		if _, err := c.Store.Site(ctx, ch.Site); err == nil {
+			s, _, err := c.EnsureAgentSession(ctx, SessionRequest{Site: ch.Site, Agent: ch.Agent, Source: SessionFromCall})
+			if err == nil {
+				err = c.WaitSessionDB(ctx, ch.Site)
+			}
+			if err == nil && ch.Risky {
+				var snap store.Snapshot
+				if snap, err = c.Checkpoint(ctx, ch.Site, "before "+ch.Tool+" (AI agent)"); err == nil {
+					res.Checkpoint = snap.ID
+				}
+			}
+			if err != nil {
+				return res, logged(fmt.Errorf("saving the site before the change failed, nothing was changed: %w", err))
+			}
+			res.SessionStart = s.BaseSnapshot
+		}
+	}
+	return res, logged(fn())
 }

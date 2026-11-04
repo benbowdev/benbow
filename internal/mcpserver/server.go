@@ -270,51 +270,25 @@ func change[T any](ctx context.Context, t tools, tool, site string, args any, dr
 	}
 	defer func() { _ = c.Close() }()
 	argJSON, _ := json.Marshal(args)
-	act := store.MCPAction{At: time.Now(), Tool: tool, Site: site, Args: string(argJSON), DryRun: dryRun}
-	logged := func(err error) {
-		act.OK = err == nil
-		if err != nil {
-			act.Error = err.Error()
-		}
-		_ = c.Store.AddMCPAction(context.WithoutCancel(ctx), act)
-	}
-	if err := c.CheckMCPWrite(ctx, site); err != nil {
-		logged(err)
-		return toolError(err), nil, nil
-	}
-	var session string
-	if site != "" && !dryRun {
-		if _, err := c.Store.Site(ctx, site); err == nil {
-			s, _, err := c.EnsureAgentSession(ctx, core.SessionRequest{Site: site, Agent: t.conn.agentName(), Source: core.SessionFromCall})
-			if err == nil {
-				err = c.WaitSessionDB(ctx, site)
-			}
-			if err == nil && !ownSnapshot && riskyArgs(tool, args) {
-				var snap store.Snapshot
-				if snap, err = c.Checkpoint(ctx, site, "before "+tool+" (AI agent)"); err == nil {
-					act.Snapshot = snap.ID
-				}
-			}
-			if err != nil {
-				err = fmt.Errorf("saving the site before the change failed, nothing was changed: %w", err)
-				logged(err)
-				return toolError(err), nil, nil
-			}
-			session = s.BaseSnapshot
-		}
-	}
-	v, err := fn(c)
-	logged(err)
+	var v T
+	res, err := c.RunAgentChange(ctx, core.AgentChange{
+		Tool: tool, Site: site, Args: string(argJSON), Agent: t.conn.agentName(),
+		DryRun: dryRun, Risky: !ownSnapshot && riskyArgs(tool, args),
+	}, func() error {
+		var err error
+		v, err = fn(c)
+		return err
+	})
 	if err != nil {
 		return toolError(err), nil, nil
 	}
 	out := map[string]any{"result": v}
-	if act.Snapshot != "" {
-		out["checkpoint"] = act.Snapshot
-		out["undo_this"] = "restore_snapshot with id " + act.Snapshot
+	if res.Checkpoint != "" {
+		out["checkpoint"] = res.Checkpoint
+		out["undo_this"] = "restore_snapshot with id " + res.Checkpoint
 	}
-	if session != "" {
-		out["session_start"] = session
+	if res.SessionStart != "" {
+		out["session_start"] = res.SessionStart
 		out["undo_all"] = "the user can keep or undo everything since the session started in Covo"
 	}
 	if dryRun {
