@@ -277,7 +277,22 @@ Format: **decision** (date) — why. *Not chosen:* alternatives.
 - **Supported agents: Claude Code, Codex, Gemini CLI, Cursor (app and CLI),
   GitHub Copilot CLI** (2026-11-04).
 - **Claude Code plugin in the repo + an AGENTS.md snippet for the others**
-  (2026-11-04).
+  (2026-11-04) — the snippet is for the user to paste: Covo never writes
+  into client repositories.
+- **Folder check on the agent's first request, not on `initialized`**
+  (2026-11-04) — the 2026-07-28 MCP protocol replaced the initialize
+  handshake with `server/discover`; roots are deprecated, so the server's
+  working folder is the fallback.
+- **Session database dump in a detached process; explicit opens wait for
+  it** (2026-11-04) — agents give MCP servers 10–30 s to start; the CLI and
+  Work with an Agent are not in a hurry, and waiting avoids a change
+  slipping into the starting state.
+- **Performance schema sized to ~30 MB** (2026-11-04) — the defaults cost
+  ~400 MB; zero thread instances lose the table counters, so threads stay
+  (300) and every other table is sized to zero.
+- **fetch_page sends only GET/HEAD and follows redirects only to Covo
+  hosts** (2026-11-04) — checking must not change the site or reach the
+  internet.
 
 ## Later (v2+), decided not now
 
