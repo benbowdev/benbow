@@ -16,6 +16,7 @@ import (
 	"github.com/getcovo/covo/internal/errcode"
 	"github.com/getcovo/covo/internal/hostshelper"
 	"github.com/getcovo/covo/internal/launchd"
+	"github.com/getcovo/covo/internal/mysql"
 	"github.com/getcovo/covo/internal/paths"
 	"github.com/getcovo/covo/internal/resolver"
 	"github.com/getcovo/covo/internal/trust"
@@ -39,7 +40,8 @@ type UninstallPlan struct {
 	// HostsHelper lists the privileged helper's files; removing them (and
 	// Covo's /etc/hosts lines) needs no password.
 	HostsHelper []string `json:"hosts_helper"`
-	// Keychain lists Covo's items in the login keychain (MySQL password).
+	// Keychain lists Covo's items in the login keychain (database, server
+	// and GitHub secrets).
 	Keychain []string `json:"keychain"`
 	Paths    []string `json:"paths"`
 	Unknown  []string `json:"unknown,omitempty"`
@@ -100,23 +102,16 @@ func (u *Uninstaller) Plan(ctx context.Context) (UninstallPlan, error) {
 			plan.HostsHelper = append(plan.HostsHelper, "Covo's lines in "+hostshelper.HostsPath, hostshelper.BinaryPath, hostshelper.PlistPath)
 		}
 	}
-	kc, err := mysqlKeychain(u.Launchctl.Prefix)
+	kcs, err := covoKeychains(u.Launchctl.Prefix)
 	if err != nil {
 		return plan, err
 	}
-	if ok, err := kc.AnyExists(ctx); err != nil {
-		return plan, err
-	} else if ok {
-		plan.Keychain = append(plan.Keychain, "MySQL passwords: root and site users ("+kc.Service+")")
-	}
-	pgkc, err := postgresKeychain(u.Launchctl.Prefix)
-	if err != nil {
-		return plan, err
-	}
-	if ok, err := pgkc.AnyExists(ctx); err != nil {
-		return plan, err
-	} else if ok {
-		plan.Keychain = append(plan.Keychain, "PostgreSQL passwords: superuser and site users ("+pgkc.Service+")")
+	for _, k := range kcs {
+		if ok, err := k.kc.AnyExists(ctx); err != nil {
+			return plan, err
+		} else if ok {
+			plan.Keychain = append(plan.Keychain, k.what+" ("+k.kc.Service+")")
+		}
 	}
 	for _, zone := range []string{suffixTest} {
 		st, _, err := u.Resolver.State(zone)
@@ -181,19 +176,14 @@ func (u *Uninstaller) Uninstall(ctx context.Context) (UninstallResult, error) {
 		return res, err
 	}
 	// After the agents stopped: MySQL is no longer running.
-	kc, err := mysqlKeychain(u.Launchctl.Prefix)
+	kcs, err := covoKeychains(u.Launchctl.Prefix)
 	if err != nil {
 		return res, err
 	}
-	if _, err := kc.DeleteAll(ctx); err != nil {
-		return res, err
-	}
-	pgkc, err := postgresKeychain(u.Launchctl.Prefix)
-	if err != nil {
-		return res, err
-	}
-	if _, err := pgkc.DeleteAll(ctx); err != nil {
-		return res, err
+	for _, k := range kcs {
+		if _, err := k.kc.DeleteAll(ctx); err != nil {
+			return res, err
+		}
 	}
 	for _, p := range plan.Paths {
 		if err := os.RemoveAll(p); err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -212,4 +202,30 @@ func checkRemovable(root string) error {
 		return errcode.Errorf(errcode.ForbiddenFolder, fmt.Sprintf("refusing to delete %s", root))
 	}
 	return nil
+}
+
+// covoKeychains are every login keychain service Covo stores secrets under.
+func covoKeychains(prefix string) ([]struct {
+	what string
+	kc   mysql.Keychain
+}, error) {
+	my, err := mysqlKeychain(prefix)
+	if err != nil {
+		return nil, err
+	}
+	pg, err := postgresKeychain(prefix)
+	if err != nil {
+		return nil, err
+	}
+	remote, github := my, my
+	remote.Service, github.Service = prefix+".remote", prefix+".github"
+	return []struct {
+		what string
+		kc   mysql.Keychain
+	}{
+		{"MySQL passwords: root, site users and read-only users", my},
+		{"PostgreSQL passwords: superuser and site users", pg},
+		{"Passwords of production and staging servers", remote},
+		{"GitHub token for blueprints", github},
+	}, nil
 }

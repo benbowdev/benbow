@@ -45,7 +45,8 @@ covo db unlink shop --drop --yes  # delete the database and the site's user
 - SQL with passwords reaches the `mysql` client on its standard input, never
   in its arguments.
 - Removing a site keeps its database; only `unlink --drop` deletes data.
-- `covo uninstall` removes every Covo MySQL password from the keychain.
+- `covo uninstall` removes every Covo MySQL password from the keychain (and
+  Covo's other secrets: PostgreSQL, servers, GitHub token).
 - In the app: the Database line of the site detail (Add → Create or Link,
   Adminer, credentials, wp-config.php settings to copy).
 

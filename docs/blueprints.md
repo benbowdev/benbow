@@ -91,8 +91,8 @@ Every field but `name` is optional; unknown fields are refused.
   failure the error names the snapshot to restore. Themes, plugins and
   must-use plugins already there are left as they are. For a new site, a
   failure removes the whole site again.
-- The GitHub token lives in the login keychain (`dev.getcovo.github`) and is
-  sent only to api.github.com.
+- The GitHub token lives in the login keychain (`dev.getcovo.github`,
+  removed by `covo uninstall`) and is sent only to api.github.com.
 - `covo blueprint save` keeps wordpress.org themes and plugins at their
   installed versions; others come back as warnings (add their `url` or
   `github` by hand). Constants are not saved: they can hold secrets.

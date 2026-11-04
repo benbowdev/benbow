@@ -23,7 +23,7 @@ A **remote** is a copy of the site on a server: `production` (pull only) or
 Covo never creates or changes `~/.ssh`. New host keys are accepted the first
 time (`StrictHostKeyChecking=accept-new`), a changed one is refused. A
 password (`--password`, asked on the terminal) is kept in the login keychain
-(`dev.getcovo.remote`); ssh gets it through `SSH_ASKPASS` = `covo askpass`,
+(`dev.getcovo.remote`, removed by `covo uninstall`); ssh gets it through `SSH_ASKPASS` = `covo askpass`,
 never as an argument. Database credentials read on the server are used for
 that run only: over SSH they reach `mysqldump` on its stdin (or a private
 file removed at once, when stdin carries the SQL).

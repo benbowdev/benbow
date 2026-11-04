@@ -54,9 +54,11 @@ func (a *app) uninstallCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "uninstall",
 		Short: "Stop Covo, remove its CA and delete all its data",
-		Long: `Stops every Covo service, removes Covo's CA and MySQL password from the
-login keychain and deletes ~/Library/Application Support/covo, MySQL databases
-included. Your site folders are never touched.`,
+		Long: `Stops every Covo service, removes Covo's CA and every secret Covo keeps in
+the login keychain (MySQL and PostgreSQL passwords, passwords of production
+and staging servers, the GitHub token for blueprints) and deletes
+~/Library/Application Support/covo, databases included. Your site folders
+are never touched.`,
 		Args: cobra.NoArgs,
 		// Not withCore: opening the core would recreate the folders being removed.
 		RunE: a.run(func(ctx context.Context, _ []string) (Result, error) {
