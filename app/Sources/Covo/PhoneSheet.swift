@@ -13,6 +13,7 @@ struct PhoneSheet: View {
     @Environment(\.dismiss) private var dismiss
     let site: Site
     @State private var minutes = 30
+    @State private var https = false
 
     private var share: PhoneStatus? {
         model.status?.phone.flatMap { $0.site == site.name ? $0 : nil }
@@ -22,9 +23,25 @@ struct PhoneSheet: View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Open \(site.name) on your phone").font(.headline)
             if let s = share {
-                HStack(alignment: .top, spacing: 24) {
-                    qr(s.caPageUrl, title: "1. Install Covo's certificate", note: "Once per phone. Scan with the camera and follow the page.")
-                    qr(s.url, title: "2. Open the site", note: s.url)
+                if let plain = s.plainUrl, !https {
+                    HStack(alignment: .top, spacing: 24) {
+                        qr(plain, title: "Scan with the phone's camera", note: plain)
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("The site opens right away: nothing to install.")
+                                .font(.callout)
+                            Text("It is plain HTTP on your Wi-Fi, like any address of a router or printer. Something that needs HTTPS (camera, location, payments, some redirects to https) only works with the certificate.")
+                                .font(.caption).foregroundStyle(.secondary)
+                            Button("Use HTTPS Instead…") { https = true }
+                        }
+                    }
+                } else {
+                    HStack(alignment: .top, spacing: 24) {
+                        qr(s.caPageUrl, title: "1. Install Covo's certificate", note: "Once per phone. Scan, then on iPhone: Settings → Profile Downloaded → Install, then Settings → General → About → Certificate Trust Settings → turn on Covo.")
+                        qr(s.url, title: "2. Open the site", note: s.url)
+                    }
+                    if s.plainUrl != nil {
+                        Button("Back to the Quick Address") { https = false }
+                    }
                 }
                 Label("Served on \(s.addresses.joined(separator: ", ")) only, for \(s.minutesLeft) more minutes. The site's files and database are not changed.",
                       systemImage: "wifi")
@@ -41,7 +58,7 @@ struct PhoneSheet: View {
                 Text("The phone must be on the same Wi-Fi. iPhone finds .local names by itself; Android may not.")
                     .font(.caption).foregroundStyle(.secondary)
             } else {
-                Text("Covo serves this site on your local network under a .local name, with HTTPS from Covo's certificate (which can only vouch for .localhost, .test and .local names). Other devices on the same Wi-Fi can open it until it turns itself off. Its files and database are not changed.")
+                Text("Covo serves this site on your local network: scan a QR code and it opens on the phone, nothing to install (HTTPS with Covo's certificate is optional). Other devices on the same Wi-Fi can open it until it turns itself off. Its files and database are not changed.")
                     .font(.callout).foregroundStyle(.secondary)
                 Picker("Turn off after", selection: $minutes) {
                     Text("15 minutes").tag(15)

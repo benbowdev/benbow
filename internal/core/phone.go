@@ -55,12 +55,18 @@ type PhoneShare struct {
 	Until time.Time `json:"until"`
 	// CAPort serves the CA install page over plain HTTP.
 	CAPort int `json:"ca_port"`
+	// PlainPort serves the site over plain HTTP on the private addresses:
+	// nothing to install on the phone.
+	PlainPort int `json:"plain_port,omitempty"`
 }
 
 // PhoneStatus is what the app shows while a site is open on the phone.
 type PhoneStatus struct {
 	PhoneShare
 	URL string `json:"url"`
+	// PlainURL opens the site at once, over plain HTTP on the Mac's
+	// address (no certificate, no .local name needed).
+	PlainURL string `json:"plain_url,omitempty"`
 	// CAPageURLs are the CA install page on each private address.
 	CAPageURL string   `json:"ca_page_url"`
 	Addresses []string `json:"addresses"`
@@ -184,12 +190,17 @@ func (c *Core) SharePhone(ctx context.Context, name string, minutes int) (PhoneS
 		}
 		share := PhoneShare{Site: name, Host: phoneHost(name, macName()), Until: time.Now().Add(time.Duration(minutes) * time.Minute)}
 		if old != nil {
-			share.Port, share.CAPort = old.Port, old.CAPort
+			share.Port, share.CAPort, share.PlainPort = old.Port, old.CAPort, old.PlainPort
 		} else {
 			if share.Port, err = firstFreeAnywhere(phoneFirstPort); err != nil {
 				return err
 			}
 			if share.CAPort, err = firstFreeAnywhere(share.Port + 1); err != nil {
+				return err
+			}
+		}
+		if share.PlainPort == 0 {
+			if share.PlainPort, err = firstFreeAnywhere(max(share.Port, share.CAPort) + 1); err != nil {
 				return err
 			}
 		}
@@ -263,6 +274,9 @@ func (c *Core) phoneStatus(_ context.Context, s *PhoneShare) (PhoneStatus, error
 	}
 	if len(addrs) > 0 {
 		st.CAPageURL = "http://" + addrs[0] + ":" + strconv.Itoa(s.CAPort) + "/"
+		if s.PlainPort != 0 {
+			st.PlainURL = plainURL(addrs[0], s.PlainPort)
+		}
 	}
 	return st, nil
 }
@@ -304,6 +318,9 @@ func (c *Core) phoneConfig(ctx context.Context, sites []store.Site, publicHTTPS 
 		LocalURL: siteURL(*site, publicHTTPS), PhoneURL: phoneURL,
 		Laravel: site.Framework == FrameworkLaravel, CAPort: s.CAPort, CADir: filepath.Join(dir, "ca"),
 	}
+	if s.PlainPort != 0 {
+		cfg.PlainPort, cfg.PlainURL = s.PlainPort, plainURL(addrs[0], s.PlainPort)
+	}
 	agent := launchd.Agent{
 		Label:   c.labelFor(phoneService),
 		Program: "/usr/bin/dns-sd",
@@ -316,6 +333,8 @@ func (c *Core) phoneConfig(ctx context.Context, sites []store.Site, publicHTTPS 
 	}
 	return cfg, []launchd.Agent{agent}, nil
 }
+
+func plainURL(addr string, port int) string { return "http://" + addr + ":" + strconv.Itoa(port) }
 
 // phonePrepend runs before the site's PHP, only for the phone's requests
 // (Caddy sends COVO_PHONE_URL there only): WordPress sees the phone address

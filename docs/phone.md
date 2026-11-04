@@ -16,6 +16,15 @@ itself off after the chosen time (default 30 minutes, at most 24 hours): the
 daemon checks every 30 seconds. The app shows an indicator in the toolbar and
 the menu bar while a site is shared.
 
+## Quick address: plain HTTP, nothing to install
+
+The QR code the app shows first opens `http://<Mac's address>:<port>` (the
+port after the CA page's), the same site over plain HTTP on the same private
+addresses: no certificate on the phone, no `.local` name to resolve (works
+on Android too). Features that need a secure context (camera, location,
+service workers, payments) or a site that forces https need the HTTPS
+address below: Use HTTPS Instead… in the app. The status has `plain_url`.
+
 ## HTTPS without weakening the CA
 
 The certificate comes from Covo's CA, whose Name Constraints already allow

@@ -20,8 +20,13 @@ func (r phoneResult) Text(w io.Writer) {
 		fmt.Fprintln(w, "No site is open on the phone. Open one with: covo phone <site>")
 		return
 	}
-	fmt.Fprintf(w, "%s is open on your local network for %d more minutes:\n  %s\n", r.Site, r.Minutes, r.URL)
-	fmt.Fprintf(w, "Install Covo's certificate on the phone first: %s\n", r.CAPageURL)
+	if r.PlainURL != "" {
+		fmt.Fprintf(w, "%s is open on your local network for %d more minutes:\n  %s\n", r.Site, r.Minutes, r.PlainURL)
+		fmt.Fprintf(w, "With HTTPS (install Covo's certificate on the phone first, %s):\n  %s\n", r.CAPageURL, r.URL)
+	} else {
+		fmt.Fprintf(w, "%s is open on your local network for %d more minutes:\n  %s\n", r.Site, r.Minutes, r.URL)
+		fmt.Fprintf(w, "Install Covo's certificate on the phone first: %s\n", r.CAPageURL)
+	}
 	fmt.Fprintf(w, "Served on %s only. Turn it off with: covo phone --off\n", strings.Join(r.Addresses, ", "))
 	if r.Firewall == "block-all" {
 		fmt.Fprintln(w, "The macOS firewall blocks all incoming connections: allow them in System Settings → Network → Firewall.")

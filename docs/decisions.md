@@ -234,6 +234,13 @@ Format: **decision** (date) — why. *Not chosen:* alternatives.
   already cover `.local`, so the CA does not change. URLs fixed through a
   Covo-owned `auto_prepend_file` only for the phone's requests: no database
   or project change.
+- **The phone opens a plain-HTTP address first** (2026-11-04) — installing
+  a profile and turning on full trust on iPhone takes six taps in Settings
+  that Apple does not let anyone shorten, and the user wanted to scan and
+  see the site. The traffic stays on the private network for the chosen
+  minutes; HTTPS with the certificate remains one click away for what needs
+  a secure context. *Not chosen:* weakening or skipping the CA (never
+  without asking), a public tunnel (sends the site outside the network).
 
 ## Laravel and blueprints
 

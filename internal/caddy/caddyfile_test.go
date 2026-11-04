@@ -41,7 +41,8 @@ func TestCaddyfileGolden(t *testing.T) {
 			&Phone{Site: "demo", Host: "demo-mac.local", Port: 9443, Binds: []string{"192.168.1.5", "10.0.0.2"},
 				Root: "/Users/test/Sites/My Demo", FPMSocket: home + "/run/php84.sock",
 				PHPValue: "memory_limit=1G\nauto_prepend_file=" + home + "/data/phone/prepend.php",
-				LocalURL: "https://demo.localhost", PhoneURL: "https://demo-mac.local:9443", CAPort: 9444, CADir: home + "/data/phone/ca"}},
+				LocalURL: "https://demo.localhost", PhoneURL: "https://demo-mac.local:9443", CAPort: 9444, CADir: home + "/data/phone/ca",
+				PlainPort: 9445, PlainURL: "http://192.168.1.5:9445"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

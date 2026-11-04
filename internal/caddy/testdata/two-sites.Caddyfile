@@ -88,6 +88,18 @@ auto_prepend_file=/Users/test/Library/Application Support/covo/data/phone/prepen
 	}
 	file_server
 }
+"http://:9445" {
+	bind 192.168.1.5 10.0.0.2
+	root * "/Users/test/Sites/My Demo"
+	header >Location "https://demo.localhost" "http://192.168.1.5:9445"
+	php_fastcgi "unix//Users/test/Library/Application Support/covo/run/php84.sock" {
+		env PHP_VALUE "memory_limit=1G
+auto_prepend_file=/Users/test/Library/Application Support/covo/data/phone/prepend.php"
+		env COVO_PHONE_URL "http://192.168.1.5:9445"
+		env COVO_LOCAL_URL "https://demo.localhost"
+	}
+	file_server
+}
 "http://:9444" {
 	bind 192.168.1.5 10.0.0.2
 	root * "/Users/test/Library/Application Support/covo/data/phone/ca"

@@ -156,22 +156,27 @@ var tmpl = template.Must(template.New("Caddyfile").Funcs(template.FuncMap{"q": q
 }
 {{end}}
 {{- with .Phone}}
+{{- $p := .}}
 # phone: {{.Site}}
-{{q (print "https://" .Host ":" .Port)}} {
-	bind{{range .Binds}} {{.}}{{end}}
+{{- range .Variants}}
+{{q .Address}} {
+	bind{{range $p.Binds}} {{.}}{{end}}
+	{{- if .TLS}}
 	tls internal
-	root * {{q .Root}}
-	header >Location {{q .LocalURL}} {{q .PhoneURL}}
-	php_fastcgi {{q (print "unix/" .FPMSocket)}} {
-		env PHP_VALUE {{q .PHPValue}}
-		env COVO_PHONE_URL {{q .PhoneURL}}
-		env COVO_LOCAL_URL {{q .LocalURL}}
-		{{- if .Laravel}}
-		env APP_URL {{q .PhoneURL}}
+	{{- end}}
+	root * {{q $p.Root}}
+	header >Location {{q $p.LocalURL}} {{q .URL}}
+	php_fastcgi {{q (print "unix/" $p.FPMSocket)}} {
+		env PHP_VALUE {{q $p.PHPValue}}
+		env COVO_PHONE_URL {{q .URL}}
+		env COVO_LOCAL_URL {{q $p.LocalURL}}
+		{{- if $p.Laravel}}
+		env APP_URL {{q .URL}}
 		{{- end}}
 	}
 	file_server
 }
+{{- end}}
 {{q (print "http://:" .CAPort)}} {
 	bind{{range .Binds}} {{.}}{{end}}
 	root * {{q .CADir}}
@@ -206,6 +211,26 @@ type Phone struct {
 	Laravel bool
 	CAPort  int
 	CADir   string
+	// PlainPort serves the same site over plain HTTP (no certificate to
+	// install on the phone) at PlainURL; 0 for none.
+	PlainPort int
+	PlainURL  string
+}
+
+// PhoneVariant is one address the phone's site answers on.
+type PhoneVariant struct {
+	Address string // Caddy site address
+	URL     string // what the site's pages and redirects use
+	TLS     bool
+}
+
+// Variants are the HTTPS address and, if set, the plain HTTP one.
+func (p Phone) Variants() []PhoneVariant {
+	v := []PhoneVariant{{Address: "https://" + p.Host + ":" + strconv.Itoa(p.Port), URL: p.PhoneURL, TLS: true}}
+	if p.PlainPort != 0 {
+		v = append(v, PhoneVariant{Address: "http://:" + strconv.Itoa(p.PlainPort), URL: p.PlainURL})
+	}
+	return v
 }
 
 // Caddyfile renders cfg. Every path is validated with paths.CheckSafe so that
@@ -230,7 +255,10 @@ func Caddyfile(cfg Config) (string, error) {
 				return "", errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("bad PHP value %q", line))
 			}
 		}
-		for _, u := range []string{p.LocalURL, p.PhoneURL} {
+		for _, u := range []string{p.LocalURL, p.PhoneURL, p.PlainURL} {
+			if u == "" {
+				continue
+			}
 			if strings.ContainsAny(u, "\"\\{} \n") {
 				return "", errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("bad URL %q", u))
 			}

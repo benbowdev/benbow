@@ -39,6 +39,7 @@ func TestPhone(t *testing.T) {
 	h.mustCovo("start")
 	var ph struct {
 		URL       string   `json:"url"`
+		PlainURL  string   `json:"plain_url"`
 		Host      string   `json:"host"`
 		CAPageURL string   `json:"ca_page_url"`
 		Addresses []string `json:"addresses"`
@@ -89,6 +90,17 @@ func TestPhone(t *testing.T) {
 	}
 	if want := ph.URL + "|" + ph.URL + "/x"; body != want {
 		t.Fatalf("phone page = %q, want %q", body, want)
+	}
+	// Plain HTTP on the Mac's address: nothing to install on the phone.
+	if !strings.HasPrefix(ph.PlainURL, "http://"+ph.Addresses[0]+":") {
+		t.Fatalf("plain URL = %q", ph.PlainURL)
+	}
+	body, _, err = get(ph.PlainURL + "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := ph.PlainURL + "|" + ph.PlainURL + "/x"; body != want {
+		t.Fatalf("plain phone page = %q, want %q", body, want)
 	}
 	page, _, err := get(ph.CAPageURL)
 	if err != nil || !strings.Contains(page, "Covo") || !strings.Contains(page, "Name Constraints") {

@@ -198,6 +198,8 @@ public struct PhoneStatus: Codable, Sendable, Hashable {
     public var host: String
     public var port: Int
     public var url: String
+    /// Plain HTTP on the Mac's address: opens at once, nothing to install.
+    public var plainUrl: String?
     public var caPageUrl: String
     public var addresses: [String]
     /// "off", "on", "block-all" or "unknown".
