@@ -24,6 +24,9 @@ type MCPPermissions struct {
 	All bool `json:"all"`
 	// Sites lists the sites agents may change.
 	Sites []string `json:"sites"`
+	// Temporary lists the sites agents may change only while the agent
+	// session Covo opened for "Work with an agent" lasts.
+	Temporary []string `json:"temporary"`
 }
 
 // GetMCPPermissions returns what agents may change.
@@ -32,13 +35,23 @@ func (c *Core) GetMCPPermissions(ctx context.Context) (MCPPermissions, error) {
 	if err != nil {
 		return MCPPermissions{}, err
 	}
-	p := MCPPermissions{All: m[MCPAll], Sites: []string{}}
+	p := MCPPermissions{All: m[MCPAll], Sites: []string{}, Temporary: []string{}}
 	for scope, w := range m {
 		if w && scope != MCPAll {
 			p.Sites = append(p.Sites, scope)
 		}
 	}
 	slices.Sort(p.Sites)
+	open, err := c.Store.AgentSessions(ctx, true, 1000)
+	if err != nil {
+		return p, err
+	}
+	for _, s := range open {
+		if s.WriteGrant {
+			p.Temporary = append(p.Temporary, s.Site)
+		}
+	}
+	slices.Sort(p.Temporary)
 	return p, nil
 }
 
@@ -62,7 +75,7 @@ func (c *Core) CheckMCPWrite(ctx context.Context, site string) error {
 	if err != nil {
 		return err
 	}
-	if p.All || (site != "" && slices.Contains(p.Sites, site)) {
+	if p.All || (site != "" && (slices.Contains(p.Sites, site) || slices.Contains(p.Temporary, site))) {
 		return nil
 	}
 	what := "changes outside one site"

@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"strings"
 
+	"github.com/getcovo/covo/internal/agents"
 	"github.com/getcovo/covo/internal/core"
 	"github.com/getcovo/covo/internal/errcode"
 	"github.com/spf13/cobra"
@@ -21,7 +23,7 @@ func (a *app) agentCmd() *cobra.Command {
 		Long: "While an AI agent works on a site, Covo keeps the site's starting state (files and\n" +
 			"database) in an agent session, until you keep the changes or undo them all.",
 	}
-	cmd.AddCommand(a.agentSessionCmd(), a.agentIdleCmd(), a.agentDiffCmd())
+	cmd.AddCommand(a.agentSessionCmd(), a.agentIdleCmd(), a.agentDiffCmd(), a.agentToolsCmd(), a.agentConnectCmd(), a.agentStartCmd(), a.agentEndedCmd())
 	return cmd
 }
 
@@ -243,4 +245,130 @@ func (a *app) agentDiffCmd() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&file, "file", "", "one file's unified diff (path inside the project)")
 	return cmd
+}
+
+type toolsResult core.AgentTools
+
+func (r toolsResult) Text(w io.Writer) {
+	for _, t := range r.Agents {
+		state := "not installed"
+		if t.Installed {
+			state = "installed"
+			switch {
+			case t.Connected:
+				state += ", Covo connected"
+			case t.PerRun:
+				state += ", Covo connects itself when started from Covo"
+			case t.CanConnect:
+				state += ", not connected (covo agent connect " + t.ID + ")"
+			}
+		}
+		last := ""
+		if t.ID == r.Last {
+			last = "  (last used)"
+		}
+		fmt.Fprintf(w, "%-15s %-26s %s%s\n", t.ID, t.Name, state, last)
+	}
+}
+
+func (a *app) agentToolsCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "tools",
+		Short: "AI agents on this Mac and whether Covo is connected to them",
+		Args:  cobra.NoArgs,
+		RunE: a.withCore(func(ctx context.Context, c *core.Core, _ []string) (Result, error) {
+			r, err := c.ListAgentTools(ctx)
+			return toolsResult(r), err
+		}),
+	}
+}
+
+type connectResult struct{ agents.ConnectResult }
+
+func (r connectResult) Text(w io.Writer) {
+	switch {
+	case r.Already:
+		fmt.Fprintf(w, "Covo is already in %s.\n", r.ConfigPath)
+		return
+	case r.Command != "":
+		fmt.Fprintf(w, "Ran: %s\n", r.Command)
+	default:
+		fmt.Fprintf(w, "Added Covo to %s.\n", r.ConfigPath)
+	}
+	if r.Backup != "" {
+		fmt.Fprintf(w, "Backup of the previous file: %s\n", r.Backup)
+	}
+	if r.Restart {
+		fmt.Fprintln(w, "Restart the app to see Covo.")
+	}
+}
+
+func (a *app) agentConnectCmd() *cobra.Command {
+	var yes bool
+	cmd := &cobra.Command{
+		Use:   "connect <agent>",
+		Short: "Add Covo's MCP server to an agent's own settings in your home (after a backup)",
+		Args:  cobra.ExactArgs(1),
+		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
+			if !yes && !a.confirm("Add Covo to "+args[0]+"'s settings in your home folder? The file is backed up first.") {
+				return nil, errcode.Errorf(errcode.ConfirmationRequired, "connecting needs --yes")
+			}
+			r, err := c.ConnectAgent(ctx, args[0])
+			return connectResult{r}, err
+		}),
+	}
+	cmd.Flags().BoolVar(&yes, "yes", false, "do not ask")
+	return cmd
+}
+
+type agentStartResult core.StartAgentResult
+
+func (r agentStartResult) Text(w io.Writer) {
+	where := "opened " + r.Session.Site + "'s folder"
+	if r.Started.Terminal != "" {
+		where = "started in a new " + r.Started.Terminal + " window"
+	}
+	fmt.Fprintf(w, "%s %s. Agent session open since %s (starting snapshot %s); the agent may change %s until it closes.\n",
+		r.Agent.Name, where, r.Session.OpenedAt.Local().Format("15:04"), r.Session.BaseSnapshot, r.Session.Site)
+	fmt.Fprintf(w, "When done: covo agent diff %s, then covo agent session keep|revert %s\n", r.Session.Site, r.Session.Site)
+}
+
+func (a *app) agentStartCmd() *cobra.Command {
+	var req core.StartAgentRequest
+	var yes bool
+	cmd := &cobra.Command{
+		Use:   "start <site>",
+		Short: "Start your AI agent in a site's folder, inside an agent session",
+		Long: "Opens an agent session (starting snapshot of files and database), lets agents change\n" +
+			"this site until the session closes, and starts the agent in a new terminal window with\n" +
+			"Covo connected for that run (Cursor: opens the folder). Agents: " + strings.Join([]string{"claude", "codex", "gemini", "cursor-agent", "cursor", "copilot"}, ", ") + ".",
+		Args: cobra.ExactArgs(1),
+		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
+			req.Site = args[0]
+			req.Connect = req.Connect || yes
+			r, err := c.StartAgent(ctx, req)
+			if errcode.Code(err) == errcode.ConfirmationRequired && !a.json && a.confirm(err.Error()+"\nAdd it?") {
+				req.Connect = true
+				r, err = c.StartAgent(ctx, req)
+			}
+			return agentStartResult(r), err
+		}),
+	}
+	cmd.Flags().StringVar(&req.Tool, "tool", "", "claude, codex, gemini, cursor-agent, cursor or copilot (default: the last one)")
+	cmd.Flags().StringVar(&req.Terminal, "terminal", "", "Terminal, iTerm or Ghostty (default: the last one, or Terminal)")
+	cmd.Flags().BoolVar(&req.Connect, "connect", false, "add Covo to the agent's own settings if it needs it (Gemini, Cursor)")
+	cmd.Flags().BoolVar(&yes, "yes", false, "same as --connect")
+	return cmd
+}
+
+func (a *app) agentEndedCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:    "ended <session>",
+		Short:  "Record that the agent Covo started has exited (run by its window)",
+		Hidden: true,
+		Args:   cobra.ExactArgs(1),
+		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
+			return okResult{}, c.AgentEnded(ctx, args[0])
+		}),
+	}
 }

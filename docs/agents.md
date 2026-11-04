@@ -6,6 +6,49 @@ Covo protects the code **and the database** together. Covo is not an
 agent and never calls a model: the agent connects to Covo's MCP server
 (`mcp.md`).
 
+## Work with an agent
+
+In the app, a site's detail → **Work with an Agent…** (or `covo agent start
+<site> [--tool claude|codex|gemini|cursor-agent|cursor|copilot]
+[--terminal Terminal|iTerm|Ghostty] [--connect]`):
+
+1. Covo opens the site's agent session and waits until the starting
+   snapshot (files and database) is saved.
+2. Agents may change that site **until the session closes** (a temporary
+   permission, shown in Settings → AI Agents; separate from `covo mcp
+   allow`).
+3. Covo starts the agent in the site's folder, in a new window of your
+   terminal (Terminal, iTerm or Ghostty; Cursor opens the folder), with
+   Covo's MCP server connected and a short context: the site, its address,
+   PHP and database, the session and the recommended workflow. The app
+   shows the agent on the site until you keep or undo the changes.
+
+Nothing is written into the project folder: the context, a one-run MCP
+configuration and the start script live in `tmp/agent/<session>/` in
+Covo's folder and go when the session closes.
+
+| Agent | How Covo connects | Context |
+|---|---|---|
+| Claude Code | `--mcp-config` for that run | `--append-system-prompt`, plus a one-line first prompt |
+| Codex (also the one inside the ChatGPT app) | `-c mcp_servers.covo…` for that run | `-c developer_instructions=…` |
+| GitHub Copilot CLI | `--additional-mcp-config` for that run | first prompt |
+| Gemini CLI | its user settings (`~/.gemini/settings.json`), after you agree and a backup | first prompt |
+| Cursor (app and `cursor-agent`) | `~/.cursor/mcp.json`, after you agree and a backup | first prompt; Covo's MCP instructions |
+
+Covo finds agents on your login shell's PATH and in the usual install
+folders (`~/.local/bin`, Homebrew, nvm, Volta, Bun, npm) and apps; it never
+installs one. The last agent and terminal are remembered.
+
+## Connecting an agent for good
+
+Settings → AI Agents → **Connect…** (or `covo agent connect <agent>`) adds
+Covo to an agent's own settings in your home, for use outside Work with an
+Agent: Claude Code and Codex with their own `mcp add` command (Claude Code
+user scope), Gemini, Cursor and Claude Desktop by adding `mcpServers.covo`
+to their JSON file. The file is backed up first in `data/backups/agents/`;
+a file that is not valid JSON is left alone. `covo agent tools` lists the
+agents and whether Covo is connected.
+
 ## Agent sessions
 
 While an agent works on a site, Covo keeps the site's starting state until
@@ -64,8 +107,14 @@ snapshot limit (`covo snapshot keep`).
   not know who changed what). `.git` and `node_modules` are never touched,
   and the current state is saved first (a `pre-restore` snapshot: restore
   it to undo the undo).
-- A session idle for 24 hours (no tool call on the site) closes by itself
-  and keeps the changes.
+- A session idle for 24 hours (no tool call on the site, and no agent
+  started from Covo still running) closes by itself and keeps the changes
+  (Settings → AI Agents, or `covo agent idle`).
+
+In the app: a ✦ mark on the site in the list, a banner in its detail with
+**What Changed…**, **Keep Changes** and **Undo All…** (which explains what
+it does first), Advanced → AI agent activity, and the menu bar lists the
+open sessions.
 
 Agents can see their session (`session_status`) but cannot keep or undo
 it: that stays with you.
@@ -94,7 +143,9 @@ covo agent diff shop --file wp-config.php     # one file's unified diff
   tokens masked (`•••`); private keys entirely. The CLI and the app show
   them as they are.
 
-API: `GET /v1/agent/sessions` (`?all=1`), `GET /v1/sites/{name}/agent-session`,
+API: `GET /v1/agent/tools`, `POST /v1/agent/tools/{id}/connect`,
+`POST /v1/sites/{name}/agent/start` (`tool`, `terminal`, `connect`),
+`GET /v1/agent/sessions` (`?all=1`), `GET /v1/sites/{name}/agent-session`,
 `GET /v1/sites/{name}/agent-session/diff` (`?file=`),
 `POST /v1/sites/{name}/agent-session/keep`, `…/revert`, `GET`, `PUT
 /v1/agent/idle` (`hours`).

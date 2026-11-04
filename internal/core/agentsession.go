@@ -355,6 +355,7 @@ func (c *Core) CloseAgentSession(ctx context.Context, site, outcome string) (Clo
 		return res, err
 	}
 	c.pruneSnapshots(ctx, site, "")
+	_ = os.RemoveAll(c.agentWorkDir(s.ID))
 	res.Session = s
 	return res, nil
 }

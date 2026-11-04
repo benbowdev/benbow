@@ -24,6 +24,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	"github.com/getcovo/covo/internal/agents"
 	"github.com/getcovo/covo/internal/core"
 	"github.com/getcovo/covo/internal/envelope"
 	"github.com/getcovo/covo/internal/errcode"
@@ -127,6 +128,9 @@ type Backend interface {
 	CloseAgentSession(ctx context.Context, site, outcome string) (core.CloseResult, error)
 	AgentSessionDiff(ctx context.Context, site string) (core.SessionDiff, error)
 	FetchPage(ctx context.Context, req core.FetchRequest) (core.FetchResult, error)
+	ListAgentTools(ctx context.Context) (core.AgentTools, error)
+	ConnectAgent(ctx context.Context, id string) (agents.ConnectResult, error)
+	StartAgent(ctx context.Context, req core.StartAgentRequest) (core.StartAgentResult, error)
 	MailMessages(ctx context.Context, q core.MailQuery) ([]core.MailMessage, error)
 	MailMessage(ctx context.Context, id string) (core.MailContent, error)
 	QueryDatabase(ctx context.Context, site, sql string) (core.QueryResult, error)
@@ -550,6 +554,21 @@ func Handler(b Backend) http.Handler {
 		}
 		v, err := b.AgentSessionDiff(r.Context(), r.PathValue("name"))
 		reply(w, v, err)
+	})
+	get("/v1/agent/tools", func(ctx context.Context) (any, error) { return b.ListAgentTools(ctx) })
+	post("POST", "/v1/agent/tools/{id}/connect", func(r *http.Request, _ []byte) (any, error) {
+		return b.ConnectAgent(r.Context(), r.PathValue("id"))
+	})
+	post("POST", "/v1/sites/{name}/agent/start", func(r *http.Request, body []byte) (any, error) {
+		var req struct {
+			Tool     string `json:"tool"`
+			Terminal string `json:"terminal"`
+			Connect  bool   `json:"connect"`
+		}
+		if err := decode(body, &req); err != nil {
+			return nil, err
+		}
+		return b.StartAgent(r.Context(), core.StartAgentRequest{Site: r.PathValue("name"), Tool: req.Tool, Terminal: req.Terminal, Connect: req.Connect})
 	})
 	post("POST", "/v1/sites/{name}/fetch", func(r *http.Request, body []byte) (any, error) {
 		var req struct {
