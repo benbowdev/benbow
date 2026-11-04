@@ -79,6 +79,13 @@ error_log=/Users/test/Library/Application Support/covo/logs/sites/demo/php-error
 	bind 192.168.1.5 10.0.0.2
 	tls internal
 	root * "/Users/test/Sites/My Demo"
+	# The network sees this site: never its dotfiles (.git, .env), dumps,
+	# backups or logs.
+	@covohidden {
+		path */.* *.sql *.sql.gz *.bak *.log *.zip *.tar.gz
+		not path /.well-known/*
+	}
+	respond @covohidden 404
 	header >Location "https://demo.localhost" "https://demo-mac.local:9443"
 	php_fastcgi "unix//Users/test/Library/Application Support/covo/run/php84.sock" {
 		env PHP_VALUE "memory_limit=1G
@@ -91,6 +98,13 @@ auto_prepend_file=/Users/test/Library/Application Support/covo/data/phone/prepen
 "http://:9445" {
 	bind 192.168.1.5 10.0.0.2
 	root * "/Users/test/Sites/My Demo"
+	# The network sees this site: never its dotfiles (.git, .env), dumps,
+	# backups or logs.
+	@covohidden {
+		path */.* *.sql *.sql.gz *.bak *.log *.zip *.tar.gz
+		not path /.well-known/*
+	}
+	respond @covohidden 404
 	header >Location "https://demo.localhost" "http://192.168.1.5:9445"
 	php_fastcgi "unix//Users/test/Library/Application Support/covo/run/php84.sock" {
 		env PHP_VALUE "memory_limit=1G

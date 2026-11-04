@@ -165,6 +165,13 @@ var tmpl = template.Must(template.New("Caddyfile").Funcs(template.FuncMap{"q": q
 	tls internal
 	{{- end}}
 	root * {{q $p.Root}}
+	# The network sees this site: never its dotfiles (.git, .env), dumps,
+	# backups or logs.
+	@covohidden {
+		path */.* *.sql *.sql.gz *.bak *.log *.zip *.tar.gz
+		not path /.well-known/*
+	}
+	respond @covohidden 404
 	header >Location {{q $p.LocalURL}} {{q .URL}}
 	php_fastcgi {{q (print "unix/" $p.FPMSocket)}} {
 		env PHP_VALUE {{q $p.PHPValue}}

@@ -16,6 +16,11 @@ itself off after the chosen time (default 30 minutes, at most 24 hours): the
 daemon checks every 30 seconds. The app shows an indicator in the toolbar and
 the menu bar while a site is shared.
 
+While shared, the network gets 404 for dotfiles and folders (`.git`, `.env`;
+`/.well-known/` stays), dumps and archives (`*.sql`, `*.sql.gz`, `*.zip`,
+`*.tar.gz`), `*.bak` and `*.log` files, before PHP or the file server see the
+request.
+
 ## Quick address: plain HTTP, nothing to install
 
 The QR code the app shows first opens `http://<Mac's address>:<port>` (the
