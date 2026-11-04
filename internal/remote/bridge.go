@@ -12,7 +12,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -43,6 +45,9 @@ type Bridge struct {
 
 // NewBridge returns a bridge for a site at siteURL and its PHP source.
 func NewBridge(siteURL string) (Bridge, string, error) {
+	if err := checkBridgeURL(siteURL); err != nil {
+		return Bridge{}, "", err
+	}
 	name := make([]byte, 8)
 	token := make([]byte, 32)
 	if _, err := rand.Read(name); err != nil {
@@ -57,6 +62,28 @@ func NewBridge(siteURL string) (Bridge, string, error) {
 	return b, src, nil
 }
 
+// checkBridgeURL refuses plain HTTP to another machine: the token and the
+// whole database would cross the network in clear.
+func checkBridgeURL(siteURL string) error {
+	u, err := url.Parse(siteURL)
+	if err != nil || u.Host == "" {
+		return errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("bad site address %q", siteURL))
+	}
+	if u.Scheme == "https" {
+		return nil
+	}
+	host := strings.ToLower(u.Hostname())
+	loopback := host == "localhost" || strings.HasSuffix(host, ".localhost")
+	if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
+		loopback = true
+	}
+	if u.Scheme == "http" && loopback {
+		return nil
+	}
+	return errcode.Errorf(errcode.InvalidInput, fmt.Sprintf(
+		"the database bridge needs an https:// address (%s would send the database in clear); set it with covo remote set … --url https://…", siteURL))
+}
+
 func bridgeClient() *http.Client {
 	tr := http.DefaultTransport.(*http.Transport).Clone()
 	if ca := os.Getenv(EnvBridgeCA); ca != "" {
@@ -69,7 +96,11 @@ func bridgeClient() *http.Client {
 			tr.TLSClientConfig = &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12}
 		}
 	}
-	return &http.Client{Transport: tr, Timeout: 30 * time.Minute}
+	// Never follow a redirect: Go would send the token along, possibly to
+	// another host or over plain HTTP.
+	return &http.Client{Transport: tr, Timeout: 30 * time.Minute, CheckRedirect: func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}}
 }
 
 func (b Bridge) request(ctx context.Context, method, action string, body io.Reader) (*http.Response, error) {
@@ -92,6 +123,11 @@ func (b Bridge) do(ctx context.Context, method, action string, body io.Reader, s
 	resp, err := bridgeClient().Do(req)
 	if err != nil {
 		return nil, errcode.New(errcode.Service, fmt.Errorf("reach the bridge at %s: %w", b.URL, err))
+	}
+	if resp.StatusCode >= 300 && resp.StatusCode < 400 {
+		resp.Body.Close()
+		return nil, errcode.Errorf(errcode.Service, fmt.Sprintf(
+			"the server redirects the bridge to %s; set the remote's address to the final one (covo remote set … --url)", resp.Header.Get("Location")))
 	}
 	if resp.StatusCode != http.StatusOK {
 		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 2000))

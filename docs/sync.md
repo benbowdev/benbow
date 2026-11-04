@@ -59,6 +59,11 @@ as it is done, whatever happens. Dumps are streamed (gzip, 200 rows per
 `INSERT`); imports are sent with their size. Some hosts block new PHP files
 (WAF, mod_security): Covo then says the bridge did not answer.
 
+The remote's address must be `https://` (plain `http://` only for loopback
+addresses): over HTTP the token and the whole database would cross the network
+in clear. Covo never follows a redirect from the bridge, which would carry the
+token along; it reports the new address so the remote can be set to it.
+
 `--dry-run` shows the files that would change and what would happen to the
 database, changing nothing (no snapshot either). PostgreSQL sites cannot be
 synced yet.
