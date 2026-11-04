@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/getcovo/covo/internal/errcode"
@@ -33,6 +34,10 @@ func ParseKeys(encoded []string) ([]ed25519.PublicKey, error) {
 	return out, nil
 }
 
+// pathPartRe is a component, version or architecture name: one folder
+// name, never "." or "..".
+var pathPartRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+-]*$`)
+
 // VerifySigned checks that sig (base64) is a valid signature of body by one
 // of keys, then parses body. Nothing in body is trusted before that.
 func VerifySigned(body, sig []byte, keys []ed25519.PublicKey) (Manifest, error) {
@@ -57,6 +62,12 @@ func VerifySigned(body, sig []byte, keys []ed25519.PublicKey) (Manifest, error) 
 	for _, a := range m.Artifacts {
 		if a.Component == "" || a.Version == "" || a.URL == "" || len(a.SHA256) != 64 || len(a.Files) == 0 {
 			return Manifest{}, errcode.Errorf(errcode.Checksum, fmt.Sprintf("signed manifest has an incomplete %s %s entry", a.Component, a.Version))
+		}
+		// They become folder names under bin/: never a path.
+		for _, part := range []string{a.Component, a.Version, a.For, a.Arch} {
+			if part != "" && !pathPartRe.MatchString(part) {
+				return Manifest{}, errcode.Errorf(errcode.Checksum, fmt.Sprintf("signed manifest: %q is not a valid name", part))
+			}
 		}
 		if !strings.HasPrefix(a.URL, "https://") {
 			return Manifest{}, errcode.Errorf(errcode.Checksum, fmt.Sprintf("signed manifest: %s %s is not served over HTTPS", a.Component, a.Version))

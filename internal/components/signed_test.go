@@ -53,6 +53,37 @@ func TestVerifySigned(t *testing.T) {
 	if _, err := VerifySigned(body, sig, []ed25519.PublicKey{otherPub}); errcode.Code(err) != errcode.Checksum {
 		t.Fatalf("http URL err = %v", err)
 	}
+	// Names that would leave bin/ when used as folders: refused.
+	m.Artifacts[0].URL = "https://example.com/caddy.tar.gz"
+	for _, bad := range []Artifact{
+		{Component: "../../LaunchAgents", Version: "1"},
+		{Component: "caddy", Version: ".."},
+		{Component: "caddy", Version: "1/../../x"},
+		{Component: "xdebug", Version: "3.5.3", For: "../8.4"},
+	} {
+		a := m.Artifacts[0]
+		a.Component, a.Version, a.For = bad.Component, bad.Version, bad.For
+		bm := Manifest{Serial: 8, Artifacts: []Artifact{a}}
+		body, sig = sign(t, otherPriv, bm)
+		if _, err := VerifySigned(body, sig, []ed25519.PublicKey{otherPub}); errcode.Code(err) != errcode.Checksum {
+			t.Errorf("artifact %+v accepted: %v", bad, err)
+		}
+	}
+}
+
+// Every artifact Covo ships passes the same name check.
+func TestEmbeddedNamesAreFolderNames(t *testing.T) {
+	m, err := Embedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, a := range m.Artifacts {
+		for _, part := range []string{a.Component, a.Version, a.For, a.Arch} {
+			if part != "" && !pathPartRe.MatchString(part) {
+				t.Errorf("%s %s: %q is not a valid name", a.Component, a.Version, part)
+			}
+		}
+	}
 }
 
 func TestMerge(t *testing.T) {
