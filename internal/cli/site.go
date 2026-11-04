@@ -21,7 +21,7 @@ func (a *app) siteCmd() *cobra.Command {
 		Use:   "site",
 		Short: "Manage sites",
 	}
-	cmd.AddCommand(a.siteAddCmd(), a.siteSetCmd(), a.siteToggleCmd(true), a.siteToggleCmd(false), a.siteArchiveCmd(true), a.siteArchiveCmd(false), a.siteLogsCmd(), a.sitePHPCmd(), a.siteListCmd(), a.siteRemoveCmd())
+	cmd.AddCommand(a.siteAddCmd(), a.siteSetCmd(), a.siteRenameCmd(), a.siteToggleCmd(true), a.siteToggleCmd(false), a.siteArchiveCmd(true), a.siteArchiveCmd(false), a.siteLogsCmd(), a.sitePHPCmd(), a.siteListCmd(), a.siteRemoveCmd())
 	return cmd
 }
 
@@ -335,5 +335,22 @@ func (a *app) siteRemoveCmd() *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&dropDB, "drop-database", false, "also delete the site's database and its own MySQL user")
 	cmd.Flags().BoolVar(&yes, "yes", false, "do not ask before deleting the database")
+	return cmd
+}
+
+func (a *app) siteRenameCmd() *cobra.Command {
+	var domain bool
+	cmd := &cobra.Command{
+		Use:   "rename <name> <new-name>",
+		Short: "Rename a site (folder, database and settings stay as they are)",
+		Long: "Renames the site and everything Covo keeps under its name: snapshots, logs, remotes, agent and MCP records.\n" +
+			"--domain also changes the address when it starts with the old name (shop.localhost → store.localhost).",
+		Args: cobra.ExactArgs(2),
+		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
+			res, err := c.RenameSite(ctx, core.RenameSiteRequest{Name: args[0], NewName: args[1], Domain: domain})
+			return siteResult(res), err
+		}),
+	}
+	cmd.Flags().BoolVar(&domain, "domain", false, "also change the address (<name>.localhost)")
 	return cmd
 }

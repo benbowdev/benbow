@@ -356,6 +356,17 @@ public struct CovoAPI: Sendable {
 
     /// Changes a site; nil fields are left as they are. group 0 moves the
     /// site to the top level.
+    struct RenameRequest: Encodable {
+        let newName: String
+        let domain: Bool
+    }
+
+    /// Renames a site; domain also moves an address that starts with the
+    /// old name.
+    public func renameSite(_ name: String, to newName: String, domain: Bool) async throws -> SiteResult {
+        try await call("POST", "/v1/sites/" + escape(name) + "/rename", RenameRequest(newName: newName, domain: domain))
+    }
+
     public func updateSite(_ name: String, php: String? = nil, path: String? = nil, domain: String? = nil,
                            enabled: Bool? = nil, archived: Bool? = nil, aliases: [String]? = nil,
                            group: Int64? = nil, force: Bool = false) async throws -> SiteResult {
