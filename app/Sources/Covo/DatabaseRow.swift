@@ -143,6 +143,7 @@ struct CredentialsView: View {
             }
         }
         .formStyle(.grouped)
+        .toggleStyle(.covoSwitch)
         .frame(width: 440)
     }
 

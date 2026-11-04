@@ -287,6 +287,7 @@ struct SiteDetail: View {
             }
         }
         .formStyle(.grouped)
+        .toggleStyle(.covoSwitch)
         .onAppear { domain = site.domain }
         .onChange(of: site.domain) { _, new in domain = new }
         .sheet(isPresented: $editingPHP) { SitePHPSheet(site: site) }

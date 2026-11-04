@@ -62,6 +62,7 @@ struct SitePHPSheet: View {
             }
         }
         .formStyle(.grouped)
+        .toggleStyle(.covoSwitch)
         .frame(width: 520)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {

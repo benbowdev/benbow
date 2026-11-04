@@ -75,6 +75,7 @@ struct BlueprintSheet: View {
                 }
             }
             .formStyle(.grouped)
+            .toggleStyle(.covoSwitch)
             if let error {
                 Text(error).foregroundStyle(.red).font(.callout).textSelection(.enabled)
             }

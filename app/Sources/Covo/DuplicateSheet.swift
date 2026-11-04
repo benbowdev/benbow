@@ -41,6 +41,7 @@ struct DuplicateSheet: View {
             }
         }
         .formStyle(.grouped)
+        .toggleStyle(.covoSwitch)
         .frame(width: 460)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }

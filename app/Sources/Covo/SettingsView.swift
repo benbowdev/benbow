@@ -100,6 +100,7 @@ struct GeneralSettings: View {
             }
         }
         .formStyle(.grouped)
+        .toggleStyle(.covoSwitch)
     }
 }
 
@@ -276,6 +277,7 @@ struct PHPSettingsTab: View {
             }
         }
         .formStyle(.grouped)
+        .toggleStyle(.covoSwitch)
         .onAppear {
             if minor.isEmpty { minor = model.php?.installed.first?.minor ?? model.php?.minors.first ?? "" }
         }
@@ -349,6 +351,7 @@ struct MySQLSettings: View {
             }
         }
         .formStyle(.grouped)
+        .toggleStyle(.covoSwitch)
         .onAppear { port = String(mysql?.port ?? 3307) }
         .onChange(of: mysql?.port) { _, p in port = String(p ?? 3307) }
     }
@@ -415,6 +418,7 @@ struct MailSettings: View {
             }
         }
         .formStyle(.grouped)
+        .toggleStyle(.covoSwitch)
     }
 }
 
@@ -433,6 +437,7 @@ struct DomainSettings: View {
             }
         }
         .formStyle(.grouped)
+        .toggleStyle(.covoSwitch)
     }
 
     private func zone(_ zone: String, _ title: String, _ detail: String) -> some View {
@@ -512,6 +517,7 @@ struct ServerSettings: View {
             }
         }
         .formStyle(.grouped)
+        .toggleStyle(.covoSwitch)
         .onAppear { port = String(status?.port ?? defaultPort) }
         .onChange(of: status?.port) { _, p in port = String(p ?? defaultPort) }
     }
@@ -652,6 +658,7 @@ struct AgentsSettings: View {
             }
         }
         .formStyle(.grouped)
+        .toggleStyle(.covoSwitch)
         .task {
             perms = await model.mcpPermissions()
             actions = await model.mcpActions()
@@ -760,6 +767,7 @@ struct BlueprintsSettings: View {
             }
         }
         .formStyle(.grouped)
+        .toggleStyle(.covoSwitch)
         .task { await reload() }
         .fileImporter(isPresented: $importing, allowedContentTypes: [.json]) { result in
             if case .success(let url) = result { Task { await importFile(url) } }

@@ -405,7 +405,7 @@ struct GroupRow: View {
                     set: { on in Task { await model.setGroupEnabled(group, on) } }
                 ))
                 .labelsHidden()
-                .toggleStyle(.switch)
+                .toggleStyle(.covoSwitch)
                 .controlSize(.mini)
                 .disabled(model.busy != nil)
                 .help(anyOn ? "Stop serving every site in \(group.name)" : "Serve every site in \(group.name)")
@@ -506,7 +506,7 @@ struct SiteRow: View {
                     set: { on in Task { await model.setEnabled(site, on) } }
                 ))
                 .labelsHidden()
-                .toggleStyle(.switch)
+                .toggleStyle(.covoSwitch)
                 .controlSize(.mini)
                 .disabled(model.busy != nil)
                 .help(site.enabled ? "Stop serving this site" : "Serve this site")

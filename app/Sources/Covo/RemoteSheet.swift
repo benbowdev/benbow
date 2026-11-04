@@ -187,6 +187,7 @@ struct RemoteForm: View {
             }
         }
         .formStyle(.grouped)
+        .toggleStyle(.covoSwitch)
         .onAppear {
             port = remote.port.map(String.init) ?? ""
             paths = remote.paths.joined(separator: ", ")

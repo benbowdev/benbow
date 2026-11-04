@@ -239,6 +239,7 @@ struct NewSiteSheet: View {
             }
         }
         .formStyle(.grouped)
+        .toggleStyle(.covoSwitch)
         .frame(width: 520)
         .frame(minHeight: 560)
         .toolbar {
@@ -459,6 +460,7 @@ struct WordPressDone: View {
             }
         }
         .formStyle(.grouped)
+        .toggleStyle(.covoSwitch)
         .frame(width: 520)
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
