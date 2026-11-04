@@ -180,7 +180,8 @@ struct SiteDetail: View {
             }
 
             Section {
-                DisclosureGroup("Advanced", isExpanded: $advanced) {
+                DisclosureGroup(isExpanded: $advanced) {
+                    Color.clear.frame(height: 4).accessibilityHidden(true)
                     LabeledContent("Domain") {
                         HStack {
                             TextField("Domain", text: $domain, prompt: Text(site.domain))
@@ -267,6 +268,12 @@ struct SiteDetail: View {
                         Button("Remove Site…", role: .destructive) { model.removing = site }
                             .disabled(model.busy != nil)
                     }
+                } label: {
+                    // The whole title opens and closes the section, not only the chevron.
+                    Text("Advanced")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                        .onTapGesture { withAnimation { advanced.toggle() } }
                 }
             }
         }
