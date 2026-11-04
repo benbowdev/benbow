@@ -59,25 +59,7 @@ func TestSiteLifecycleWhileRunning(t *testing.T) {
 		}
 	}
 
-	// Rename, with the address: served at the new one.
-	var renamed struct {
-		URL  string `json:"url"`
-		Name string `json:"name"`
-	}
-	if err := json.Unmarshal(h.mustCovo("site", "rename", "live", "renamed", "--domain"), &renamed); err != nil {
-		t.Fatal(err)
-	}
-	if renamed.Name != "renamed" || !strings.Contains(renamed.URL, "renamed.localhost") {
-		t.Fatalf("renamed = %+v", renamed)
-	}
-	if body := h.get(renamed.URL, ca); !strings.HasPrefix(body, "8.4.") {
-		t.Fatalf("renamed body = %q", body)
-	}
-	if env := h.covo("site", "rename", "renamed", "Bad Name"); env.OK || env.Error.Code != "invalid_input" {
-		t.Errorf("bad rename: %+v", env.Error)
-	}
-
-	h.mustCovo("site", "remove", "renamed")
+	h.mustCovo("site", "remove", "live")
 	for _, svc := range h.status().Services {
 		if svc.Name != "caddy" {
 			t.Errorf("service %s still listed after its last site was removed", svc.Name)

@@ -45,7 +45,6 @@ Request bodies are strict JSON (unknown fields are refused).
 | `POST /v1/stop` | | `covo stop` |
 | `GET /v1/sites` | | `covo site list` |
 | `POST /v1/sites` | `{name, domain, php, path, force, create_folder, aliases, group_id, php_settings, new_database, link_database}` | `covo site add` |
-| `POST /v1/sites/{name}/rename` | `{new_name, domain}` | `covo site rename` |
 | `PATCH /v1/sites/{name}` | any of `{php, path, domain, enabled, archived, aliases, group_id, force}` (`group_id` 0: top level) | `covo site set`, `enable`, `disable`, `archive`, `unarchive` |
 | `POST /v1/laravel` | `{name, path, php, database, domain, aliases, group_id, php_settings}` | `covo laravel` |
 | `POST /v1/sites/{name}/run` | `{tool, args}` (`wp`, `composer`, `artisan`) | `covo wp`, `covo composer`, `covo artisan` |

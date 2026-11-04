@@ -67,8 +67,6 @@ struct SiteDetail: View {
                                 .background(.quaternary, in: Capsule())
                         }
                         Text(site.name)
-                        Button("Rename…") { model.renaming = site }
-                            .disabled(model.busy != nil)
                     }
                 }
                 LabeledContent {

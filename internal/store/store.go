@@ -12,7 +12,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -451,65 +450,6 @@ func CompareVersions(a, b string) int {
 func (s *Store) SetFramework(ctx context.Context, name, framework, appRoot string) error {
 	if _, err := s.db.ExecContext(ctx, `UPDATE sites SET framework = ?, app_root = ? WHERE name = ?`, framework, appRoot, name); err != nil {
 		return fmt.Errorf("set framework of %s: %w", name, err)
-	}
-	return nil
-}
-
-// RenameSite renames a site everywhere it is referred to by name, in one
-// transaction. Paths stored under a folder named after the site (snapshots,
-// backups) are rewritten from each old prefix to its new one.
-func (s *Store) RenameSite(ctx context.Context, from, to string, moves map[string]string) error {
-	conn, err := s.db.Conn(ctx)
-	if err != nil {
-		return fmt.Errorf("rename site: %w", err)
-	}
-	defer conn.Close()
-	tx, err := conn.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("rename site: %w", err)
-	}
-	defer func() { _ = tx.Rollback() }()
-	// Children are updated before the parent: checked at commit.
-	stmts := []struct {
-		q    string
-		args []any
-	}{
-		{`PRAGMA defer_foreign_keys = ON`, nil},
-		{`UPDATE sites SET name = ? WHERE name = ?`, []any{to, from}},
-		{`UPDATE site_aliases SET site = ? WHERE site = ?`, []any{to, from}},
-		{`UPDATE snapshots SET site = ? WHERE site = ?`, []any{to, from}},
-		{`UPDATE site_migrations SET site = ? WHERE site = ?`, []any{to, from}},
-		{`UPDATE site_remotes SET site = ? WHERE site = ?`, []any{to, from}},
-		{`UPDATE agent_sessions SET site = ? WHERE site = ?`, []any{to, from}},
-		{`UPDATE mcp_permissions SET scope = ? WHERE scope = ?`, []any{to, from}},
-		{`UPDATE mcp_actions SET site = ? WHERE site = ?`, []any{to, from}},
-	}
-	for oldDir, newDir := range moves {
-		old := oldDir + string(os.PathSeparator)
-		n := newDir + string(os.PathSeparator)
-		for _, col := range []string{"files_dir", "db_file"} {
-			stmts = append(stmts, struct {
-				q    string
-				args []any
-			}{`UPDATE snapshots SET ` + col + ` = ? || substr(` + col + `, ?) WHERE site = ? AND substr(` + col + `, 1, ?) = ?`,
-				[]any{n, len(old) + 1, to, len(old), old}})
-		}
-		stmts = append(stmts, struct {
-			q    string
-			args []any
-		}{`UPDATE site_migrations SET backup_path = ? || substr(backup_path, ?) WHERE site = ? AND substr(backup_path, 1, ?) = ?`,
-			[]any{n, len(old) + 1, to, len(old), old}})
-	}
-	for _, st := range stmts {
-		if _, err := tx.ExecContext(ctx, st.q, st.args...); err != nil {
-			if strings.Contains(err.Error(), "UNIQUE constraint failed") {
-				return errcode.Errorf(errcode.Conflict, fmt.Sprintf("site %q already exists", to))
-			}
-			return fmt.Errorf("rename site %s: %w", from, err)
-		}
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("rename site %s: %w", from, err)
 	}
 	return nil
 }

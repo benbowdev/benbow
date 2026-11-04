@@ -46,7 +46,6 @@ type Backend interface {
 	ListSites(ctx context.Context) ([]core.SiteStatus, error)
 	AddSite(ctx context.Context, req core.AddSiteRequest) (core.SiteResult, error)
 	UpdateSite(ctx context.Context, req core.UpdateSiteRequest) (core.SiteResult, error)
-	RenameSite(ctx context.Context, req core.RenameSiteRequest) (core.SiteResult, error)
 	RemoveSite(ctx context.Context, name string) (core.SiteResult, error)
 	RemoveSiteAndDatabase(ctx context.Context, name string) (core.SiteResult, error)
 	Databases(ctx context.Context) ([]string, error)
@@ -210,14 +209,6 @@ func Handler(b Backend) http.Handler {
 			CreateFolder: req.CreateFolder, Aliases: req.Aliases, Group: req.GroupID, PHPSettings: req.PHPSettings,
 			NewDatabase: req.NewDatabase, LinkDatabase: req.LinkDatabase, DatabaseEngine: req.Engine,
 		})
-	})
-	post("POST", "/v1/sites/{name}/rename", func(r *http.Request, body []byte) (any, error) {
-		var req core.RenameSiteRequest
-		if err := decode(body, &req); err != nil {
-			return nil, err
-		}
-		req.Name = r.PathValue("name")
-		return b.RenameSite(r.Context(), req)
 	})
 	post("PATCH", "/v1/sites/{name}", func(r *http.Request, body []byte) (any, error) {
 		var req struct {

@@ -688,17 +688,6 @@ final class AppModel {
 
     /// Set to ask for confirmation before removing a site (from any view).
     var removing: Site?
-    /// The site whose Rename sheet is open.
-    var renaming: Site?
-
-    /// Renames a site; returns its new name, or nil on failure.
-    func renameSite(_ site: Site, to name: String, domain: Bool) async -> String? {
-        var result: String?
-        _ = await perform("Renaming \(site.name)…") { api in
-            result = try await api.renameSite(site.name, to: name, domain: domain).name
-        }
-        return result
-    }
 
     func removeSite(_ site: Site, dropDatabase: Bool = false) async {
         await perform("Removing \(site.name)…") { try await $0.removeSite(site.name, dropDatabase: dropDatabase) }

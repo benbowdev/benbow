@@ -12,7 +12,6 @@ covo site list
 covo site set shop --php 8.2                       # also --path, --domain
 covo site set shop --aliases www.shop.localhost,shop.test   # "" clears
 covo site set shop --group Clients                 # "" for the top level
-covo site rename shop store --domain               # --domain: shop.localhost → store.localhost too
 covo site logs shop --php -n 100                   # PHP errors; without --php: requests
 covo site logs shop --clear
 covo site disable shop                             # keep it, stop serving it
@@ -37,17 +36,6 @@ empty folder (it must be missing or empty), `--aliases`, `--group`,
 `--database new` (own database and user) or `--database <existing>`
 (connects as root), and repeated `--ini name=value` for its php.ini values.
 If any part fails, everything is undone, including the folder it created.
-
-## Renaming
-
-`covo site rename` (in the app: Rename… in the context menu or next to the
-name) changes the site's name and everything Covo keeps under it: aliases,
-snapshots (folder and records), logs, remotes and their keychain passwords,
-migration backups, agent and MCP records, an open-on-phone share. The
-project folder, the database and the settings are not touched. `--domain`
-also moves an address that starts with the old name; WordPress keeps its
-address in the database, so for WordPress sites it is off by default in the
-app. Refused while an agent session is open (keep or undo it first).
 
 ## Groups
 

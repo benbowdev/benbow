@@ -64,9 +64,6 @@ struct ContentView: View {
         }
         .sheet(isPresented: $model.importing) { ImportSheet() }
         .sheet(item: $model.removing) { site in RemoveSiteSheet(site: site) }
-        .sheet(item: $model.renaming) { site in
-            RenameSiteSheet(site: site) { name in selection = name }
-        }
         .sheet(item: $phoneSite) { site in PhoneSheet(site: site) }
         .sheet(item: $duplicating) { site in
             DuplicateSheet(site: site) { name in selection = name }
@@ -510,12 +507,6 @@ struct SiteRow: View {
             Divider()
             OpenWithItems(folder: site.path)
             Divider()
-            Button {
-                model.renaming = site
-            } label: {
-                Label("Rename…", systemImage: "pencil")
-            }
-            .disabled(model.busy != nil)
             Button(action: duplicate) {
                 Label("Duplicate…", systemImage: "plus.square.on.square")
             }
