@@ -68,8 +68,8 @@ func TestMCP(t *testing.T) {
 	h.mustCovo("mcp", "deny", "*")
 	h.mustCovo("mcp", "allow", "agent")
 	out := call("update_site", map[string]any{"name": "agent", "enabled": false})
-	if !strings.Contains(out, `"snapshot"`) {
-		t.Fatalf("no snapshot before update_site: %s", out)
+	if !strings.Contains(out, `"session_start"`) || strings.Contains(out, `"checkpoint"`) {
+		t.Fatalf("update_site should open the agent session without a checkpoint: %s", out)
 	}
 	if !strings.Contains(call("covo_status", nil), `"enabled": false`) {
 		t.Fatal("update_site did not turn the site off")

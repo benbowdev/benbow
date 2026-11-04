@@ -81,7 +81,8 @@ func Run(ctx context.Context) error {
 // checkUpdatesDaily looks for component updates a few minutes after start
 // and then every day. It only downloads the signed manifest: nothing is
 // installed without the user (covo update apply, or the app).
-// expirePhone turns "Open on phone" off when its time is up.
+// expirePhone turns "Open on phone" off when its time is up, and closes
+// idle agent sessions (keeping the changes).
 func expirePhone(ctx context.Context, c *core.Core) {
 	for {
 		select {
@@ -91,6 +92,11 @@ func expirePhone(ctx context.Context, c *core.Core) {
 		}
 		if _, err := c.ExpirePhone(ctx); err != nil {
 			fmt.Fprintf(os.Stderr, "phone expiry: %v\n", err)
+		}
+		if closed, err := c.ExpireAgentSessions(ctx); err != nil {
+			fmt.Fprintf(os.Stderr, "agent sessions: %v\n", err)
+		} else if len(closed) > 0 {
+			fmt.Fprintf(os.Stderr, "agent sessions idle, changes kept: %v\n", closed)
 		}
 	}
 }

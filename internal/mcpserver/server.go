@@ -18,8 +18,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
+	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/getcovo/covo/internal/core"
@@ -38,14 +41,26 @@ type Open func(ctx context.Context) (*core.Core, error)
 
 // New returns the MCP server.
 func New(open Open) *mcp.Server {
+	t := tools{open: open, conn: &conn{}}
 	s := mcp.NewServer(&mcp.Implementation{Name: "covo", Title: "Covo", Version: version.Get().Version}, &mcp.ServerOptions{
 		Instructions: "Covo is a local PHP/WordPress/Laravel development environment on this Mac (like MAMP PRO). " +
 			"Sites are folders served over HTTPS at local addresses (e.g. https://shop.localhost:8443) with their own PHP version. " +
 			"Start with covo_status. Tools that change something are refused unless the user allowed it for that site " +
 			"(or for everything) in Covo; use dry_run first to show the user what would happen. Before a site is changed, " +
-			"Covo takes a snapshot the user can restore. Covo never deletes project folders.",
+			"Covo keeps an agent session per site: its starting state (files and database) stays until the user keeps the changes " +
+			"or undoes them all in Covo, and a checkpoint is taken before risky changes. Covo never deletes project folders.",
 	})
-	t := tools{open: open}
+	// On the agent's first request (initialize, or server/discover in the
+	// newer protocol, or anything else), check where it works.
+	s.AddReceivingMiddleware(func(next mcp.MethodHandler) mcp.MethodHandler {
+		return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
+			res, err := next(ctx, method, req)
+			if ss, ok := req.GetSession().(*mcp.ServerSession); ok {
+				t.conn.once.Do(func() { go t.connected(context.WithoutCancel(ctx), ss) })
+			}
+			return res, err
+		}
+	})
 	ro := &mcp.ToolAnnotations{ReadOnlyHint: true, OpenWorldHint: ptr(false)}
 	change := &mcp.ToolAnnotations{DestructiveHint: ptr(false), OpenWorldHint: ptr(false)}
 	replace := &mcp.ToolAnnotations{DestructiveHint: ptr(true), OpenWorldHint: ptr(false)}
@@ -66,6 +81,9 @@ func New(open Open) *mcp.Server {
 		Description: "The databases on Covo's MySQL (engine mysql, default) or PostgreSQL (engine pgsql)."}, t.listDatabases)
 	mcp.AddTool(s, &mcp.Tool{Name: "list_snapshots", Title: "List snapshots", Annotations: ro,
 		Description: "A site's snapshots (files and database saved by Covo), newest first."}, t.listSnapshots)
+	mcp.AddTool(s, &mcp.Tool{Name: "session_status", Title: "Agent session", Annotations: ro,
+		Description: "A site's agent session: when it started, the snapshot of the starting state the user can go back to, " +
+			"and the checkpoints taken before risky changes. Only the user can keep or undo a session, in Covo."}, t.sessionStatus)
 	mcp.AddTool(s, &mcp.Tool{Name: "list_blueprints", Title: "List blueprints", Annotations: ro,
 		Description: "Saved WordPress blueprints (themes, plugins, options); name gives one blueprint's JSON."}, t.listBlueprints)
 	mcp.AddTool(s, &mcp.Tool{Name: "agent_permissions", Title: "What agents may change", Annotations: ro,
@@ -110,15 +128,104 @@ func New(open Open) *mcp.Server {
 
 func ptr[T any](v T) *T { return &v }
 
-type tools struct{ open Open }
+type tools struct {
+	open Open
+	conn *conn
+}
+
+// conn is what Covo knows about the connected agent.
+type conn struct {
+	once  sync.Once
+	mu    sync.Mutex
+	agent string
+}
+
+func (c *conn) agentName() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.agent
+}
+
+// connected runs once the agent is connected: if it works inside a site's
+// folder (its roots, or this process's folder), the site's agent session
+// opens now, before the agent changes files with its own tools.
+func (t tools) connected(ctx context.Context, ss *mcp.ServerSession) {
+	var dirs []string
+	if p := ss.InitializeParams(); p != nil {
+		if p.ClientInfo != nil {
+			t.conn.mu.Lock()
+			t.conn.agent = p.ClientInfo.Name
+			t.conn.mu.Unlock()
+		}
+		// Roots are deprecated since protocol 2026-07-28 but still sent by
+		// older agents; this process's folder is the fallback.
+		if p.Capabilities != nil && p.Capabilities.RootsV2 != nil { //nolint:staticcheck // see above
+			rctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			if res, err := ss.ListRoots(rctx, &mcp.ListRootsParams{}); err == nil { //nolint:staticcheck // see above
+				for _, r := range res.Roots {
+					if u, err := url.Parse(r.URI); err == nil && u.Scheme == "file" {
+						dirs = append(dirs, u.Path)
+					}
+				}
+			}
+			cancel()
+		}
+	}
+	if len(dirs) == 0 {
+		if wd, err := os.Getwd(); err == nil {
+			dirs = append(dirs, wd)
+		}
+	}
+	c, err := t.open(ctx)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "covo: %v\n", err)
+		return
+	}
+	defer func() { _ = c.Close() }()
+	for _, d := range dirs {
+		site, err := c.SiteForFolder(ctx, d)
+		if err != nil || site == "" {
+			continue
+		}
+		if _, _, err := c.EnsureAgentSession(ctx, core.SessionRequest{Site: site, Agent: t.conn.agentName(), Source: core.SessionFromFolder}); err != nil {
+			// Stderr ends up in the agent's MCP log.
+			fmt.Fprintf(os.Stderr, "covo: agent session on %s: %v\n", site, err)
+		}
+	}
+}
+
+// touch notes that the agent works on site: an open session stays active;
+// with permission to change the site and no session yet, one opens.
+func (t tools) touch(ctx context.Context, c *core.Core, site string) {
+	if site == "" {
+		return
+	}
+	if _, err := c.Store.Site(ctx, site); err != nil {
+		return
+	}
+	if _, err := c.Store.OpenAgentSession(ctx, site); err == nil {
+		c.TouchAgentSession(ctx, site)
+		return
+	}
+	if c.CheckMCPWrite(ctx, site) == nil {
+		_, _, _ = c.EnsureAgentSession(ctx, core.SessionRequest{Site: site, Agent: t.conn.agentName(), Source: core.SessionFromCall})
+	}
+}
 
 // read runs fn on a freshly opened core and returns its result as JSON.
 func read[T any](ctx context.Context, open Open, fn func(*core.Core) (T, error)) (*mcp.CallToolResult, any, error) {
-	c, err := open(ctx)
+	return readSite(ctx, tools{open: open, conn: &conn{}}, "", fn)
+}
+
+// readSite is read for a tool about one site: the site's agent session is
+// touched (or opened) first.
+func readSite[T any](ctx context.Context, t tools, site string, fn func(*core.Core) (T, error)) (*mcp.CallToolResult, any, error) {
+	c, err := t.open(ctx)
 	if err != nil {
 		return toolError(err), nil, nil
 	}
 	defer func() { _ = c.Close() }()
+	t.touch(ctx, c, site)
 	v, err := fn(c)
 	if err != nil {
 		return toolError(err), nil, nil
@@ -127,10 +234,12 @@ func read[T any](ctx context.Context, open Open, fn func(*core.Core) (T, error))
 }
 
 // change runs a change for an agent: the user's permission for site ("":
-// everything), a snapshot of the site first (unless dryRun, or the site
-// does not exist yet, or noSnapshot), the change, and a log entry.
-func change[T any](ctx context.Context, open Open, tool, site string, args any, dryRun, noSnapshot bool, fn func(*core.Core) (T, error)) (*mcp.CallToolResult, any, error) {
-	c, err := open(ctx)
+// everything), the site's agent session (opened if needed, with its
+// starting snapshot), a checkpoint first if the change is risky (unless
+// dryRun, or the site does not exist yet, or ownSnapshot: the tool takes
+// its own), the change, and a log entry.
+func change[T any](ctx context.Context, t tools, tool, site string, args any, dryRun, ownSnapshot bool, fn func(*core.Core) (T, error)) (*mcp.CallToolResult, any, error) {
+	c, err := t.open(ctx)
 	if err != nil {
 		return toolError(err), nil, nil
 	}
@@ -148,15 +257,25 @@ func change[T any](ctx context.Context, open Open, tool, site string, args any, 
 		logged(err)
 		return toolError(err), nil, nil
 	}
-	if site != "" && !dryRun && !noSnapshot {
+	var session string
+	if site != "" && !dryRun {
 		if _, err := c.Store.Site(ctx, site); err == nil {
-			snap, err := c.CreateSnapshot(ctx, site, core.SnapshotMCP, "before "+tool+" (AI agent)")
+			s, _, err := c.EnsureAgentSession(ctx, core.SessionRequest{Site: site, Agent: t.conn.agentName(), Source: core.SessionFromCall})
+			if err == nil {
+				err = c.WaitSessionDB(ctx, site)
+			}
+			if err == nil && !ownSnapshot && riskyArgs(tool, args) {
+				var snap store.Snapshot
+				if snap, err = c.Checkpoint(ctx, site, "before "+tool+" (AI agent)"); err == nil {
+					act.Snapshot = snap.ID
+				}
+			}
 			if err != nil {
-				err = fmt.Errorf("the snapshot before the change failed, nothing was changed: %w", err)
+				err = fmt.Errorf("saving the site before the change failed, nothing was changed: %w", err)
 				logged(err)
 				return toolError(err), nil, nil
 			}
-			act.Snapshot = snap.ID
+			session = s.BaseSnapshot
 		}
 	}
 	v, err := fn(c)
@@ -166,8 +285,12 @@ func change[T any](ctx context.Context, open Open, tool, site string, args any, 
 	}
 	out := map[string]any{"result": v}
 	if act.Snapshot != "" {
-		out["snapshot"] = act.Snapshot
-		out["undo"] = "restore_snapshot with id " + act.Snapshot
+		out["checkpoint"] = act.Snapshot
+		out["undo_this"] = "restore_snapshot with id " + act.Snapshot
+	}
+	if session != "" {
+		out["session_start"] = session
+		out["undo_all"] = "the user can keep or undo everything since the session started in Covo"
 	}
 	if dryRun {
 		out["dry_run"] = true
@@ -227,7 +350,7 @@ func (t tools) siteLogs(ctx context.Context, _ *mcp.CallToolRequest, in siteLogs
 	if kind == "" {
 		kind = core.LogPHP
 	}
-	return read(ctx, t.open, func(c *core.Core) (core.SiteLog, error) { return c.SiteLogs(ctx, in.Site, kind, in.Lines) })
+	return readSite(ctx, t, in.Site, func(c *core.Core) (core.SiteLog, error) { return c.SiteLogs(ctx, in.Site, kind, in.Lines) })
 }
 
 func (t tools) listPHP(ctx context.Context, _ *mcp.CallToolRequest, _ empty) (*mcp.CallToolResult, any, error) {
@@ -241,7 +364,7 @@ type phpCheckIn struct {
 }
 
 func (t tools) phpCheck(ctx context.Context, _ *mcp.CallToolRequest, in phpCheckIn) (*mcp.CallToolResult, any, error) {
-	return read(ctx, t.open, func(c *core.Core) (core.PHPCheckResult, error) { return c.CheckPHP(ctx, in.Site, in.Target, in.All) })
+	return readSite(ctx, t, in.Site, func(c *core.Core) (core.PHPCheckResult, error) { return c.CheckPHP(ctx, in.Site, in.Target, in.All) })
 }
 
 type engineIn struct {
@@ -262,11 +385,15 @@ type siteIn struct {
 }
 
 func (t tools) listSnapshots(ctx context.Context, _ *mcp.CallToolRequest, in siteIn) (*mcp.CallToolResult, any, error) {
-	return read(ctx, t.open, func(c *core.Core) ([]store.Snapshot, error) { return c.ListSnapshots(ctx, in.Site) })
+	return readSite(ctx, t, in.Site, func(c *core.Core) ([]store.Snapshot, error) { return c.ListSnapshots(ctx, in.Site) })
+}
+
+func (t tools) sessionStatus(ctx context.Context, _ *mcp.CallToolRequest, in siteIn) (*mcp.CallToolResult, any, error) {
+	return readSite(ctx, t, in.Site, func(c *core.Core) (core.SessionInfo, error) { return c.AgentSession(ctx, in.Site) })
 }
 
 func (t tools) start(ctx context.Context, _ *mcp.CallToolRequest, in dryIn) (*mcp.CallToolResult, any, error) {
-	return change(ctx, t.open, "start", "", in, in.DryRun, false, func(c *core.Core) (any, error) {
+	return change(ctx, t, "start", "", in, in.DryRun, false, func(c *core.Core) (any, error) {
 		if in.DryRun {
 			return "would start every enabled site", nil
 		}
@@ -275,7 +402,7 @@ func (t tools) start(ctx context.Context, _ *mcp.CallToolRequest, in dryIn) (*mc
 }
 
 func (t tools) stop(ctx context.Context, _ *mcp.CallToolRequest, in dryIn) (*mcp.CallToolResult, any, error) {
-	return change(ctx, t.open, "stop", "", in, in.DryRun, false, func(c *core.Core) (any, error) {
+	return change(ctx, t, "stop", "", in, in.DryRun, false, func(c *core.Core) (any, error) {
 		if in.DryRun {
 			return "would stop every site", nil
 		}
@@ -315,7 +442,7 @@ func (t tools) addSite(ctx context.Context, _ *mcp.CallToolRequest, in addSiteIn
 	default:
 		req.LinkDatabase = in.Database
 	}
-	return change(ctx, t.open, "add_site", "", in, in.DryRun, false, func(c *core.Core) (any, error) {
+	return change(ctx, t, "add_site", "", in, in.DryRun, false, func(c *core.Core) (any, error) {
 		if in.DryRun {
 			return map[string]any{"would_add": req.Name, "folder": req.Path, "php": req.PHP, "domain": req.Domain, "database": in.Database}, nil
 		}
@@ -342,7 +469,7 @@ func (t tools) updateSite(ctx context.Context, _ *mcp.CallToolRequest, in update
 	if in.Path != "" {
 		req.Path = filepath.Clean(in.Path)
 	}
-	return change(ctx, t.open, "update_site", in.Name, in, in.DryRun, false, func(c *core.Core) (any, error) {
+	return change(ctx, t, "update_site", in.Name, in, in.DryRun, false, func(c *core.Core) (any, error) {
 		if in.DryRun {
 			cur, err := c.Store.Site(ctx, in.Name)
 			return map[string]any{"now": cur, "would_change": in}, err
@@ -358,7 +485,7 @@ type createDBIn struct {
 }
 
 func (t tools) createDatabase(ctx context.Context, _ *mcp.CallToolRequest, in createDBIn) (*mcp.CallToolResult, any, error) {
-	return change(ctx, t.open, "create_site_database", in.Site, in, in.DryRun, true, func(c *core.Core) (any, error) {
+	return change(ctx, t, "create_site_database", in.Site, in, in.DryRun, true, func(c *core.Core) (any, error) {
 		if in.DryRun {
 			return "would create database " + core.DefaultDatabaseName(in.Site) + " with its own user", nil
 		}
@@ -384,7 +511,7 @@ func (t tools) newWordPress(ctx context.Context, _ *mcp.CallToolRequest, in word
 	}
 	req := core.WordPressRequest{Name: in.Name, Path: in.Path, PHP: in.PHP, Title: in.Title,
 		AdminUser: in.AdminUser, AdminEmail: in.AdminEmail, Domain: in.Domain, Blueprint: in.Blueprint}
-	return change(ctx, t.open, "new_wordpress", "", in, in.DryRun, false, func(c *core.Core) (any, error) {
+	return change(ctx, t, "new_wordpress", "", in, in.DryRun, false, func(c *core.Core) (any, error) {
 		if in.DryRun {
 			return "would create WordPress site " + in.Name, nil
 		}
@@ -406,7 +533,7 @@ func (t tools) newLaravel(ctx context.Context, _ *mcp.CallToolRequest, in larave
 		return toolError(errcode.Errorf(errcode.InvalidInput, "path must be absolute")), nil, nil
 	}
 	req := core.LaravelRequest{Name: in.Name, Path: in.Path, PHP: in.PHP, Database: in.Database, Engine: in.Engine}
-	return change(ctx, t.open, "new_laravel", "", in, in.DryRun, false, func(c *core.Core) (any, error) {
+	return change(ctx, t, "new_laravel", "", in, in.DryRun, false, func(c *core.Core) (any, error) {
 		if in.DryRun {
 			return "would create Laravel project " + in.Name, nil
 		}
@@ -436,7 +563,7 @@ func (t tools) runTool(tool string) func(context.Context, *mcp.CallToolRequest, 
 		}
 		ctx, cancel := context.WithTimeout(ctx, toolTimeout)
 		defer cancel()
-		return change(ctx, t.open, tool, in.Site, in, in.DryRun, false, func(c *core.Core) (any, error) {
+		return change(ctx, t, tool, in.Site, in, in.DryRun, false, func(c *core.Core) (any, error) {
 			if in.DryRun {
 				return tool + " " + strings.Join(in.Args, " "), nil
 			}
@@ -453,7 +580,7 @@ type noteIn struct {
 }
 
 func (t tools) createSnapshot(ctx context.Context, _ *mcp.CallToolRequest, in noteIn) (*mcp.CallToolResult, any, error) {
-	return change(ctx, t.open, "create_snapshot", in.Site, in, false, true, func(c *core.Core) (store.Snapshot, error) {
+	return change(ctx, t, "create_snapshot", in.Site, in, false, true, func(c *core.Core) (store.Snapshot, error) {
 		return c.CreateSnapshot(ctx, in.Site, core.SnapshotMCP, in.Note)
 	})
 }
@@ -466,7 +593,7 @@ type restoreIn struct {
 
 func (t tools) restoreSnapshot(ctx context.Context, _ *mcp.CallToolRequest, in restoreIn) (*mcp.CallToolResult, any, error) {
 	// RestoreSnapshot saves the current state itself.
-	return change(ctx, t.open, "restore_snapshot", in.Site, in, in.DryRun, true, func(c *core.Core) (any, error) {
+	return change(ctx, t, "restore_snapshot", in.Site, in, in.DryRun, true, func(c *core.Core) (any, error) {
 		if in.DryRun {
 			return c.Store.Snapshot(ctx, in.Site, in.ID)
 		}
@@ -487,7 +614,7 @@ func (t tools) pull(ctx context.Context, _ *mcp.CallToolRequest, in pullIn) (*mc
 		in.Remote = core.RemoteProduction
 	}
 	// Pull takes its own snapshot first.
-	return change(ctx, t.open, "pull", in.Site, in, in.DryRun, true, func(c *core.Core) (core.SyncResult, error) {
+	return change(ctx, t, "pull", in.Site, in, in.DryRun, true, func(c *core.Core) (core.SyncResult, error) {
 		return c.Pull(ctx, in.Site, in.Remote, core.SyncOptions{DryRun: in.DryRun, NoFiles: in.NoFiles, NoDatabase: in.NoDatabase})
 	})
 }
@@ -502,7 +629,7 @@ type importIn struct {
 
 func (t tools) importSites(ctx context.Context, _ *mcp.CallToolRequest, in importIn) (*mcp.CallToolResult, any, error) {
 	dry := in.DryRun == nil || *in.DryRun
-	return change(ctx, t.open, "import_sites", "", in, dry, false, func(c *core.Core) (core.ImportPlan, error) {
+	return change(ctx, t, "import_sites", "", in, dry, false, func(c *core.Core) (core.ImportPlan, error) {
 		return c.Import(ctx, core.ImportOptions{Source: in.Source, Sites: in.Sites, Localhost: in.Localhost, Migrate: in.Migrate, DryRun: dry})
 	})
 }
@@ -528,7 +655,7 @@ type applyBlueprintIn struct {
 
 func (t tools) applyBlueprint(ctx context.Context, _ *mcp.CallToolRequest, in applyBlueprintIn) (*mcp.CallToolResult, any, error) {
 	// ApplyBlueprint takes its own snapshot.
-	return change(ctx, t.open, "apply_blueprint", in.Site, in, in.DryRun, true, func(c *core.Core) (core.BlueprintResult, error) {
+	return change(ctx, t, "apply_blueprint", in.Site, in, in.DryRun, true, func(c *core.Core) (core.BlueprintResult, error) {
 		return c.ApplyBlueprint(ctx, in.Site, in.Blueprint, core.ApplyOptions{DryRun: in.DryRun})
 	})
 }
@@ -540,7 +667,7 @@ type saveBlueprintIn struct {
 }
 
 func (t tools) saveBlueprint(ctx context.Context, _ *mcp.CallToolRequest, in saveBlueprintIn) (*mcp.CallToolResult, any, error) {
-	return change(ctx, t.open, "save_blueprint", "", in, false, true, func(c *core.Core) (any, error) {
+	return change(ctx, t, "save_blueprint", "", in, false, true, func(c *core.Core) (any, error) {
 		bp, warnings, err := c.BlueprintFromSite(ctx, in.Site, in.Name)
 		if err != nil {
 			return nil, err
@@ -548,4 +675,16 @@ func (t tools) saveBlueprint(ctx context.Context, _ *mcp.CallToolRequest, in sav
 		info, err := c.SaveBlueprint(ctx, bp, in.Overwrite)
 		return map[string]any{"blueprint": info, "warnings": warnings}, err
 	})
+}
+
+// riskyArgs reports whether an agent's change deserves a checkpoint inside
+// its session (core.RiskyAgentCall, plus a new PHP version or folder).
+func riskyArgs(tool string, args any) bool {
+	switch in := args.(type) {
+	case toolIn:
+		return core.RiskyAgentCall(tool, in.Args)
+	case updateSiteIn:
+		return in.PHP != "" || in.Path != ""
+	}
+	return false
 }

@@ -45,10 +45,10 @@ Every change tool:
 - takes `dry_run`: Covo checks the permission and the arguments and says
   what it would do, without doing it (`import_sites` is a dry run unless the
   agent passes `dry_run: false`);
-- takes a snapshot of the site first (kind `mcp`, `snapshots.md`; not for
-  sites that do not exist yet, nor for `create_snapshot`,
-  `restore_snapshot` and `apply_blueprint`, which take their own); the result names the snapshot
-  and how to restore it; if the snapshot fails, nothing is changed;
+- works inside the site's agent session (`agents.md`): the session's
+  starting snapshot is taken once, and a checkpoint before risky changes
+  only (plugin updates, database imports, migrations…); the result names
+  them; if saving fails, nothing is changed;
 - is written to the action log (last 1000 kept): time, tool, site,
   arguments, result, snapshot. No tool takes a password.
 
@@ -65,6 +65,7 @@ Every change tool:
 | `list_snapshots` | no | a site's snapshots |
 | `list_blueprints` | no | saved blueprints, or one's JSON |
 | `agent_permissions` | no | what agents may change |
+| `session_status` | no | the site's agent session: starting snapshot, checkpoints |
 | `start`, `stop` | yes | all sites and services |
 | `add_site` | yes | folder, PHP, domain, aliases, new folder, database, php.ini values |
 | `update_site` | yes | PHP version, folder, domain, aliases, on/off |

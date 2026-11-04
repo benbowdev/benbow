@@ -18,7 +18,8 @@ type Snapshot struct {
 	ID        string    `json:"id"`
 	Site      string    `json:"site"`
 	CreatedAt time.Time `json:"created_at"`
-	// Kind is manual, pre-restore, pre-pull, pre-migrate or mcp.
+	// Kind is manual, pre-restore, pre-pull, pre-migrate, mcp, session (an
+	// agent session's starting point) or checkpoint (inside a session).
 	Kind     string `json:"kind"`
 	Note     string `json:"note,omitempty"`
 	DBEngine string `json:"database_engine,omitempty"`
@@ -30,13 +31,15 @@ type Snapshot struct {
 	// Bytes is the size of the database dump (the files are clones, which
 	// take no space until they change).
 	Bytes int64 `json:"bytes"`
+	// SessionID links a session's starting snapshot and checkpoints to it.
+	SessionID string `json:"session_id,omitempty"`
 }
 
 // AddSnapshot records a snapshot.
 func (s *Store) AddSnapshot(ctx context.Context, sn Snapshot) error {
-	_, err := s.db.ExecContext(ctx, `INSERT INTO snapshots (id, site, created_at, kind, note, db_engine, db_name, db_file, files_dir, root, bytes)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		sn.ID, sn.Site, sn.CreatedAt.UTC().Format(time.RFC3339Nano), sn.Kind, sn.Note, sn.DBEngine, sn.DBName, sn.DBFile, sn.FilesDir, sn.Root, sn.Bytes)
+	_, err := s.db.ExecContext(ctx, `INSERT INTO snapshots (id, site, created_at, kind, note, db_engine, db_name, db_file, files_dir, root, bytes, session_id)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		sn.ID, sn.Site, sn.CreatedAt.UTC().Format(time.RFC3339Nano), sn.Kind, sn.Note, sn.DBEngine, sn.DBName, sn.DBFile, sn.FilesDir, sn.Root, sn.Bytes, sn.SessionID)
 	if err != nil {
 		return fmt.Errorf("record snapshot %s of %s: %w", sn.ID, sn.Site, err)
 	}
@@ -46,12 +49,12 @@ func (s *Store) AddSnapshot(ctx context.Context, sn Snapshot) error {
 func scanSnapshot(sc interface{ Scan(...any) error }) (Snapshot, error) {
 	var sn Snapshot
 	var at string
-	err := sc.Scan(&sn.ID, &sn.Site, &at, &sn.Kind, &sn.Note, &sn.DBEngine, &sn.DBName, &sn.DBFile, &sn.FilesDir, &sn.Root, &sn.Bytes)
+	err := sc.Scan(&sn.ID, &sn.Site, &at, &sn.Kind, &sn.Note, &sn.DBEngine, &sn.DBName, &sn.DBFile, &sn.FilesDir, &sn.Root, &sn.Bytes, &sn.SessionID)
 	sn.CreatedAt, _ = time.Parse(time.RFC3339Nano, at)
 	return sn, err
 }
 
-const snapshotCols = `id, site, created_at, kind, note, db_engine, db_name, db_file, files_dir, root, bytes`
+const snapshotCols = `id, site, created_at, kind, note, db_engine, db_name, db_file, files_dir, root, bytes, session_id`
 
 // ListSnapshots returns a site's snapshots, newest first.
 func (s *Store) ListSnapshots(ctx context.Context, site string) ([]Snapshot, error) {
@@ -90,6 +93,17 @@ func (s *Store) Snapshot(ctx context.Context, site, id string) (Snapshot, error)
 func (s *Store) DeleteSnapshot(ctx context.Context, site, id string) error {
 	if _, err := s.db.ExecContext(ctx, `DELETE FROM snapshots WHERE site = ? AND id = ?`, site, id); err != nil {
 		return fmt.Errorf("delete snapshot: %w", err)
+	}
+	return nil
+}
+
+// UpdateSnapshotDB records a snapshot's database dump, saved after the
+// files (an agent session's starting snapshot).
+func (s *Store) UpdateSnapshotDB(ctx context.Context, sn Snapshot) error {
+	_, err := s.db.ExecContext(ctx, `UPDATE snapshots SET db_engine = ?, db_name = ?, db_file = ?, bytes = ? WHERE site = ? AND id = ?`,
+		sn.DBEngine, sn.DBName, sn.DBFile, sn.Bytes, sn.Site, sn.ID)
+	if err != nil {
+		return fmt.Errorf("update snapshot %s: %w", sn.ID, err)
 	}
 	return nil
 }

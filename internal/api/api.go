@@ -122,6 +122,11 @@ type Backend interface {
 	DeleteSnapshot(ctx context.Context, name, id string) error
 	SnapshotKeep(ctx context.Context) (int, error)
 	SetSnapshotKeep(ctx context.Context, n int) error
+	AgentSessions(ctx context.Context, all bool) ([]core.SessionInfo, error)
+	AgentSession(ctx context.Context, site string) (core.SessionInfo, error)
+	CloseAgentSession(ctx context.Context, site, outcome string) (core.CloseResult, error)
+	SessionIdleHours(ctx context.Context) (int, error)
+	SetSessionIdleHours(ctx context.Context, h int) error
 	Phone(ctx context.Context) (*core.PhoneStatus, error)
 	SharePhone(ctx context.Context, name string, minutes int) (core.PhoneStatus, error)
 	StopPhone(ctx context.Context) error
@@ -522,6 +527,36 @@ func Handler(b Backend) http.Handler {
 			return nil, err
 		}
 		return map[string]int{"keep": req.Keep}, nil
+	})
+	mux.HandleFunc("GET /v1/agent/sessions", func(w http.ResponseWriter, r *http.Request) {
+		v, err := b.AgentSessions(r.Context(), r.URL.Query().Get("all") == "1")
+		reply(w, v, err)
+	})
+	mux.HandleFunc("GET /v1/sites/{name}/agent-session", func(w http.ResponseWriter, r *http.Request) {
+		v, err := b.AgentSession(r.Context(), r.PathValue("name"))
+		reply(w, v, err)
+	})
+	post("POST", "/v1/sites/{name}/agent-session/keep", func(r *http.Request, _ []byte) (any, error) {
+		return b.CloseAgentSession(r.Context(), r.PathValue("name"), core.SessionKeep)
+	})
+	post("POST", "/v1/sites/{name}/agent-session/revert", func(r *http.Request, _ []byte) (any, error) {
+		return b.CloseAgentSession(r.Context(), r.PathValue("name"), core.SessionRevert)
+	})
+	get("/v1/agent/idle", func(ctx context.Context) (any, error) {
+		h, err := b.SessionIdleHours(ctx)
+		return map[string]int{"hours": h}, err
+	})
+	post("PUT", "/v1/agent/idle", func(r *http.Request, body []byte) (any, error) {
+		var req struct {
+			Hours int `json:"hours"`
+		}
+		if err := decode(body, &req); err != nil {
+			return nil, err
+		}
+		if err := b.SetSessionIdleHours(r.Context(), req.Hours); err != nil {
+			return nil, err
+		}
+		return map[string]int{"hours": req.Hours}, nil
 	})
 	mux.HandleFunc("GET /v1/sites/{name}/remotes", func(w http.ResponseWriter, r *http.Request) {
 		v, err := b.ListRemotes(r.Context(), r.PathValue("name"))

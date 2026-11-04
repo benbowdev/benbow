@@ -28,7 +28,9 @@ snapshot undoes a restore.
 Only the newest snapshots are kept (10 per site by default, `covo snapshot
 keep`); a snapshot being restored is never pruned. Removing a site deletes
 its snapshots; `covo uninstall` deletes them all. Snapshots are also taken
-before an SSH pull and before AI agents change a site.
+before an SSH pull, and at the start of an AI agent's session and before
+its risky changes (`agents.md`): a session's snapshots do not count in the
+limit while it is open.
 
 In the app: the site's Advanced section → Snapshots; Settings → General →
 Snapshots for how many to keep.

@@ -7,8 +7,14 @@ package core
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/getcovo/covo/internal/components"
@@ -38,6 +44,11 @@ type Core struct {
 
 	launchctl *launchd.Launchctl
 	resolver  resolver.Manager
+
+	// Detach starts `covo <args>` as a process that outlives this one (an
+	// agent session's database dump) and returns its pid. Nil runs the
+	// work in-process.
+	Detach func(args ...string) (int, error)
 
 	// adminerLogins are one-time Adminer logins (see adminer.go); they only
 	// live in the daemon's memory.
@@ -77,6 +88,7 @@ func Open(ctx context.Context) (*Core, error) {
 		launchctl: lc,
 		resolver:  newResolverManager(layout.Root, layout.Tmp),
 	}
+	c.Detach = detachCovo(layout)
 	// A newer signed manifest accepted earlier (covo update check) adds
 	// versions; a bad or older one is ignored and the embedded one used.
 	c.loadSignedManifest()
@@ -99,4 +111,30 @@ func (c *Core) locked(ctx context.Context, fn func() error) error {
 	}
 	defer func() { _ = l.Unlock() }()
 	return fn()
+}
+
+// detachCovo returns a Detach that runs this covo binary in its own
+// session, so it outlives the process that started it (nil when this is
+// not the covo binary, e.g. a test).
+func detachCovo(layout paths.Layout) func(args ...string) (int, error) {
+	exe, err := os.Executable()
+	if err != nil || filepath.Base(exe) != "covo" {
+		return nil
+	}
+	return func(args ...string) (int, error) {
+		logf, err := os.OpenFile(filepath.Join(layout.Logs, "background.log"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+		if err != nil {
+			return 0, fmt.Errorf("open background log: %w", err)
+		}
+		defer logf.Close()
+		cmd := exec.Command(exe, args...)
+		cmd.Stdout, cmd.Stderr = logf, logf
+		cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+		if err := cmd.Start(); err != nil {
+			return 0, fmt.Errorf("start covo %s: %w", strings.Join(args, " "), err)
+		}
+		pid := cmd.Process.Pid
+		_ = cmd.Process.Release()
+		return pid, nil
+	}
 }

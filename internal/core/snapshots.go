@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"time"
 
@@ -33,6 +34,11 @@ const (
 	SnapshotPreRestore = "pre-restore"
 	SnapshotPrePull    = "pre-pull"
 	SnapshotMCP        = "mcp"
+	// SnapshotSession is an agent session's starting point, kept while the
+	// session is open; SnapshotCheckpoint is taken inside a session before
+	// a risky change.
+	SnapshotSession    = "session"
+	SnapshotCheckpoint = "checkpoint"
 )
 
 const (
@@ -75,6 +81,21 @@ func (c *Core) CreateSnapshot(ctx context.Context, name, kind, note string) (sto
 
 // createSnapshot never prunes the snapshot keep (the one being restored).
 func (c *Core) createSnapshot(ctx context.Context, name, kind, note, keep string) (store.Snapshot, error) {
+	return c.snapshot(ctx, snapOpts{site: name, kind: kind, note: note, spare: keep})
+}
+
+type snapOpts struct {
+	site, kind, note string
+	// spare is never pruned (the snapshot being restored).
+	spare string
+	// session links the snapshot to an agent session.
+	session string
+	// filesOnly leaves the database for later (saveSnapshotDB).
+	filesOnly bool
+}
+
+func (c *Core) snapshot(ctx context.Context, o snapOpts) (store.Snapshot, error) {
+	name, kind := o.site, o.kind
 	site, err := c.Store.Site(ctx, name)
 	if err != nil {
 		return store.Snapshot{}, err
@@ -84,7 +105,12 @@ func (c *Core) createSnapshot(ctx context.Context, name, kind, note, keep string
 	}
 	now := time.Now()
 	sn := store.Snapshot{
-		ID: now.Format("20060102-150405.000"), Site: name, CreatedAt: now, Kind: kind, Note: note, Root: projectRoot(site),
+		ID: now.Format("20060102-150405.000"), Site: name, CreatedAt: now, Kind: kind, Note: o.note, Root: projectRoot(site),
+		SessionID: o.session,
+	}
+	if _, err := c.Store.Snapshot(ctx, name, sn.ID); err == nil {
+		time.Sleep(time.Millisecond)
+		return c.snapshot(ctx, o)
 	}
 	dir := filepath.Join(c.snapshotDir(name), sn.ID)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
@@ -98,36 +124,55 @@ func (c *Core) createSnapshot(ctx context.Context, name, kind, note, keep string
 	if err := cloneTree(sn.Root, sn.FilesDir); err != nil {
 		return fail(err)
 	}
-	if site.Database != "" {
-		sn.DBEngine, sn.DBName = engineOf(site), site.Database
-		if sn.DBEngine == EnginePostgres {
-			sn.DBFile = filepath.Join(dir, "database.pgdump")
-			err = c.dumpPostgres(ctx, site.Database, sn.DBFile)
-		} else {
-			sn.DBFile = filepath.Join(dir, "database.sql.gz")
-			err = c.dumpMySQL(ctx, site.Database, sn.DBFile)
-		}
-		if err != nil {
+	if site.Database != "" && !o.filesOnly {
+		if err := c.dumpSnapshotDB(ctx, site, &sn); err != nil {
 			return fail(err)
-		}
-		if fi, err := os.Stat(sn.DBFile); err == nil {
-			sn.Bytes = fi.Size()
 		}
 	}
 	if err := c.Store.AddSnapshot(ctx, sn); err != nil {
 		return fail(err)
 	}
-	c.pruneSnapshots(ctx, name, keep)
+	c.pruneSnapshots(ctx, name, o.spare)
 	return sn, nil
 }
 
-// pruneSnapshots deletes the oldest snapshots beyond the limit.
+// dumpSnapshotDB writes the site's database into the snapshot's folder.
+func (c *Core) dumpSnapshotDB(ctx context.Context, site store.Site, sn *store.Snapshot) error {
+	dir := filepath.Dir(sn.FilesDir)
+	sn.DBEngine, sn.DBName = engineOf(site), site.Database
+	var err error
+	if sn.DBEngine == EnginePostgres {
+		sn.DBFile = filepath.Join(dir, "database.pgdump")
+		err = c.dumpPostgres(ctx, site.Database, sn.DBFile)
+	} else {
+		sn.DBFile = filepath.Join(dir, "database.sql.gz")
+		err = c.dumpMySQL(ctx, site.Database, sn.DBFile)
+	}
+	if err != nil {
+		_ = os.Remove(sn.DBFile)
+		sn.DBEngine, sn.DBName, sn.DBFile = "", "", ""
+		return err
+	}
+	if fi, err := os.Stat(sn.DBFile); err == nil {
+		sn.Bytes = fi.Size()
+	}
+	return nil
+}
+
+// pruneSnapshots deletes the oldest snapshots beyond the limit. The
+// snapshots of an open agent session (its starting point and checkpoints)
+// are not counted and never pruned here.
 func (c *Core) pruneSnapshots(ctx context.Context, name, spare string) {
 	keep, _ := c.SnapshotKeep(ctx)
 	all, err := c.Store.ListSnapshots(ctx, name)
 	if err != nil {
 		return
 	}
+	open := ""
+	if s, err := c.Store.OpenAgentSession(ctx, name); err == nil {
+		open = s.ID
+	}
+	all = slices.DeleteFunc(all, func(sn store.Snapshot) bool { return open != "" && sn.SessionID == open })
 	for _, sn := range all[min(len(all), keep):] {
 		if sn.ID != spare {
 			_ = c.removeSnapshot(ctx, sn)
