@@ -92,6 +92,10 @@ func liveDaemon() async throws {
         #expect(st.sites.isEmpty)
         let php = try await api.php()
         #expect(php.minors.contains("8.4"))
+        #expect(try await api.agentSessions().isEmpty)
+        #expect(try await api.agentIdleHours() == 24)
+        let tools = try await api.agentTools()
+        #expect(tools.agents.contains { $0.id == "claude" })
         await #expect(throws: APIError(code: "not_found", message: #"site "nope" not found"#)) {
             try await api.removeSite("nope")
         }

@@ -552,17 +552,48 @@ struct AgentsSettings: View {
     @Environment(AppModel.self) private var model
     @State private var perms: MCPPermissions?
     @State private var actions: [MCPAction] = []
+    @State private var tools: AgentTools?
+    @State private var idle = 24
+    @State private var connecting: AgentTool?
+    @State private var connected: AgentConnectResult?
 
     var body: some View {
         Form {
             Section {
-                let bin = Daemon.binary()?.path ?? "covo"
-                command("Claude Code", "claude mcp add covo -- '\(bin)' mcp")
-                command("Claude Desktop", "\"covo\": { \"command\": \"\(bin)\", \"args\": [\"mcp\"] }")
+                let list = (tools?.agents ?? []).filter(\.installed)
+                if tools == nil {
+                    ProgressView()
+                } else if list.isEmpty {
+                    Text("No AI agent found on this Mac (Claude Code, Codex, Gemini CLI, Cursor, Copilot CLI, Claude Desktop).")
+                        .foregroundStyle(.secondary)
+                }
+                ForEach(list) { a in
+                    LabeledContent {
+                        if a.connected {
+                            Label("Connected", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+                        } else if a.canConnect {
+                            Button("Connect…") { connecting = a }.disabled(model.busy != nil)
+                        } else {
+                            Text("Connected when started from Covo").foregroundStyle(.secondary)
+                        }
+                    } label: {
+                        Text(a.name)
+                        Text(a.connected ? (a.configPath ?? "") : a.perRun ? "“Work with an Agent” connects it for that run only." : "Needs Covo in its own settings.")
+                    }
+                }
+                if let c = connected {
+                    Text(c.restart == true ? "Done. Restart the app to see Covo." : c.already == true ? "Covo was already there." : "Done.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                DisclosureGroup("Set it up by hand") {
+                    let bin = tools?.covoBin ?? Daemon.binary()?.path ?? "covo"
+                    command("Claude Code", "claude mcp add -s user covo -- '\(bin)' mcp")
+                    command("Other agents", "\"covo\": { \"command\": \"\(bin)\", \"args\": [\"mcp\"] }")
+                }
             } header: {
                 Text("Connect")
             } footer: {
-                Text("Agents can read sites, logs and databases, check PHP compatibility and run wp-cli, Composer and Artisan. Other agents: run “covo mcp” over stdio. For Claude Desktop, add the line under mcpServers in claude_desktop_config.json.")
+                Text("Covo adds itself only to the agent's own settings in your home folder, after a backup in Covo's folder; never to a project. Agents can read sites, logs and databases, fetch pages with their PHP errors, read the mail PHP sent, and run wp-cli, Composer and Artisan.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section {
@@ -571,16 +602,34 @@ struct AgentsSettings: View {
                     Text("Including creating sites and starting or stopping Covo.")
                 }
                 ForEach(model.sites) { site in
-                    Toggle(site.name, isOn: Binding(
-                        get: { perms?.all == true || perms?.sites.contains(site.name) == true },
+                    let temporary = perms?.temporary?.contains(site.name) == true
+                    Toggle(isOn: Binding(
+                        get: { perms?.all == true || perms?.sites.contains(site.name) == true || temporary },
                         set: { on in Task { perms = await model.setMCPPermission(site.name, write: on) } }
-                    ))
-                    .disabled(perms?.all == true)
+                    )) {
+                        Text(site.name)
+                        if temporary { Text("Allowed until its agent session closes (Work with an Agent).") }
+                    }
+                    .disabled(perms?.all == true || temporary)
                 }
             } header: {
                 Text("What agents may change")
             } footer: {
-                Text("Off by default: agents can only read. Before an agent changes a site, Covo takes a snapshot you can restore. Covo never lets agents delete sites or databases.")
+                Text("Off by default: agents can only read. While an agent works on a site, Covo keeps the site's starting state (files and database) until you keep or undo the changes. Covo never lets agents delete sites or databases.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Section {
+                Picker("Close idle sessions after", selection: Binding(get: { idle }, set: { h in idle = h; Task { await model.setAgentIdleHours(h) } })) {
+                    Text("8 hours").tag(8)
+                    Text("24 hours").tag(24)
+                    Text("3 days").tag(72)
+                    Text("1 week").tag(168)
+                    Text("Never").tag(0)
+                }
+            } header: {
+                Text("Agent sessions")
+            } footer: {
+                Text("A session nobody used for that long closes by itself and keeps the changes; its starting snapshot stays like any other snapshot.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("What agents did") {
@@ -593,7 +642,7 @@ struct AgentsSettings: View {
                             .foregroundStyle(a.error != nil ? .red : .secondary)
                         VStack(alignment: .leading, spacing: 1) {
                             Text("\(a.tool)\(a.site.map { " · \($0)" } ?? "")").font(.callout)
-                            Text(a.error ?? (a.snapshot.map { "snapshot \($0) taken before" } ?? (a.dryRun == true ? "dry run" : "")))
+                            Text(a.error ?? (a.snapshot.map { "checkpoint \($0) taken before" } ?? (a.dryRun == true ? "dry run" : "")))
                                 .font(.caption).foregroundStyle(.secondary).lineLimit(2)
                         }
                         Spacer()
@@ -606,6 +655,36 @@ struct AgentsSettings: View {
         .task {
             perms = await model.mcpPermissions()
             actions = await model.mcpActions()
+            tools = await model.agentTools()
+            idle = await model.agentIdleHours() ?? 24
+        }
+        .sheet(item: $connecting) { a in
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Connect \(a.name) to Covo?").font(.title3.weight(.semibold))
+                ExplainBox(
+                    title: "What Covo changes",
+                    steps: a.id == "claude" || a.id == "codex"
+                        ? ["Covo runs \(a.name)'s own command (\(a.id) mcp add) to add a “covo” MCP server for your user.",
+                           "A copy of \(a.configPath ?? "its settings") is saved first in Covo's folder (data/backups/agents)."]
+                        : ["Covo saves a copy of \(a.configPath ?? "its settings") in Covo's folder (data/backups/agents).",
+                           "It adds a “covo” entry under mcpServers, keeping everything else."],
+                    caution: "Agents stay read-only until you allow changes below or start them with Work with an Agent."
+                )
+                HStack {
+                    Spacer()
+                    Button("Cancel", role: .cancel) { connecting = nil }.keyboardShortcut(.cancelAction)
+                    Button("Connect") {
+                        Task {
+                            connected = await model.connectAgent(a.id)
+                            tools = await model.agentTools()
+                            connecting = nil
+                        }
+                    }
+                    .keyboardShortcut(.defaultAction)
+                }
+            }
+            .padding()
+            .frame(width: 500)
         }
     }
 

@@ -22,6 +22,8 @@ final class AppModel {
     private(set) var xdebug: [XdebugStatus] = []
     private(set) var updates: UpdatesStatus?
     private(set) var ports: PortsStatus?
+    /// Open AI agent sessions, one per site at most.
+    private(set) var sessions: [AgentSession] = []
     /// Set while a change is in progress (disables the controls).
     private(set) var busy: String?
     /// Set by File → Import from MAMP PRO… to show the import sheet.
@@ -79,6 +81,7 @@ final class AppModel {
         guard let api else { return }
         do {
             status = try await api.status()
+            sessions = (try? await api.agentSessions()) ?? sessions
             // The daemon checks for updates on its own: pick them up now and then.
             ticks += 1
             if ticks % 150 == 0 { updates = try? await api.updates() }
@@ -97,6 +100,7 @@ final class AppModel {
         xdebug = try await api.xdebug()
         updates = try? await api.updates()
         ports = try? await api.ports()
+        sessions = (try? await api.agentSessions()) ?? []
     }
 
     /// Runs a change, then refreshes. Errors are shown in an alert.
@@ -513,6 +517,58 @@ final class AppModel {
     }
 
     func mcpActions() async -> [MCPAction] { (try? await api?.mcpActions()) ?? [] }
+
+    /// The site's open agent session, if any.
+    func session(for site: Site) -> AgentSession? { sessions.first { $0.site == site.name } }
+
+    func sessionDiff(_ site: Site) async -> SessionDiff? { try? await api?.agentSessionDiff(site.name) }
+
+    /// Keeps an agent session's changes, or undoes them all.
+    func closeSession(_ site: Site, keep: Bool) async {
+        await perform(keep ? "Keeping the changes…" : "Undoing the agent's session…") {
+            _ = try await $0.closeAgentSession(site.name, keep: keep)
+        }
+    }
+
+    func agentIdleHours() async -> Int? { try? await api?.agentIdleHours() }
+
+    func setAgentIdleHours(_ h: Int) async {
+        await perform("Saving…") { try await $0.setAgentIdleHours(h) }
+    }
+
+    func agentTools() async -> AgentTools? { try? await api?.agentTools() }
+
+    /// Adds Covo to an agent's own settings (after a backup); nil on error.
+    func connectAgent(_ id: String) async -> AgentConnectResult? {
+        var r: AgentConnectResult?
+        await perform("Connecting…") { r = try await $0.connectAgent(id) }
+        return r
+    }
+
+    enum AgentStart {
+        case started(AgentStartResult)
+        /// The agent needs Covo in its own settings first (message says where).
+        case needsConnect(String)
+        case failed
+    }
+
+    /// "Work with an agent": session, temporary permission, agent started.
+    func startAgent(_ site: Site, tool: String, terminal: String?, connect: Bool) async -> AgentStart {
+        guard let api else { return .failed }
+        busy = "Saving \(site.name) and starting the agent…"
+        defer { busy = nil }
+        do {
+            let r = try await api.startAgent(site: site.name, tool: tool, terminal: terminal, connect: connect)
+            try? await refreshAll()
+            return .started(r)
+        } catch let e as APIError where e.code == "confirmation_required" {
+            return .needsConnect(e.message)
+        } catch {
+            self.error = error.localizedDescription
+            try? await refreshAll()
+            return .failed
+        }
+    }
 
     func remotes(_ site: Site) async -> [Remote] {
         guard let api else { return [] }

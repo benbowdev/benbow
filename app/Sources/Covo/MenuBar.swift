@@ -33,6 +33,24 @@ struct MenuBarContent: View {
                 Button(site.domain) { open(site.url) }
                     .disabled(!model.running)
             }
+            if !model.sessions.isEmpty {
+                Divider()
+                Text("AI agent sessions")
+                ForEach(model.sessions) { session in
+                    Menu("\(session.site) · \(session.agentName)") {
+                        Button("Keep Changes") {
+                            if let site = model.sites.first(where: { $0.name == session.site }) {
+                                Task { await model.closeSession(site, keep: true) }
+                            }
+                        }
+                        .disabled(model.busy != nil)
+                        Button("Review or Undo in Covo…") {
+                            openWindow(id: "main")
+                            NSApp.activate(ignoringOtherApps: true)
+                        }
+                    }
+                }
+            }
             if let phone = model.status?.phone {
                 Divider()
                 Text("\(phone.site) on phone · \(phone.minutesLeft) min left")

@@ -469,6 +469,9 @@ struct SiteRow: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
+            if let session = model.session(for: site) {
+                AgentBadge(session: session)
+            }
             Text("PHP \(site.php)").font(.caption).foregroundStyle(.secondary)
             if site.archived {
                 Image(systemName: "archivebox").foregroundStyle(.secondary).help("Archived")

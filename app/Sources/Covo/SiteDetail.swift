@@ -22,6 +22,8 @@ struct SiteDetail: View {
     @State private var snapshotsSheet = false
     @State private var blueprintSheet = false
     @State private var remoteSheet = false
+    @State private var agentSheet = false
+    @State private var activitySheet = false
 
     private var toolTitle: String {
         switch site.framework {
@@ -33,6 +35,11 @@ struct SiteDetail: View {
 
     var body: some View {
         Form {
+            if let session = model.session(for: site) {
+                Section {
+                    AgentSessionBanner(site: site, session: session)
+                }
+            }
             Section {
                 if site.archived {
                     LabeledContent {
@@ -124,6 +131,13 @@ struct SiteDetail: View {
                     }
                     Spacer()
                     Button {
+                        agentSheet = true
+                    } label: {
+                        Label("Work with an Agent…", systemImage: "sparkles")
+                    }
+                    .disabled(site.archived || model.busy != nil)
+                    .help("Start your AI agent (Claude Code, Codex, Cursor…) on this site; Covo keeps its starting state")
+                    Button {
                         openWindow(id: "logs", value: site.name)
                     } label: {
                         Label("Logs", systemImage: "doc.text.magnifyingglass")
@@ -207,6 +221,15 @@ struct SiteDetail: View {
                         Text("Save and restore the files and the database.")
                     }
                     LabeledContent {
+                        Button("Activity…") { activitySheet = true }
+                            .disabled(model.session(for: site) == nil)
+                    } label: {
+                        Text("AI agent activity")
+                        Text(model.session(for: site) == nil
+                             ? "No agent session open. One opens when an agent works on this site."
+                             : "What the agent changed (files and database tables) and did through Covo.")
+                    }
+                    LabeledContent {
                         Button(model.status?.phone?.site == site.name ? "Showing…" : "Open…") { phoneSheet = true }
                     } label: {
                         Text("Open on phone")
@@ -281,6 +304,10 @@ struct SiteDetail: View {
         .sheet(isPresented: $snapshotsSheet) { SnapshotsSheet(site: site) }
         .sheet(isPresented: $blueprintSheet) { BlueprintSheet(site: site) }
         .sheet(isPresented: $remoteSheet) { RemoteSheet(site: site) }
+        .sheet(isPresented: $agentSheet) { WorkWithAgentSheet(site: site) }
+        .sheet(isPresented: $activitySheet) {
+            if let session = model.session(for: site) { AgentActivitySheet(site: site, session: session) }
+        }
         .fileImporter(isPresented: $choosingFolder, allowedContentTypes: [.folder]) { result in
             if case .success(let url) = result { Task { await changeFolder(url, force: false) } }
         }

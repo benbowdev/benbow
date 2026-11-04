@@ -234,6 +234,109 @@ public struct SavedBlueprint: Codable, Sendable, Hashable {
 public struct MCPPermissions: Codable, Sendable, Hashable {
     public var all: Bool
     public var sites: [String]
+    /// Sites agents may change only while a "Work with an agent" session lasts.
+    public var temporary: [String]?
+}
+
+/// The time an AI agent works on a site: Covo keeps the starting state
+/// until the user keeps the changes or undoes them all.
+public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
+    public var id: String
+    public var site: String
+    public var openedAt: Date
+    public var lastActive: Date
+    public var agent: String?
+    public var source: String
+    public var baseSnapshot: String
+    public var databaseSaved: Bool
+    public var writeGrant: Bool?
+    public var launchedTool: String?
+    public var agentRunning: Bool?
+    public var closedAt: Date?
+    public var outcome: String?
+    public var url: String?
+    public var base: Snapshot?
+    public var checkpoints: [Snapshot]
+    public var idleHours: Int
+
+    /// "Claude Code", or "An AI agent" when the agent did not say.
+    public var agentName: String { (agent?.isEmpty == false ? agent : nil) ?? "An AI agent" }
+}
+
+/// What changed since a session started.
+public struct SessionDiff: Codable, Sendable, Hashable {
+    public struct Files: Codable, Sendable, Hashable {
+        public var added: Int
+        public var modified: Int
+        public var deleted: Int
+        public var changes: [FileChange]
+        public var truncated: Bool?
+    }
+    public struct FileChange: Codable, Sendable, Hashable, Identifiable {
+        public var path: String
+        public var change: String
+        public var size: Int64
+        public var id: String { path }
+    }
+    public struct Database: Codable, Sendable, Hashable {
+        public var engine: String
+        public var database: String
+        public var tables: [TableChange]
+        public var approximate: Bool?
+        public var note: String?
+    }
+    public struct TableChange: Codable, Sendable, Hashable, Identifiable {
+        public var table: String
+        public var change: String
+        public var inserted: Int64?
+        public var updated: Int64?
+        public var deleted: Int64?
+        public var id: String { table }
+    }
+    public var site: String
+    public var since: Date
+    public var files: Files
+    public var database: Database?
+}
+
+public struct CloseSessionResult: Codable, Sendable, Hashable {
+    public var restored: RestoreResult?
+}
+
+/// An AI agent on this Mac.
+public struct AgentTool: Codable, Sendable, Hashable, Identifiable {
+    public var id: String
+    public var name: String
+    public var kind: String
+    public var installed: Bool
+    public var path: String?
+    public var connected: Bool
+    public var configPath: String?
+    public var perRun: Bool
+    public var canConnect: Bool
+}
+
+public struct AgentTools: Codable, Sendable, Hashable {
+    public var agents: [AgentTool]
+    public var last: String?
+    public var terminal: String?
+    public var covoBin: String
+}
+
+public struct AgentConnectResult: Codable, Sendable, Hashable {
+    public var configPath: String
+    public var backup: String?
+    public var command: String?
+    public var already: Bool?
+    public var restart: Bool?
+}
+
+public struct AgentStartResult: Codable, Sendable, Hashable {
+    public struct Started: Codable, Sendable, Hashable {
+        public var terminal: String?
+    }
+    public var session: AgentSession
+    public var started: Started
 }
 
 /// One change (or refused attempt) by an AI agent.

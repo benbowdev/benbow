@@ -160,6 +160,45 @@ public struct CovoAPI: Sendable {
 
     public func mcpActions() async throws -> [MCPAction] { try await call("GET", "/v1/mcp/actions") }
 
+    public func agentSessions() async throws -> [AgentSession] { try await call("GET", "/v1/agent/sessions") }
+
+    public func agentSessionDiff(_ site: String) async throws -> SessionDiff {
+        try await call("GET", "/v1/sites/\(escape(site))/agent-session/diff")
+    }
+
+    /// Keeps the changes (keep: true) or undoes them all.
+    public func closeAgentSession(_ site: String, keep: Bool) async throws -> CloseSessionResult {
+        try await call("POST", "/v1/sites/\(escape(site))/agent-session/\(keep ? "keep" : "revert")")
+    }
+
+    public func agentIdleHours() async throws -> Int {
+        struct R: Decodable { let hours: Int }
+        let r: R = try await call("GET", "/v1/agent/idle")
+        return r.hours
+    }
+
+    struct IdleRequest: Encodable { let hours: Int }
+
+    public func setAgentIdleHours(_ h: Int) async throws {
+        let _: Ignored = try await call("PUT", "/v1/agent/idle", IdleRequest(hours: h))
+    }
+
+    public func agentTools() async throws -> AgentTools { try await call("GET", "/v1/agent/tools") }
+
+    public func connectAgent(_ id: String) async throws -> AgentConnectResult {
+        try await call("POST", "/v1/agent/tools/\(escape(id))/connect")
+    }
+
+    struct AgentStartRequest: Encodable {
+        let tool: String
+        let terminal: String?
+        let connect: Bool
+    }
+
+    public func startAgent(site: String, tool: String, terminal: String?, connect: Bool) async throws -> AgentStartResult {
+        try await call("POST", "/v1/sites/\(escape(site))/agent/start", AgentStartRequest(tool: tool, terminal: terminal, connect: connect))
+    }
+
     public func remotes(_ site: String) async throws -> [Remote] {
         try await call("GET", "/v1/sites/\(escape(site))/remotes")
     }
