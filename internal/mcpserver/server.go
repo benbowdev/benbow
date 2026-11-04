@@ -639,7 +639,7 @@ func (t tools) runTool(tool string) func(context.Context, *mcp.CallToolRequest, 
 		for _, a := range in.Args {
 			// They need a terminal to answer questions.
 			if strings.HasPrefix(a, "--prompt") || (tool == core.ToolWP && a == "shell") || (tool == core.ToolArtisan && a == "tinker") {
-				return toolError(errcode.Errorf(errcode.Unsupported, fmt.Sprintf("%q needs a terminal: run `covo %s %s …` yourself", a, tool, in.Site))), nil, nil
+				return toolError(errcode.Newf(errcode.Unsupported, "%q needs a terminal: run `covo %s %s …` yourself", a, tool, in.Site)), nil, nil
 			}
 		}
 		ctx, cancel := context.WithTimeout(ctx, toolTimeout)

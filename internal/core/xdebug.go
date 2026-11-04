@@ -5,7 +5,6 @@ package core
 
 import (
 	"context"
-	"fmt"
 	"path/filepath"
 	"runtime"
 
@@ -44,8 +43,9 @@ func (c *Core) xdebugEnabled(ctx context.Context, minor string) (bool, error) {
 func (c *Core) ensureXdebug(ctx context.Context, v store.PHPVersion) (string, string, error) {
 	art, err := c.Manifest.ResolveFor("xdebug", v.Version)
 	if errcode.Code(err) == errcode.NotFound {
-		return "", "", errcode.Errorf(errcode.Unsupported,
-			fmt.Sprintf("Covo has no Xdebug build for PHP %s on %s", v.Version, runtime.GOARCH))
+		return "", "", errcode.Newf(errcode.Unsupported,
+			"Covo has no Xdebug build for PHP %s on %s", v.Version, runtime.GOARCH)
+
 	}
 	if err != nil {
 		return "", "", err

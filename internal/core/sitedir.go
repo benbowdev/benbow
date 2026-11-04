@@ -35,20 +35,20 @@ func checkSiteDir(p, home, covoRoot string) error {
 	}
 	fi, err := os.Stat(p)
 	if errors.Is(err, os.ErrNotExist) {
-		return errcode.Errorf(errcode.NotFound, fmt.Sprintf("folder %q does not exist", p))
+		return errcode.Newf(errcode.NotFound, "folder %q does not exist", p)
 	}
 	if err != nil {
 		return fmt.Errorf("stat %s: %w", p, err)
 	}
 	if !fi.IsDir() {
-		return errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("%q is not a folder", p))
+		return errcode.Newf(errcode.InvalidInput, "%q is not a folder", p)
 	}
 
 	resolved := resolve(p)
 	home = resolve(home)
 	covoRoot = resolve(covoRoot)
 	forbidden := func(why string) error {
-		return errcode.Errorf(errcode.ForbiddenFolder, fmt.Sprintf("refusing to serve %s: %s", p, why))
+		return errcode.Newf(errcode.ForbiddenFolder, "refusing to serve %s: %s", p, why)
 	}
 	for _, root := range systemRoots {
 		if resolved == resolve(root) {

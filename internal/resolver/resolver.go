@@ -155,7 +155,7 @@ func (m Manager) State(zone string) (State, File, error) {
 func checkZone(zone string) error {
 	for _, r := range zone {
 		if (r < 'a' || r > 'z') && (r < '0' || r > '9') && r != '-' {
-			return errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("bad zone %q", zone))
+			return errcode.Newf(errcode.InvalidInput, "bad zone %q", zone)
 		}
 	}
 	if zone == "" {
@@ -170,7 +170,7 @@ func shellQuote(p string) (string, error) {
 		return "", err
 	}
 	if strings.Contains(p, "'") {
-		return "", errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("path %q contains a quote", p))
+		return "", errcode.Newf(errcode.InvalidInput, "path %q contains a quote", p)
 	}
 	return "'" + p + "'", nil
 }
@@ -187,8 +187,9 @@ func (m Manager) Install(ctx context.Context, zone string, port int) (changed bo
 		return false, err
 	}
 	if st.Foreign {
-		return false, errcode.Errorf(errcode.Conflict,
-			fmt.Sprintf("%s exists and was not created by this Covo installation; remove it yourself if it is not needed", st.Path))
+		return false, errcode.Newf(errcode.Conflict,
+			"%s exists and was not created by this Covo installation; remove it yourself if it is not needed", st.Path)
+
 	}
 	_, dirErr := os.Stat(m.Dir)
 	want := File{Home: m.Home, Port: port, CreatedDir: errors.Is(dirErr, os.ErrNotExist)}

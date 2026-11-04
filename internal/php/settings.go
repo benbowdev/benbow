@@ -4,7 +4,6 @@
 package php
 
 import (
-	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
@@ -63,8 +62,9 @@ func (s *Settings) Set(name, value string) error {
 			return invalid(name, value, "on or off")
 		}
 	default:
-		return errcode.Errorf(errcode.InvalidInput,
-			fmt.Sprintf("unknown PHP setting %q; Covo manages %s", name, strings.Join(SettingNames, ", ")))
+		return errcode.Newf(errcode.InvalidInput,
+			"unknown PHP setting %q; Covo manages %s", name, strings.Join(SettingNames, ", "))
+
 	}
 	return nil
 }
@@ -85,7 +85,7 @@ func (s Settings) Validate() error {
 }
 
 func invalid(name, value, want string) error {
-	return errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("%s %q: want %s", name, value, want))
+	return errcode.Newf(errcode.InvalidInput, "%s %q: want %s", name, value, want)
 }
 
 // WithOverrides returns s with per-site values (php.ini name → value)

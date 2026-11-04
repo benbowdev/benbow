@@ -81,7 +81,7 @@ func (s *Store) ListSnapshots(ctx context.Context, site string) ([]Snapshot, err
 func (s *Store) Snapshot(ctx context.Context, site, id string) (Snapshot, error) {
 	sn, err := scanSnapshot(s.db.QueryRowContext(ctx, `SELECT `+snapshotCols+` FROM snapshots WHERE site = ? AND id = ?`, site, id))
 	if errors.Is(err, sql.ErrNoRows) {
-		return sn, errcode.Errorf(errcode.NotFound, fmt.Sprintf("no snapshot %s of %s", id, site))
+		return sn, errcode.Newf(errcode.NotFound, "no snapshot %s of %s", id, site)
 	}
 	if err != nil {
 		return sn, fmt.Errorf("read snapshot: %w", err)

@@ -5,7 +5,6 @@ package core
 
 import (
 	"context"
-	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -125,7 +124,7 @@ func (c *Core) SetListOrder(ctx context.Context, o ListOrder) (ListOrder, error)
 			return err
 		}
 		if !groupExists(groups, o.Group) {
-			return errcode.Errorf(errcode.NotFound, fmt.Sprintf("group %d not found", o.Group))
+			return errcode.Newf(errcode.NotFound, "group %d not found", o.Group)
 		}
 		sites, err := c.Store.ListSites(ctx)
 		if err != nil {
@@ -151,21 +150,21 @@ func (c *Core) SetListOrder(ctx context.Context, o ListOrder) (ListOrder, error)
 			case strings.HasPrefix(tok, "site:"):
 				name := strings.TrimPrefix(tok, "site:")
 				if !known[name] {
-					return errcode.Errorf(errcode.NotFound, fmt.Sprintf("site %q not found", name))
+					return errcode.Newf(errcode.NotFound, "site %q not found", name)
 				}
 				items = append(items, store.OrderItem{Site: name})
 			case strings.HasPrefix(tok, "group:"):
 				id, err := strconv.ParseInt(strings.TrimPrefix(tok, "group:"), 10, 64)
 				g, ok := byID[id]
 				if err != nil || !ok {
-					return errcode.Errorf(errcode.NotFound, fmt.Sprintf("group %s not found", strings.TrimPrefix(tok, "group:")))
+					return errcode.Newf(errcode.NotFound, "group %s not found", strings.TrimPrefix(tok, "group:"))
 				}
 				if g.ParentID != o.Group {
 					if insideGroup(groups, o.Group, id) {
 						return errcode.Errorf(errcode.InvalidInput, "a group cannot go inside itself")
 					}
 					if depth(groups, o.Group)+subtreeHeight(groups, id) > maxGroupDepth {
-						return errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("groups nest at most %d levels", maxGroupDepth))
+						return errcode.Newf(errcode.InvalidInput, "groups nest at most %d levels", maxGroupDepth)
 					}
 					if err := checkGroupName(groups, o.Group, g.Name, id); err != nil {
 						return err
@@ -173,7 +172,7 @@ func (c *Core) SetListOrder(ctx context.Context, o ListOrder) (ListOrder, error)
 				}
 				items = append(items, store.OrderItem{Group: id})
 			default:
-				return errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("%q: name items site:<name> or group:<id>", tok))
+				return errcode.Newf(errcode.InvalidInput, "%q: name items site:<name> or group:<id>", tok)
 			}
 			tokens = append(tokens, tok)
 			return nil
@@ -218,7 +217,7 @@ func cleanGroupName(name string) (string, error) {
 		return "", errcode.Errorf(errcode.InvalidInput, "a group name must be 1 to 64 characters")
 	}
 	if strings.ContainsRune(name, '/') || strings.ContainsFunc(name, unicode.IsControl) {
-		return "", errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("group name %q must not contain / or control characters", name))
+		return "", errcode.Newf(errcode.InvalidInput, "group name %q must not contain / or control characters", name)
 	}
 	return name, nil
 }
@@ -228,7 +227,7 @@ func cleanGroupName(name string) (string, error) {
 func checkGroupName(groups []store.Group, parent int64, name string, self int64) error {
 	for _, g := range groups {
 		if g.ParentID == parent && g.ID != self && strings.EqualFold(g.Name, name) {
-			return errcode.Errorf(errcode.Conflict, fmt.Sprintf("there is already a group called %q there", g.Name))
+			return errcode.Newf(errcode.Conflict, "there is already a group called %q there", g.Name)
 		}
 	}
 	return nil
@@ -265,10 +264,10 @@ func (c *Core) AddGroup(ctx context.Context, name string, parent int64) (GroupIn
 			return err
 		}
 		if !groupExists(groups, parent) {
-			return errcode.Errorf(errcode.NotFound, fmt.Sprintf("group %d not found", parent))
+			return errcode.Newf(errcode.NotFound, "group %d not found", parent)
 		}
 		if depth(groups, parent) >= maxGroupDepth {
-			return errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("groups nest at most %d levels", maxGroupDepth))
+			return errcode.Newf(errcode.InvalidInput, "groups nest at most %d levels", maxGroupDepth)
 		}
 		if err := checkGroupName(groups, parent, name, 0); err != nil {
 			return err
@@ -293,7 +292,7 @@ func (c *Core) groupInfo(ctx context.Context, id int64) (GroupInfo, error) {
 			return g, nil
 		}
 	}
-	return GroupInfo{}, errcode.Errorf(errcode.NotFound, fmt.Sprintf("group %d not found", id))
+	return GroupInfo{}, errcode.Newf(errcode.NotFound, "group %d not found", id)
 }
 
 // UpdateGroupRequest renames a group or moves it into another one.
@@ -325,13 +324,13 @@ func (c *Core) UpdateGroup(ctx context.Context, req UpdateGroupRequest) (GroupIn
 		if req.Parent != nil {
 			p := *req.Parent
 			if !groupExists(groups, p) {
-				return errcode.Errorf(errcode.NotFound, fmt.Sprintf("group %d not found", p))
+				return errcode.Newf(errcode.NotFound, "group %d not found", p)
 			}
 			if insideGroup(groups, p, g.ID) {
 				return errcode.Errorf(errcode.InvalidInput, "a group cannot go inside itself")
 			}
 			if depth(groups, p)+subtreeHeight(groups, g.ID) > maxGroupDepth {
-				return errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("groups nest at most %d levels", maxGroupDepth))
+				return errcode.Newf(errcode.InvalidInput, "groups nest at most %d levels", maxGroupDepth)
 			}
 			g.ParentID = p
 		}
@@ -403,7 +402,7 @@ func (c *Core) ResolveGroup(ctx context.Context, path string) (int64, error) {
 			return g.ID, nil
 		}
 	}
-	return 0, errcode.Errorf(errcode.NotFound, fmt.Sprintf("group %q not found (see covo group list)", path))
+	return 0, errcode.Newf(errcode.NotFound, "group %q not found (see covo group list)", path)
 }
 
 // AddGroupPath creates every missing group along path ("Clients/Acme") and

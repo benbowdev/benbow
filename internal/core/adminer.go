@@ -91,7 +91,7 @@ func adminerFront(adminerPath, apiSocket string) (string, error) {
 			return "", err
 		}
 		if strings.Contains(p, "'") {
-			return "", errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("path %q contains a quote", p))
+			return "", errcode.Newf(errcode.InvalidInput, "path %q contains a quote", p)
 		}
 	}
 	return `<?php

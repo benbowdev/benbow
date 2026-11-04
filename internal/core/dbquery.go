@@ -75,10 +75,10 @@ func checkReadOnlySQL(sql string) (string, error) {
 	switch strings.ToUpper(m[1]) {
 	case "SELECT", "SHOW", "DESCRIBE", "DESC", "EXPLAIN", "WITH", "TABLE", "VALUES":
 	default:
-		return "", errcode.Errorf(errcode.Forbidden, fmt.Sprintf("%s is not a read: query_database only reads (changes go through wp or artisan)", strings.ToUpper(m[1])))
+		return "", errcode.Newf(errcode.Forbidden, "%s is not a read: query_database only reads (changes go through wp or artisan)", strings.ToUpper(m[1]))
 	}
 	if f := reForbidden.FindString(bare); f != "" {
-		return "", errcode.Errorf(errcode.Forbidden, fmt.Sprintf("%q is not allowed in query_database", f))
+		return "", errcode.Newf(errcode.Forbidden, "%q is not allowed in query_database", f)
 	}
 	return s, nil
 }

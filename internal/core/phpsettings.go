@@ -175,8 +175,9 @@ func withSitePHPValues(current, values map[string]string) (map[string]string, er
 	}
 	for k, v := range values {
 		if !slices.Contains(php.SettingNames, k) {
-			return nil, errcode.Errorf(errcode.InvalidInput,
-				fmt.Sprintf("unknown PHP setting %q; Covo manages %s", k, strings.Join(php.SettingNames, ", ")))
+			return nil, errcode.Newf(errcode.InvalidInput,
+				"unknown PHP setting %q; Covo manages %s", k, strings.Join(php.SettingNames, ", "))
+
 		}
 		if strings.TrimSpace(v) == "" {
 			delete(out, k)

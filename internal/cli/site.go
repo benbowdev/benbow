@@ -103,7 +103,7 @@ func iniFlags(flags []string) (map[string]string, error) {
 	for _, kv := range flags {
 		name, value, ok := strings.Cut(kv, "=")
 		if !ok {
-			return nil, errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("%q: want name=value", kv))
+			return nil, errcode.Newf(errcode.InvalidInput, "%q: want name=value", kv)
 		}
 		out[strings.TrimSpace(name)] = strings.TrimSpace(value)
 	}
@@ -238,7 +238,7 @@ func (a *app) sitePHPCmd() *cobra.Command {
 			for _, kv := range args[1:] {
 				name, value, ok := strings.Cut(kv, "=")
 				if !ok {
-					return nil, errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("%q: want name=value", kv))
+					return nil, errcode.Newf(errcode.InvalidInput, "%q: want name=value", kv)
 				}
 				values[name] = value
 			}

@@ -6,7 +6,6 @@
 package wpconfig
 
 import (
-	"fmt"
 	"regexp"
 	"strings"
 
@@ -80,7 +79,7 @@ func Set(content string, values map[string]string) (string, error) {
 	for k := range values {
 		ms := defineRe(k).FindAllStringSubmatchIndex(clean, -1)
 		if len(ms) != 1 {
-			return "", errcode.Errorf(errcode.Unsupported, fmt.Sprintf("wp-config.php: found %d define('%s', …) lines, need exactly one: change it by hand", len(ms), k))
+			return "", errcode.Newf(errcode.Unsupported, "wp-config.php: found %d define('%s', …) lines, need exactly one: change it by hand", len(ms), k)
 		}
 		start, end := valueAt(ms[0])
 		edits[k] = edit{start, end} // the value inside the quotes

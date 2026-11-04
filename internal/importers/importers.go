@@ -59,7 +59,7 @@ func readSmall(path string) ([]byte, error) {
 }
 
 func notFound(source, path string) error {
-	return errcode.Errorf(errcode.NotFound, fmt.Sprintf("%s not found (no %s)", Title(source), path))
+	return errcode.Newf(errcode.NotFound, "%s not found (no %s)", Title(source), path)
 }
 
 func expandHome(p, home string) string {
@@ -99,7 +99,7 @@ func ReadLocal(home string) ([]mamp.Host, error) {
 		} `json:"mysql"`
 	}
 	if err := json.Unmarshal(b, &sites); err != nil {
-		return nil, errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("cannot read %s: %v", path, err))
+		return nil, errcode.Newf(errcode.InvalidInput, "cannot read %s: %v", path, err)
 	}
 	var out []mamp.Host
 	for id, s := range sites {
@@ -156,7 +156,7 @@ func valetLike(source, dir string) ([]mamp.Host, error) {
 		Paths []string `json:"paths"`
 	}
 	if err := json.Unmarshal(b, &cfg); err != nil {
-		return nil, errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("cannot read %s: %v", cfgPath, err))
+		return nil, errcode.Newf(errcode.InvalidInput, "cannot read %s: %v", cfgPath, err)
 	}
 	if cfg.TLD == "" {
 		cfg.TLD = "test"

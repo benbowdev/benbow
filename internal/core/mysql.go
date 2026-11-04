@@ -125,8 +125,9 @@ func (c *Core) mysqlPort(ctx context.Context) (int, error) {
 func (c *Core) ensureMySQL(ctx context.Context) (dir, version string, err error) {
 	art, err := c.pinned(ctx, "mysql", mysqlSeries)
 	if errcode.Code(err) == errcode.NotFound {
-		return "", "", errcode.Errorf(errcode.Unsupported,
-			fmt.Sprintf("MySQL %s is only available for Apple Silicon Macs (this Mac is %s)", mysqlSeries, runtime.GOARCH))
+		return "", "", errcode.Newf(errcode.Unsupported,
+			"MySQL %s is only available for Apple Silicon Macs (this Mac is %s)", mysqlSeries, runtime.GOARCH)
+
 	}
 	if err != nil {
 		return "", "", err
@@ -141,7 +142,7 @@ func (c *Core) ensureMySQL(ctx context.Context) (dir, version string, err error)
 		return "", "", errcode.New(errcode.Service, fmt.Errorf("run %s --version: %w", bin, err))
 	}
 	if !strings.Contains(out, " Ver "+art.Version+" ") {
-		return "", "", errcode.Errorf(errcode.Checksum, fmt.Sprintf("mysqld reports %q, expected %s", firstLine(out), art.Version))
+		return "", "", errcode.Newf(errcode.Checksum, "mysqld reports %q, expected %s", firstLine(out), art.Version)
 	}
 	return inst.Dir, art.Version, nil
 }
@@ -225,8 +226,9 @@ func (c *Core) prepareMySQL(ctx context.Context) (agent launchd.Agent, port int,
 		if ok, err := kc.Exists(ctx); err != nil {
 			return launchd.Agent{}, 0, err
 		} else if !ok {
-			return launchd.Agent{}, 0, errcode.Errorf(errcode.Conflict, fmt.Sprintf(
-				"the MySQL data directory %s exists but its root password is not in the keychain (item %q)", c.mysqlDataDir(), kc.Service))
+			return launchd.Agent{}, 0, errcode.Newf(errcode.Conflict,
+				"the MySQL data directory %s exists but its root password is not in the keychain (item %q)", c.mysqlDataDir(), kc.Service)
+
 		}
 	}
 	out, errLog := c.logPaths(mysqlService)
@@ -255,9 +257,10 @@ func (c *Core) mysqlAgents(ctx context.Context, loaded map[string]launchd.Status
 		return nil, 0, err
 	}
 	if !loaded[agent.Label].Running && !ports.Free(port) {
-		return nil, 0, errcode.Errorf(errcode.PortInUse, fmt.Sprintf(
+		return nil, 0, errcode.Newf(errcode.PortInUse,
 			"MySQL port %d is in use by %s; stop it or run `covo mysql enable --port <free port>`",
-			port, ports.Describe(ports.Owners(ctx, port))))
+			port, ports.Describe(ports.Owners(ctx, port)))
+
 	}
 	return []launchd.Agent{agent}, port, nil
 }
@@ -370,7 +373,7 @@ func (c *Core) DisableMySQL(ctx context.Context) (MySQLResult, error) {
 
 func (c *Core) setMySQLPort(ctx context.Context, port int) error {
 	if port < 1024 || port > 65535 {
-		return errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("MySQL port must be between 1024 and 65535, got %d", port))
+		return errcode.Newf(errcode.InvalidInput, "MySQL port must be between 1024 and 65535, got %d", port)
 	}
 	v, ok, err := c.Store.Setting(ctx, settingMySQLPort)
 	if err != nil {
@@ -380,8 +383,9 @@ func (c *Core) setMySQLPort(ctx context.Context, port int) error {
 		return nil
 	}
 	if !ports.Free(port) {
-		return errcode.Errorf(errcode.PortInUse,
-			fmt.Sprintf("port %d is in use by %s", port, ports.Describe(ports.Owners(ctx, port))))
+		return errcode.Newf(errcode.PortInUse,
+			"port %d is in use by %s", port, ports.Describe(ports.Owners(ctx, port)))
+
 	}
 	return c.Store.SetSetting(ctx, settingMySQLPort, strconv.Itoa(port))
 }

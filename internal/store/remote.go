@@ -76,7 +76,7 @@ func (s *Store) PutRemote(ctx context.Context, r Remote) error {
 func (s *Store) Remote(ctx context.Context, site, name string) (Remote, error) {
 	r, err := scanRemote(s.db.QueryRowContext(ctx, `SELECT `+remoteCols+` FROM site_remotes WHERE site = ? AND name = ?`, site, name))
 	if errors.Is(err, sql.ErrNoRows) {
-		return r, errcode.Errorf(errcode.NotFound, fmt.Sprintf("%s has no remote %q (covo remote set)", site, name))
+		return r, errcode.Newf(errcode.NotFound, "%s has no remote %q (covo remote set)", site, name)
 	}
 	if err != nil {
 		return r, fmt.Errorf("read remote: %w", err)

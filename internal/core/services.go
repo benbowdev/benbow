@@ -110,8 +110,9 @@ func (c *Core) checkPort(ctx context.Context, port int) error {
 // setHTTPSPort changes the HTTPS port. It must be free.
 func (c *Core) setHTTPSPort(ctx context.Context, port int) error {
 	if port < 1024 || port > 65535 {
-		return errcode.Errorf(errcode.InvalidInput, fmt.Sprintf(
-			"HTTPS port must be between 1024 and 65535, got %d; for 443 use `covo ports --https 443`", port))
+		return errcode.Newf(errcode.InvalidInput,
+			"HTTPS port must be between 1024 and 65535, got %d; for 443 use `covo ports --https 443`", port)
+
 	}
 	cur, _, err := c.httpsPort(ctx)
 	if err != nil {
@@ -121,8 +122,9 @@ func (c *Core) setHTTPSPort(ctx context.Context, port int) error {
 		return nil
 	}
 	if !ports.Free(port) {
-		return errcode.Errorf(errcode.PortInUse,
-			fmt.Sprintf("port %d is in use by %s", port, ports.Describe(ports.Owners(ctx, port))))
+		return errcode.Newf(errcode.PortInUse,
+			"port %d is in use by %s", port, ports.Describe(ports.Owners(ctx, port)))
+
 	}
 	return c.Store.SetSetting(ctx, settingHTTPSPort, strconv.Itoa(port))
 }
@@ -536,8 +538,9 @@ func (c *Core) waitReady(ctx context.Context, minors []string, port int, expectH
 			}
 			if time.Now().After(deadline) {
 				_, errLog := c.logPaths(ch.service)
-				return errcode.Errorf(errcode.Service, fmt.Sprintf("%s did not become ready on %s: %v\n%s",
-					ch.service, ch.addr, err, tail(errLog, 10)))
+				return errcode.Newf(errcode.Service, "%s did not become ready on %s: %v\n%s",
+					ch.service, ch.addr, err, tail(errLog, 10))
+
 			}
 			select {
 			case <-ctx.Done():

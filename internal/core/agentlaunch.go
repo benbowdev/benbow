@@ -117,8 +117,9 @@ func (c *Core) StartAgent(ctx context.Context, req StartAgentRequest) (StartAgen
 	}
 	if !a.PerRun && !a.Connected {
 		if !req.Connect {
-			return res, errcode.Errorf(errcode.ConfirmationRequired, fmt.Sprintf(
-				"%s only sees Covo through its own settings (%s): Covo adds itself there, after a backup, if you agree (--connect)", a.Name, a.ConfigPath))
+			return res, errcode.Newf(errcode.ConfirmationRequired,
+				"%s only sees Covo through its own settings (%s): Covo adds itself there, after a backup, if you agree (--connect)", a.Name, a.ConfigPath)
+
 		}
 		cr, err := c.ConnectAgent(ctx, a.ID)
 		if err != nil {

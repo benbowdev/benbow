@@ -47,7 +47,7 @@ func (s *Store) AddGroup(ctx context.Context, g Group) (int64, error) {
 		g.Name, nullID(g.ParentID), g.CreatedAt.UTC().Format(time.RFC3339), nullID(g.ParentID), nullID(g.ParentID))
 	if err != nil {
 		if strings.Contains(err.Error(), "FOREIGN KEY constraint failed") {
-			return 0, errcode.Errorf(errcode.NotFound, fmt.Sprintf("group %d not found", g.ParentID))
+			return 0, errcode.Newf(errcode.NotFound, "group %d not found", g.ParentID)
 		}
 		return 0, fmt.Errorf("add group %s: %w", g.Name, err)
 	}
@@ -91,7 +91,7 @@ func (s *Store) Group(ctx context.Context, id int64) (Group, error) {
 	err := s.db.QueryRowContext(ctx, `SELECT id, name, parent_id, created_at, position FROM site_groups WHERE id = ?`, id).
 		Scan(&g.ID, &g.Name, &parent, &at, &g.Position)
 	if errors.Is(err, sql.ErrNoRows) {
-		return g, errcode.Errorf(errcode.NotFound, fmt.Sprintf("group %d not found", id))
+		return g, errcode.Newf(errcode.NotFound, "group %d not found", id)
 	}
 	if err != nil {
 		return g, fmt.Errorf("read group %d: %w", id, err)
@@ -108,7 +108,7 @@ func (s *Store) UpdateGroup(ctx context.Context, g Group) error {
 		return fmt.Errorf("update group %d: %w", g.ID, err)
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
-		return errcode.Errorf(errcode.NotFound, fmt.Sprintf("group %d not found", g.ID))
+		return errcode.Newf(errcode.NotFound, "group %d not found", g.ID)
 	}
 	return nil
 }

@@ -88,7 +88,7 @@ func (c *Core) SetRemote(ctx context.Context, r store.Remote, password *string) 
 	case !slices.Contains([]string{remote.SSH, remote.SFTP, remote.FTP, remote.FTPS}, r.Transport):
 		return r, errcode.Errorf(errcode.InvalidInput, "transport must be ssh, sftp, ftp or ftps")
 	case !remoteHostRe.MatchString(r.Host):
-		return r, errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("bad host %q", r.Host))
+		return r, errcode.Newf(errcode.InvalidInput, "bad host %q", r.Host)
 	case r.User == "" || strings.ContainsAny(r.User, " @:/\n\x00") || strings.HasPrefix(r.User, "-"):
 		return r, errcode.Errorf(errcode.InvalidInput, "a user is needed (no spaces, @, : or /, not starting with -)")
 	case r.Path == "" || strings.ContainsAny(r.Path, "\n\x00"):
@@ -107,7 +107,7 @@ func (c *Core) SetRemote(ctx context.Context, r store.Remote, password *string) 
 	}
 	for _, p := range append(slices.Clone(r.Paths), r.Webroot) {
 		if strings.HasPrefix(p, "/") || slices.Contains(strings.Split(p, "/"), "..") {
-			return r, errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("%q must be relative to the project folder", p))
+			return r, errcode.Newf(errcode.InvalidInput, "%q must be relative to the project folder", p)
 		}
 	}
 	if r.Excludes == nil {
@@ -563,7 +563,7 @@ func (c *Core) push(ctx context.Context, name, remoteName string, opts SyncOptio
 		return SyncResult{}, err
 	}
 	if r.Kind != RemoteStaging {
-		return SyncResult{}, errcode.Errorf(errcode.Unsupported, fmt.Sprintf("%s is %s: Covo only pushes to staging", r.Name, r.Kind))
+		return SyncResult{}, errcode.Newf(errcode.Unsupported, "%s is %s: Covo only pushes to staging", r.Name, r.Kind)
 	}
 	srv, err := c.server(ctx, r)
 	if err != nil {

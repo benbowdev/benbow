@@ -42,7 +42,7 @@ func (c *Core) ensurePHPCLI(ctx context.Context, v store.PHPVersion) (string, er
 		return "", errcode.New(errcode.Service, fmt.Errorf("run %s -v: %w", bin, err))
 	}
 	if !strings.HasPrefix(out, "PHP "+v.Version+" ") {
-		return "", errcode.Errorf(errcode.Checksum, fmt.Sprintf("php reports %q, expected PHP %s", firstLine(out), v.Version))
+		return "", errcode.Newf(errcode.Checksum, "php reports %q, expected PHP %s", firstLine(out), v.Version)
 	}
 	return bin, nil
 }
@@ -230,7 +230,7 @@ type WordPressResult struct {
 func (c *Core) NewWordPress(ctx context.Context, req WordPressRequest) (WordPressResult, error) {
 	var res WordPressResult
 	if !siteNameRe.MatchString(req.Name) {
-		return res, errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("site name %q must be lowercase letters, digits and dashes", req.Name))
+		return res, errcode.Newf(errcode.InvalidInput, "site name %q must be lowercase letters, digits and dashes", req.Name)
 	}
 	if req.PHP == "" {
 		req.PHP = "8.4"
@@ -259,10 +259,10 @@ func (c *Core) NewWordPress(ctx context.Context, req WordPressRequest) (WordPres
 		req.AdminEmail = "admin@" + cmp.Or(req.Domain, req.Name+"."+suffixLocalhost)
 	}
 	if strings.ContainsAny(req.AdminEmail, " \n\"'") || !strings.Contains(req.AdminEmail, "@") {
-		return res, errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("admin email %q is not valid", req.AdminEmail))
+		return res, errcode.Newf(errcode.InvalidInput, "admin email %q is not valid", req.AdminEmail)
 	}
 	if _, err := c.Store.Site(ctx, req.Name); err == nil {
-		return res, errcode.Errorf(errcode.Conflict, fmt.Sprintf("site %q already exists", req.Name))
+		return res, errcode.Newf(errcode.Conflict, "site %q already exists", req.Name)
 	}
 	if _, _, _, err := c.mysqlRoot(ctx); err != nil {
 		return res, err
@@ -361,11 +361,11 @@ func prepareEmptyDir(path string) (bool, error) {
 		}
 		return true, nil
 	case err != nil:
-		return false, errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("%s is not a folder Covo can use: %v", path, err))
+		return false, errcode.Newf(errcode.InvalidInput, "%s is not a folder Covo can use: %v", path, err)
 	}
 	for _, e := range entries {
 		if e.Name() != ".DS_Store" {
-			return false, errcode.Errorf(errcode.Conflict, fmt.Sprintf("%s is not empty: choose a new or empty folder", path))
+			return false, errcode.Newf(errcode.Conflict, "%s is not empty: choose a new or empty folder", path)
 		}
 	}
 	return false, nil

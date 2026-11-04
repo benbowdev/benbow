@@ -47,8 +47,9 @@ func (c *Core) ensureCaddy(ctx context.Context) (CaddyInstall, error) {
 	}
 	// Output looks like "v2.11.7 h1:…".
 	if !strings.HasPrefix(out, "v"+art.Version+" ") {
-		return CaddyInstall{}, errcode.Errorf(errcode.Checksum,
-			fmt.Sprintf("caddy reports %q, expected v%s", firstLine(out), art.Version))
+		return CaddyInstall{}, errcode.Newf(errcode.Checksum,
+			"caddy reports %q, expected v%s", firstLine(out), art.Version)
+
 	}
 	return CaddyInstall{Version: art.Version, Binary: bin, SHA256: art.SHA256, Fresh: inst.Fresh}, nil
 }

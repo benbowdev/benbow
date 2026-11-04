@@ -66,11 +66,11 @@ func (c *Core) toolCommand(ctx context.Context, site store.Site, tool string, ar
 	case ToolArtisan:
 		root := projectRoot(site)
 		if _, err := os.Stat(filepath.Join(root, "artisan")); err != nil {
-			return nil, errcode.Errorf(errcode.Unsupported, fmt.Sprintf("%s is not a Laravel project (no artisan in %s)", site.Name, root))
+			return nil, errcode.Newf(errcode.Unsupported, "%s is not a Laravel project (no artisan in %s)", site.Name, root)
 		}
 		return c.phpToolCommand(ctx, site.PHPMinor, root, "artisan", args...)
 	default:
-		return nil, errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("unknown tool %q (wp, composer, artisan)", tool))
+		return nil, errcode.Newf(errcode.InvalidInput, "unknown tool %q (wp, composer, artisan)", tool)
 	}
 }
 
@@ -159,7 +159,7 @@ const minLaravelPHP = "8.2"
 func (c *Core) NewLaravel(ctx context.Context, req LaravelRequest) (LaravelResult, error) {
 	var res LaravelResult
 	if !siteNameRe.MatchString(req.Name) {
-		return res, errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("site name %q must be lowercase letters, digits and dashes", req.Name))
+		return res, errcode.Newf(errcode.InvalidInput, "site name %q must be lowercase letters, digits and dashes", req.Name)
 	}
 	if req.PHP == "" {
 		req.PHP = "8.4"
@@ -168,7 +168,7 @@ func (c *Core) NewLaravel(ctx context.Context, req LaravelRequest) (LaravelResul
 		return res, err
 	}
 	if compareMinor(req.PHP, minLaravelPHP) < 0 {
-		return res, errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("Laravel needs PHP %s or newer, not %s", minLaravelPHP, req.PHP))
+		return res, errcode.Newf(errcode.InvalidInput, "Laravel needs PHP %s or newer, not %s", minLaravelPHP, req.PHP)
 	}
 	_, _, _, mysqlErr := c.mysqlRoot(ctx)
 	_, _, _, pgErr := c.postgresRoot(ctx)
@@ -190,7 +190,7 @@ func (c *Core) NewLaravel(ctx context.Context, req LaravelRequest) (LaravelResul
 		}
 	}
 	if req.Database != "new" && req.Database != "sqlite" {
-		return res, errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("database must be new or sqlite, got %q", req.Database))
+		return res, errcode.Newf(errcode.InvalidInput, "database must be new or sqlite, got %q", req.Database)
 	}
 	if req.Database == "new" {
 		if engine == EnginePostgres && pgErr != nil {
@@ -208,7 +208,7 @@ func (c *Core) NewLaravel(ctx context.Context, req LaravelRequest) (LaravelResul
 		req.Path = filepath.Join(home, "Sites", req.Name)
 	}
 	if _, err := c.Store.Site(ctx, req.Name); err == nil {
-		return res, errcode.Errorf(errcode.Conflict, fmt.Sprintf("site %q already exists", req.Name))
+		return res, errcode.Newf(errcode.Conflict, "site %q already exists", req.Name)
 	}
 	created, err := prepareEmptyDir(req.Path)
 	if err != nil {

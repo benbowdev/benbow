@@ -68,8 +68,9 @@ func validPublicPort(port, standard int, what string, allowOff bool) error {
 	if (allowOff && port == 0) || port == standard || (port >= 1024 && port <= 65535) {
 		return nil
 	}
-	return errcode.Errorf(errcode.InvalidInput,
-		fmt.Sprintf("%s port must be %d or between 1024 and 65535, got %d", what, standard, port))
+	return errcode.Newf(errcode.InvalidInput,
+		"%s port must be %d or between 1024 and 65535, got %d", what, standard, port)
+
 }
 
 // ports returns the configured ports, assigning listen ports on first use.
@@ -211,7 +212,7 @@ func (c *Core) checkPublicPort(ctx context.Context, port int) error {
 	if free {
 		return nil
 	}
-	return errcode.Errorf(errcode.PortInUse, fmt.Sprintf("port %d is in use by %s", port, ports.Describe(ports.Owners(ctx, port))))
+	return errcode.Newf(errcode.PortInUse, "port %d is in use by %s", port, ports.Describe(ports.Owners(ctx, port)))
 }
 
 // syncForwards puts the forwards p needs in place (or removes them). A
@@ -230,18 +231,20 @@ func (c *Core) syncForwards(ctx context.Context, p Ports) error {
 	}
 	res, err := client.Do(ctx, hostshelper.Request{Op: hostshelper.OpStatus})
 	if err != nil {
-		return errcode.Errorf(errcode.Service, fmt.Sprintf(
+		return errcode.Newf(errcode.Service,
 			"ports %s need Covo's helper, which does not answer (%v); set the ports again in Settings or with `covo ports`",
-			describeForwards(want), err))
+			describeForwards(want), err)
+
 	}
 	for _, f := range want {
 		if slices.Contains(res.Forwards, f) {
 			continue
 		}
 		if !ports.FreeAnywhere(f.From) {
-			return errcode.Errorf(errcode.PortInUse, fmt.Sprintf(
+			return errcode.Newf(errcode.PortInUse,
 				"port %d is now in use by %s; Covo leaves it alone: stop that program or choose another port",
-				f.From, ports.Describe(ports.Owners(ctx, f.From))))
+				f.From, ports.Describe(ports.Owners(ctx, f.From)))
+
 		}
 	}
 	_, err = client.Do(ctx, hostshelper.Request{Op: hostshelper.OpPorts, Forwards: want})

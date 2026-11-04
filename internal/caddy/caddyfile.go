@@ -250,16 +250,16 @@ func Caddyfile(cfg Config) (string, error) {
 	if p := cfg.Phone; p != nil {
 		check = append(check, p.Root, p.FPMSocket, p.CADir)
 		if !hostRe.MatchString(p.Host) {
-			return "", errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("bad phone host %q", p.Host))
+			return "", errcode.Newf(errcode.InvalidInput, "bad phone host %q", p.Host)
 		}
 		for _, b := range p.Binds {
 			if ip := net.ParseIP(b); ip == nil || !ip.IsPrivate() {
-				return "", errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("phone address %q is not a private IP", b))
+				return "", errcode.Newf(errcode.InvalidInput, "phone address %q is not a private IP", b)
 			}
 		}
 		for _, line := range strings.Split(p.PHPValue, "\n") {
 			if !phpValueRe.MatchString(line) {
-				return "", errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("bad PHP value %q", line))
+				return "", errcode.Newf(errcode.InvalidInput, "bad PHP value %q", line)
 			}
 		}
 		for _, u := range []string{p.LocalURL, p.PhoneURL, p.PlainURL} {
@@ -267,7 +267,7 @@ func Caddyfile(cfg Config) (string, error) {
 				continue
 			}
 			if strings.ContainsAny(u, "\"\\{} \n") {
-				return "", errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("bad URL %q", u))
+				return "", errcode.Newf(errcode.InvalidInput, "bad URL %q", u)
 			}
 		}
 	}
@@ -279,7 +279,7 @@ func Caddyfile(cfg Config) (string, error) {
 		for _, v := range []string{s.PHPValue, s.ProbePHPValue} {
 			for _, line := range strings.Split(v, "\n") {
 				if v != "" && !phpValueRe.MatchString(line) {
-					return "", errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("bad PHP value %q", line))
+					return "", errcode.Newf(errcode.InvalidInput, "bad PHP value %q", line)
 				}
 			}
 		}
@@ -288,7 +288,7 @@ func Caddyfile(cfg Config) (string, error) {
 		}
 		for _, d := range append([]string{s.Domain}, s.Aliases...) {
 			if !hostRe.MatchString(d) {
-				return "", errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("bad domain %q", d))
+				return "", errcode.Newf(errcode.InvalidInput, "bad domain %q", d)
 			}
 		}
 	}
@@ -298,7 +298,7 @@ func Caddyfile(cfg Config) (string, error) {
 		}
 	}
 	if cfg.CA.Name == "" || strings.ContainsAny(cfg.CA.Name, "\"\\{}\n") {
-		return "", errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("bad CA name %q", cfg.CA.Name))
+		return "", errcode.Newf(errcode.InvalidInput, "bad CA name %q", cfg.CA.Name)
 	}
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, cfg); err != nil {

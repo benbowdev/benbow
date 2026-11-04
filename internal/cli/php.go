@@ -167,7 +167,7 @@ func (a *app) phpSettingsCmd() *cobra.Command {
 			for _, kv := range args[1:] {
 				name, value, ok := strings.Cut(kv, "=")
 				if !ok {
-					return nil, errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("%q: want name=value", kv))
+					return nil, errcode.Newf(errcode.InvalidInput, "%q: want name=value", kv)
 				}
 				values[name] = value
 			}

@@ -103,8 +103,9 @@ func DefaultDatabaseName(site string) string {
 
 func checkDatabaseName(db string) error {
 	if !mysql.ValidName(db, 64) || slices.Contains(systemDatabases, db) {
-		return errcode.Errorf(errcode.InvalidInput,
-			fmt.Sprintf("database name %q must be up to 64 lowercase letters, digits and underscores, and not a MySQL system database", db))
+		return errcode.Newf(errcode.InvalidInput,
+			"database name %q must be up to 64 lowercase letters, digits and underscores, and not a MySQL system database", db)
+
 	}
 	return nil
 }
@@ -130,7 +131,7 @@ func checkEngine(engine string) (string, error) {
 	case EnginePostgres, "postgres", "postgresql":
 		return EnginePostgres, nil
 	}
-	return "", errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("database engine must be mysql or pgsql, got %q", engine))
+	return "", errcode.Newf(errcode.InvalidInput, "database engine must be mysql or pgsql, got %q", engine)
 }
 
 // CreateSiteDatabaseOn creates a site database on MySQL or PostgreSQL.
@@ -161,7 +162,7 @@ func (c *Core) createMySQLSiteDatabase(ctx context.Context, name, db string) (Si
 			return err
 		}
 		if site.Database != "" {
-			return errcode.Errorf(errcode.Conflict, fmt.Sprintf("%s already uses database %s", name, site.Database))
+			return errcode.Newf(errcode.Conflict, "%s already uses database %s", name, site.Database)
 		}
 		if db == "" {
 			db = DefaultDatabaseName(name)
@@ -178,14 +179,14 @@ func (c *Core) createMySQLSiteDatabase(ctx context.Context, name, db string) (Si
 			return err
 		}
 		if slices.Contains(dbs, db) {
-			return errcode.Errorf(errcode.Conflict, fmt.Sprintf("database %s already exists: link it instead", db))
+			return errcode.Newf(errcode.Conflict, "database %s already exists: link it instead", db)
 		}
 		users, err := c.rootQuery(ctx, "SELECT DISTINCT user FROM mysql.user WHERE user = '"+user+"';")
 		if err != nil {
 			return err
 		}
 		if len(users) > 0 {
-			return errcode.Errorf(errcode.Conflict, fmt.Sprintf("MySQL user %s already exists", user))
+			return errcode.Newf(errcode.Conflict, "MySQL user %s already exists", user)
 		}
 
 		kc, err := mysqlKeychain(c.launchctl.Prefix)
@@ -252,7 +253,7 @@ func (c *Core) LinkSiteDatabaseOn(ctx context.Context, name, db, engine string) 
 			return err
 		}
 		if site.Database != "" {
-			return errcode.Errorf(errcode.Conflict, fmt.Sprintf("%s already uses database %s", name, site.Database))
+			return errcode.Newf(errcode.Conflict, "%s already uses database %s", name, site.Database)
 		}
 		if err := checkDatabaseName(db); err != nil {
 			return err
@@ -262,7 +263,7 @@ func (c *Core) LinkSiteDatabaseOn(ctx context.Context, name, db, engine string) 
 			return err
 		}
 		if !slices.Contains(dbs, db) {
-			return errcode.Errorf(errcode.NotFound, fmt.Sprintf("database %s does not exist", db))
+			return errcode.Newf(errcode.NotFound, "database %s does not exist", db)
 		}
 		site.Database, site.DBUser = db, ""
 		if err := c.Store.UpdateSite(ctx, site); err != nil {
@@ -285,7 +286,7 @@ func (c *Core) UnlinkSiteDatabase(ctx context.Context, name string, drop bool) (
 			return err
 		}
 		if site.Database == "" {
-			return errcode.Errorf(errcode.NotFound, fmt.Sprintf("%s has no database", name))
+			return errcode.Newf(errcode.NotFound, "%s has no database", name)
 		}
 		res = SiteDatabase{Site: name, Database: site.Database, User: site.DBUser, Dedicated: site.DBUser != "", Engine: engineOf(site)}
 		if drop && engineOf(site) == EnginePostgres {
@@ -321,7 +322,7 @@ func (c *Core) GetSiteDatabase(ctx context.Context, name string) (SiteDatabase, 
 		return SiteDatabase{}, err
 	}
 	if site.Database == "" {
-		return SiteDatabase{}, errcode.Errorf(errcode.NotFound, fmt.Sprintf("%s has no database", name))
+		return SiteDatabase{}, errcode.Newf(errcode.NotFound, "%s has no database", name)
 	}
 	return c.siteDatabase(ctx, site)
 }

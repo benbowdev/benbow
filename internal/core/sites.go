@@ -174,8 +174,9 @@ func (c *Core) checkSiteRequest(req AddSiteRequest) error {
 // checkSiteFields validates everything in a request but its folder.
 func (c *Core) checkSiteFields(req AddSiteRequest) error {
 	if !siteNameRe.MatchString(req.Name) {
-		return errcode.Errorf(errcode.InvalidInput,
-			fmt.Sprintf("site name %q must be lowercase letters, digits and dashes", req.Name))
+		return errcode.Newf(errcode.InvalidInput,
+			"site name %q must be lowercase letters, digits and dashes", req.Name)
+
 	}
 	domain := req.Domain
 	if domain == "" {
@@ -202,8 +203,9 @@ func (c *Core) checkSiteFolder(path string, force bool) error {
 		return err
 	}
 	if !force && !hasIndex(path) {
-		return errcode.Errorf(errcode.ConfirmationRequired,
-			fmt.Sprintf("%s has no index.php or index.html; use --force if it is the right folder", path))
+		return errcode.Newf(errcode.ConfirmationRequired,
+			"%s has no index.php or index.html; use --force if it is the right folder", path)
+
 	}
 	return nil
 }
@@ -212,7 +214,7 @@ func (c *Core) checkSiteFolder(path string, force bool) error {
 // needed. Callers hold the lock and then call goLive.
 func (c *Core) insertSite(ctx context.Context, req AddSiteRequest) (store.Site, error) {
 	if _, err := c.Store.Site(ctx, req.Name); err == nil {
-		return store.Site{}, errcode.Errorf(errcode.Conflict, fmt.Sprintf("site %q already exists", req.Name))
+		return store.Site{}, errcode.Newf(errcode.Conflict, "site %q already exists", req.Name)
 	}
 	if err := c.checkSiteDomain(ctx, req.Domain); err != nil {
 		return store.Site{}, err
@@ -225,7 +227,7 @@ func (c *Core) insertSite(ctx context.Context, req AddSiteRequest) (store.Site, 
 		return store.Site{}, err
 	}
 	if !groupExists(groups, req.Group) {
-		return store.Site{}, errcode.Errorf(errcode.NotFound, fmt.Sprintf("group %d not found", req.Group))
+		return store.Site{}, errcode.Newf(errcode.NotFound, "group %d not found", req.Group)
 	}
 	settings, err := withSitePHPValues(nil, req.PHPSettings)
 	if err != nil {
@@ -325,9 +327,9 @@ func (c *Core) checkDomainFree(ctx context.Context, domain, self string) error {
 	for _, s := range sites {
 		if s.Domain == domain || slices.Contains(s.Aliases, domain) {
 			if s.Name == self {
-				return errcode.Errorf(errcode.Conflict, fmt.Sprintf("%s is already a name of %s", domain, self))
+				return errcode.Newf(errcode.Conflict, "%s is already a name of %s", domain, self)
 			}
-			return errcode.Errorf(errcode.Conflict, fmt.Sprintf("%s is used by site %s", domain, s.Name))
+			return errcode.Newf(errcode.Conflict, "%s is used by site %s", domain, s.Name)
 		}
 	}
 	return nil
@@ -342,7 +344,7 @@ func (c *Core) checkAliases(ctx context.Context, site store.Site, aliases []stri
 			continue
 		}
 		if a == site.Domain {
-			return nil, errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("%s is the site's own domain", a))
+			return nil, errcode.Newf(errcode.InvalidInput, "%s is the site's own domain", a)
 		}
 		if err := c.checkSiteDomain(ctx, a); err != nil {
 			return nil, err
@@ -355,7 +357,7 @@ func (c *Core) checkAliases(ctx context.Context, site store.Site, aliases []stri
 		out = append(out, a)
 	}
 	if len(out) > maxAliases {
-		return nil, errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("at most %d aliases per site", maxAliases))
+		return nil, errcode.Newf(errcode.InvalidInput, "at most %d aliases per site", maxAliases)
 	}
 	slices.Sort(out)
 	return out, nil
@@ -399,7 +401,7 @@ func (c *Core) UpdateSite(ctx context.Context, req UpdateSiteRequest) (SiteResul
 		}
 		if req.Enabled != nil {
 			if *req.Enabled && site.Archived {
-				return errcode.Errorf(errcode.Conflict, fmt.Sprintf("%s is archived: unarchive it first", site.Name))
+				return errcode.Newf(errcode.Conflict, "%s is archived: unarchive it first", site.Name)
 			}
 			site.Enabled = *req.Enabled
 		}
@@ -421,7 +423,7 @@ func (c *Core) UpdateSite(ctx context.Context, req UpdateSiteRequest) (SiteResul
 				return err
 			}
 			if !groupExists(groups, *req.Group) {
-				return errcode.Errorf(errcode.NotFound, fmt.Sprintf("group %d not found", *req.Group))
+				return errcode.Newf(errcode.NotFound, "group %d not found", *req.Group)
 			}
 			site.GroupID = *req.Group
 		}

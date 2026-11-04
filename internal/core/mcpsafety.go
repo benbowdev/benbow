@@ -5,7 +5,6 @@ package core
 
 import (
 	"context"
-	"fmt"
 	"slices"
 
 	"github.com/getcovo/covo/internal/errcode"
@@ -82,9 +81,10 @@ func (c *Core) CheckMCPWrite(ctx context.Context, site string) error {
 	if site != "" {
 		what = "changes to " + site
 	}
-	return errcode.Errorf(errcode.Forbidden, fmt.Sprintf(
+	return errcode.Newf(errcode.Forbidden,
 		"AI agents are read-only for %s: the user can allow them in Covo → Settings → AI agents, or with `covo mcp allow %s`",
-		what, map[bool]string{true: site, false: MCPAll}[site != ""]))
+		what, map[bool]string{true: site, false: MCPAll}[site != ""])
+
 }
 
 // MCPActions returns the log of what agents did, newest first.

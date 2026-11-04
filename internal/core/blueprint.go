@@ -296,7 +296,7 @@ func (c *Core) SaveBlueprint(ctx context.Context, bp Blueprint, overwrite bool) 
 		return BlueprintInfo{}, err
 	}
 	if _, err := c.Store.Blueprint(ctx, bp.Name); err == nil && !overwrite {
-		return BlueprintInfo{}, errcode.Errorf(errcode.Conflict, fmt.Sprintf("blueprint %q already exists", bp.Name))
+		return BlueprintInfo{}, errcode.Newf(errcode.Conflict, "blueprint %q already exists", bp.Name)
 	}
 	data, err := json.MarshalIndent(bp, "", "  ")
 	if err != nil {
@@ -438,7 +438,7 @@ func (c *Core) applySavedBlueprint(ctx context.Context, siteName, name string, o
 		return BlueprintResult{}, err
 	}
 	if !isWordPressDir(site.Path) {
-		return BlueprintResult{}, errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("site %q is not a WordPress site", siteName))
+		return BlueprintResult{}, errcode.Newf(errcode.InvalidInput, "site %q is not a WordPress site", siteName)
 	}
 	if opts.DryRun {
 		return c.planBlueprint(site, bp), nil
@@ -702,9 +702,10 @@ func (c *Core) installPackage(ctx context.Context, kind string, p BlueprintPacka
 		return "", nil, err
 	}
 	if seen && !strings.EqualFold(rec.SHA256, sum) && !accept {
-		return "", nil, errcode.Errorf(errcode.Checksum, fmt.Sprintf(
+		return "", nil, errcode.Newf(errcode.Checksum,
 			"%s %s changed since Covo first used it on %s (SHA-256 was %s, now %s). If you trust the new content, apply again accepting changes",
-			kind, p.label(), rec.FirstUsed.Local().Format("2006-01-02"), rec.SHA256, sum))
+			kind, p.label(), rec.FirstUsed.Local().Format("2006-01-02"), rec.SHA256, sum)
+
 	}
 	if seen && !strings.EqualFold(rec.SHA256, sum) {
 		res.Warnings = append(res.Warnings, fmt.Sprintf("%s %s changed since first use: new SHA-256 accepted", kind, p.label()))
@@ -713,7 +714,7 @@ func (c *Core) installPackage(ctx context.Context, kind string, p BlueprintPacka
 	if slug == "" {
 		slug = strings.ToLower(filepath.Base(root))
 		if !bpSlugRe.MatchString(slug) {
-			return "", nil, errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("%s %s: cannot tell its folder name; add a slug", kind, p.label()))
+			return "", nil, errcode.Newf(errcode.InvalidInput, "%s %s: cannot tell its folder name; add a slug", kind, p.label())
 		}
 		if exists(filepath.Join(dir, slug)) {
 			res.Warnings = append(res.Warnings, fmt.Sprintf("%s %s is already installed: left as it is", kind, slug))
@@ -772,7 +773,7 @@ func (c *Core) packageURL(ctx context.Context, kind string, p BlueprintPackage) 
 			Error   string `json:"error"`
 		}
 		if json.Unmarshal(body, &info) != nil || info.Version == "" || !bpVersionRe.MatchString(info.Version) {
-			return "", "", "", errcode.Errorf(errcode.NotFound, fmt.Sprintf("%s %q not found on wordpress.org", kind, p.Slug))
+			return "", "", "", errcode.Newf(errcode.NotFound, "%s %q not found on wordpress.org", kind, p.Slug)
 		}
 		version = info.Version
 	}
@@ -866,11 +867,11 @@ func unzipPackage(file, dir string) (string, error) {
 		}
 		clean := path.Clean(name)
 		if path.IsAbs(name) || clean == ".." || strings.HasPrefix(clean, "../") || strings.Contains(name, "\\") {
-			return "", errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("zip entry %q is outside the package", f.Name))
+			return "", errcode.Newf(errcode.InvalidInput, "zip entry %q is outside the package", f.Name)
 		}
 		mode := f.Mode()
 		if mode&fs.ModeSymlink != 0 || (!mode.IsRegular() && !mode.IsDir()) {
-			return "", errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("zip entry %q is not a plain file", f.Name))
+			return "", errcode.Newf(errcode.InvalidInput, "zip entry %q is not a plain file", f.Name)
 		}
 		tops[strings.SplitN(clean, "/", 2)[0]] = true
 		target := filepath.Join(dir, filepath.FromSlash(clean))
@@ -1016,10 +1017,10 @@ func (c *Core) BlueprintFromSite(ctx context.Context, siteName, name string) (Bl
 		return bp, nil, err
 	}
 	if !isWordPressDir(site.Path) {
-		return bp, nil, errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("site %q is not a WordPress site", siteName))
+		return bp, nil, errcode.Newf(errcode.InvalidInput, "site %q is not a WordPress site", siteName)
 	}
 	if !blueprintNameRe.MatchString(name) {
-		return bp, nil, errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("blueprint name %q must be lowercase letters, digits and dashes", name))
+		return bp, nil, errcode.Newf(errcode.InvalidInput, "blueprint name %q must be lowercase letters, digits and dashes", name)
 	}
 	if v, err := c.wpOutput(ctx, site, "core", "version"); err == nil && bpVersionRe.MatchString(v) {
 		bp.WordPress.Version = v

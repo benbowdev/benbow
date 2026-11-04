@@ -51,13 +51,15 @@ var domainRe = regexp.MustCompile(`^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]
 // domainSuffix validates a site domain and returns its suffix.
 func domainSuffix(domain string) (string, error) {
 	if len(domain) > 253 || !domainRe.MatchString(domain) {
-		return "", errcode.Errorf(errcode.InvalidInput,
-			fmt.Sprintf("domain %q must be lowercase letters, digits, dashes and dots, e.g. demo.localhost", domain))
+		return "", errcode.Newf(errcode.InvalidInput,
+			"domain %q must be lowercase letters, digits, dashes and dots, e.g. demo.localhost", domain)
+
 	}
 	suffix := domain[strings.LastIndexByte(domain, '.')+1:]
 	if !slices.Contains([]string{suffixLocalhost, suffixTest, suffixLocal}, suffix) {
-		return "", errcode.Errorf(errcode.InvalidInput,
-			fmt.Sprintf("domain %q must end in .localhost, .test or .local: Covo only serves reserved local domains", domain))
+		return "", errcode.Newf(errcode.InvalidInput,
+			"domain %q must end in .localhost, .test or .local: Covo only serves reserved local domains", domain)
+
 	}
 	return suffix, nil
 }
@@ -89,8 +91,9 @@ func (c *Core) checkSiteDomain(ctx context.Context, domain string) error {
 			return err
 		}
 		if !ok {
-			return errcode.Errorf(errcode.Unsupported,
-				fmt.Sprintf("%s needs .test domains: run `covo domains enable test` first (one administrator authorization)", domain))
+			return errcode.Newf(errcode.Unsupported,
+				"%s needs .test domains: run `covo domains enable test` first (one administrator authorization)", domain)
+
 		}
 	case suffixLocal:
 		ok, err := c.domainEnabled(ctx, suffixLocal)
@@ -98,8 +101,9 @@ func (c *Core) checkSiteDomain(ctx context.Context, domain string) error {
 			return err
 		}
 		if !ok {
-			return errcode.Errorf(errcode.Unsupported,
-				fmt.Sprintf("%s needs .local domains: run `covo domains enable local` first (MAMP compatibility mode, one administrator authorization)", domain))
+			return errcode.Newf(errcode.Unsupported,
+				"%s needs .local domains: run `covo domains enable local` first (MAMP compatibility mode, one administrator authorization)", domain)
+
 		}
 	}
 	return nil
@@ -127,7 +131,7 @@ func checkZone(zone string) error {
 	if zone == suffixTest || zone == suffixLocal {
 		return nil
 	}
-	return errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("unknown domain suffix %q: test or local", zone))
+	return errcode.Newf(errcode.InvalidInput, "unknown domain suffix %q: test or local", zone)
 }
 
 func (c *Core) domainStatus(ctx context.Context, zone string) (DomainStatus, error) {
@@ -246,8 +250,9 @@ func (c *Core) DisableDomain(ctx context.Context, zone string, beforePrompt func
 			}
 		}
 		if len(using) > 0 {
-			return errcode.Errorf(errcode.Conflict,
-				fmt.Sprintf("sites still use .%s: %s; remove them first", zone, strings.Join(using, ", ")))
+			return errcode.Newf(errcode.Conflict,
+				"sites still use .%s: %s; remove them first", zone, strings.Join(using, ", "))
+
 		}
 		if zone == suffixLocal {
 			if err := c.Store.DeleteSetting(ctx, settingDomain(zone)); err != nil {
@@ -371,9 +376,10 @@ func (c *Core) dnsAgents(ctx context.Context, loaded map[string]launchd.Status) 
 		return nil, 0, err
 	}
 	if !loaded[c.labelFor(dnsService)].Running && !ports.FreeDNS(port) {
-		return nil, 0, errcode.Errorf(errcode.PortInUse, fmt.Sprintf(
+		return nil, 0, errcode.Newf(errcode.PortInUse,
 			"DNS port %d (127.0.0.1, written in %s) is in use by %s; run `covo domains disable test` and `covo domains enable test` to pick a free one",
-			port, c.resolver.Path(suffixTest), ports.Describe(ports.Owners(ctx, port))))
+			port, c.resolver.Path(suffixTest), ports.Describe(ports.Owners(ctx, port)))
+
 	}
 	bin, hash, err := c.selfBinary()
 	if err != nil {

@@ -118,8 +118,9 @@ func (s *Store) migrateOnce(ctx context.Context, limit int) (err error) {
 	// A newer covo has changed the database in ways this one does not know:
 	// writing to it could break what that version relies on.
 	if known := versions[len(versions)-1]; current > known {
-		return errcode.Errorf(errcode.Unsupported, fmt.Sprintf(
-			"Covo's database is from a newer version of Covo (schema %d; this covo knows up to %d): update covo, or check which covo is first on your PATH", current, known))
+		return errcode.Newf(errcode.Unsupported,
+			"Covo's database is from a newer version of Covo (schema %d; this covo knows up to %d): update covo, or check which covo is first on your PATH", current, known)
+
 	}
 	for i, name := range files {
 		n := versions[i]
@@ -288,7 +289,7 @@ func (s *Store) AddSite(ctx context.Context, site Site) error {
 		site.Framework, site.AppRoot, site.DBEngine, site.CreatedAt.UTC().Format(time.RFC3339), nullID(site.GroupID), nullID(site.GroupID))
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
-			return errcode.Errorf(errcode.Conflict, fmt.Sprintf("site %q already exists", site.Name))
+			return errcode.Newf(errcode.Conflict, "site %q already exists", site.Name)
 		}
 		return fmt.Errorf("add site %s: %w", site.Name, err)
 	}
@@ -302,7 +303,7 @@ func (s *Store) Site(ctx context.Context, name string) (Site, error) {
 		return Site{}, err
 	}
 	if len(sites) == 0 {
-		return Site{}, errcode.Errorf(errcode.NotFound, fmt.Sprintf("site %q not found", name))
+		return Site{}, errcode.Newf(errcode.NotFound, "site %q not found", name)
 	}
 	return sites[0], nil
 }
@@ -386,10 +387,10 @@ func (s *Store) SetAliases(ctx context.Context, name string, aliases []string) e
 	for _, a := range aliases {
 		if _, err := tx.ExecContext(ctx, `INSERT INTO site_aliases (domain, site) VALUES (?, ?)`, a, name); err != nil {
 			if strings.Contains(err.Error(), "UNIQUE constraint failed") {
-				return errcode.Errorf(errcode.Conflict, fmt.Sprintf("alias %q is used by another site", a))
+				return errcode.Newf(errcode.Conflict, "alias %q is used by another site", a)
 			}
 			if strings.Contains(err.Error(), "FOREIGN KEY constraint failed") {
-				return errcode.Errorf(errcode.NotFound, fmt.Sprintf("site %q not found", name))
+				return errcode.Newf(errcode.NotFound, "site %q not found", name)
 			}
 			return fmt.Errorf("set aliases of %s: %w", name, err)
 		}
@@ -409,12 +410,12 @@ func (s *Store) UpdateSite(ctx context.Context, site Site) error {
 		site.Framework, site.AppRoot, site.DBEngine, site.Title, site.Name)
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
-			return errcode.Errorf(errcode.Conflict, fmt.Sprintf("domain %q is used by another site", site.Domain))
+			return errcode.Newf(errcode.Conflict, "domain %q is used by another site", site.Domain)
 		}
 		return fmt.Errorf("update site %s: %w", site.Name, err)
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
-		return errcode.Errorf(errcode.NotFound, fmt.Sprintf("site %q not found", site.Name))
+		return errcode.Newf(errcode.NotFound, "site %q not found", site.Name)
 	}
 	return nil
 }
@@ -434,7 +435,7 @@ func (s *Store) RemoveSite(ctx context.Context, name string) error {
 		return fmt.Errorf("remove site %s: %w", name, err)
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
-		return errcode.Errorf(errcode.NotFound, fmt.Sprintf("site %q not found", name))
+		return errcode.Newf(errcode.NotFound, "site %q not found", name)
 	}
 	return nil
 }

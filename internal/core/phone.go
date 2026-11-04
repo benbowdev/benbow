@@ -165,7 +165,7 @@ func (c *Core) SharePhone(ctx context.Context, name string, minutes int) (PhoneS
 		minutes = phoneDefaultMinutes
 	}
 	if minutes < 1 || minutes > phoneMaxMinutes {
-		return PhoneStatus{}, errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("minutes must be between 1 and %d", phoneMaxMinutes))
+		return PhoneStatus{}, errcode.Newf(errcode.InvalidInput, "minutes must be between 1 and %d", phoneMaxMinutes)
 	}
 	var res PhoneStatus
 	err := c.locked(ctx, func() error {
@@ -174,7 +174,7 @@ func (c *Core) SharePhone(ctx context.Context, name string, minutes int) (PhoneS
 			return err
 		}
 		if !site.Enabled {
-			return errcode.Errorf(errcode.Conflict, fmt.Sprintf("%s is off: turn it on first", name))
+			return errcode.Newf(errcode.Conflict, "%s is off: turn it on first", name)
 		}
 		if _, running, err := c.Store.Setting(ctx, settingRunning); err != nil {
 			return err
@@ -225,7 +225,7 @@ func firstFreeAnywhere(from int) (int, error) {
 			return p, nil
 		}
 	}
-	return 0, errcode.Errorf(errcode.PortInUse, fmt.Sprintf("no free port from %d", from))
+	return 0, errcode.Newf(errcode.PortInUse, "no free port from %d", from)
 }
 
 // StopPhone closes the phone access.

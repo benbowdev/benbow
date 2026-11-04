@@ -108,7 +108,7 @@ func (c *Core) storedPort(ctx context.Context, setting string, def int) (int, er
 // setStoredPort changes a service port; it must be free.
 func (c *Core) setStoredPort(ctx context.Context, setting, what string, port int) error {
 	if port < 1024 || port > 65535 {
-		return errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("%s port must be between 1024 and 65535, got %d", what, port))
+		return errcode.Newf(errcode.InvalidInput, "%s port must be between 1024 and 65535, got %d", what, port)
 	}
 	if v, ok, err := c.Store.Setting(ctx, setting); err != nil {
 		return err
@@ -116,7 +116,7 @@ func (c *Core) setStoredPort(ctx context.Context, setting, what string, port int
 		return nil
 	}
 	if !ports.Free(port) {
-		return errcode.Errorf(errcode.PortInUse, fmt.Sprintf("port %d is in use by %s", port, ports.Describe(ports.Owners(ctx, port))))
+		return errcode.Newf(errcode.PortInUse, "port %d is in use by %s", port, ports.Describe(ports.Owners(ctx, port)))
 	}
 	return c.Store.SetSetting(ctx, setting, strconv.Itoa(port))
 }
@@ -140,7 +140,7 @@ func (c *Core) ensurePostgres(ctx context.Context) (dir, version string, err err
 		return "", "", errcode.New(errcode.Service, fmt.Errorf("run %s --version: %w", bin, err))
 	}
 	if !strings.Contains(out, "(PostgreSQL) "+art.Version) {
-		return "", "", errcode.Errorf(errcode.Checksum, fmt.Sprintf("postgres reports %q, expected %s", firstLine(out), art.Version))
+		return "", "", errcode.Newf(errcode.Checksum, "postgres reports %q, expected %s", firstLine(out), art.Version)
 	}
 	return inst.Dir, art.Version, nil
 }
@@ -192,8 +192,9 @@ func (c *Core) preparePostgres(ctx context.Context) (agent launchd.Agent, port i
 		if ok, err := kc.Exists(ctx); err != nil {
 			return launchd.Agent{}, 0, err
 		} else if !ok {
-			return launchd.Agent{}, 0, errcode.Errorf(errcode.Conflict, fmt.Sprintf(
-				"the PostgreSQL data directory %s exists but its password is not in the keychain (item %q)", c.postgresDataDir(), kc.Service))
+			return launchd.Agent{}, 0, errcode.Newf(errcode.Conflict,
+				"the PostgreSQL data directory %s exists but its password is not in the keychain (item %q)", c.postgresDataDir(), kc.Service)
+
 		}
 	}
 	out, errLog := c.logPaths(postgresService)
@@ -223,9 +224,10 @@ func (c *Core) postgresAgents(ctx context.Context, loaded map[string]launchd.Sta
 		return nil, 0, err
 	}
 	if !loaded[agent.Label].Running && !ports.Free(port) {
-		return nil, 0, errcode.Errorf(errcode.PortInUse, fmt.Sprintf(
+		return nil, 0, errcode.Newf(errcode.PortInUse,
 			"PostgreSQL port %d is in use by %s; stop it or run `covo postgres enable --port <free port>`",
-			port, ports.Describe(ports.Owners(ctx, port))))
+			port, ports.Describe(ports.Owners(ctx, port)))
+
 	}
 	return []launchd.Agent{agent}, port, nil
 }
@@ -407,13 +409,13 @@ func (c *Core) createPostgresDatabase(ctx context.Context, name, db string) (Sit
 			return err
 		}
 		if site.Database != "" {
-			return errcode.Errorf(errcode.Conflict, fmt.Sprintf("%s already uses database %s", name, site.Database))
+			return errcode.Newf(errcode.Conflict, "%s already uses database %s", name, site.Database)
 		}
 		if db == "" {
 			db = DefaultDatabaseName(name)
 		}
 		if !mysql.ValidName(db, 63) || db == postgres.Superuser || strings.HasPrefix(db, "pg_") {
-			return errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("database name %q must be up to 63 lowercase letters, digits and underscores", db))
+			return errcode.Newf(errcode.InvalidInput, "database name %q must be up to 63 lowercase letters, digits and underscores", db)
 		}
 		user := db
 		dbs, err := c.PostgresDatabases(ctx)
@@ -421,14 +423,14 @@ func (c *Core) createPostgresDatabase(ctx context.Context, name, db string) (Sit
 			return err
 		}
 		if slices.Contains(dbs, db) {
-			return errcode.Errorf(errcode.Conflict, fmt.Sprintf("database %s already exists: link it instead", db))
+			return errcode.Newf(errcode.Conflict, "database %s already exists: link it instead", db)
 		}
 		roles, err := c.pgQuery(ctx, "postgres", "SELECT rolname FROM pg_roles WHERE rolname = "+postgres.Literal(user)+";")
 		if err != nil {
 			return err
 		}
 		if len(roles) > 0 {
-			return errcode.Errorf(errcode.Conflict, fmt.Sprintf("PostgreSQL role %s already exists", user))
+			return errcode.Newf(errcode.Conflict, "PostgreSQL role %s already exists", user)
 		}
 		kc, err := postgresKeychain(c.launchctl.Prefix)
 		if err != nil {
@@ -474,14 +476,14 @@ func (c *Core) linkPostgresDatabase(ctx context.Context, name, db string) (SiteD
 			return err
 		}
 		if site.Database != "" {
-			return errcode.Errorf(errcode.Conflict, fmt.Sprintf("%s already uses database %s", name, site.Database))
+			return errcode.Newf(errcode.Conflict, "%s already uses database %s", name, site.Database)
 		}
 		dbs, err := c.PostgresDatabases(ctx)
 		if err != nil {
 			return err
 		}
 		if !slices.Contains(dbs, db) {
-			return errcode.Errorf(errcode.NotFound, fmt.Sprintf("database %s does not exist", db))
+			return errcode.Newf(errcode.NotFound, "database %s does not exist", db)
 		}
 		site.Database, site.DBUser, site.DBEngine = db, "", EnginePostgres
 		if err := c.Store.UpdateSite(ctx, site); err != nil {

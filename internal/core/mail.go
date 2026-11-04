@@ -133,8 +133,9 @@ func (c *Core) mailAgents(ctx context.Context, loaded map[string]launchd.Status)
 	if !loaded[label].Running {
 		for _, p := range []int{smtp, ui} {
 			if !ports.Free(p) {
-				return nil, 0, 0, errcode.Errorf(errcode.PortInUse, fmt.Sprintf(
-					"Mailpit port %d is in use by %s; stop it or run `covo mail disable`", p, ports.Describe(ports.Owners(ctx, p))))
+				return nil, 0, 0, errcode.Newf(errcode.PortInUse,
+					"Mailpit port %d is in use by %s; stop it or run `covo mail disable`", p, ports.Describe(ports.Owners(ctx, p)))
+
 			}
 		}
 	}

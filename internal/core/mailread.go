@@ -109,7 +109,7 @@ func (c *Core) mailpitGet(ctx context.Context, path string, v any) error {
 	}
 	if resp.StatusCode != http.StatusOK {
 		b, _ := io.ReadAll(io.LimitReader(resp.Body, 500))
-		return errcode.Errorf(errcode.Service, fmt.Sprintf("Mailpit: %s %s", resp.Status, strings.TrimSpace(string(b))))
+		return errcode.Newf(errcode.Service, "Mailpit: %s %s", resp.Status, strings.TrimSpace(string(b)))
 	}
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 20<<20)).Decode(v); err != nil {
 		return fmt.Errorf("read Mailpit's answer: %w", err)

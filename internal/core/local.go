@@ -152,7 +152,7 @@ func (c *Core) installHelper(ctx context.Context, beforePrompt func()) (bool, er
 	q := func(p string) string { return "'" + p + "'" }
 	for _, p := range []string{src, stagedPlist} {
 		if err := paths.CheckSafe(p); err != nil || strings.Contains(p, "'") {
-			return false, errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("unsafe path %q", p))
+			return false, errcode.Newf(errcode.InvalidInput, "unsafe path %q", p)
 		}
 	}
 	// The only commands run as root. install(1) sets owner and mode as it
@@ -181,7 +181,7 @@ func (c *Core) installHelper(ctx context.Context, beforePrompt func()) (bool, er
 			return true, nil
 		}
 		if time.Now().After(deadline) {
-			return false, errcode.Errorf(errcode.Service, fmt.Sprintf("the helper was installed but does not answer: %v", err))
+			return false, errcode.Newf(errcode.Service, "the helper was installed but does not answer: %v", err)
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
@@ -203,7 +203,7 @@ func helperSource(ctx context.Context) (string, error) {
 		return "", errcode.New(errcode.NotFound, fmt.Errorf("%s not found or not runnable next to covo (build it with `go build ./cmd/covo-hostshelper`): %w", src, err))
 	}
 	if v := strings.TrimSpace(string(out)); v != hostshelper.Version {
-		return "", errcode.Errorf(errcode.Conflict, fmt.Sprintf("%s speaks protocol %s, covo needs %s", src, v, hostshelper.Version))
+		return "", errcode.Newf(errcode.Conflict, "%s speaks protocol %s, covo needs %s", src, v, hostshelper.Version)
 	}
 	return src, nil
 }

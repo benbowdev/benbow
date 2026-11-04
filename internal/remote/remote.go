@@ -222,7 +222,7 @@ func (s Server) Open(ctx context.Context) (FS, error) {
 		}
 		return &ftpFS{c: c}, nil
 	}
-	return nil, errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("unknown transport %q (ssh, sftp, ftp, ftps)", s.Transport))
+	return nil, errcode.Newf(errcode.InvalidInput, "unknown transport %q (ssh, sftp, ftp, ftps)", s.Transport)
 }
 
 type sftpFS struct {

@@ -77,7 +77,7 @@ func (c *Core) ensureRedis(ctx context.Context) (dir string, err error) {
 		return "", errcode.New(errcode.Service, fmt.Errorf("run %s --version: %w", bin, err))
 	}
 	if !strings.Contains(out, "v="+art.Version+" ") {
-		return "", errcode.Errorf(errcode.Checksum, fmt.Sprintf("redis-server reports %q, expected %s", firstLine(out), art.Version))
+		return "", errcode.Newf(errcode.Checksum, "redis-server reports %q, expected %s", firstLine(out), art.Version)
 	}
 	return inst.Dir, nil
 }
@@ -120,9 +120,10 @@ func (c *Core) redisAgents(ctx context.Context, loaded map[string]launchd.Status
 		return nil, 0, err
 	}
 	if !loaded[agent.Label].Running && !ports.Free(port) {
-		return nil, 0, errcode.Errorf(errcode.PortInUse, fmt.Sprintf(
+		return nil, 0, errcode.Newf(errcode.PortInUse,
 			"Redis port %d is in use by %s; stop it or run `covo redis enable --port <free port>`",
-			port, ports.Describe(ports.Owners(ctx, port))))
+			port, ports.Describe(ports.Owners(ctx, port)))
+
 	}
 	return []launchd.Agent{agent}, port, nil
 }

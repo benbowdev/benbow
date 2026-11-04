@@ -123,8 +123,9 @@ func (m Manifest) resolveFor(component, forVersion, arch string) (Artifact, erro
 		}
 	}
 	if best == nil {
-		return Artifact{}, errcode.Errorf(errcode.NotFound,
-			fmt.Sprintf("no %s build for %s on %s", component, forVersion, arch))
+		return Artifact{}, errcode.Newf(errcode.NotFound,
+			"no %s build for %s on %s", component, forVersion, arch)
+
 	}
 	return *best, nil
 }
@@ -143,8 +144,9 @@ func (m Manifest) resolve(component, spec, arch string) (Artifact, error) {
 		}
 	}
 	if best == nil {
-		return Artifact{}, errcode.Errorf(errcode.NotFound,
-			fmt.Sprintf("no %s %s build available for %s (available: %s)", component, spec, arch, strings.Join(m.Versions(component, arch), ", ")))
+		return Artifact{}, errcode.Newf(errcode.NotFound,
+			"no %s %s build available for %s (available: %s)", component, spec, arch, strings.Join(m.Versions(component, arch), ", "))
+
 	}
 	return *best, nil
 }
@@ -351,8 +353,9 @@ func (in Installer) downloadOnce(ctx context.Context, a Artifact) (path string, 
 func checkSum(name string, h hash.Hash, want, url string) error {
 	got := hex.EncodeToString(h.Sum(nil))
 	if !strings.EqualFold(got, want) {
-		return errcode.Errorf(errcode.Checksum,
-			fmt.Sprintf("%s mismatch for %s: got %s, want %s", name, url, got, want))
+		return errcode.Newf(errcode.Checksum,
+			"%s mismatch for %s: got %s, want %s", name, url, got, want)
+
 	}
 	return nil
 }
@@ -500,7 +503,7 @@ func checkMacOS(a Artifact) error {
 		return nil
 	}
 	if v := macOSVersion(); v != "" && store.CompareVersions(v, a.MinMacOS) < 0 {
-		return errcode.Errorf(errcode.Unsupported, fmt.Sprintf("%s %s needs macOS %s or later (this Mac has %s)", a.Component, a.Version, a.MinMacOS, v))
+		return errcode.Newf(errcode.Unsupported, "%s %s needs macOS %s or later (this Mac has %s)", a.Component, a.Version, a.MinMacOS, v)
 	}
 	return nil
 }

@@ -56,7 +56,7 @@ func FirstFreeDNS(from, span int) (int, error) {
 			return p, nil
 		}
 	}
-	return 0, errcode.Errorf(errcode.PortInUse, fmt.Sprintf("no free DNS port between %d and %d", from, from+span-1))
+	return 0, errcode.Newf(errcode.PortInUse, "no free DNS port between %d and %d", from, from+span-1)
 }
 
 // FirstFree returns the first free port in [from, from+span).
@@ -66,7 +66,7 @@ func FirstFree(from, span int) (int, error) {
 			return p, nil
 		}
 	}
-	return 0, errcode.Errorf(errcode.PortInUse, fmt.Sprintf("no free port between %d and %d", from, from+span-1))
+	return 0, errcode.Newf(errcode.PortInUse, "no free port between %d and %d", from, from+span-1)
 }
 
 // Listener is a process listening on a port.

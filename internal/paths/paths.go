@@ -60,7 +60,7 @@ func Default() (Layout, error) {
 // New returns the layout rooted at root, which must be absolute.
 func New(root string) (Layout, error) {
 	if !filepath.IsAbs(root) {
-		return Layout{}, errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("covo home must be an absolute path: %q", root))
+		return Layout{}, errcode.Newf(errcode.InvalidInput, "covo home must be an absolute path: %q", root)
 	}
 	root = filepath.Clean(root)
 	l := Layout{
@@ -145,13 +145,13 @@ func CheckSafe(p string) error {
 	for _, r := range p {
 		switch {
 		case r < 0x20 || r == 0x7f:
-			return errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("path %q contains a control character", p))
+			return errcode.Newf(errcode.InvalidInput, "path %q contains a control character", p)
 		case strings.ContainsRune(`"\{}$`, r):
-			return errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("path %q contains unsupported character %q", p, r))
+			return errcode.Newf(errcode.InvalidInput, "path %q contains unsupported character %q", p, r)
 		}
 	}
 	if !filepath.IsAbs(p) {
-		return errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("path %q is not absolute", p))
+		return errcode.Newf(errcode.InvalidInput, "path %q is not absolute", p)
 	}
 	return nil
 }

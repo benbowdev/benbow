@@ -55,7 +55,7 @@ func (c *Core) siteLogPath(name, kind string) string {
 // error log. Access lines are condensed from Caddy's JSON.
 func (c *Core) SiteLogs(ctx context.Context, name, kind string, lines int) (SiteLog, error) {
 	if kind != LogAccess && kind != LogPHP {
-		return SiteLog{}, errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("log kind must be %s or %s, got %q", LogAccess, LogPHP, kind))
+		return SiteLog{}, errcode.Newf(errcode.InvalidInput, "log kind must be %s or %s, got %q", LogAccess, LogPHP, kind)
 	}
 	if lines <= 0 {
 		lines = defaultLogLines

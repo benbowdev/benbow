@@ -104,7 +104,7 @@ func fetch(ctx context.Context, url string) ([]byte, error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, errcode.Errorf(errcode.Download, fmt.Sprintf("fetch %s: HTTP %d", url, resp.StatusCode))
+		return nil, errcode.Newf(errcode.Download, "fetch %s: HTTP %d", url, resp.StatusCode)
 	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxManifestSize+1))
 	if err != nil {
@@ -272,7 +272,7 @@ func (c *Core) ApplyUpdates(ctx context.Context, names []string) (UpdatesStatus,
 		}
 		for _, n := range names {
 			if !slices.ContainsFunc(todo, func(u ComponentUpdate) bool { return u.Component == n }) {
-				return errcode.Errorf(errcode.NotFound, fmt.Sprintf("no update available for %s", n))
+				return errcode.Newf(errcode.NotFound, "no update available for %s", n)
 			}
 		}
 		var undo []func()
@@ -376,7 +376,7 @@ func (c *Core) RollbackUpdate(ctx context.Context, name string) (UpdatesStatus, 
 			done = ComponentUpdate{Component: name, Current: newest.Version, Available: prev.Version}
 		} else {
 			if !slices.Contains(pinnedComponents, name) {
-				return errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("unknown component %q", name))
+				return errcode.Newf(errcode.InvalidInput, "unknown component %q", name)
 			}
 			prev, ok, err := c.Store.Setting(ctx, settingPrevious(name))
 			if err != nil {

@@ -6,7 +6,10 @@
 // for the same failure.
 package errcode
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+)
 
 // Stable error codes. They are part of the public --json schema: never rename
 // one, only add new ones.
@@ -47,9 +50,16 @@ func New(code string, err error) error {
 	return &Error{Code: code, Err: err}
 }
 
-// Errorf is a shorthand for New(code, errors.New(msg)).
+// Errorf is a shorthand for New(code, errors.New(msg)): msg is used as is,
+// never as a format (use Newf for that).
 func Errorf(code, msg string) error {
 	return &Error{Code: code, Err: errors.New(msg)}
+}
+
+// Newf is New(code, fmt.Errorf(format, args...)): go vet checks the format,
+// and %w wraps.
+func Newf(code, format string, args ...any) error {
+	return &Error{Code: code, Err: fmt.Errorf(format, args...)}
 }
 
 // ExitCode is the process exit code for a code, so scripts can tell

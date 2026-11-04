@@ -146,7 +146,7 @@ func (c *Core) readImportSource(ctx context.Context, source string) ([]mamp.Host
 		h, err := importers.ReadXAMPP(root)
 		return h, "XAMPP", err
 	}
-	return nil, "", errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("unknown source %q (%s)", source, strings.Join(importers.Names, ", ")))
+	return nil, "", errcode.Newf(errcode.InvalidInput, "unknown source %q (%s)", source, strings.Join(importers.Names, ", "))
 }
 
 // Import recreates another tool's sites as Covo sites, same names and

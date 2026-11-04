@@ -27,7 +27,7 @@ func ParseKeys(encoded []string) ([]ed25519.PublicKey, error) {
 	for _, e := range encoded {
 		b, err := base64.StdEncoding.DecodeString(strings.TrimSpace(e))
 		if err != nil || len(b) != ed25519.PublicKeySize {
-			return nil, errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("bad manifest public key %q", e))
+			return nil, errcode.Newf(errcode.InvalidInput, "bad manifest public key %q", e)
 		}
 		out = append(out, ed25519.PublicKey(b))
 	}
@@ -61,16 +61,16 @@ func VerifySigned(body, sig []byte, keys []ed25519.PublicKey) (Manifest, error) 
 	}
 	for _, a := range m.Artifacts {
 		if a.Component == "" || a.Version == "" || a.URL == "" || len(a.SHA256) != 64 || len(a.Files) == 0 {
-			return Manifest{}, errcode.Errorf(errcode.Checksum, fmt.Sprintf("signed manifest has an incomplete %s %s entry", a.Component, a.Version))
+			return Manifest{}, errcode.Newf(errcode.Checksum, "signed manifest has an incomplete %s %s entry", a.Component, a.Version)
 		}
 		// They become folder names under bin/: never a path.
 		for _, part := range []string{a.Component, a.Version, a.For, a.Arch} {
 			if part != "" && !pathPartRe.MatchString(part) {
-				return Manifest{}, errcode.Errorf(errcode.Checksum, fmt.Sprintf("signed manifest: %q is not a valid name", part))
+				return Manifest{}, errcode.Newf(errcode.Checksum, "signed manifest: %q is not a valid name", part)
 			}
 		}
 		if !strings.HasPrefix(a.URL, "https://") {
-			return Manifest{}, errcode.Errorf(errcode.Checksum, fmt.Sprintf("signed manifest: %s %s is not served over HTTPS", a.Component, a.Version))
+			return Manifest{}, errcode.Newf(errcode.Checksum, "signed manifest: %s %s is not served over HTTPS", a.Component, a.Version)
 		}
 	}
 	return m, nil
@@ -99,8 +99,9 @@ func (m Manifest) Merge(newer Manifest) (Manifest, error) {
 			continue
 		}
 		if old.SHA256 != a.SHA256 || old.URL != a.URL {
-			return Manifest{}, errcode.Errorf(errcode.Checksum,
-				fmt.Sprintf("signed manifest changes %s %s (%s): artifacts are never replaced", a.Component, a.Version, a.Arch))
+			return Manifest{}, errcode.Newf(errcode.Checksum,
+				"signed manifest changes %s %s (%s): artifacts are never replaced", a.Component, a.Version, a.Arch)
+
 		}
 	}
 	return out, nil

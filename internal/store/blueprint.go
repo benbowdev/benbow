@@ -48,7 +48,7 @@ func (s *Store) Blueprint(ctx context.Context, name string) (Blueprint, error) {
 	err := s.db.QueryRowContext(ctx, `SELECT name, data, created, updated FROM blueprints WHERE name = ?`, name).
 		Scan(&b.Name, &b.Data, &created, &updated)
 	if errors.Is(err, sql.ErrNoRows) {
-		return b, errcode.Errorf(errcode.NotFound, fmt.Sprintf("blueprint %q not found", name))
+		return b, errcode.Newf(errcode.NotFound, "blueprint %q not found", name)
 	}
 	if err != nil {
 		return b, fmt.Errorf("read blueprint: %w", err)
@@ -89,7 +89,7 @@ func (s *Store) DeleteBlueprint(ctx context.Context, name string) error {
 		return fmt.Errorf("delete blueprint: %w", err)
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
-		return errcode.Errorf(errcode.NotFound, fmt.Sprintf("blueprint %q not found", name))
+		return errcode.Newf(errcode.NotFound, "blueprint %q not found", name)
 	}
 	return nil
 }

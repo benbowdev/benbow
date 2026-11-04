@@ -154,7 +154,7 @@ func (c *Core) FetchPage(ctx context.Context, req FetchRequest) (FetchResult, er
 			break
 		}
 		if hop+1 >= maxFetchRedirects {
-			return res, errcode.Errorf(errcode.Service, fmt.Sprintf("more than %d redirects", maxFetchRedirects))
+			return res, errcode.Newf(errcode.Service, "more than %d redirects", maxFetchRedirects)
 		}
 		target = next
 	}
@@ -225,13 +225,13 @@ func fetchTarget(base, path string, hosts []string) (*url.URL, error) {
 	}
 	u, err := b.Parse(path)
 	if err != nil {
-		return nil, errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("bad path %q", path))
+		return nil, errcode.Newf(errcode.InvalidInput, "bad path %q", path)
 	}
 	if u.Scheme == "http" && slices.Contains(hosts, strings.ToLower(u.Hostname())) {
 		u.Scheme, u.Host = "https", strings.ToLower(u.Hostname())+portSuffix(b)
 	}
 	if u.Scheme != "https" || !slices.Contains(hosts, strings.ToLower(u.Hostname())) {
-		return nil, errcode.Errorf(errcode.Forbidden, fmt.Sprintf("%s is not a Covo site: fetch_page only opens Covo's own sites", u.Redacted()))
+		return nil, errcode.Newf(errcode.Forbidden, "%s is not a Covo site: fetch_page only opens Covo's own sites", u.Redacted())
 	}
 	return u, nil
 }

@@ -60,8 +60,9 @@ func (c *Core) installPHP(ctx context.Context, spec string) (PHPInstall, error) 
 		return PHPInstall{}, errcode.New(errcode.Service, fmt.Errorf("run %s -v: %w", bin, err))
 	}
 	if !strings.HasPrefix(out, "PHP "+art.Version+" ") {
-		return PHPInstall{}, errcode.Errorf(errcode.Checksum,
-			fmt.Sprintf("php-fpm reports %q, expected PHP %s", firstLine(out), art.Version))
+		return PHPInstall{}, errcode.Newf(errcode.Checksum,
+			"php-fpm reports %q, expected PHP %s", firstLine(out), art.Version)
+
 	}
 	mods, err := runQuiet(ctx, bin, "-n", "-m")
 	if err != nil {
@@ -137,7 +138,7 @@ func minorsOf(vs []store.PHPVersion) []string {
 
 func validMinor(v string) error {
 	if !minorRe.MatchString(v) {
-		return errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("PHP version must look like 8.4, got %q", v))
+		return errcode.Newf(errcode.InvalidInput, "PHP version must look like 8.4, got %q", v)
 	}
 	return nil
 }

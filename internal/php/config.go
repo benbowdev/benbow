@@ -175,7 +175,7 @@ func INI(c INIConfig) (string, error) {
 			return "", err
 		}
 		if strings.Contains(c.Sendmail, "'") || c.SendmailPort <= 0 {
-			return "", errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("bad sendmail %q port %d", c.Sendmail, c.SendmailPort))
+			return "", errcode.Newf(errcode.InvalidInput, "bad sendmail %q port %d", c.Sendmail, c.SendmailPort)
 		}
 	}
 	return render(iniTmpl, c)

@@ -67,7 +67,7 @@ func NewBridge(siteURL string) (Bridge, string, error) {
 func checkBridgeURL(siteURL string) error {
 	u, err := url.Parse(siteURL)
 	if err != nil || u.Host == "" {
-		return errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("bad site address %q", siteURL))
+		return errcode.Newf(errcode.InvalidInput, "bad site address %q", siteURL)
 	}
 	if u.Scheme == "https" {
 		return nil
@@ -80,8 +80,9 @@ func checkBridgeURL(siteURL string) error {
 	if u.Scheme == "http" && loopback {
 		return nil
 	}
-	return errcode.Errorf(errcode.InvalidInput, fmt.Sprintf(
-		"the database bridge needs an https:// address (%s would send the database in clear); set it with covo remote set … --url https://…", siteURL))
+	return errcode.Newf(errcode.InvalidInput,
+		"the database bridge needs an https:// address (%s would send the database in clear); set it with covo remote set … --url https://…", siteURL)
+
 }
 
 func bridgeClient() *http.Client {
@@ -126,13 +127,14 @@ func (b Bridge) do(ctx context.Context, method, action string, body io.Reader, s
 	}
 	if resp.StatusCode >= 300 && resp.StatusCode < 400 {
 		resp.Body.Close()
-		return nil, errcode.Errorf(errcode.Service, fmt.Sprintf(
-			"the server redirects the bridge to %s; set the remote's address to the final one (covo remote set … --url)", resp.Header.Get("Location")))
+		return nil, errcode.Newf(errcode.Service,
+			"the server redirects the bridge to %s; set the remote's address to the final one (covo remote set … --url)", resp.Header.Get("Location"))
+
 	}
 	if resp.StatusCode != http.StatusOK {
 		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 2000))
 		resp.Body.Close()
-		return nil, errcode.Errorf(errcode.Service, fmt.Sprintf("the bridge answered %s: %s (some hosts block new PHP files)", resp.Status, strings.TrimSpace(string(msg))))
+		return nil, errcode.Newf(errcode.Service, "the bridge answered %s: %s (some hosts block new PHP files)", resp.Status, strings.TrimSpace(string(msg)))
 	}
 	return resp, nil
 }

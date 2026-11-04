@@ -249,7 +249,7 @@ func (c *Core) restoreSnapshot(ctx context.Context, name, id string) (RestoreRes
 		return res, err
 	}
 	if sn.Root != projectRoot(site) {
-		return res, errcode.Errorf(errcode.Conflict, fmt.Sprintf("the snapshot is of %s, the site is now in %s", sn.Root, projectRoot(site)))
+		return res, errcode.Newf(errcode.Conflict, "the snapshot is of %s, the site is now in %s", sn.Root, projectRoot(site))
 	}
 	before, err := c.createSnapshot(ctx, name, SnapshotPreRestore, "before restoring "+sn.ID, sn.ID)
 	if err != nil {
@@ -501,7 +501,7 @@ func (c *Core) recoverRestores(ctx context.Context) ([]string, error) {
 		}
 		var j restoreJournal
 		if err := json.Unmarshal(b, &j); err != nil || j.Site == "" || j.Root == "" || j.Aside == "" {
-			return sites, errcode.Errorf(errcode.Internal, fmt.Sprintf("unreadable restore journal %s: move it away and check the site by hand", path))
+			return sites, errcode.Newf(errcode.Internal, "unreadable restore journal %s: move it away and check the site by hand", path)
 		}
 		if !j.FilesBack {
 			if _, err := os.Lstat(j.Aside); err != nil {

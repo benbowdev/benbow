@@ -186,9 +186,10 @@ func (u *Uninstaller) Uninstall(ctx context.Context) (UninstallResult, error) {
 	}
 	res := UninstallResult{UninstallPlan: plan}
 	if len(plan.Unknown) > 0 {
-		return res, errcode.Errorf(errcode.Conflict, fmt.Sprintf(
+		return res, errcode.Newf(errcode.Conflict,
 			"%s contains files Covo did not create (%s); refusing to delete it",
-			u.Layout.Root, strings.Join(plan.Unknown, ", ")))
+			u.Layout.Root, strings.Join(plan.Unknown, ", "))
+
 	}
 	if err := checkRemovable(u.Layout.Root); err != nil {
 		return res, err
@@ -237,7 +238,7 @@ func checkRemovable(root string) error {
 	home, _ := os.UserHomeDir()
 	clean := filepath.Clean(root)
 	if clean == "/" || clean == filepath.Clean(home) || strings.Count(clean, string(filepath.Separator)) < 2 {
-		return errcode.Errorf(errcode.ForbiddenFolder, fmt.Sprintf("refusing to delete %s", root))
+		return errcode.Newf(errcode.ForbiddenFolder, "refusing to delete %s", root)
 	}
 	return nil
 }

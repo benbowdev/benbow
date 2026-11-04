@@ -114,11 +114,11 @@ func MyCnf(c Config) (string, error) {
 		}
 		// Option files treat these specially even inside quotes.
 		if strings.ContainsAny(p, "#'") {
-			return "", errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("path %q contains unsupported character", p))
+			return "", errcode.Newf(errcode.InvalidInput, "path %q contains unsupported character", p)
 		}
 	}
 	if c.Port < 1024 || c.Port > 65535 {
-		return "", errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("bad MySQL port %d", c.Port))
+		return "", errcode.Newf(errcode.InvalidInput, "bad MySQL port %d", c.Port)
 	}
 	var b bytes.Buffer
 	if err := cnfTmpl.Execute(&b, c); err != nil {
