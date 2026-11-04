@@ -57,6 +57,13 @@ func TestImportMigrate(t *testing.T) {
 	if err := os.WriteFile(cfgPath, []byte(asMAMP), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	// As some MAMP sites: an address without a domain suffix, which is the
+	// start of the new one (https://legacy.localhost:…): replaced once only.
+	for _, opt := range []string{"home", "siteurl"} {
+		if out, code := src.raw("wp", "legacy", "option", "update", opt, "http://legacy"); code != 0 {
+			t.Fatalf("source %s: %s", opt, out)
+		}
+	}
 	oldHome, code := src.raw("wp", "legacy", "option", "get", "home")
 	if code != 0 {
 		t.Fatalf("source home: %s", oldHome)

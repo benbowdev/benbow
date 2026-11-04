@@ -533,8 +533,18 @@ func (c *Core) replaceURL(ctx context.Context, site store.Site, from, to string)
 	case strings.HasPrefix(from, "https://"):
 		froms = append(froms, "http://"+strings.TrimPrefix(from, "https://"))
 	}
+	// Each variant goes to a placeholder first, then the placeholder to the
+	// new address: the new address often starts with an old one
+	// (http://site → https://site.localhost:8443), and replacing the
+	// variants one after the other would apply the change twice.
+	placeholder := "covo-url-" + strconv.FormatInt(time.Now().UnixNano(), 36)
+	pairs := make([][2]string, 0, len(froms)+1)
 	for _, f := range froms {
-		r, err := c.RunToolCaptured(ctx, site.Name, ToolWP, []string{"search-replace", f, to, "--all-tables-with-prefix", "--skip-columns=guid", "--precise", "--quiet"})
+		pairs = append(pairs, [2]string{f, placeholder})
+	}
+	pairs = append(pairs, [2]string{placeholder, to})
+	for _, p := range pairs {
+		r, err := c.RunToolCaptured(ctx, site.Name, ToolWP, []string{"search-replace", p[0], p[1], "--all-tables-with-prefix", "--skip-columns=guid", "--precise", "--quiet"})
 		if err != nil {
 			return err
 		}
