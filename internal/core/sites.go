@@ -433,10 +433,11 @@ func (c *Core) UpdateSite(ctx context.Context, req UpdateSiteRequest) (SiteResul
 		if site.PHPMinor != old.PHPMinor {
 			res.Warning = phpWarning(site.PHPMinor)
 		}
-		if site.GroupID != old.GroupID {
-			// The group only matters to the list: store it, nothing to apply.
+		if site.GroupID != old.GroupID || site.Title != old.Title {
+			// The group and the title only matter to the list: store them,
+			// nothing to apply.
 			moved := old
-			moved.GroupID = site.GroupID
+			moved.GroupID, moved.Title = site.GroupID, site.Title
 			if err := c.Store.UpdateSite(ctx, moved); err != nil {
 				return err
 			}

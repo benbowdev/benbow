@@ -71,6 +71,17 @@ func TestSiteLifecycleWhileRunning(t *testing.T) {
 	if titled.Name != "live" || titled.Title != "Shop del cliente" || titled.URL != added.URL {
 		t.Fatalf("titled = %+v", titled)
 	}
+	// Stored, not only echoed back.
+	var listed []struct {
+		Name  string `json:"name"`
+		Title string `json:"title"`
+	}
+	if err := json.Unmarshal(h.mustCovo("site", "list"), &listed); err != nil {
+		t.Fatal(err)
+	}
+	if len(listed) != 1 || listed[0].Title != "Shop del cliente" {
+		t.Fatalf("listed = %+v", listed)
+	}
 	if env := h.covo("site", "set", "live", "--title", "a\nb"); env.OK || env.Error.Code != "invalid_input" {
 		t.Errorf("two-line title: %+v", env.Error)
 	}
