@@ -179,3 +179,24 @@ func TestCompareVersions(t *testing.T) {
 }
 
 func mkdirAll(dir string) error { return os.MkdirAll(dir, 0o755) }
+
+// Several covo processes may open a new database at once (the daemon, the
+// CLI, an agent's MCP server): migrations must take turns.
+func TestOpenConcurrently(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "covo.db")
+	errs := make(chan error, 8)
+	for range 8 {
+		go func() {
+			s, err := Open(context.Background(), path)
+			if err == nil {
+				err = s.Close()
+			}
+			errs <- err
+		}()
+	}
+	for range 8 {
+		if err := <-errs; err != nil {
+			t.Error(err)
+		}
+	}
+}

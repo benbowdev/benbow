@@ -46,7 +46,7 @@ func TestMCP(t *testing.T) {
 	// Read-only until the user allows changes.
 	res0, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "add_site", Arguments: map[string]any{"name": "agent", "path": newSite(t), "php": "8.4"}})
 	if err != nil || !res0.IsError || !strings.HasPrefix(res0.Content[0].(*mcp.TextContent).Text, "forbidden:") {
-		t.Fatalf("add_site without permission = %+v, %v", res0, err)
+		t.Fatalf("add_site without permission = %+v, %v", res0.Content[0].(*mcp.TextContent).Text, err)
 	}
 	h.mustCovo("mcp", "allow", "*")
 	if !strings.Contains(call("add_site", map[string]any{"name": "agent", "path": newSite(t), "php": "8.4", "dry_run": true}), `"dry_run": true`) {

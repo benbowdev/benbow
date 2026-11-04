@@ -54,12 +54,49 @@ func (s *Store) Close() error {
 	return nil
 }
 
+// migrate applies the missing migrations. Several covo processes may open
+// a new or older database at once (the daemon, the CLI, an agent's MCP
+// server): the whole check-and-apply runs in one IMMEDIATE transaction, so
+// they take turns, and a busy database is retried.
 func (s *Store) migrate(ctx context.Context) error {
-	if _, err := s.db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)`); err != nil {
+	var err error
+	for attempt := 0; attempt < 50; attempt++ {
+		if err = s.migrateOnce(ctx); err == nil || !isBusy(err) {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("migrate: %w", ctx.Err())
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
+	return err
+}
+
+func isBusy(err error) bool {
+	msg := err.Error()
+	return strings.Contains(msg, "SQLITE_BUSY") || strings.Contains(msg, "database is locked")
+}
+
+func (s *Store) migrateOnce(ctx context.Context) (err error) {
+	conn, err := s.db.Conn(ctx)
+	if err != nil {
+		return fmt.Errorf("open database connection: %w", err)
+	}
+	defer conn.Close()
+	if _, err := conn.ExecContext(ctx, `BEGIN IMMEDIATE`); err != nil {
+		return fmt.Errorf("lock database for migrations: %w", err)
+	}
+	defer func() {
+		if err != nil {
+			_, _ = conn.ExecContext(context.WithoutCancel(ctx), `ROLLBACK`)
+		}
+	}()
+	if _, err := conn.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)`); err != nil {
 		return fmt.Errorf("create schema_version: %w", err)
 	}
 	var current int
-	if err := s.db.QueryRowContext(ctx, `SELECT COALESCE(MAX(version), 0) FROM schema_version`).Scan(&current); err != nil {
+	if err := conn.QueryRowContext(ctx, `SELECT COALESCE(MAX(version), 0) FROM schema_version`).Scan(&current); err != nil {
 		return fmt.Errorf("read schema version: %w", err)
 	}
 	files, err := fs.Glob(migrations, "migrations/*.sql")
@@ -81,21 +118,15 @@ func (s *Store) migrate(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("read migration %s: %w", name, err)
 		}
-		tx, err := s.db.BeginTx(ctx, nil)
-		if err != nil {
-			return fmt.Errorf("begin migration %s: %w", name, err)
-		}
-		if _, err := tx.ExecContext(ctx, string(body)); err != nil {
-			_ = tx.Rollback()
+		if _, err := conn.ExecContext(ctx, string(body)); err != nil {
 			return fmt.Errorf("apply migration %s: %w", name, err)
 		}
-		if _, err := tx.ExecContext(ctx, `INSERT INTO schema_version (version) VALUES (?)`, n); err != nil {
-			_ = tx.Rollback()
+		if _, err := conn.ExecContext(ctx, `INSERT INTO schema_version (version) VALUES (?)`, n); err != nil {
 			return fmt.Errorf("record migration %s: %w", name, err)
 		}
-		if err := tx.Commit(); err != nil {
-			return fmt.Errorf("commit migration %s: %w", name, err)
-		}
+	}
+	if _, err := conn.ExecContext(ctx, `COMMIT`); err != nil {
+		return fmt.Errorf("commit migrations: %w", err)
 	}
 	return nil
 }
