@@ -261,6 +261,15 @@ public struct AgentSession: Codable, Sendable, Hashable, Identifiable {
 
     /// "Claude Code", or "An AI agent" when the agent did not say.
     public var agentName: String { (agent?.isEmpty == false ? agent : nil) ?? "An AI agent" }
+
+    /// Whether the agent still seems at work: an agent Covo started runs
+    /// until its terminal window ends; others count while they called Covo
+    /// in the last 15 minutes. Either way the session stays open until the
+    /// user keeps or undoes the changes.
+    public func isWorking(now: Date = Date()) -> Bool {
+        if launchedTool?.isEmpty == false { return agentRunning == true }
+        return now.timeIntervalSince(lastActive) < 15 * 60
+    }
 }
 
 /// What changed since a session started.

@@ -37,7 +37,7 @@ struct MenuBarContent: View {
                 Divider()
                 Text("AI agent sessions")
                 ForEach(model.sessions) { session in
-                    Menu("\(session.site) · \(session.agentName)") {
+                    Menu("\(session.site) · \(session.agentName)\(session.isWorking() ? "" : ", finished")") {
                         Button("Keep Changes") {
                             if let site = model.sites.first(where: { $0.name == session.site }) {
                                 Task { await model.closeSession(site, keep: true) }

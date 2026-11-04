@@ -69,7 +69,8 @@ A site's detail has **Work with an Agent…**: pick one of the agents on this
 Mac (Claude Code, Codex, Gemini CLI, Cursor, Copilot CLI); Covo saves the
 site, lets the agent change it until you decide, and starts the agent in
 the site's folder. While an agent session is open the site shows ✦ in the
-list and a banner in its detail: What Changed…, Keep Changes, Undo All….
+list and a banner in its detail: What Changed…, Keep Changes, Undo All…;
+both turn orange once the agent has finished, until you decide.
 The menu bar lists open sessions. Settings → AI Agents: connect agents,
 what they may change, when idle sessions close, what they did
 (`agents.md`).

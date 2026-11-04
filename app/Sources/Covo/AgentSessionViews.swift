@@ -9,9 +9,15 @@ struct AgentBadge: View {
     let session: AgentSession
 
     var body: some View {
-        Image(systemName: "sparkles")
-            .foregroundStyle(.purple)
-            .help("\(session.agentName) is working on this site since \(session.openedAt.formatted(date: .omitted, time: .shortened)). Keep or undo the changes in its detail.")
+        if session.isWorking() {
+            Image(systemName: "sparkles")
+                .foregroundStyle(.purple)
+                .help("\(session.agentName) is working on this site since \(session.openedAt.formatted(date: .omitted, time: .shortened)). Keep or undo the changes in its detail.")
+        } else {
+            Image(systemName: "checklist")
+                .foregroundStyle(.orange)
+                .help("\(session.agentName) has finished: review the changes, then keep them or undo them all in the site's detail.")
+        }
     }
 }
 
@@ -26,10 +32,10 @@ struct AgentSessionBanner: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline) {
-                Image(systemName: "sparkles").foregroundStyle(.purple)
+                Image(systemName: working ? "sparkles" : "checklist")
+                    .foregroundStyle(working ? .purple : .orange)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("\(session.agentName) is working on this site since \(session.openedAt.formatted(date: .omitted, time: .shortened))")
-                        .font(.callout.weight(.semibold))
+                    Text(title).font(.callout.weight(.semibold))
                     Text(detail).font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -44,14 +50,24 @@ struct AgentSessionBanner: View {
             }
         }
         .padding(10)
-        .background(.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        .background((working ? Color.purple : Color.orange).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
         .sheet(isPresented: $activity) { AgentActivitySheet(site: site, session: session) }
         .sheet(isPresented: $undoing) { UndoSessionSheet(site: site, session: session) }
     }
 
+    private var working: Bool { session.isWorking() }
+
+    private var title: String {
+        let since = session.openedAt.formatted(date: .omitted, time: .shortened)
+        if working { return "\(session.agentName) is working on this site since \(since)" }
+        return "\(session.agentName) has finished (session started at \(since)): review the changes, then keep or undo them"
+    }
+
     private var detail: String {
         var parts: [String] = []
-        if session.agentRunning == true { parts.append("the agent is running") }
+        if session.launchedTool?.isEmpty == false {
+            parts.append(working ? "the agent is running" : "the agent's terminal session has ended")
+        }
         if !session.databaseSaved {
             parts.append("saving the starting database…")
         } else {

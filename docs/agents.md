@@ -114,7 +114,10 @@ snapshot limit (`covo snapshot keep`).
 In the app: a ✦ mark on the site in the list, a banner in its detail with
 **What Changed…**, **Keep Changes** and **Undo All…** (which explains what
 it does first), Advanced → AI agent activity, and the menu bar lists the
-open sessions.
+open sessions. When the agent is done (the terminal of an agent Covo started has
+ended, or another agent has not called Covo for 15 minutes) the mark and
+banner turn orange and say it has finished: the session stays open until
+you keep or undo the changes.
 
 Agents can see their session (`session_status`) but cannot keep or undo
 it: that stays with you.
