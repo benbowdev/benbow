@@ -64,6 +64,11 @@ func Run(ctx context.Context) error {
 		return err
 	}
 	defer func() { _ = c.Close() }()
+	if sites, err := c.RecoverRestores(ctx); err != nil {
+		fmt.Fprintf(os.Stderr, "interrupted restore: %v\n", err)
+	} else if len(sites) > 0 {
+		fmt.Fprintf(os.Stderr, "interrupted restore put back: %v\n", sites)
+	}
 	sock := c.Layout.Socket(api.SocketName)
 	ln, err := api.Listen(sock)
 	if err != nil {

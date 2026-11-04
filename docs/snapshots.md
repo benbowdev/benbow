@@ -22,8 +22,11 @@ A snapshot saves, under `data/snapshots/<site>/<id>/` in the Covo folder:
 moves the project folder aside, clones the snapshot back, moves `.git` and
 `node_modules` back from the old folder, recreates the database and loads
 the dump (PostgreSQL objects are owned by the site's own role). If any step
-fails, the folder and the database are put back. Restoring the pre-restore
-snapshot undoes a restore.
+fails, the folder and the database are put back. If the restore is cut
+short (crash, kill, reboot), a journal in `data/restores` lets the next
+daemon start or restore put the folder and the database back the same way.
+A restore holds Covo's lock, so other commands wait for it. Restoring the
+pre-restore snapshot undoes a restore.
 
 Only the newest snapshots are kept (10 per site by default, `covo snapshot
 keep`); a snapshot being restored is never pruned. Removing a site deletes

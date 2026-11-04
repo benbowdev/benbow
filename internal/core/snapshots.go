@@ -6,6 +6,7 @@ package core
 import (
 	"compress/gzip"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -18,6 +19,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/getcovo/covo/internal/errcode"
+	"github.com/getcovo/covo/internal/fsutil"
 	"github.com/getcovo/covo/internal/mysql"
 	"github.com/getcovo/covo/internal/postgres"
 	"github.com/getcovo/covo/internal/store"
@@ -235,6 +237,9 @@ func (c *Core) RestoreSnapshot(ctx context.Context, name, id string) (RestoreRes
 // restoreSnapshot is RestoreSnapshot; the caller holds the lock.
 func (c *Core) restoreSnapshot(ctx context.Context, name, id string) (RestoreResult, error) {
 	var res RestoreResult
+	if _, err := c.recoverRestores(ctx); err != nil {
+		return res, err
+	}
 	sn, err := c.Store.Snapshot(ctx, name, id)
 	if err != nil {
 		return res, err
@@ -257,6 +262,14 @@ func (c *Core) restoreSnapshot(ctx context.Context, name, id string) (RestoreRes
 	// the folders snapshots leave out (.git, node_modules) move back.
 	root := sn.Root
 	aside := root + ".covo-restore-" + time.Now().Format("150405")
+	// The journal lets a restore cut short (crash, kill, reboot) be put
+	// back by the next restore or daemon start; every return below leaves
+	// a whole state behind, so it goes when this function returns.
+	j := restoreJournal{Site: name, Root: root, Aside: aside, DBEngine: before.DBEngine, DBName: before.DBName, DBFile: before.DBFile}
+	if err := c.writeRestoreJournal(j); err != nil {
+		return res, err
+	}
+	defer func() { _ = os.Remove(c.restoreJournalPath(name)) }()
 	if err := os.Rename(root, aside); err != nil {
 		return res, fmt.Errorf("move %s aside: %w", root, err)
 	}
@@ -419,4 +432,107 @@ func moveSkipped(old, restored string) error {
 		}
 	}
 	return nil
+}
+
+// restoreJournal is a restore in progress: the folder moved aside and the
+// database dump taken just before it.
+type restoreJournal struct {
+	Site     string `json:"site"`
+	Root     string `json:"root"`
+	Aside    string `json:"aside"`
+	DBEngine string `json:"db_engine,omitempty"`
+	DBName   string `json:"db_name,omitempty"`
+	DBFile   string `json:"db_file,omitempty"`
+	// FilesBack is set once the folder is back, when only the database
+	// is left to put back.
+	FilesBack bool `json:"files_back,omitempty"`
+}
+
+func (c *Core) restoreJournalDir() string { return filepath.Join(c.Layout.Data, "restores") }
+
+func (c *Core) restoreJournalPath(site string) string {
+	return filepath.Join(c.restoreJournalDir(), site+".json")
+}
+
+func (c *Core) writeRestoreJournal(j restoreJournal) error {
+	if err := os.MkdirAll(c.restoreJournalDir(), 0o700); err != nil {
+		return fmt.Errorf("create %s: %w", c.restoreJournalDir(), err)
+	}
+	b, err := json.Marshal(j)
+	if err != nil {
+		return fmt.Errorf("encode restore journal: %w", err)
+	}
+	_, err = fsutil.WriteAtomic(c.restoreJournalPath(j.Site), b, 0o600)
+	return err
+}
+
+// RecoverRestores puts back the sites whose restore was cut short (the
+// daemon runs it when it starts) and returns their names.
+func (c *Core) RecoverRestores(ctx context.Context) ([]string, error) {
+	var sites []string
+	err := c.locked(ctx, func() error {
+		var err error
+		sites, err = c.recoverRestores(ctx)
+		return err
+	})
+	return sites, err
+}
+
+// recoverRestores is RecoverRestores; the caller holds the lock. A site
+// goes back to how it was before the restore started: the folder moved
+// aside comes back and the database is reloaded from the dump taken first.
+func (c *Core) recoverRestores(ctx context.Context) ([]string, error) {
+	entries, err := os.ReadDir(c.restoreJournalDir())
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("read %s: %w", c.restoreJournalDir(), err)
+	}
+	var sites []string
+	for _, e := range entries {
+		if filepath.Ext(e.Name()) != ".json" {
+			continue
+		}
+		path := filepath.Join(c.restoreJournalDir(), e.Name())
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return sites, fmt.Errorf("read %s: %w", path, err)
+		}
+		var j restoreJournal
+		if err := json.Unmarshal(b, &j); err != nil || j.Site == "" || j.Root == "" || j.Aside == "" {
+			return sites, errcode.Errorf(errcode.Internal, fmt.Sprintf("unreadable restore journal %s: move it away and check the site by hand", path))
+		}
+		if !j.FilesBack {
+			if _, err := os.Lstat(j.Aside); err != nil {
+				// Nothing was moved yet, or the restore had finished.
+				_ = os.Remove(path)
+				continue
+			}
+			if err := os.RemoveAll(j.Root); err != nil {
+				return sites, fmt.Errorf("remove the half-restored %s: %w", j.Root, err)
+			}
+			if err := os.Rename(j.Aside, j.Root); err != nil {
+				return sites, fmt.Errorf("put %s back: %w", j.Root, err)
+			}
+			j.FilesBack = true
+			if err := c.writeRestoreJournal(j); err != nil {
+				return sites, err
+			}
+		}
+		if j.DBFile != "" {
+			site, err := c.Store.Site(ctx, j.Site)
+			if err != nil {
+				return sites, err
+			}
+			if err := c.restoreSnapshotDB(ctx, site, j.DBEngine, j.DBName, j.DBFile); err != nil {
+				return sites, fmt.Errorf("put the database of %s back: %w", j.Site, err)
+			}
+		}
+		if err := os.Remove(path); err != nil {
+			return sites, fmt.Errorf("remove %s: %w", path, err)
+		}
+		sites = append(sites, j.Site)
+	}
+	return sites, nil
 }
