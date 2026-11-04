@@ -131,7 +131,8 @@ func (s Server) Run(ctx context.Context, command string, stdin io.Reader, stdout
 		return errcode.Errorf(errcode.Unsupported, "commands need SSH")
 	}
 	var stderr strings.Builder
-	args := append(s.sshArgs(), s.target(), command)
+	// "--": the target is never read as an option.
+	args := append(s.sshArgs(), "--", s.target(), command)
 	cmd := exec.CommandContext(ctx, sshBinary(), args...)
 	cmd.Env = s.sshEnv()
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = stdin, stdout, &stderr
@@ -157,7 +158,7 @@ func (s Server) Rsync(ctx context.Context, src, dst string, excludes []string, d
 	for _, e := range excludes {
 		args = append(args, "--exclude", e)
 	}
-	args = append(args, src, dst)
+	args = append(args, "--", src, dst)
 	var out, stderr strings.Builder
 	cmd := exec.CommandContext(ctx, rsyncBinary(), args...)
 	cmd.Env = s.sshEnv()
@@ -179,7 +180,7 @@ func (s Server) Rsync(ctx context.Context, src, dst string, excludes []string, d
 func (s Server) Open(ctx context.Context) (FS, error) {
 	switch s.Transport {
 	case SSH, SFTP:
-		args := append(s.sshArgs(), "-s", s.target(), "sftp")
+		args := append(s.sshArgs(), "-s", "--", s.target(), "sftp")
 		cmd := exec.CommandContext(ctx, sshBinary(), args...)
 		cmd.Env = s.sshEnv()
 		var stderr strings.Builder

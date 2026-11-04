@@ -27,6 +27,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     -o|-p|-l) shift 2 ;;
     -s) sub=1; shift ;;
+    --) shift; break ;;
     -*) shift ;;
     *) break ;;
   esac

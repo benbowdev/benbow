@@ -45,7 +45,8 @@ const (
 	EnvAskPassAccount = "COVO_ASKPASS_ACCOUNT"
 )
 
-var remoteHostRe = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
+// remoteHostRe never starts with "-": ssh would read it as an option.
+var remoteHostRe = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9._-]*$`)
 
 func (c *Core) remoteKeychainService() string { return c.launchctl.Prefix + ".remote" }
 
@@ -88,8 +89,8 @@ func (c *Core) SetRemote(ctx context.Context, r store.Remote, password *string) 
 		return r, errcode.Errorf(errcode.InvalidInput, "transport must be ssh, sftp, ftp or ftps")
 	case !remoteHostRe.MatchString(r.Host):
 		return r, errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("bad host %q", r.Host))
-	case r.User == "" || strings.ContainsAny(r.User, " @:/"):
-		return r, errcode.Errorf(errcode.InvalidInput, "a user is needed (no spaces, @, : or /)")
+	case r.User == "" || strings.ContainsAny(r.User, " @:/\n\x00") || strings.HasPrefix(r.User, "-"):
+		return r, errcode.Errorf(errcode.InvalidInput, "a user is needed (no spaces, @, : or /, not starting with -)")
 	case r.Path == "" || strings.ContainsAny(r.Path, "\n\x00"):
 		return r, errcode.Errorf(errcode.InvalidInput, "the remote project folder is needed")
 	case !strings.HasPrefix(r.URL, "https://") && !strings.HasPrefix(r.URL, "http://"):

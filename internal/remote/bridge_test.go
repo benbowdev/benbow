@@ -5,8 +5,12 @@ package remote
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -61,5 +65,26 @@ func TestBridgeDoesNotFollowRedirects(t *testing.T) {
 	case tok := <-leaked:
 		t.Fatalf("the redirect was followed with token %q", tok)
 	default:
+	}
+}
+
+// The target always follows "--", so ssh never reads it as an option.
+func TestSSHTargetAfterDoubleDash(t *testing.T) {
+	dir := t.TempDir()
+	log := filepath.Join(dir, "args")
+	fake := filepath.Join(dir, "ssh")
+	if err := os.WriteFile(fake, []byte("#!/bin/sh\nprintf '%s\\n' \"$@\" > '"+log+"'\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(EnvSSH, fake)
+	s := Server{Transport: SSH, Host: "example.com", User: "deploy"}
+	if err := s.Run(context.Background(), "true", nil, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	b, _ := os.ReadFile(log)
+	args := strings.Split(strings.TrimSpace(string(b)), "\n")
+	i := slices.Index(args, "--")
+	if i < 0 || i+1 >= len(args) || args[i+1] != "deploy@example.com" {
+		t.Fatalf("ssh args = %q", args)
 	}
 }
