@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "ok": true,
+  "data": {
+    "blueprint": "x",
+    "installed": [
+      "x"
+    ],
+    "sources": [
+      {
+        "url": "x",
+        "sha256": "x",
+        "first_used": "2026-11-04T10:30:00Z",
+        "last_used": "2026-11-04T10:30:00Z"
+      }
+    ],
+    "warnings": [
+      "x"
+    ],
+    "snapshot": "x",
+    "notice": "x"
+  }
+}

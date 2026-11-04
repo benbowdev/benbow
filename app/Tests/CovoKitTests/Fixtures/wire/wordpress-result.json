@@ -1,0 +1,64 @@
+{
+  "schema": 1,
+  "ok": true,
+  "data": {
+    "name": "x",
+    "path": "x",
+    "php": "x",
+    "domain": "x",
+    "https": true,
+    "enabled": true,
+    "archived": true,
+    "aliases": [
+      "x"
+    ],
+    "database_user": "x",
+    "php_settings": {
+      "x": "x"
+    },
+    "group_id": 1,
+    "framework": "x",
+    "app_root": "x",
+    "database_engine": "x",
+    "created_at": "2026-11-04T10:30:00Z",
+    "position": 1,
+    "title": "x",
+    "url": "x",
+    "migration": {
+      "site": "x",
+      "source": "x",
+      "database": "x",
+      "database_user": "x",
+      "created_database": true,
+      "config_path": "x",
+      "backup_path": "x",
+      "url_from": "x",
+      "url_to": "x",
+      "at": "2026-11-04T10:30:00Z"
+    },
+    "wordpress": "x",
+    "database": "x",
+    "admin_url": "x",
+    "admin_user": "x",
+    "admin_password": "x",
+    "blueprint": {
+      "blueprint": "x",
+      "installed": [
+        "x"
+      ],
+      "sources": [
+        {
+          "url": "x",
+          "sha256": "x",
+          "first_used": "2026-11-04T10:30:00Z",
+          "last_used": "2026-11-04T10:30:00Z"
+        }
+      ],
+      "warnings": [
+        "x"
+      ],
+      "snapshot": "x",
+      "notice": "x"
+    }
+  }
+}

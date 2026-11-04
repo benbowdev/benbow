@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "ok": true,
+  "data": {
+    "site": "x",
+    "kind": "x",
+    "path": "x",
+    "size": 1,
+    "lines": [
+      "x"
+    ]
+  }
+}

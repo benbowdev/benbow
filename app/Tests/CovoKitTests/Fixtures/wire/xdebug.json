@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "ok": true,
+  "data": [
+    {
+      "php": "x",
+      "php_version": "x",
+      "enabled": true,
+      "available": true,
+      "version": "x",
+      "path": "x"
+    }
+  ]
+}

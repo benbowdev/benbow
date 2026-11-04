@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "ok": true,
+  "data": {
+    "site": "x",
+    "php": "x",
+    "target": "x",
+    "wordpress": true,
+    "scanned": [
+      "x"
+    ],
+    "errors": 1,
+    "warnings": 1,
+    "files": [
+      {
+        "path": "x",
+        "messages": [
+          {
+            "line": 1,
+            "column": 1,
+            "type": "x",
+            "message": "x",
+            "source": "x"
+          }
+        ]
+      }
+    ],
+    "seconds": 1.5
+  }
+}

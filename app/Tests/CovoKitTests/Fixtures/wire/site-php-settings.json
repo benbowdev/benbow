@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "ok": true,
+  "data": {
+    "site": "x",
+    "php": "x",
+    "memory_limit": "x",
+    "upload_max_filesize": "x",
+    "max_execution_time": 1,
+    "display_errors": true,
+    "overrides": {
+      "x": "x"
+    },
+    "applied": true
+  }
+}

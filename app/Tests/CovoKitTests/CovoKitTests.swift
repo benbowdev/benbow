@@ -145,3 +145,62 @@ extension Result where Failure == Error {
     #expect(list.count == 2)
     #expect(list[0].createdAt.timeIntervalSince(list[1].createdAt) < 1)
 }
+
+// Fixtures/wire is written by the Go test TestWireGolden (internal/api):
+// every answer the app decodes, with every field filled in. A field renamed
+// or retyped in Go fails here.
+@Test func decodesWireFixtures() throws {
+    func check<T: Decodable>(_ name: String, _ type: T.Type) throws {
+        let url = try #require(Bundle.module.url(forResource: name, withExtension: "json", subdirectory: "Fixtures/wire"), "missing Fixtures/wire/\(name).json")
+        do {
+            _ = try EnvelopeDecoder.decode(type, from: Data(contentsOf: url))
+        } catch {
+            Issue.record("wire/\(name).json does not decode as \(T.self): \(error)")
+        }
+    }
+    let decoders: [String: () throws -> Void] = [
+        "status": { try check("status", Status.self) },
+        "site-result": { try check("site-result", SiteResult.self) },
+        "site-database": { try check("site-database", SiteDatabase.self) },
+        "wordpress-result": { try check("wordpress-result", WordPressResult.self) },
+        "laravel-result": { try check("laravel-result", LaravelResult.self) },
+        "tool-result": { try check("tool-result", ToolResult.self) },
+        "site-php-settings": { try check("site-php-settings", SitePHPSettings.self) },
+        "site-log": { try check("site-log", SiteLog.self) },
+        "updates": { try check("updates", UpdatesStatus.self) },
+        "php-list": { try check("php-list", PHPList.self) },
+        "php-settings": { try check("php-settings", PHPSettings.self) },
+        "xdebug": { try check("xdebug", [XdebugStatus].self) },
+        "mysql-credentials": { try check("mysql-credentials", MySQLCredentials.self) },
+        "import-plan": { try check("import-plan", ImportPlan.self) },
+        "group": { try check("group", SiteGroup.self) },
+        "php-check": { try check("php-check", PHPCheckResult.self) },
+        "ports": { try check("ports", PortsStatus.self) },
+        "mcp-permissions": { try check("mcp-permissions", MCPPermissions.self) },
+        "mcp-actions": { try check("mcp-actions", [MCPAction].self) },
+        "blueprints": { try check("blueprints", [BlueprintInfo].self) },
+        "blueprint-result": { try check("blueprint-result", BlueprintResult.self) },
+        "remotes": { try check("remotes", [Remote].self) },
+        "sync-result": { try check("sync-result", SyncResult.self) },
+        "snapshots": { try check("snapshots", [Snapshot].self) },
+        "restore-result": { try check("restore-result", RestoreResult.self) },
+        "agent-sessions": { try check("agent-sessions", [AgentSession].self) },
+        "close-session": { try check("close-session", CloseSessionResult.self) },
+        "session-diff": { try check("session-diff", SessionDiff.self) },
+        "agent-tools": { try check("agent-tools", AgentTools.self) },
+        "agent-connect": { try check("agent-connect", AgentConnectResult.self) },
+        "agent-start": { try check("agent-start", AgentStartResult.self) },
+        "phone": { try check("phone", PhoneStatus.self) },
+    ]
+    let dir = try #require(Bundle.module.url(forResource: "wire", withExtension: nil, subdirectory: "Fixtures"))
+    let files = try FileManager.default.contentsOfDirectory(atPath: dir.path).filter { $0.hasSuffix(".json") }
+    #expect(!files.isEmpty)
+    for file in files.sorted() {
+        let name = String(file.dropLast(".json".count))
+        guard let decode = decoders[name] else {
+            Issue.record("wire/\(file) has no Swift type in decodesWireFixtures")
+            continue
+        }
+        try decode()
+    }
+}

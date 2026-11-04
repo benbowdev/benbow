@@ -29,11 +29,19 @@ Request bodies are strict JSON (unknown fields are refused).
 | HTTP | Codes |
 |---|---|
 | 400 | `invalid_input`, `forbidden_folder` |
+| 403 | `forbidden` |
 | 404 | `not_found` |
 | 409 | `conflict`, `port_in_use`, `confirmation_required`, `locked` |
 | 422 | `unsupported` |
 | 502 | `download_failed`, `checksum_mismatch` |
 | 500 | everything else |
+
+The data of every answer the app decodes is pinned by
+`app/Tests/CovoKitTests/Fixtures/wire/*.json`: the Go test `TestWireGolden`
+(`internal/api`) writes each type with every field filled in, and the Swift
+test `decodesWireFixtures` decodes each file into its model. A change shows
+up as a diff of those files: adding a field is fine (rerun the Go test with
+`-update`), renaming, retyping or removing one breaks the app.
 
 ## Routes
 

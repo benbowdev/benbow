@@ -1,0 +1,65 @@
+{
+  "schema": 1,
+  "ok": true,
+  "data": {
+    "source": "x",
+    "dry_run": true,
+    "items": [
+      {
+        "mamp": {
+          "server_name": "x",
+          "document_root": "x",
+          "php_version": "x",
+          "ssl": true,
+          "aliases": [
+            "x"
+          ],
+          "databases": [
+            "x"
+          ],
+          "db": {
+            "host": "x",
+            "port": 1,
+            "socket": "x",
+            "user": "x"
+          }
+        },
+        "action": "x",
+        "reason": "x",
+        "name": "x",
+        "domain": "x",
+        "php": "x",
+        "aliases": [
+          "x"
+        ],
+        "database": "x",
+        "warnings": [
+          "x"
+        ],
+        "migration": {
+          "framework": "x",
+          "database": "x",
+          "server": "x",
+          "exists": true,
+          "config": "x",
+          "url_from": "x",
+          "url_to": "x",
+          "steps": [],
+          "problem": "x",
+          "done": true,
+          "error": "x"
+        }
+      }
+    ],
+    "create": 1,
+    "skip": 1,
+    "needs_local": true,
+    "needs_test": true,
+    "databases": [
+      "x"
+    ],
+    "applied": true,
+    "kind": "x",
+    "migrated": 1
+  }
+}

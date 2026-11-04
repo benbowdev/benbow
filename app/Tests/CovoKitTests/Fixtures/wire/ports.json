@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "ok": true,
+  "data": {
+    "https_port": 1,
+    "https_listen_port": 1,
+    "http_port": 1,
+    "http_listen_port": 1,
+    "forwarded": true,
+    "active": [
+      {
+        "from": 1,
+        "to": 1
+      }
+    ],
+    "error": "x"
+  }
+}

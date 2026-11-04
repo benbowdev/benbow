@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "ok": true,
+  "data": {
+    "agent": "x",
+    "config_path": "x",
+    "backup": "x",
+    "command": "x",
+    "already": true,
+    "restart": true
+  }
+}

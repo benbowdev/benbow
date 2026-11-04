@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "ok": true,
+  "data": [
+    {
+      "id": 1,
+      "at": "2026-11-04T10:30:00Z",
+      "tool": "x",
+      "site": "x",
+      "args": "x",
+      "ok": true,
+      "error": "x",
+      "snapshot": "x",
+      "dry_run": true
+    }
+  ]
+}

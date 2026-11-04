@@ -1,0 +1,152 @@
+{
+  "schema": 1,
+  "ok": true,
+  "data": {
+    "running": true,
+    "https_port": 1,
+    "http_port": 1,
+    "home": "x",
+    "services": [
+      {
+        "name": "x",
+        "label": "x",
+        "running": true,
+        "pid": 1
+      }
+    ],
+    "sites": [
+      {
+        "name": "x",
+        "path": "x",
+        "php": "x",
+        "domain": "x",
+        "https": true,
+        "enabled": true,
+        "archived": true,
+        "aliases": [
+          "x"
+        ],
+        "database": "x",
+        "database_user": "x",
+        "php_settings": {
+          "x": "x"
+        },
+        "group_id": 1,
+        "framework": "x",
+        "app_root": "x",
+        "database_engine": "x",
+        "created_at": "2026-11-04T10:30:00Z",
+        "position": 1,
+        "title": "x",
+        "url": "x",
+        "migration": {
+          "site": "x",
+          "source": "x",
+          "database": "x",
+          "database_user": "x",
+          "created_database": true,
+          "config_path": "x",
+          "backup_path": "x",
+          "url_from": "x",
+          "url_to": "x",
+          "at": "2026-11-04T10:30:00Z"
+        }
+      }
+    ],
+    "ca": {
+      "cert_path": "x",
+      "exists": true,
+      "trusted": true
+    },
+    "domains": [
+      {
+        "zone": "x",
+        "enabled": true,
+        "dns_port": 1,
+        "resolver": {
+          "path": "x",
+          "installed": true,
+          "port": 1,
+          "foreign": true
+        },
+        "helper": {
+          "installed": true,
+          "running": true,
+          "version": "x",
+          "names": [],
+          "error": "x"
+        }
+      }
+    ],
+    "mysql": {
+      "enabled": true,
+      "version": "x",
+      "host": "x",
+      "port": 1,
+      "socket": "x",
+      "user": "x",
+      "data_dir": "x",
+      "initialized": true,
+      "password_stored": true,
+      "running": true
+    },
+    "adminer_url": "x",
+    "mail": {
+      "enabled": true,
+      "version": "x",
+      "running": true,
+      "smtp_port": 1,
+      "ui_port": 1,
+      "url": "x"
+    },
+    "postgres": {
+      "enabled": true,
+      "version": "x",
+      "host": "x",
+      "port": 1,
+      "user": "x",
+      "data_dir": "x",
+      "initialized": true,
+      "password_stored": true,
+      "running": true
+    },
+    "redis": {
+      "enabled": true,
+      "version": "x",
+      "host": "x",
+      "port": 1,
+      "socket": "x",
+      "data_dir": "x",
+      "running": true
+    },
+    "phone": {
+      "site": "x",
+      "host": "x",
+      "port": 1,
+      "until": "2026-11-04T10:30:00Z",
+      "ca_port": 1,
+      "plain_port": 1,
+      "url": "x",
+      "plain_url": "x",
+      "ca_page_url": "x",
+      "addresses": [
+        "x"
+      ],
+      "firewall": "x",
+      "minutes_left": 1
+    },
+    "groups": [
+      {
+        "id": 1,
+        "name": "x",
+        "parent_id": 1,
+        "position": 1,
+        "created_at": "2026-11-04T10:30:00Z",
+        "path": "x"
+      }
+    ],
+    "orphans": [
+      "x"
+    ]
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "ok": true,
+  "data": {
+    "checked_at": "2026-11-04T10:30:00Z",
+    "serial": 1,
+    "error": "x",
+    "updates": [
+      {
+        "component": "x",
+        "current": "x",
+        "available": "x",
+        "blocked": "x"
+      }
+    ],
+    "applied": [
+      {
+        "component": "x",
+        "current": "x",
+        "available": "x",
+        "blocked": "x"
+      }
+    ],
+    "live": true
+  }
+}

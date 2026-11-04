@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "ok": true,
+  "data": {
+    "installed": [
+      {
+        "version": "x",
+        "minor": "x",
+        "path": "x",
+        "sha256": "x",
+        "installed_at": "2026-11-04T10:30:00Z"
+      }
+    ],
+    "available": [
+      "x"
+    ],
+    "support": [
+      {
+        "minor": "x",
+        "status": "x",
+        "active_until": "x",
+        "security_until": "x"
+      }
+    ]
+  }
+}

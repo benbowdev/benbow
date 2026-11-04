@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "ok": true,
+  "data": {
+    "site": "x",
+    "database": "x",
+    "user": "x",
+    "password": "x",
+    "host": "x",
+    "port": 1,
+    "socket": "x",
+    "dedicated": true,
+    "dropped": true,
+    "engine": "x"
+  }
+}

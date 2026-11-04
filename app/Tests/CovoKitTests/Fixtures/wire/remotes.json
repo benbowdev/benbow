@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "ok": true,
+  "data": [
+    {
+      "site": "x",
+      "name": "x",
+      "kind": "x",
+      "transport": "x",
+      "host": "x",
+      "port": 1,
+      "user": "x",
+      "path": "x",
+      "url": "x",
+      "webroot": "x",
+      "paths": [
+        "x"
+      ],
+      "excludes": [
+        "x"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "schema": 1,
+  "ok": true,
+  "data": {
+    "site": "x",
+    "session": "x",
+    "since": "2026-11-04T10:30:00Z",
+    "files": {
+      "added": 1,
+      "modified": 1,
+      "deleted": 1,
+      "changes": [
+        {
+          "path": "x",
+          "change": "x",
+          "size": 1,
+          "sensitive": true
+        }
+      ],
+      "truncated": true
+    },
+    "database": {
+      "engine": "x",
+      "database": "x",
+      "tables": [
+        {
+          "table": "x",
+          "change": "x",
+          "inserted": 1,
+          "updated": 1,
+          "deleted": 1
+        }
+      ],
+      "approximate": true,
+      "note": "x"
+    }
+  }
+}

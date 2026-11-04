@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "ok": true,
+  "data": {
+    "site": "x",
+    "remote": "x",
+    "dry_run": true,
+    "files": [
+      "x"
+    ],
+    "database": "x",
+    "url_from": "x",
+    "url_to": "x",
+    "snapshot": "x",
+    "steps": [
+      "x"
+    ]
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "ok": true,
+  "data": {
+    "all": true,
+    "sites": [
+      "x"
+    ],
+    "temporary": [
+      "x"
+    ]
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "ok": true,
+  "data": {
+    "exit_code": 1,
+    "output": "x",
+    "errors": "x"
+  }
+}

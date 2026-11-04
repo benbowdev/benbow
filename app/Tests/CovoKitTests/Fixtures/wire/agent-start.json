@@ -1,0 +1,81 @@
+{
+  "schema": 1,
+  "ok": true,
+  "data": {
+    "session": {
+      "id": "x",
+      "site": "x",
+      "opened_at": "2026-11-04T10:30:00Z",
+      "last_active": "2026-11-04T10:30:00Z",
+      "agent": "x",
+      "source": "x",
+      "base_snapshot": "x",
+      "database_saved": true,
+      "write_grant": true,
+      "launched_tool": "x",
+      "agent_running": true,
+      "closed_at": "2026-11-04T10:30:00Z",
+      "outcome": "x",
+      "url": "x",
+      "base": {
+        "id": "x",
+        "site": "x",
+        "created_at": "2026-11-04T10:30:00Z",
+        "kind": "x",
+        "note": "x",
+        "database_engine": "x",
+        "database": "x",
+        "database_file": "x",
+        "files_dir": "x",
+        "root": "x",
+        "bytes": 1,
+        "session_id": "x"
+      },
+      "checkpoints": [
+        {
+          "id": "x",
+          "site": "x",
+          "created_at": "2026-11-04T10:30:00Z",
+          "kind": "x",
+          "note": "x",
+          "database_engine": "x",
+          "database": "x",
+          "database_file": "x",
+          "files_dir": "x",
+          "root": "x",
+          "bytes": 1,
+          "session_id": "x"
+        }
+      ],
+      "idle_hours": 1
+    },
+    "started": {
+      "agent": "x",
+      "terminal": "x",
+      "script": "x",
+      "command": [
+        "x"
+      ],
+      "needs_global": true
+    },
+    "connected": {
+      "agent": "x",
+      "config_path": "x",
+      "backup": "x",
+      "command": "x",
+      "already": true,
+      "restart": true
+    },
+    "agent": {
+      "id": "x",
+      "name": "x",
+      "kind": "x",
+      "installed": true,
+      "path": "x",
+      "connected": true,
+      "config_path": "x",
+      "per_run": true,
+      "can_connect": true
+    }
+  }
+}

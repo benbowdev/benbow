@@ -1,0 +1,53 @@
+{
+  "schema": 1,
+  "ok": true,
+  "data": [
+    {
+      "id": "x",
+      "site": "x",
+      "opened_at": "2026-11-04T10:30:00Z",
+      "last_active": "2026-11-04T10:30:00Z",
+      "agent": "x",
+      "source": "x",
+      "base_snapshot": "x",
+      "database_saved": true,
+      "write_grant": true,
+      "launched_tool": "x",
+      "agent_running": true,
+      "closed_at": "2026-11-04T10:30:00Z",
+      "outcome": "x",
+      "url": "x",
+      "base": {
+        "id": "x",
+        "site": "x",
+        "created_at": "2026-11-04T10:30:00Z",
+        "kind": "x",
+        "note": "x",
+        "database_engine": "x",
+        "database": "x",
+        "database_file": "x",
+        "files_dir": "x",
+        "root": "x",
+        "bytes": 1,
+        "session_id": "x"
+      },
+      "checkpoints": [
+        {
+          "id": "x",
+          "site": "x",
+          "created_at": "2026-11-04T10:30:00Z",
+          "kind": "x",
+          "note": "x",
+          "database_engine": "x",
+          "database": "x",
+          "database_file": "x",
+          "files_dir": "x",
+          "root": "x",
+          "bytes": 1,
+          "session_id": "x"
+        }
+      ],
+      "idle_hours": 1
+    }
+  ]
+}
