@@ -23,8 +23,8 @@ func TestJSONEnvelope(t *testing.T) {
 		wantErr  string
 	}{
 		{"version ok", []string{"version", "--json"}, 0, true, ""},
-		{"unknown command", []string{"nope", "--json"}, 1, false, "invalid_input"},
-		{"bad args", []string{"version", "extra", "--json"}, 1, false, "invalid_input"},
+		{"unknown command", []string{"nope", "--json"}, 2, false, "invalid_input"},
+		{"bad args", []string{"version", "extra", "--json"}, 2, false, "invalid_input"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

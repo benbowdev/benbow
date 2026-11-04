@@ -36,6 +36,14 @@ Request bodies are strict JSON (unknown fields are refused).
 | 502 | `download_failed`, `checksum_mismatch` |
 | 500 | everything else |
 
+`covo` exits with a code per error, so scripts can tell failures apart
+without `--json` (it never changes, it only grows): 0 ok, 1 anything else
+(`internal`, `service_failed`), 2 `invalid_input`/`forbidden_folder` (usage
+errors included), 3 `not_found`, 4 `conflict`/`port_in_use`/`locked`, 5
+`confirmation_required`, 6 `forbidden`, 7 `unsupported`, 8
+`download_failed`/`checksum_mismatch`. `covo wp`, `composer` and `artisan`
+pass on the tool's own exit code.
+
 The data of every answer the app decodes is pinned by
 `app/Tests/CovoKitTests/Fixtures/wire/*.json`: the Go test `TestWireGolden`
 (`internal/api`) writes each type with every field filled in, and the Swift

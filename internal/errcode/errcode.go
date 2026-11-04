@@ -52,6 +52,28 @@ func Errorf(code, msg string) error {
 	return &Error{Code: code, Err: errors.New(msg)}
 }
 
+// ExitCode is the process exit code for a code, so scripts can tell
+// failures apart without --json. Like the codes, they never change.
+func ExitCode(code string) int {
+	switch code {
+	case InvalidInput, ForbiddenFolder:
+		return 2
+	case NotFound:
+		return 3
+	case Conflict, PortInUse, Locked:
+		return 4
+	case ConfirmationRequired:
+		return 5
+	case Forbidden:
+		return 6
+	case Unsupported:
+		return 7
+	case Download, Checksum:
+		return 8
+	}
+	return 1
+}
+
 // Code returns the code of the first *Error in err's chain, or Internal.
 func Code(err error) string {
 	var e *Error

@@ -57,7 +57,7 @@ func execute(ctx context.Context, args []string, stdin io.Reader, stdout, stderr
 		} else {
 			writeError(stderr, false, err)
 		}
-		return 1
+		return errcode.ExitCode(errcode.Code(err))
 	}
 	return a.exit
 }
