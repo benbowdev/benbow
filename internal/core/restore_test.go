@@ -109,3 +109,53 @@ func TestRecoverRestoreBadJournal(t *testing.T) {
 		t.Fatal("a broken journal was ignored")
 	}
 }
+
+// Snapshots leave out .git and node_modules at any depth, and a restore
+// brings them back from the folder moved aside, where their parent still
+// exists.
+func TestCloneTreeAndMoveSkipped(t *testing.T) {
+	base := t.TempDir()
+	src := filepath.Join(base, "my shop")
+	writeFile(t, filepath.Join(src, "index.php"), "v1")
+	writeFile(t, filepath.Join(src, "wp-content", "themes", "t", "style.css"), "css")
+	writeFile(t, filepath.Join(src, ".git", "HEAD"), "ref")
+	writeFile(t, filepath.Join(src, "wp-content", "themes", "t", "node_modules", "x.js"), "js")
+
+	snap := filepath.Join(base, "snapshot", "files")
+	if err := os.MkdirAll(filepath.Dir(snap), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := cloneTree(src, snap); err != nil {
+		t.Fatal(err)
+	}
+	if got := readFile(t, filepath.Join(snap, "wp-content", "themes", "t", "style.css")); got != "css" {
+		t.Fatalf("style.css = %q", got)
+	}
+	for _, skipped := range []string{".git", "wp-content/themes/t/node_modules"} {
+		if _, err := os.Lstat(filepath.Join(snap, skipped)); !os.IsNotExist(err) {
+			t.Errorf("%s saved in the snapshot: %v", skipped, err)
+		}
+	}
+
+	// The site changes, then the snapshot is restored.
+	writeFile(t, filepath.Join(src, "index.php"), "v2")
+	aside := src + ".covo-restore-1"
+	if err := os.Rename(src, aside); err != nil {
+		t.Fatal(err)
+	}
+	if err := cloneTree(snap, src); err != nil {
+		t.Fatal(err)
+	}
+	if err := moveSkipped(aside, src); err != nil {
+		t.Fatal(err)
+	}
+	if got := readFile(t, filepath.Join(src, "index.php")); got != "v1" {
+		t.Fatalf("index.php = %q, want the snapshot's", got)
+	}
+	if got := readFile(t, filepath.Join(src, ".git", "HEAD")); got != "ref" {
+		t.Fatalf(".git not moved back: %q", got)
+	}
+	if got := readFile(t, filepath.Join(src, "wp-content", "themes", "t", "node_modules", "x.js")); got != "js" {
+		t.Fatalf("node_modules not moved back: %q", got)
+	}
+}
