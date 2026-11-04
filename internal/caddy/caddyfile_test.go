@@ -34,7 +34,8 @@ func TestCaddyfileGolden(t *testing.T) {
 		{"two-sites", []Site{
 			{Name: "demo", Domain: "demo.localhost", Aliases: []string{"shop.test", "www.demo.localhost"}, Root: "/Users/test/Sites/My Demo", FPMSocket: home + "/run/php84.sock",
 				AccessLog: home + "/logs/sites/demo/access.log",
-				PHPValue:  "memory_limit=1G\ndisplay_errors=Off\nerror_log=" + home + "/logs/sites/demo/php-error.log"},
+				PHPValue:  "memory_limit=1G\ndisplay_errors=Off\nerror_log=" + home + "/logs/sites/demo/php-error.log",
+				ProbeDir:  home + "/tmp/probes", ProbePHPValue: "memory_limit=1G\ndisplay_errors=Off"},
 			{Name: "legacy", Domain: "legacy.localhost", Root: "/Users/test/Sites/legacy", FPMSocket: home + "/run/php82.sock"},
 		}, &Adminer{Dir: home + "/components/adminer/6.2.0-all", FPMSocket: home + "/run/php84.sock"},
 			&Phone{Site: "demo", Host: "demo-mac.local", Port: 9443, Binds: []string{"192.168.1.5", "10.0.0.2"},

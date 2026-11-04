@@ -52,6 +52,8 @@ Request bodies are strict JSON (unknown fields are refused).
 | `GET /v1/postgres`, `POST /v1/postgres/{enable,disable}`, `GET /v1/postgres/{credentials,databases}` | `{port}` | `covo postgres`, `covo db list --engine pgsql` |
 | `GET /v1/redis`, `POST /v1/redis/{enable,disable}` | `{port}` | `covo redis` |
 | `GET`, `POST /v1/sites/{name}/snapshots`, `POST …/snapshots/{id}/restore`, `DELETE …/snapshots/{id}`, `GET`, `PUT /v1/snapshots/keep` | `{note}`, `{keep}` | `covo snapshot` |
+| `GET /v1/agent/sessions`, `GET /v1/sites/{name}/agent-session`, `POST …/agent-session/keep`, `…/revert`, `GET …/agent-session/diff`, `GET`, `PUT /v1/agent/idle` | `?all=1`, `?file=`, `{hours}` | `covo agent session`, `covo agent diff`, `covo agent idle` (`agents.md`) |
+| `POST /v1/sites/{name}/fetch`, `POST /v1/sites/{name}/query`, `GET /v1/mail/messages`, `GET /v1/mail/messages/{id}` | `{path, method, html}`, `{sql}`, `?to=&subject=&limit=` | `covo fetch`, `covo db query`, `covo mail list`, `show` |
 | `GET /v1/sites/{name}/remotes`, `PUT`, `DELETE …/remotes/{remote}`, `POST …/remotes/{remote}/pull\|push` | see `sync.md` | `covo remote`, `covo pull`, `covo push` |
 | `GET /v1/mcp/permissions`, `PUT` `{scope, write}`, `GET /v1/mcp/actions` | see `mcp.md` | `covo mcp allow\|deny\|status\|log` |
 | `GET /v1/blueprints`, `GET\|PUT\|DELETE /v1/blueprints/{name}` (PUT body: the JSON, `?overwrite=1`), `POST /v1/blueprints/{name}/apply` `{site, dry_run, accept_changes}`, `POST /v1/sites/{name}/blueprint` `{name, overwrite}`, `GET /v1/blueprints/sources`, `GET\|PUT /v1/github-token` | see `blueprints.md`; `POST /v1/wordpress` takes `blueprint`, `accept_changes` | `covo blueprint`, `covo wordpress --blueprint` |

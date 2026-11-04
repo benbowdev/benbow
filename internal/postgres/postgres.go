@@ -159,3 +159,24 @@ func Restore(ctx context.Context, binDir string, port int, password, db, role, p
 	}
 	return nil
 }
+
+// QueryAs runs sql as role (with its password) on db, with extra server
+// options (e.g. "-c statement_timeout=10s"), and returns tab-separated
+// output with a first line of column names.
+func QueryAs(ctx context.Context, psql string, port int, role, password, db, options, sql, tmpDir string) (string, error) {
+	pass, remove, err := secretFile(tmpDir, "127.0.0.1:"+strconv.Itoa(port)+":*:"+passEscape(role)+":"+passEscape(password)+"\n")
+	if err != nil {
+		return "", err
+	}
+	defer remove()
+	cmd := exec.CommandContext(ctx, psql, "-h", "127.0.0.1", "-p", strconv.Itoa(port), "-U", role, "-d", db,
+		"-v", "ON_ERROR_STOP=1", "-X", "-q", "-A", "-F", "\t", "-P", "footer=off", "-f", "-")
+	cmd.Env = append(cleanEnv(), "PGPASSFILE="+pass, "PGCONNECT_TIMEOUT=10", "PGOPTIONS="+options)
+	cmd.Stdin = strings.NewReader(sql)
+	var out, errs bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &out, &errs
+	if err := cmd.Run(); err != nil {
+		return "", errcode.New(errcode.InvalidInput, fmt.Errorf("psql: %s", strings.TrimSpace(errs.String())))
+	}
+	return out.String(), nil
+}

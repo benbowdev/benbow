@@ -357,3 +357,27 @@ func ValidName(name string, maxLen int) bool {
 }
 
 var nameRe = regexp.MustCompile(`^[a-z0-9_]+$`)
+
+// QueryAs runs sql as user on db and returns the tab-separated output with
+// a first line of column names (batch mode: tabs and newlines in values
+// are escaped). The password goes through /dev/fd/3.
+func QueryAs(ctx context.Context, client string, port int, user, password, db, sql string, timeout time.Duration) (string, error) {
+	if err := checkPassword(password); err != nil {
+		return "", err
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	var out, errOut bytes.Buffer
+	cmd := exec.CommandContext(ctx, client, "--defaults-extra-file=/dev/fd/3",
+		"--protocol=TCP", "-h", "127.0.0.1", "-P", strconv.Itoa(port), "-u", user, "-D", db, "--batch")
+	cmd.Stdin = strings.NewReader(sql)
+	cmd.Stdout, cmd.Stderr = &out, &errOut
+	if err := withFD3(cmd, "[client]\npassword="+password+"\n"); err != nil {
+		msg := strings.TrimSpace(errOut.String())
+		if ctx.Err() != nil {
+			msg = "stopped after " + timeout.String()
+		}
+		return "", errcode.New(errcode.InvalidInput, fmt.Errorf("mysql: %s", msg))
+	}
+	return out.String(), nil
+}

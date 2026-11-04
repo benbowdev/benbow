@@ -39,6 +39,12 @@
 			roll_keep 2
 		}
 	}
+	@covoprobe header_regexp covoprobe X-Covo-Probe ^[0-9a-f]{32}$
+	php_fastcgi @covoprobe "unix//Users/test/Library/Application Support/covo/run/php84.sock" {
+		env PHP_VALUE "memory_limit=1G
+display_errors=Off
+error_log=/Users/test/Library/Application Support/covo/tmp/probes/{http.request.header.X-Covo-Probe}.log"
+	}
 	php_fastcgi "unix//Users/test/Library/Application Support/covo/run/php84.sock" {
 		env PHP_VALUE "memory_limit=1G
 display_errors=Off

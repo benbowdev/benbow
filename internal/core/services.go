@@ -161,13 +161,15 @@ func (c *Core) renderCaddyfile(ctx context.Context, p Ports, sites []store.Site,
 			return "", err
 		}
 		cfg.Sites = append(cfg.Sites, caddy.Site{
-			Name:      s.Name,
-			Domain:    s.Domain,
-			Aliases:   s.Aliases,
-			Root:      s.Path,
-			FPMSocket: c.Layout.Socket(socketName(s.PHPMinor)),
-			AccessLog: c.siteLogPath(s.Name, LogAccess),
-			PHPValue:  settings.PHPValue(c.siteLogPath(s.Name, LogPHP)),
+			Name:          s.Name,
+			Domain:        s.Domain,
+			Aliases:       s.Aliases,
+			Root:          s.Path,
+			FPMSocket:     c.Layout.Socket(socketName(s.PHPMinor)),
+			AccessLog:     c.siteLogPath(s.Name, LogAccess),
+			PHPValue:      settings.PHPValue(c.siteLogPath(s.Name, LogPHP)),
+			ProbeDir:      c.probeDir(),
+			ProbePHPValue: settings.PHPValue(""),
 		})
 	}
 	body, err := caddy.Caddyfile(cfg)

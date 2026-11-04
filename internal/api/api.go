@@ -126,6 +126,10 @@ type Backend interface {
 	AgentSession(ctx context.Context, site string) (core.SessionInfo, error)
 	CloseAgentSession(ctx context.Context, site, outcome string) (core.CloseResult, error)
 	AgentSessionDiff(ctx context.Context, site string) (core.SessionDiff, error)
+	FetchPage(ctx context.Context, req core.FetchRequest) (core.FetchResult, error)
+	MailMessages(ctx context.Context, q core.MailQuery) ([]core.MailMessage, error)
+	MailMessage(ctx context.Context, id string) (core.MailContent, error)
+	QueryDatabase(ctx context.Context, site, sql string) (core.QueryResult, error)
 	AgentSessionFileDiff(ctx context.Context, site, file string, opts core.DiffOptions) (core.FileDiffResult, error)
 	SessionIdleHours(ctx context.Context) (int, error)
 	SetSessionIdleHours(ctx context.Context, h int) error
@@ -545,6 +549,36 @@ func Handler(b Backend) http.Handler {
 			return
 		}
 		v, err := b.AgentSessionDiff(r.Context(), r.PathValue("name"))
+		reply(w, v, err)
+	})
+	post("POST", "/v1/sites/{name}/fetch", func(r *http.Request, body []byte) (any, error) {
+		var req struct {
+			Path   string `json:"path"`
+			Method string `json:"method"`
+			HTML   bool   `json:"html"`
+		}
+		if err := decode(body, &req); err != nil {
+			return nil, err
+		}
+		return b.FetchPage(r.Context(), core.FetchRequest{Site: r.PathValue("name"), Path: req.Path, Method: req.Method, HTML: req.HTML})
+	})
+	post("POST", "/v1/sites/{name}/query", func(r *http.Request, body []byte) (any, error) {
+		var req struct {
+			SQL string `json:"sql"`
+		}
+		if err := decode(body, &req); err != nil {
+			return nil, err
+		}
+		return b.QueryDatabase(r.Context(), r.PathValue("name"), req.SQL)
+	})
+	mux.HandleFunc("GET /v1/mail/messages", func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		limit, _ := strconv.Atoi(q.Get("limit"))
+		v, err := b.MailMessages(r.Context(), core.MailQuery{To: q.Get("to"), Subject: q.Get("subject"), Limit: limit})
+		reply(w, v, err)
+	})
+	mux.HandleFunc("GET /v1/mail/messages/{id}", func(w http.ResponseWriter, r *http.Request) {
+		v, err := b.MailMessage(r.Context(), r.PathValue("id"))
 		reply(w, v, err)
 	})
 	post("POST", "/v1/sites/{name}/agent-session/keep", func(r *http.Request, _ []byte) (any, error) {

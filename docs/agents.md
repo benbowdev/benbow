@@ -98,3 +98,36 @@ API: `GET /v1/agent/sessions` (`?all=1`), `GET /v1/sites/{name}/agent-session`,
 `GET /v1/sites/{name}/agent-session/diff` (`?file=`),
 `POST /v1/sites/{name}/agent-session/keep`, `…/revert`, `GET`, `PUT
 /v1/agent/idle` (`hours`).
+
+## Checking the work
+
+Three read-only tools (MCP and CLI) let an agent check what it did:
+
+```sh
+covo fetch shop /checkout/            # status, redirects, title, text, PHP errors of that request
+covo mail list --to buyer@example.com # the mail PHP sent (Mailpit)
+covo mail show                        # the newest message: text and links
+covo db query shop "SELECT * FROM wp_options WHERE option_name = 'home'"
+```
+
+- **`fetch_page`** requests a page of a Covo site (GET or HEAD; only Covo's
+  own addresses, redirects followed only within them) and returns the
+  status, main headers, redirects, title, readable text and the PHP errors,
+  warnings, notices and deprecations **of that request**. Covo sends an
+  `X-Covo-Probe` header; Caddy gives that request its own PHP error log in
+  `tmp/probes/`, which Covo reads, appends to the site's log and deletes.
+  Other requests are untouched (one header check each).
+- **`mail_messages`, `read_mail`** read Mailpit (Settings → Mail): recipient
+  and subject filters, the text and the links of a message, attachment
+  names.
+- **`query_database`** runs one SELECT, SHOW, DESCRIBE, EXPLAIN or WITH
+  statement: no `;` inside, no `INTO OUTFILE`, `FOR UPDATE`, file or sleep
+  functions. It runs in a read-only transaction (10 seconds, 500 rows) as
+  a user that can only read: on MySQL Covo makes one per database
+  (`covo_ro_…`, SELECT and SHOW VIEW only, password in the keychain); on
+  PostgreSQL the site's own role. Changes go through `wp` or `artisan`
+  inside the session.
+
+API: `POST /v1/sites/{name}/fetch` (`path`, `method`, `html`),
+`GET /v1/mail/messages` (`to`, `subject`, `limit`), `GET /v1/mail/messages/{id}`
+(`latest` for the newest), `POST /v1/sites/{name}/query` (`sql`).

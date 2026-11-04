@@ -88,6 +88,17 @@ func New(open Open) *mcp.Server {
 		Description: "What changed since the site's agent session started: files added, modified and deleted (.git and node_modules left out), " +
 			"and database tables with rows inserted, updated and deleted. file gives one file's unified diff; secrets in .env, " +
 			"wp-config.php and key files are masked. Show this to the user before saying the work is done."}, t.sessionDiff)
+	mcp.AddTool(s, &mcp.Tool{Name: "fetch_page", Title: "Fetch a page", Annotations: ro,
+		Description: "Requests a page of a Covo site (GET or HEAD; never another address) like a browser and returns the status, main headers, " +
+			"redirects, title, the page's text, and the PHP errors, warnings, notices and deprecations that this very request produced. " +
+			"Use it to check your work."}, t.fetchPage)
+	mcp.AddTool(s, &mcp.Tool{Name: "mail_messages", Title: "Mail sent", Annotations: ro,
+		Description: "The newest messages PHP sent, caught by Covo's Mailpit (nothing leaves the Mac); filter by recipient or subject words."}, t.mailMessages)
+	mcp.AddTool(s, &mcp.Tool{Name: "read_mail", Title: "Read a mail", Annotations: ro,
+		Description: "One caught message (id from mail_messages, or the newest): sender, recipients, text and links, to check forms and notifications."}, t.readMail)
+	mcp.AddTool(s, &mcp.Tool{Name: "query_database", Title: "Query the database", Annotations: ro,
+		Description: "Runs one read-only SQL statement (SELECT, SHOW, DESCRIBE, EXPLAIN, WITH) on a site's database, as a user that can only read, " +
+			"in a read-only transaction: at most 500 rows, 10 seconds. Changes go through wp or artisan."}, t.queryDatabase)
 	mcp.AddTool(s, &mcp.Tool{Name: "list_blueprints", Title: "List blueprints", Annotations: ro,
 		Description: "Saved WordPress blueprints (themes, plugins, options); name gives one blueprint's JSON."}, t.listBlueprints)
 	mcp.AddTool(s, &mcp.Tool{Name: "agent_permissions", Title: "What agents may change", Annotations: ro,
@@ -390,6 +401,48 @@ type siteIn struct {
 
 func (t tools) listSnapshots(ctx context.Context, _ *mcp.CallToolRequest, in siteIn) (*mcp.CallToolResult, any, error) {
 	return readSite(ctx, t, in.Site, func(c *core.Core) ([]store.Snapshot, error) { return c.ListSnapshots(ctx, in.Site) })
+}
+
+type fetchIn struct {
+	Site   string `json:"site" jsonschema:"the site's name"`
+	Path   string `json:"path,omitempty" jsonschema:"path on the site, e.g. /shop/?p=2 (default /), or a full URL on a Covo site's address"`
+	Method string `json:"method,omitempty" jsonschema:"GET (default) or HEAD"`
+	HTML   bool   `json:"html,omitempty" jsonschema:"also return the page's HTML (cut at 100 KiB)"`
+}
+
+func (t tools) fetchPage(ctx context.Context, _ *mcp.CallToolRequest, in fetchIn) (*mcp.CallToolResult, any, error) {
+	return readSite(ctx, t, in.Site, func(c *core.Core) (core.FetchResult, error) {
+		return c.FetchPage(ctx, core.FetchRequest{Site: in.Site, Path: in.Path, Method: in.Method, HTML: in.HTML})
+	})
+}
+
+type mailIn struct {
+	To      string `json:"to,omitempty" jsonschema:"only mail to this address"`
+	Subject string `json:"subject,omitempty" jsonschema:"only mail with these words in the subject"`
+	Limit   int    `json:"limit,omitempty" jsonschema:"how many (default 20)"`
+}
+
+func (t tools) mailMessages(ctx context.Context, _ *mcp.CallToolRequest, in mailIn) (*mcp.CallToolResult, any, error) {
+	return read(ctx, t.open, func(c *core.Core) ([]core.MailMessage, error) {
+		return c.MailMessages(ctx, core.MailQuery{To: in.To, Subject: in.Subject, Limit: in.Limit})
+	})
+}
+
+type readMailIn struct {
+	ID string `json:"id,omitempty" jsonschema:"the message id from mail_messages (default: the newest)"`
+}
+
+func (t tools) readMail(ctx context.Context, _ *mcp.CallToolRequest, in readMailIn) (*mcp.CallToolResult, any, error) {
+	return read(ctx, t.open, func(c *core.Core) (core.MailContent, error) { return c.MailMessage(ctx, in.ID) })
+}
+
+type queryIn struct {
+	Site string `json:"site" jsonschema:"the site's name"`
+	SQL  string `json:"sql" jsonschema:"one SELECT, SHOW, DESCRIBE, EXPLAIN or WITH statement"`
+}
+
+func (t tools) queryDatabase(ctx context.Context, _ *mcp.CallToolRequest, in queryIn) (*mcp.CallToolResult, any, error) {
+	return readSite(ctx, t, in.Site, func(c *core.Core) (core.QueryResult, error) { return c.QueryDatabase(ctx, in.Site, in.SQL) })
 }
 
 type diffIn struct {

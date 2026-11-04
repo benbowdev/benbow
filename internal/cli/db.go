@@ -18,7 +18,7 @@ func (a *app) dbCmd() *cobra.Command {
 		Use:   "db",
 		Short: "Manage site databases on Covo's MySQL",
 	}
-	cmd.AddCommand(a.dbListCmd(), a.dbShowCmd(), a.dbCreateCmd(), a.dbLinkCmd(), a.dbUnlinkCmd())
+	cmd.AddCommand(a.dbListCmd(), a.dbShowCmd(), a.dbCreateCmd(), a.dbLinkCmd(), a.dbUnlinkCmd(), a.dbQueryCmd())
 	return cmd
 }
 

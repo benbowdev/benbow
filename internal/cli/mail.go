@@ -51,5 +51,6 @@ func (a *app) mailCmd() *cobra.Command {
 			}),
 		})
 	}
+	cmd.AddCommand(a.mailReadCmds()...)
 	return cmd
 }

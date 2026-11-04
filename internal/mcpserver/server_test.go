@@ -49,7 +49,8 @@ func TestTools(t *testing.T) {
 			t.Errorf("tool %s deletes: removal stays with the user", tool.Name)
 		}
 	}
-	for _, want := range []string{"covo_status", "list_sites", "site_logs", "list_php_versions", "php_compatibility_check", "wp", "add_site", "new_wordpress"} {
+	for _, want := range []string{"covo_status", "list_sites", "site_logs", "list_php_versions", "php_compatibility_check", "wp", "add_site", "new_wordpress",
+		"session_status", "session_diff", "fetch_page", "mail_messages", "read_mail", "query_database"} {
 		if !slices.Contains(names, want) {
 			t.Errorf("no tool %s in %v", want, names)
 		}
