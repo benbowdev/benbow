@@ -264,6 +264,8 @@ type Site struct {
 	// Position orders the site among the groups and sites of its level
 	// (0: by name).
 	Position int `json:"position,omitempty"`
+	// Title is a free label shown instead of the name; empty: the name.
+	Title string `json:"title,omitempty"`
 }
 
 // AddSite inserts a site. Duplicate names or domains are a Conflict.
@@ -300,7 +302,7 @@ func (s *Store) ListSites(ctx context.Context) ([]Site, error) {
 
 func (s *Store) querySites(ctx context.Context, tail string, args ...any) ([]Site, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT name, path, php_minor, domain, https, enabled, archived, db_name, db_user, php_settings, group_id, framework, app_root, db_engine, created_at, position FROM sites `+tail, args...)
+		`SELECT name, path, php_minor, domain, https, enabled, archived, db_name, db_user, php_settings, group_id, framework, app_root, db_engine, created_at, position, title FROM sites `+tail, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query sites: %w", err)
 	}
@@ -310,7 +312,7 @@ func (s *Store) querySites(ctx context.Context, tail string, args ...any) ([]Sit
 		var site Site
 		var at, settings string
 		var group sql.NullInt64
-		if err := rows.Scan(&site.Name, &site.Path, &site.PHPMinor, &site.Domain, &site.HTTPS, &site.Enabled, &site.Archived, &site.Database, &site.DBUser, &settings, &group, &site.Framework, &site.AppRoot, &site.DBEngine, &at, &site.Position); err != nil {
+		if err := rows.Scan(&site.Name, &site.Path, &site.PHPMinor, &site.Domain, &site.HTTPS, &site.Enabled, &site.Archived, &site.Database, &site.DBUser, &settings, &group, &site.Framework, &site.AppRoot, &site.DBEngine, &at, &site.Position, &site.Title); err != nil {
 			return nil, fmt.Errorf("scan site: %w", err)
 		}
 		site.PHPSettings = map[string]string{}
@@ -390,9 +392,9 @@ func (s *Store) SetAliases(ctx context.Context, name string, aliases []string) e
 // site called site.Name. A domain used by another site is a Conflict.
 func (s *Store) UpdateSite(ctx context.Context, site Site) error {
 	res, err := s.db.ExecContext(ctx,
-		`UPDATE sites SET path = ?, php_minor = ?, domain = ?, https = ?, enabled = ?, archived = ?, db_name = ?, db_user = ?, php_settings = ?, group_id = ?, framework = ?, app_root = ?, db_engine = ? WHERE name = ?`,
+		`UPDATE sites SET path = ?, php_minor = ?, domain = ?, https = ?, enabled = ?, archived = ?, db_name = ?, db_user = ?, php_settings = ?, group_id = ?, framework = ?, app_root = ?, db_engine = ?, title = ? WHERE name = ?`,
 		site.Path, site.PHPMinor, site.Domain, site.HTTPS, site.Enabled, site.Archived, site.Database, site.DBUser, encodeSettings(site.PHPSettings), nullID(site.GroupID),
-		site.Framework, site.AppRoot, site.DBEngine, site.Name)
+		site.Framework, site.AppRoot, site.DBEngine, site.Title, site.Name)
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
 			return errcode.Errorf(errcode.Conflict, fmt.Sprintf("domain %q is used by another site", site.Domain))

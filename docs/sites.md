@@ -12,6 +12,7 @@ covo site list
 covo site set shop --php 8.2                       # also --path, --domain
 covo site set shop --aliases www.shop.localhost,shop.test   # "" clears
 covo site set shop --group Clients                 # "" for the top level
+covo site set shop --title "Shop – Acme"           # label shown in the list; "" clears
 covo site logs shop --php -n 100                   # PHP errors; without --php: requests
 covo site logs shop --clear
 covo site disable shop                             # keep it, stop serving it
@@ -85,7 +86,7 @@ version used only by disabled sites is not started.
 API: `GET/POST /v1/sites` (`POST` also takes `create_folder`, `aliases`,
 `group_id`, `php_settings`, `new_database`, `link_database`),
 `PATCH /v1/sites/{name}` with any of
-`php`, `path`, `domain`, `enabled`, `archived`, `aliases`, `group_id`, `force`,
+`php`, `path`, `domain`, `enabled`, `archived`, `aliases`, `group_id`, `title`, `force`,
 `GET/POST /v1/groups`, `PATCH /v1/groups/{id}` (`name`, `parent_id`),
 `DELETE /v1/groups/{id}`, `PUT /v1/list-order` (`group`, `items`), `DELETE /v1/sites/{name}`, `GET /v1/sites/{name}/logs/{access|php}?lines=N`
 and `DELETE /v1/sites/{name}/logs`.

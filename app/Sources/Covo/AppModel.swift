@@ -688,6 +688,13 @@ final class AppModel {
 
     /// Set to ask for confirmation before removing a site (from any view).
     var removing: Site?
+    /// The site whose title is being edited.
+    var titling: Site?
+
+    /// Sets the label shown instead of the site's name ("" clears it).
+    func setTitle(_ site: Site, _ title: String) async {
+        await perform("Saving…") { _ = try await $0.updateSite(site.name, title: title) }
+    }
 
     func removeSite(_ site: Site, dropDatabase: Bool = false) async {
         await perform("Removing \(site.name)…") { try await $0.removeSite(site.name, dropDatabase: dropDatabase) }

@@ -59,6 +59,22 @@ func TestSiteLifecycleWhileRunning(t *testing.T) {
 		}
 	}
 
+	// A title is only a label: name and address stay.
+	var titled struct {
+		Name  string `json:"name"`
+		Title string `json:"title"`
+		URL   string `json:"url"`
+	}
+	if err := json.Unmarshal(h.mustCovo("site", "set", "live", "--title", "  Shop del cliente  "), &titled); err != nil {
+		t.Fatal(err)
+	}
+	if titled.Name != "live" || titled.Title != "Shop del cliente" || titled.URL != added.URL {
+		t.Fatalf("titled = %+v", titled)
+	}
+	if env := h.covo("site", "set", "live", "--title", "a\nb"); env.OK || env.Error.Code != "invalid_input" {
+		t.Errorf("two-line title: %+v", env.Error)
+	}
+
 	h.mustCovo("site", "remove", "live")
 	for _, svc := range h.status().Services {
 		if svc.Name != "caddy" {

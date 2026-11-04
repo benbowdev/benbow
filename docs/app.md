@@ -27,7 +27,9 @@ The app has no logic of its own: every change goes through the core.
   the context menu; collapsed groups are remembered), sites
   with search (results show their group), a switch to turn each site on or
   off, and a context menu (Open in Browser, Show in Finder, Logs, Open in
-  Terminal or an installed editor, Duplicate, Move To). Drop a folder to add
+  Terminal or an installed editor, Edit Title, Duplicate, Move To). A site
+  with a title shows it instead of its name (pencil next to the title in
+  the detail); the name and address stay. Drop a folder to add
   it; a banner offers to trust the local certificate when needed.
 - Detail: name, folder, PHP version, HTTPS, database; a Tools row of tiles
   (Snapshots, Open on Phone, Production, wp-cli/Artisan/Composer, PHP Check,

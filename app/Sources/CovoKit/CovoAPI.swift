@@ -351,6 +351,7 @@ public struct CovoAPI: Sendable {
         let archived: Bool?
         let aliases: [String]?
         let groupId: Int64?
+        let title: String?
         let force: Bool
     }
 
@@ -358,10 +359,10 @@ public struct CovoAPI: Sendable {
     /// site to the top level.
     public func updateSite(_ name: String, php: String? = nil, path: String? = nil, domain: String? = nil,
                            enabled: Bool? = nil, archived: Bool? = nil, aliases: [String]? = nil,
-                           group: Int64? = nil, force: Bool = false) async throws -> SiteResult {
+                           group: Int64? = nil, title: String? = nil, force: Bool = false) async throws -> SiteResult {
         try await call("PATCH", "/v1/sites/" + escape(name),
                        SiteChange(php: php, path: path, domain: domain, enabled: enabled, archived: archived,
-                                  aliases: aliases, groupId: group, force: force))
+                                  aliases: aliases, groupId: group, title: title, force: force))
     }
 
     /// A new WordPress site; domain, aliases, group and php.ini values as

@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/getcovo/covo/internal/caddy"
 	"github.com/getcovo/covo/internal/errcode"
@@ -297,6 +298,8 @@ type UpdateSiteRequest struct {
 	Archived *bool
 	// Aliases, when set, replace the site's extra domains (empty clears).
 	Aliases *[]string
+	// Title, when set, replaces the label shown in the list ("" clears).
+	Title *string
 	// Group, when set, moves the site into a group (0: top level).
 	Group *int64
 	// Force accepts a new folder without index.php or index.html.
@@ -399,6 +402,13 @@ func (c *Core) UpdateSite(ctx context.Context, req UpdateSiteRequest) (SiteResul
 				return errcode.Errorf(errcode.Conflict, fmt.Sprintf("%s is archived: unarchive it first", site.Name))
 			}
 			site.Enabled = *req.Enabled
+		}
+		if req.Title != nil {
+			t := strings.TrimSpace(*req.Title)
+			if len(t) > 100 || strings.ContainsFunc(t, unicode.IsControl) {
+				return errcode.Errorf(errcode.InvalidInput, "a title is at most 100 characters, on one line")
+			}
+			site.Title = t
 		}
 		if req.Aliases != nil {
 			if site.Aliases, err = c.checkAliases(ctx, site, *req.Aliases); err != nil {

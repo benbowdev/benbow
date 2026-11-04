@@ -111,18 +111,21 @@ func iniFlags(flags []string) (map[string]string, error) {
 }
 
 func (a *app) siteSetCmd() *cobra.Command {
-	var phpVersion, path, domain, group string
+	var phpVersion, path, domain, group, title string
 	var aliases []string
 	var force bool
 	var cmd *cobra.Command
 	cmd = &cobra.Command{
 		Use:   "set <name>",
-		Short: "Change a site's PHP version, folder, domain, aliases or group",
+		Short: "Change a site's PHP version, folder, domain, aliases, group or title",
 		Args:  cobra.ExactArgs(1),
 		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
 			req := core.UpdateSiteRequest{Name: args[0], PHP: phpVersion, Domain: domain, Force: force}
 			if cmd.Flags().Changed("aliases") {
 				req.Aliases = &aliases
+			}
+			if cmd.Flags().Changed("title") {
+				req.Title = &title
 			}
 			if cmd.Flags().Changed("group") {
 				id, err := c.ResolveGroup(ctx, group)
@@ -151,6 +154,7 @@ func (a *app) siteSetCmd() *cobra.Command {
 	cmd.Flags().StringVar(&domain, "domain", "", "new local domain, e.g. demo.covo.test")
 	cmd.Flags().StringSliceVar(&aliases, "aliases", nil, `extra domains, comma separated, replacing the current ones ("" clears)`)
 	cmd.Flags().StringVar(&group, "group", "", `move the site into a group, e.g. Clients/Acme ("" for the top level)`)
+	cmd.Flags().StringVar(&title, "title", "", `label shown in the list instead of the name ("" clears)`)
 	cmd.Flags().BoolVar(&force, "force", false, "accept a folder without index.php or index.html")
 	return cmd
 }

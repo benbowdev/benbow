@@ -219,6 +219,7 @@ func Handler(b Backend) http.Handler {
 			Archived *bool     `json:"archived"`
 			Aliases  *[]string `json:"aliases"`
 			GroupID  *int64    `json:"group_id"`
+			Title    *string   `json:"title"`
 			Force    bool      `json:"force"`
 		}
 		if err := decode(body, &req); err != nil {
@@ -226,7 +227,7 @@ func Handler(b Backend) http.Handler {
 		}
 		return b.UpdateSite(r.Context(), core.UpdateSiteRequest{
 			Name: r.PathValue("name"), PHP: req.PHP, Path: req.Path, Domain: req.Domain, Enabled: req.Enabled,
-			Archived: req.Archived, Aliases: req.Aliases, Group: req.GroupID, Force: req.Force,
+			Archived: req.Archived, Aliases: req.Aliases, Group: req.GroupID, Title: req.Title, Force: req.Force,
 		})
 	})
 	get("/v1/groups", func(ctx context.Context) (any, error) { return b.ListGroups(ctx) })

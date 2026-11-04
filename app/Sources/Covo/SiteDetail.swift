@@ -125,7 +125,16 @@ struct SiteDetail: View {
             } header: {
                 HStack(alignment: .firstTextBaseline) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(site.name).font(.title2.weight(.semibold)).foregroundStyle(.primary)
+                        HStack(spacing: 6) {
+                            Text(site.displayName).font(.title2.weight(.semibold)).foregroundStyle(.primary)
+                            Button {
+                                model.titling = site
+                            } label: {
+                                Image(systemName: "pencil")
+                            }
+                            .buttonStyle(.borderless)
+                            .help("Edit the title shown in the list (the name and address stay)")
+                        }
                         Text(site.url).font(.callout).foregroundStyle(.secondary).textSelection(.enabled)
                     }
                     Spacer()

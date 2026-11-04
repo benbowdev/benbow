@@ -27,6 +27,11 @@ public struct Site: Codable, Sendable, Identifiable, Hashable {
     public var groupId: Int64?
     /// Order among the groups and sites of its level (nil/0: by name).
     public var position: Int?
+    /// A free label shown instead of the name.
+    public var title: String?
+
+    /// The title, or the name when there is none.
+    public var displayName: String { (title?.isEmpty == false ? title : nil) ?? name }
     /// "wordpress", "laravel" or nil.
     public var framework: String?
     /// The project folder when it differs from the document root (Laravel).

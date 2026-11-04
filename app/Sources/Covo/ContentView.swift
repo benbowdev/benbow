@@ -11,6 +11,7 @@ struct ContentView: View {
     @State private var adding: NewSiteRequest?
     @State private var dropTargeted = false
     @State private var naming: GroupNaming?
+    @State private var siteTitle = ""
     @State private var groupName = ""
     @AppStorage("collapsedGroups") private var collapsedStore = ""
     @State private var search = ""
@@ -23,7 +24,7 @@ struct ContentView: View {
         let q = search.trimmingCharacters(in: .whitespaces)
         guard !q.isEmpty else { return model.sites }
         return model.sites.filter { s in
-            ([s.name, s.domain, s.path, s.database] + s.aliases).contains { $0.localizedCaseInsensitiveContains(q) }
+            ([s.name, s.title ?? "", s.domain, s.path, s.database] + s.aliases).contains { $0.localizedCaseInsensitiveContains(q) }
         }
     }
 
@@ -54,6 +55,17 @@ struct ContentView: View {
         .sheet(item: $adding) { req in
             NewSiteSheet(request: req) { name in reveal(name) }
         }
+        .alert("Title for “\(model.titling?.name ?? "")”", isPresented: Binding(get: { model.titling != nil }, set: { if !$0 { model.titling = nil } })) {
+            TextField("Title", text: $siteTitle, prompt: Text(model.titling?.name ?? ""))
+            Button("Save") {
+                if let site = model.titling { Task { await model.setTitle(site, siteTitle) } }
+                model.titling = nil
+            }
+            Button("Cancel", role: .cancel) { model.titling = nil }
+        } message: {
+            Text("Shown in the list instead of the name. The name and the address do not change. Empty: the name.")
+        }
+        .onChange(of: model.titling) { _, site in siteTitle = site?.title ?? "" }
         .alert(naming?.title ?? "", isPresented: Binding(get: { naming != nil }, set: { if !$0 { naming = nil } })) {
             TextField("Name", text: $groupName)
             Button(naming?.action ?? "OK") { commitGroupName() }
@@ -477,7 +489,7 @@ struct SiteRow: View {
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text(site.name)
+                Text(site.displayName)
                 Text(groupPath.map { "\($0) · \(site.domain)" } ?? site.domain)
                     .font(.caption).foregroundStyle(.secondary)
             }
@@ -507,6 +519,11 @@ struct SiteRow: View {
             Divider()
             OpenWithItems(folder: site.path)
             Divider()
+            Button {
+                model.titling = site
+            } label: {
+                Label("Edit Title…", systemImage: "pencil")
+            }
             Button(action: duplicate) {
                 Label("Duplicate…", systemImage: "plus.square.on.square")
             }
