@@ -362,10 +362,14 @@ struct GroupTree: View {
                 )) {
                     GroupTree(parent: g.id, sites: sites, collapsed: $collapsed, actions: actions)
                 } label: {
+                    // Groups are not selected: the detail shows sites.
                     GroupRow(group: g, sites: inside(g.id), actions: actions)
+                        .selectionDisabled()
                 }
             case .site(let site):
                 SiteRow(site: site, groupPath: nil, duplicate: { actions.duplicate(site) })
+                    // The list selects by site name (ForEach's id is "site:<name>").
+                    .tag(site.id)
             }
         }
         // Dropped between rows: macOS draws the insertion line. Groups and
