@@ -17,6 +17,8 @@ binary, plus newer ones published by `getcovo/covo-binaries`:
   `main` branch of `getcovo/covo-binaries`. The signature must match a
   public key compiled into Covo (`components.TrustedKeys`); the private key
   only exists as a GitHub Actions secret of that repository.
+  The end-to-end tests sign with their own key (`COVO_MANIFEST_TEST_KEY`),
+  which only a binary built with `-tags covotest` accepts.
 - A published manifest must have a higher `serial` than the one Covo has,
   so an old manifest can never be replayed. It is merged with the embedded
   one: it can add versions but never change an artifact Covo already knows

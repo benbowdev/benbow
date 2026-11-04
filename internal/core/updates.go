@@ -62,7 +62,7 @@ func (c *Core) manifestDir() string { return filepath.Join(c.Layout.Data, "manif
 
 func trustedKeys() ([]ed25519.PublicKey, error) {
 	encoded := slices.Clone(components.TrustedKeys)
-	if k := os.Getenv(EnvManifestTestKey); k != "" && os.Getenv("COVO_HOME") != "" {
+	if k := os.Getenv(EnvManifestTestKey); allowManifestTestKey && k != "" && os.Getenv("COVO_HOME") != "" {
 		encoded = append(encoded, k)
 	}
 	return components.ParseKeys(encoded)

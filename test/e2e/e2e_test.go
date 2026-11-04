@@ -62,7 +62,7 @@ func newHarness(t *testing.T) *harness {
 	t.Helper()
 	tmp := t.TempDir()
 	bin := filepath.Join(tmp, "covo")
-	build := exec.Command("go", "build", "-o", bin, "github.com/getcovo/covo/cmd/covo")
+	build := exec.Command("go", "build", "-tags", "covotest", "-o", bin, "github.com/getcovo/covo/cmd/covo")
 	if out, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("build covo: %v\n%s", err, out)
 	}
