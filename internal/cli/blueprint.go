@@ -233,9 +233,10 @@ func (a *app) blueprintCmd() *cobra.Command {
 			return blueprintJSON(bp), err
 		}),
 	}, save, imp, export, apply, &cobra.Command{
-		Use:   "delete <name>",
-		Short: "Delete a blueprint",
-		Args:  cobra.ExactArgs(1),
+		Use:     "delete <name>",
+		Aliases: []string{"rm", "remove"},
+		Short:   "Delete a blueprint",
+		Args:    cobra.ExactArgs(1),
 		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
 			return blueprintListResult{}, c.DeleteBlueprint(ctx, args[0])
 		}),

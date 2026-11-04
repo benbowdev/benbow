@@ -123,14 +123,15 @@ extension, or an XDEBUG_TRIGGER cookie or parameter). Your IDE listens on
 		}),
 	}
 	for _, on := range []bool{true, false} {
-		use, short := "on <version>", "Turn Xdebug on for a PHP version (e.g. 8.4)"
+		use, short, alias := "on <version>", "Turn Xdebug on for a PHP version (e.g. 8.4)", "enable"
 		if !on {
-			use, short = "off <version>", "Turn Xdebug off for a PHP version"
+			use, short, alias = "off <version>", "Turn Xdebug off for a PHP version", "disable"
 		}
 		cmd.AddCommand(&cobra.Command{
-			Use:   use,
-			Short: short,
-			Args:  cobra.ExactArgs(1),
+			Use:     use,
+			Aliases: []string{alias},
+			Short:   short,
+			Args:    cobra.ExactArgs(1),
 			RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
 				res, err := c.SetXdebug(ctx, args[0], on)
 				return xdebugResult(res), err

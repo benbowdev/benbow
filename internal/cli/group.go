@@ -147,7 +147,7 @@ func (r groupRemoveResult) Text(w io.Writer) {
 func (a *app) groupRemoveCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:     "remove <path>",
-		Aliases: []string{"rm"},
+		Aliases: []string{"rm", "delete"},
 		Short:   "Remove a group; its sites and groups move up one level (no site is removed)",
 		Args:    cobra.ExactArgs(1),
 		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {

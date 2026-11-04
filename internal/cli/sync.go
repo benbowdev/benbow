@@ -108,9 +108,10 @@ A password (--password asks for it) is kept in the login keychain.`,
 			return remotesResult(l), err
 		}),
 	}, &cobra.Command{
-		Use:   "remove <site> <name>",
-		Short: "Forget a remote and its password",
-		Args:  cobra.ExactArgs(2),
+		Use:     "remove <site> <name>",
+		Aliases: []string{"rm", "delete"},
+		Short:   "Forget a remote and its password",
+		Args:    cobra.ExactArgs(2),
 		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
 			return remotesResult{}, c.RemoveRemote(ctx, args[0], args[1])
 		}),

@@ -104,9 +104,10 @@ func (a *app) snapshotCmd() *cobra.Command {
 			return snapshotListResult(l), err
 		}),
 	}, &cobra.Command{
-		Use:   "delete <site> <id>",
-		Short: "Delete a snapshot",
-		Args:  cobra.ExactArgs(2),
+		Use:     "delete <site> <id>",
+		Aliases: []string{"rm", "remove"},
+		Short:   "Delete a snapshot",
+		Args:    cobra.ExactArgs(2),
 		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
 			return snapshotListResult{}, c.DeleteSnapshot(ctx, args[0], args[1])
 		}),

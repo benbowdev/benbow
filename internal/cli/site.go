@@ -322,7 +322,7 @@ func (a *app) siteRemoveCmd() *cobra.Command {
 	var dropDB, yes bool
 	cmd := &cobra.Command{
 		Use:     "remove <name>",
-		Aliases: []string{"rm"},
+		Aliases: []string{"rm", "delete"},
 		Short:   "Remove a site (its folder is left untouched)",
 		Args:    cobra.ExactArgs(1),
 		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
