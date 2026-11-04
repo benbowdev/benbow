@@ -261,14 +261,17 @@ type Site struct {
 	// DBEngine is the engine of Database: "mysql" (also when empty) or "pgsql".
 	DBEngine  string    `json:"database_engine,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
+	// Position orders the site among the groups and sites of its level
+	// (0: by name).
+	Position int `json:"position,omitempty"`
 }
 
 // AddSite inserts a site. Duplicate names or domains are a Conflict.
 func (s *Store) AddSite(ctx context.Context, site Site) error {
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO sites (name, path, php_minor, domain, https, enabled, archived, db_name, db_user, php_settings, group_id, framework, app_root, db_engine, created_at, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, `+nextPosition("sites", "group_id")+`)`,
+		`INSERT INTO sites (name, path, php_minor, domain, https, enabled, archived, db_name, db_user, php_settings, group_id, framework, app_root, db_engine, created_at, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, `+nextPosition+`)`,
 		site.Name, site.Path, site.PHPMinor, site.Domain, site.HTTPS, site.Enabled, site.Archived, site.Database, site.DBUser, encodeSettings(site.PHPSettings), nullID(site.GroupID),
-		site.Framework, site.AppRoot, site.DBEngine, site.CreatedAt.UTC().Format(time.RFC3339), nullID(site.GroupID))
+		site.Framework, site.AppRoot, site.DBEngine, site.CreatedAt.UTC().Format(time.RFC3339), nullID(site.GroupID), nullID(site.GroupID))
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
 			return errcode.Errorf(errcode.Conflict, fmt.Sprintf("site %q already exists", site.Name))
@@ -297,7 +300,7 @@ func (s *Store) ListSites(ctx context.Context) ([]Site, error) {
 
 func (s *Store) querySites(ctx context.Context, tail string, args ...any) ([]Site, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT name, path, php_minor, domain, https, enabled, archived, db_name, db_user, php_settings, group_id, framework, app_root, db_engine, created_at FROM sites `+tail, args...)
+		`SELECT name, path, php_minor, domain, https, enabled, archived, db_name, db_user, php_settings, group_id, framework, app_root, db_engine, created_at, position FROM sites `+tail, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query sites: %w", err)
 	}
@@ -307,7 +310,7 @@ func (s *Store) querySites(ctx context.Context, tail string, args ...any) ([]Sit
 		var site Site
 		var at, settings string
 		var group sql.NullInt64
-		if err := rows.Scan(&site.Name, &site.Path, &site.PHPMinor, &site.Domain, &site.HTTPS, &site.Enabled, &site.Archived, &site.Database, &site.DBUser, &settings, &group, &site.Framework, &site.AppRoot, &site.DBEngine, &at); err != nil {
+		if err := rows.Scan(&site.Name, &site.Path, &site.PHPMinor, &site.Domain, &site.HTTPS, &site.Enabled, &site.Archived, &site.Database, &site.DBUser, &settings, &group, &site.Framework, &site.AppRoot, &site.DBEngine, &at, &site.Position); err != nil {
 			return nil, fmt.Errorf("scan site: %w", err)
 		}
 		site.PHPSettings = map[string]string{}

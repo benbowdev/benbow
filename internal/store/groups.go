@@ -26,11 +26,12 @@ type Group struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-// nextPosition is the position for a new item at the end of a level: 0
-// while the level is still ordered by name, after the last item otherwise.
-func nextPosition(table, parentCol string) string {
-	return `(SELECT CASE WHEN MAX(position) > 0 THEN MAX(position) + 1 ELSE 0 END FROM ` + table + ` WHERE ` + parentCol + ` IS ?)`
-}
+// nextPosition is the position for a new group or site at the end of a
+// level (groups and sites share the positions of a level): 0 while the
+// level is still ordered by name, after the last item otherwise. It takes
+// the level's group id twice.
+const nextPosition = `(SELECT CASE WHEN MAX(p) > 0 THEN MAX(p) + 1 ELSE 0 END FROM
+	(SELECT position AS p FROM sites WHERE group_id IS ? UNION ALL SELECT position FROM site_groups WHERE parent_id IS ?))`
 
 // nullID stores 0 as NULL (no group).
 func nullID(id int64) any {
@@ -42,8 +43,8 @@ func nullID(id int64) any {
 
 // AddGroup inserts a group and returns its ID.
 func (s *Store) AddGroup(ctx context.Context, g Group) (int64, error) {
-	res, err := s.db.ExecContext(ctx, `INSERT INTO site_groups (name, parent_id, created_at, position) VALUES (?, ?, ?, `+nextPosition("site_groups", "parent_id")+`)`,
-		g.Name, nullID(g.ParentID), g.CreatedAt.UTC().Format(time.RFC3339), nullID(g.ParentID))
+	res, err := s.db.ExecContext(ctx, `INSERT INTO site_groups (name, parent_id, created_at, position) VALUES (?, ?, ?, `+nextPosition+`)`,
+		g.Name, nullID(g.ParentID), g.CreatedAt.UTC().Format(time.RFC3339), nullID(g.ParentID), nullID(g.ParentID))
 	if err != nil {
 		if strings.Contains(err.Error(), "FOREIGN KEY constraint failed") {
 			return 0, errcode.Errorf(errcode.NotFound, fmt.Sprintf("group %d not found", g.ParentID))
@@ -140,22 +141,29 @@ func (s *Store) RemoveGroup(ctx context.Context, id int64) error {
 	return nil
 }
 
-// SetOrder puts groups and sites, in this order, inside parent (0: top
-// level) at positions 1, 2, … Items not listed keep their position.
-func (s *Store) SetOrder(ctx context.Context, parent int64, groups []int64, sites []string) error {
+// OrderItem is a group (Group set) or a site (Site set) of a level.
+type OrderItem struct {
+	Group int64
+	Site  string
+}
+
+// SetOrder puts items inside parent (0: top level) at positions 1, 2, …
+// Groups and sites share the positions of a level. Items not listed keep
+// their position.
+func (s *Store) SetOrder(ctx context.Context, parent int64, items []OrderItem) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("order the list: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	for i, id := range groups {
-		if _, err := tx.ExecContext(ctx, `UPDATE site_groups SET parent_id = ?, position = ? WHERE id = ?`, nullID(parent), i+1, id); err != nil {
-			return fmt.Errorf("order group %d: %w", id, err)
+	for i, it := range items {
+		if it.Site != "" {
+			_, err = tx.ExecContext(ctx, `UPDATE sites SET group_id = ?, position = ? WHERE name = ?`, nullID(parent), i+1, it.Site)
+		} else {
+			_, err = tx.ExecContext(ctx, `UPDATE site_groups SET parent_id = ?, position = ? WHERE id = ?`, nullID(parent), i+1, it.Group)
 		}
-	}
-	for i, name := range sites {
-		if _, err := tx.ExecContext(ctx, `UPDATE sites SET group_id = ?, position = ? WHERE name = ?`, nullID(parent), i+1, name); err != nil {
-			return fmt.Errorf("order site %s: %w", name, err)
+		if err != nil {
+			return fmt.Errorf("order the list: %w", err)
 		}
 	}
 	if err := tx.Commit(); err != nil {

@@ -453,14 +453,14 @@ public struct CovoAPI: Sendable {
 
     struct ListOrderRequest: Encodable {
         let group: Int64
-        let groups: [Int64]
-        let sites: [String]
+        let items: [String]
     }
 
-    /// Orders one level of the site list (group 0: top level). Items from
-    /// elsewhere move there; the others of that level follow.
-    public func setListOrder(group: Int64, groups: [Int64], sites: [String]) async throws {
-        let _: Ignored = try await call("PUT", "/v1/list-order", ListOrderRequest(group: group, groups: groups, sites: sites))
+    /// Orders one level of the site list (group 0: top level): items are
+    /// "group:<id>" and "site:<name>", mixed. Items from elsewhere move
+    /// there; the others of that level follow.
+    public func setListOrder(group: Int64, items: [String]) async throws {
+        let _: Ignored = try await call("PUT", "/v1/list-order", ListOrderRequest(group: group, items: items))
     }
 
     struct EnabledRequest: Encodable { let enabled: Bool }

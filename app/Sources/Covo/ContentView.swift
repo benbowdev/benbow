@@ -340,28 +340,27 @@ struct GroupTree: View {
     let actions: SidebarActions
 
     var body: some View {
-        ForEach(model.groups.filter { $0.parentId == parent }) { g in
-            DisclosureGroup(isExpanded: Binding(
-                get: { !collapsed.contains(g.id) },
-                set: { if $0 { collapsed.remove(g.id) } else { collapsed.insert(g.id) } }
-            )) {
-                GroupTree(parent: g.id, sites: sites, collapsed: $collapsed, actions: actions)
-            } label: {
-                GroupRow(group: g, sites: inside(g.id), actions: actions)
+        let nodes = model.level(parent, sites: sites)
+        ForEach(nodes) { node in
+            switch node {
+            case .group(let g):
+                DisclosureGroup(isExpanded: Binding(
+                    get: { !collapsed.contains(g.id) },
+                    set: { if $0 { collapsed.remove(g.id) } else { collapsed.insert(g.id) } }
+                )) {
+                    GroupTree(parent: g.id, sites: sites, collapsed: $collapsed, actions: actions)
+                } label: {
+                    GroupRow(group: g, sites: inside(g.id), actions: actions)
+                }
+            case .site(let site):
+                SiteRow(site: site, groupPath: nil, duplicate: { actions.duplicate(site) })
             }
         }
-        // Dropped between rows: macOS draws the insertion line.
+        // Dropped between rows: macOS draws the insertion line. Groups and
+        // sites mix freely.
         .onInsert(of: [.plainText]) { index, providers in
             sidebarItems(providers) { items in
-                Task { await model.insertGroups(items, into: parent, at: index) }
-            }
-        }
-        ForEach(sites.filter { $0.groupId == parent }) { site in
-            SiteRow(site: site, groupPath: nil, duplicate: { actions.duplicate(site) })
-        }
-        .onInsert(of: [.plainText]) { index, providers in
-            sidebarItems(providers) { items in
-                Task { await model.insertSites(items, into: parent, at: index) }
+                Task { await model.insert(items, into: parent, at: index, shown: nodes) }
             }
         }
     }

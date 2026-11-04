@@ -170,8 +170,8 @@ final class AppModel {
     }
 
     /// Orders one level of the site list (parent nil: top level).
-    func setListOrder(parent: Int64?, groups: [Int64], sites: [String]) async {
-        await perform("Ordering…") { try await $0.setListOrder(group: parent ?? 0, groups: groups, sites: sites) }
+    func setListOrder(parent: Int64?, items: [String]) async {
+        await perform("Ordering…") { try await $0.setListOrder(group: parent ?? 0, items: items) }
     }
 
     func removeGroup(_ group: SiteGroup) async {

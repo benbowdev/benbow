@@ -50,14 +50,15 @@ covo group move Clients/Acme /        # into another group, / for the top level
 covo group remove Clients             # its sites and groups move up one level
 covo group disable Clients            # turn off every site inside, subgroups too
 covo group enable Clients/Acme        # turn them back on (archived sites stay off)
-covo group order Clients --groups Clients/Beta,Clients/Acme --sites shop,blog
+covo group order Clients site:shop group:Clients/Acme site:blog
 ```
 
 Paths are case-insensitive; names are unique within a group and cannot
 contain `/`. The list is ordered by name until you order a level by hand:
 `covo group order` (or drag and drop in the app) puts the named groups and
 sites in that order, moving them into the level if needed; the others
-follow, and new ones go last. Groups always come before sites. In the app,
+follow, and new ones go last. Groups and sites mix freely (a level never
+ordered shows groups first). In the app,
 drop a row between two others to order (macOS draws the line), onto a
 group to move it inside (or use Move To in the context menu); right-click a group for New Site Here, New Group
 Inside, Turn All Sites On/Off, Rename and Remove. The switch on a group
@@ -86,5 +87,5 @@ API: `GET/POST /v1/sites` (`POST` also takes `create_folder`, `aliases`,
 `PATCH /v1/sites/{name}` with any of
 `php`, `path`, `domain`, `enabled`, `archived`, `aliases`, `group_id`, `force`,
 `GET/POST /v1/groups`, `PATCH /v1/groups/{id}` (`name`, `parent_id`),
-`DELETE /v1/groups/{id}`, `PUT /v1/list-order` (`group`, `groups`, `sites`), `DELETE /v1/sites/{name}`, `GET /v1/sites/{name}/logs/{access|php}?lines=N`
+`DELETE /v1/groups/{id}`, `PUT /v1/list-order` (`group`, `items`), `DELETE /v1/sites/{name}`, `GET /v1/sites/{name}/logs/{access|php}?lines=N`
 and `DELETE /v1/sites/{name}/logs`.

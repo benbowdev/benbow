@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 
 	"github.com/getcovo/covo/internal/core"
@@ -104,38 +105,37 @@ func (a *app) groupMoveCmd() *cobra.Command {
 type listOrderResult core.ListOrder
 
 func (r listOrderResult) Text(w io.Writer) {
-	fmt.Fprintf(w, "Ordered %d group(s) and %d site(s).\n", len(r.Groups), len(r.Sites))
+	fmt.Fprintf(w, "Ordered %d item(s).\n", len(r.Items))
 }
 
 func (a *app) groupOrderCmd() *cobra.Command {
-	var groups, sites []string
-	cmd := &cobra.Command{
-		Use:   "order <path>",
+	return &cobra.Command{
+		Use:   "order <path> <item>...",
 		Short: `Order the groups and sites inside a group ("/" for the top level)`,
-		Long: "Groups and sites named go inside <path> in this order (moving there if needed);\n" +
-			"the others of that level follow in their current order. Groups come before sites.\n" +
-			"Example: covo group order Clients --groups Clients/Beta,Clients/Acme --sites shop,blog",
-		Args: cobra.ExactArgs(1),
+		Long: "Items are site:<name> or group:<path>, in the order wanted; groups and sites mix freely.\n" +
+			"Items from elsewhere move inside <path>; the others of that level follow in their current order.\n" +
+			"Example: covo group order Clients site:shop group:Clients/Acme site:blog",
+		Args: cobra.MinimumNArgs(2),
 		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
-			o := core.ListOrder{Sites: sites}
+			var o core.ListOrder
 			var err error
 			if o.Group, err = c.ResolveGroup(ctx, args[0]); err != nil {
 				return nil, err
 			}
-			for _, p := range groups {
-				id, err := namedGroup(ctx, c, p)
-				if err != nil {
-					return nil, err
+			for _, it := range args[1:] {
+				if p, ok := strings.CutPrefix(it, "group:"); ok {
+					id, err := namedGroup(ctx, c, p)
+					if err != nil {
+						return nil, err
+					}
+					it = "group:" + strconv.FormatInt(id, 10)
 				}
-				o.Groups = append(o.Groups, id)
+				o.Items = append(o.Items, it)
 			}
 			res, err := c.SetListOrder(ctx, o)
 			return listOrderResult(res), err
 		}),
 	}
-	cmd.Flags().StringSliceVar(&groups, "groups", nil, "group paths, in order")
-	cmd.Flags().StringSliceVar(&sites, "sites", nil, "site names, in order")
-	return cmd
 }
 
 type groupRemoveResult core.GroupInfo

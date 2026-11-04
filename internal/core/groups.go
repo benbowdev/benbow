@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -68,14 +69,51 @@ func groupInfos(groups []store.Group) []GroupInfo {
 	return out
 }
 
-// ListOrder is the order of one level of the site list: the groups (by
-// id) and the sites (by name) that go inside Group (0: top level), in
-// order. Items listed from elsewhere move into Group; items of Group not
-// listed go after the listed ones, in their current order.
+// ListOrder is the order of one level of the site list: groups
+// ("group:<id>") and sites ("site:<name>"), mixed, inside Group (0: top
+// level). Items listed from elsewhere move into Group; items of Group not
+// listed follow, in their current order.
 type ListOrder struct {
-	Group  int64    `json:"group"`
-	Groups []int64  `json:"groups"`
-	Sites  []string `json:"sites"`
+	Group int64    `json:"group"`
+	Items []string `json:"items"`
+}
+
+// levelOrder is the current order of a level: by position (shared by
+// groups and sites); in a level never ordered, groups then sites by name.
+func levelOrder(groups []store.Group, sites []store.Site, parent int64) []string {
+	type entry struct {
+		token, name string
+		pos         int
+		group       bool
+	}
+	var es []entry
+	for _, g := range groups {
+		if g.ParentID == parent {
+			es = append(es, entry{"group:" + strconv.FormatInt(g.ID, 10), g.Name, g.Position, true})
+		}
+	}
+	for _, st := range sites {
+		if st.GroupID == parent {
+			es = append(es, entry{"site:" + st.Name, st.Name, st.Position, false})
+		}
+	}
+	slices.SortStableFunc(es, func(a, b entry) int {
+		if a.pos != b.pos {
+			return a.pos - b.pos
+		}
+		if a.group != b.group {
+			if a.group {
+				return -1
+			}
+			return 1
+		}
+		return strings.Compare(strings.ToLower(a.name), strings.ToLower(b.name))
+	})
+	out := make([]string, len(es))
+	for i, e := range es {
+		out[i] = e.token
+	}
+	return out
 }
 
 // SetListOrder orders (and moves) groups and sites inside one level.
@@ -89,67 +127,71 @@ func (c *Core) SetListOrder(ctx context.Context, o ListOrder) (ListOrder, error)
 		if !groupExists(groups, o.Group) {
 			return errcode.Errorf(errcode.NotFound, fmt.Sprintf("group %d not found", o.Group))
 		}
-		byID := map[int64]store.Group{}
-		for _, g := range groups {
-			byID[g.ID] = g
-		}
-		gids := []int64{}
-		seenG := map[int64]bool{}
-		for _, id := range o.Groups {
-			g, ok := byID[id]
-			if !ok {
-				return errcode.Errorf(errcode.NotFound, fmt.Sprintf("group %d not found", id))
-			}
-			if seenG[id] {
-				continue
-			}
-			seenG[id] = true
-			if g.ParentID != o.Group {
-				if insideGroup(groups, o.Group, id) {
-					return errcode.Errorf(errcode.InvalidInput, "a group cannot go inside itself")
-				}
-				if depth(groups, o.Group)+subtreeHeight(groups, id) > maxGroupDepth {
-					return errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("groups nest at most %d levels", maxGroupDepth))
-				}
-				if err := checkGroupName(groups, o.Group, g.Name, id); err != nil {
-					return err
-				}
-			}
-			gids = append(gids, id)
-		}
-		for _, g := range groups { // the rest of the level, in its order
-			if g.ParentID == o.Group && !seenG[g.ID] {
-				gids = append(gids, g.ID)
-			}
-		}
 		sites, err := c.Store.ListSites(ctx)
 		if err != nil {
 			return err
 		}
+		byID := map[int64]store.Group{}
+		for _, g := range groups {
+			byID[g.ID] = g
+		}
 		known := map[string]bool{}
-		for _, s := range sites {
-			known[s.Name] = true
+		for _, st := range sites {
+			known[st.Name] = true
 		}
-		names := []string{}
-		seenS := map[string]bool{}
-		for _, n := range o.Sites {
-			if !known[n] {
-				return errcode.Errorf(errcode.NotFound, fmt.Sprintf("site %q not found", n))
+		var items []store.OrderItem
+		var tokens []string
+		seen := map[string]bool{}
+		add := func(tok string) error {
+			if seen[tok] {
+				return nil
 			}
-			if !seenS[n] {
-				seenS[n] = true
-				names = append(names, n)
+			seen[tok] = true
+			switch {
+			case strings.HasPrefix(tok, "site:"):
+				name := strings.TrimPrefix(tok, "site:")
+				if !known[name] {
+					return errcode.Errorf(errcode.NotFound, fmt.Sprintf("site %q not found", name))
+				}
+				items = append(items, store.OrderItem{Site: name})
+			case strings.HasPrefix(tok, "group:"):
+				id, err := strconv.ParseInt(strings.TrimPrefix(tok, "group:"), 10, 64)
+				g, ok := byID[id]
+				if err != nil || !ok {
+					return errcode.Errorf(errcode.NotFound, fmt.Sprintf("group %s not found", strings.TrimPrefix(tok, "group:")))
+				}
+				if g.ParentID != o.Group {
+					if insideGroup(groups, o.Group, id) {
+						return errcode.Errorf(errcode.InvalidInput, "a group cannot go inside itself")
+					}
+					if depth(groups, o.Group)+subtreeHeight(groups, id) > maxGroupDepth {
+						return errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("groups nest at most %d levels", maxGroupDepth))
+					}
+					if err := checkGroupName(groups, o.Group, g.Name, id); err != nil {
+						return err
+					}
+				}
+				items = append(items, store.OrderItem{Group: id})
+			default:
+				return errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("%q: name items site:<name> or group:<id>", tok))
+			}
+			tokens = append(tokens, tok)
+			return nil
+		}
+		for _, tok := range o.Items {
+			if err := add(tok); err != nil {
+				return err
 			}
 		}
-		for _, s := range sites {
-			if s.GroupID == o.Group && !seenS[s.Name] {
-				names = append(names, s.Name)
+		for _, tok := range levelOrder(groups, sites, o.Group) { // the rest of the level
+			if err := add(tok); err != nil {
+				return err
 			}
 		}
-		if err := c.Store.SetOrder(ctx, o.Group, gids, names); err != nil {
+		if err := c.Store.SetOrder(ctx, o.Group, items); err != nil {
 			return err
 		}
-		res = ListOrder{Group: o.Group, Groups: gids, Sites: names}
+		res = ListOrder{Group: o.Group, Items: tokens}
 		return nil
 	})
 	return res, err

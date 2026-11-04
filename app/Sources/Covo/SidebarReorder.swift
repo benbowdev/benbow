@@ -50,30 +50,56 @@ func sidebarItems(_ providers: [NSItemProvider], _ done: @escaping @MainActor ([
     }
 }
 
-extension AppModel {
-    /// Puts dragged groups at index among the groups of parent (nil: top
-    /// level), moving them there if needed. Dragged sites go into parent.
-    func insertGroups(_ items: [SidebarItem], into parent: Int64?, at index: Int) async {
-        let moving = items.compactMap { if case .group(let id) = $0 { id } else { nil } }
-        let sitesMoving = items.compactMap { if case .site(let n) = $0 { n } else { nil } }
-        var order = groups.filter { $0.parentId == parent }.map(\.id)
-        let before = order.prefix(index).filter { !moving.contains($0) }.count
-        order.removeAll { moving.contains($0) }
-        order.insert(contentsOf: moving, at: min(before, order.count))
-        await setListOrder(parent: parent, groups: moving.isEmpty ? [] : order, sites: sitesMoving)
+/// One row of a level of the site list: a group or a site.
+enum SidebarNode: Identifiable {
+    case group(SiteGroup)
+    case site(Site)
+
+    var id: String { order }
+
+    /// The core's name for it in a list order.
+    var order: String {
+        switch self {
+        case .group(let g): "group:\(g.id)"
+        case .site(let s): "site:\(s.name)"
+        }
     }
 
-    /// Puts dragged sites at index among the listed (not archived) sites of
-    /// parent, moving them there if needed. Dragged groups go into parent.
-    func insertSites(_ items: [SidebarItem], into parent: Int64?, at index: Int) async {
-        let moving = items.compactMap { if case .site(let n) = $0 { n } else { nil } }
-        let groupsMoving = items.compactMap { if case .group(let id) = $0 { id } else { nil } }
-        var order = sites.filter { $0.groupId == parent && !$0.archived }.map(\.name)
-        let before = order.prefix(index).filter { !moving.contains($0) }.count
-        order.removeAll { moving.contains($0) }
+    fileprivate var sortKey: (Int, Int, String) {
+        switch self {
+        case .group(let g): (g.position ?? 0, 0, g.name.lowercased())
+        case .site(let s): (s.position ?? 0, 1, s.name.lowercased())
+        }
+    }
+}
+
+extension SidebarItem {
+    /// The core's name for it in a list order.
+    var order: String {
+        switch self {
+        case .site(let name): "site:\(name)"
+        case .group(let id): "group:\(id)"
+        }
+    }
+}
+
+extension AppModel {
+    /// A level of the list in the user's order (groups and sites mixed; a
+    /// level never ordered shows groups, then sites, by name), from sites.
+    func level(_ parent: Int64?, sites: [Site]) -> [SidebarNode] {
+        let nodes = groups.filter { $0.parentId == parent }.map(SidebarNode.group)
+            + sites.filter { $0.groupId == parent }.map(SidebarNode.site)
+        return nodes.sorted { $0.sortKey < $1.sortKey }
+    }
+
+    /// Puts dragged rows at index of a level as shown (shown: that level's
+    /// rows), moving them there if needed.
+    func insert(_ items: [SidebarItem], into parent: Int64?, at index: Int, shown: [SidebarNode]) async {
+        let moving = items.map(\.order)
+        let current = shown.map(\.order)
+        var order = current.filter { !moving.contains($0) }
+        let before = current.prefix(index).filter { !moving.contains($0) }.count
         order.insert(contentsOf: moving, at: min(before, order.count))
-        let siblingGroups = groups.filter { $0.parentId == parent && !groupsMoving.contains($0.id) }.map(\.id)
-        await setListOrder(parent: parent, groups: groupsMoving.isEmpty ? [] : siblingGroups + groupsMoving,
-                           sites: moving.isEmpty ? [] : order)
+        await setListOrder(parent: parent, items: order)
     }
 }

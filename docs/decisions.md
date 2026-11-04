@@ -183,7 +183,8 @@ Format: **decision** (date) — why. *Not chosen:* alternatives.
   off (2026-11-04). The user orders each level by drag and drop
   (2026-11-04): a `position` per site and group, 0 = by name, so lists
   never ordered keep sorting alphabetically and new items go last only
-  once a level was ordered. Groups stay before sites. The app uses the
+  once a level was ordered. Groups and sites share the positions of a
+  level and mix freely (the user's request). The app uses the
   list's own `.draggable` + `.onInsert` + `.dropDestination`: a custom
   `onDrag`/`DropDelegate` per row is ignored by macOS lists. *Not chosen:*
   `onMove` (no moves between levels).

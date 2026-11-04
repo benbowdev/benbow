@@ -25,6 +25,8 @@ public struct Site: Codable, Sendable, Identifiable, Hashable {
     public var databaseUser: String?
     /// The group the site is listed in; nil at the top level.
     public var groupId: Int64?
+    /// Order among the groups and sites of its level (nil/0: by name).
+    public var position: Int?
     /// "wordpress", "laravel" or nil.
     public var framework: String?
     /// The project folder when it differs from the document root (Laravel).
@@ -49,6 +51,8 @@ public struct SiteGroup: Codable, Sendable, Identifiable, Hashable {
     public var parentId: Int64?
     /// Full path, e.g. "Clients/Acme".
     public var path: String
+    /// Order among the groups and sites of its level (nil/0: by name).
+    public var position: Int?
 }
 
 public struct Service: Codable, Sendable, Hashable {
