@@ -96,6 +96,7 @@ type Backend interface {
 	UpdateGroup(ctx context.Context, req core.UpdateGroupRequest) (core.GroupInfo, error)
 	RemoveGroup(ctx context.Context, id int64) (core.GroupInfo, error)
 	SetGroupEnabled(ctx context.Context, id int64, enabled bool) (core.GroupEnabledResult, error)
+	SetListOrder(ctx context.Context, o core.ListOrder) (core.ListOrder, error)
 	CheckPHP(ctx context.Context, name, target string, all bool) (core.PHPCheckResult, error)
 	NewLaravel(ctx context.Context, req core.LaravelRequest) (core.LaravelResult, error)
 	RunToolCaptured(ctx context.Context, name, tool string, args []string) (core.ToolResult, error)
@@ -229,6 +230,13 @@ func Handler(b Backend) http.Handler {
 		})
 	})
 	get("/v1/groups", func(ctx context.Context) (any, error) { return b.ListGroups(ctx) })
+	post("PUT", "/v1/list-order", func(r *http.Request, body []byte) (any, error) {
+		var req core.ListOrder
+		if err := decode(body, &req); err != nil {
+			return nil, err
+		}
+		return b.SetListOrder(r.Context(), req)
+	})
 	post("POST", "/v1/groups", func(r *http.Request, body []byte) (any, error) {
 		var req struct {
 			Name     string `json:"name"`

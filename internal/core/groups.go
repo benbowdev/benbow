@@ -4,7 +4,6 @@
 package core
 
 import (
-	"cmp"
 	"context"
 	"fmt"
 	"slices"
@@ -28,7 +27,7 @@ type GroupInfo struct {
 // maxGroupDepth keeps paths readable and cycles impossible to miss.
 const maxGroupDepth = 16
 
-// ListGroups returns every group, ordered by path.
+// ListGroups returns every group in list order, each followed by its subgroups.
 func (c *Core) ListGroups(ctx context.Context) ([]GroupInfo, error) {
 	groups, err := c.Store.ListGroups(ctx)
 	if err != nil {
@@ -42,14 +41,118 @@ func groupInfos(groups []store.Group) []GroupInfo {
 	for _, g := range groups {
 		byID[g.ID] = g
 	}
+	// Depth first, each level in list order (groups come from the store
+	// ordered by position, then name).
 	out := make([]GroupInfo, 0, len(groups))
-	for _, g := range groups {
-		out = append(out, GroupInfo{Group: g, Path: groupPath(byID, g)})
+	seen := map[int64]bool{}
+	var walk func(parent int64, depth int)
+	walk = func(parent int64, depth int) {
+		if depth > maxGroupDepth {
+			return
+		}
+		for _, g := range groups {
+			if g.ParentID == parent && !seen[g.ID] {
+				seen[g.ID] = true
+				out = append(out, GroupInfo{Group: g, Path: groupPath(byID, g)})
+				walk(g.ID, depth+1)
+			}
+		}
 	}
-	slices.SortFunc(out, func(a, b GroupInfo) int {
-		return cmp.Compare(strings.ToLower(a.Path), strings.ToLower(b.Path))
-	})
+	walk(0, 0)
+	// Groups whose parent is missing (never expected) still show up.
+	for _, g := range groups {
+		if !seen[g.ID] {
+			out = append(out, GroupInfo{Group: g, Path: groupPath(byID, g)})
+		}
+	}
 	return out
+}
+
+// ListOrder is the order of one level of the site list: the groups (by
+// id) and the sites (by name) that go inside Group (0: top level), in
+// order. Items listed from elsewhere move into Group; items of Group not
+// listed go after the listed ones, in their current order.
+type ListOrder struct {
+	Group  int64    `json:"group"`
+	Groups []int64  `json:"groups"`
+	Sites  []string `json:"sites"`
+}
+
+// SetListOrder orders (and moves) groups and sites inside one level.
+func (c *Core) SetListOrder(ctx context.Context, o ListOrder) (ListOrder, error) {
+	var res ListOrder
+	err := c.locked(ctx, func() error {
+		groups, err := c.Store.ListGroups(ctx)
+		if err != nil {
+			return err
+		}
+		if !groupExists(groups, o.Group) {
+			return errcode.Errorf(errcode.NotFound, fmt.Sprintf("group %d not found", o.Group))
+		}
+		byID := map[int64]store.Group{}
+		for _, g := range groups {
+			byID[g.ID] = g
+		}
+		gids := []int64{}
+		seenG := map[int64]bool{}
+		for _, id := range o.Groups {
+			g, ok := byID[id]
+			if !ok {
+				return errcode.Errorf(errcode.NotFound, fmt.Sprintf("group %d not found", id))
+			}
+			if seenG[id] {
+				continue
+			}
+			seenG[id] = true
+			if g.ParentID != o.Group {
+				if insideGroup(groups, o.Group, id) {
+					return errcode.Errorf(errcode.InvalidInput, "a group cannot go inside itself")
+				}
+				if depth(groups, o.Group)+subtreeHeight(groups, id) > maxGroupDepth {
+					return errcode.Errorf(errcode.InvalidInput, fmt.Sprintf("groups nest at most %d levels", maxGroupDepth))
+				}
+				if err := checkGroupName(groups, o.Group, g.Name, id); err != nil {
+					return err
+				}
+			}
+			gids = append(gids, id)
+		}
+		for _, g := range groups { // the rest of the level, in its order
+			if g.ParentID == o.Group && !seenG[g.ID] {
+				gids = append(gids, g.ID)
+			}
+		}
+		sites, err := c.Store.ListSites(ctx)
+		if err != nil {
+			return err
+		}
+		known := map[string]bool{}
+		for _, s := range sites {
+			known[s.Name] = true
+		}
+		names := []string{}
+		seenS := map[string]bool{}
+		for _, n := range o.Sites {
+			if !known[n] {
+				return errcode.Errorf(errcode.NotFound, fmt.Sprintf("site %q not found", n))
+			}
+			if !seenS[n] {
+				seenS[n] = true
+				names = append(names, n)
+			}
+		}
+		for _, s := range sites {
+			if s.GroupID == o.Group && !seenS[s.Name] {
+				names = append(names, s.Name)
+			}
+		}
+		if err := c.Store.SetOrder(ctx, o.Group, gids, names); err != nil {
+			return err
+		}
+		res = ListOrder{Group: o.Group, Groups: gids, Sites: names}
+		return nil
+	})
+	return res, err
 }
 
 func groupPath(byID map[int64]store.Group, g store.Group) string {

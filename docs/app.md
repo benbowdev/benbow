@@ -22,8 +22,9 @@ The app has no logic of its own: every change goes through the core.
 - New Site sheet: start from an existing folder (Laravel and WordPress are
   recognised), a new empty folder, WordPress or Laravel; name, domain, aliases, PHP version, group, database (none, new,
   existing) and, collapsed, the site's PHP settings. Created in one step.
-- Sidebar: groups nested to any depth (drag sites and groups onto a group,
-  or Move To in the context menu; collapsed groups are remembered), sites
+- Sidebar: groups nested to any depth (drag a row onto the edge of another
+  to order, into the middle of a group to move it there, or Move To in the
+  context menu; collapsed groups are remembered), sites
   with search (results show their group), a switch to turn each site on or
   off, and a context menu (Open in Browser, Show in Finder, Logs, Open in
   Terminal or an installed editor, Duplicate, Move To). Drop a folder to add

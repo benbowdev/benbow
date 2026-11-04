@@ -6,6 +6,7 @@ package core
 import (
 	"context"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -157,5 +158,105 @@ func TestSetGroupEnabled(t *testing.T) {
 	}
 	if _, err := c.SetGroupEnabled(ctx, 999, true); errcode.Code(err) != errcode.NotFound {
 		t.Fatalf("missing group err = %v", err)
+	}
+}
+
+func TestSetListOrder(t *testing.T) {
+	ctx := context.Background()
+	c := groupsCore(t)
+	add := func(path string) int64 {
+		g, err := c.AddGroupPath(ctx, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return g.ID
+	}
+	beta, acme, zed := add("Beta"), add("Acme"), add("Zed")
+	inner := add("Zed/Inner")
+	for _, n := range []string{"b-site", "a-site", "c-site"} {
+		s := store.Site{Name: n, Path: "/x", PHPMinor: "8.4", Domain: n + ".localhost", CreatedAt: time.Now()}
+		if err := c.Store.AddSite(ctx, s); err != nil {
+			t.Fatal(err)
+		}
+	}
+	groupOrder := func() []string {
+		gs, err := c.ListGroups(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out []string
+		for _, g := range gs {
+			out = append(out, g.Path)
+		}
+		return out
+	}
+	siteOrder := func(group int64) []string {
+		ss, _ := c.Store.ListSites(ctx)
+		var out []string
+		for _, s := range ss {
+			if s.GroupID == group {
+				out = append(out, s.Name)
+			}
+		}
+		return out
+	}
+	// Never ordered: by name, each group followed by its subgroups.
+	if got := groupOrder(); !slices.Equal(got, []string{"Acme", "Beta", "Zed", "Zed/Inner"}) {
+		t.Fatalf("default groups = %v", got)
+	}
+	if got := siteOrder(0); !slices.Equal(got, []string{"a-site", "b-site", "c-site"}) {
+		t.Fatalf("default sites = %v", got)
+	}
+
+	// Partial lists: the rest follows in its current order.
+	res, err := c.SetListOrder(ctx, ListOrder{Groups: []int64{zed}, Sites: []string{"c-site", "a-site"}})
+	if err != nil || !slices.Equal(res.Groups, []int64{zed, acme, beta}) {
+		t.Fatalf("order = %+v, %v", res, err)
+	}
+	if got := groupOrder(); !slices.Equal(got, []string{"Zed", "Zed/Inner", "Acme", "Beta"}) {
+		t.Fatalf("groups = %v", got)
+	}
+	if got := siteOrder(0); !slices.Equal(got, []string{"c-site", "a-site", "b-site"}) {
+		t.Fatalf("sites = %v", got)
+	}
+
+	// New items go last once a level is ordered.
+	if err := c.Store.AddSite(ctx, store.Site{Name: "aaa", Path: "/x", PHPMinor: "8.4", Domain: "aaa.localhost", CreatedAt: time.Now()}); err != nil {
+		t.Fatal(err)
+	}
+	if got := siteOrder(0); got[len(got)-1] != "aaa" {
+		t.Fatalf("new site not last: %v", got)
+	}
+
+	// Moving into a group with a position.
+	if _, err := c.SetListOrder(ctx, ListOrder{Group: zed, Groups: []int64{acme, inner}, Sites: []string{"b-site"}}); err != nil {
+		t.Fatal(err)
+	}
+	if got := groupOrder(); !slices.Equal(got, []string{"Zed", "Zed/Acme", "Zed/Inner", "Beta"}) {
+		t.Fatalf("after move = %v", got)
+	}
+	if got := siteOrder(zed); !slices.Equal(got, []string{"b-site"}) {
+		t.Fatalf("zed sites = %v", got)
+	}
+
+	for _, tt := range []struct {
+		o    ListOrder
+		code string
+	}{
+		{ListOrder{Group: inner, Groups: []int64{zed}}, errcode.InvalidInput}, // inside itself
+		{ListOrder{Group: 999}, errcode.NotFound},
+		{ListOrder{Groups: []int64{999}}, errcode.NotFound},
+		{ListOrder{Sites: []string{"nope"}}, errcode.NotFound},
+	} {
+		if _, err := c.SetListOrder(ctx, tt.o); errcode.Code(err) != tt.code {
+			t.Errorf("%+v err = %v, want %s", tt.o, err, tt.code)
+		}
+	}
+	// Same name in the target level.
+	if _, err := c.AddGroupPath(ctx, "Beta/Acme"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.SetListOrder(ctx, ListOrder{Group: beta, Groups: []int64{acme}}); errcode.Code(err) != errcode.Conflict {
+		t.Errorf("name clash err = %v", err)
 	}
 }

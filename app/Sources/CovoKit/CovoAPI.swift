@@ -451,6 +451,18 @@ public struct CovoAPI: Sendable {
         try await call("PATCH", "/v1/groups/\(id)", GroupRequest(name: name, parentId: parent))
     }
 
+    struct ListOrderRequest: Encodable {
+        let group: Int64
+        let groups: [Int64]
+        let sites: [String]
+    }
+
+    /// Orders one level of the site list (group 0: top level). Items from
+    /// elsewhere move there; the others of that level follow.
+    public func setListOrder(group: Int64, groups: [Int64], sites: [String]) async throws {
+        let _: Ignored = try await call("PUT", "/v1/list-order", ListOrderRequest(group: group, groups: groups, sites: sites))
+    }
+
     struct EnabledRequest: Encodable { let enabled: Bool }
 
     /// Turns every site in a group and its subgroups on or off (archived

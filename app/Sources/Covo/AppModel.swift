@@ -169,6 +169,11 @@ final class AppModel {
         await perform("Moving \(group.name)…") { _ = try await $0.updateGroup(group.id, parent: parent ?? 0) }
     }
 
+    /// Orders one level of the site list (parent nil: top level).
+    func setListOrder(parent: Int64?, groups: [Int64], sites: [String]) async {
+        await perform("Ordering…") { try await $0.setListOrder(group: parent ?? 0, groups: groups, sites: sites) }
+    }
+
     func removeGroup(_ group: SiteGroup) async {
         await perform("Removing \(group.name)…") { try await $0.removeGroup(group.id) }
     }

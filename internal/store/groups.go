@@ -20,8 +20,16 @@ type Group struct {
 	ID   int64  `json:"id"`
 	Name string `json:"name"`
 	// ParentID is the enclosing group, or 0 at the top level.
-	ParentID  int64     `json:"parent_id,omitempty"`
+	ParentID int64 `json:"parent_id,omitempty"`
+	// Position orders groups with the same parent (0: by name).
+	Position  int       `json:"position,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+// nextPosition is the position for a new item at the end of a level: 0
+// while the level is still ordered by name, after the last item otherwise.
+func nextPosition(table, parentCol string) string {
+	return `(SELECT CASE WHEN MAX(position) > 0 THEN MAX(position) + 1 ELSE 0 END FROM ` + table + ` WHERE ` + parentCol + ` IS ?)`
 }
 
 // nullID stores 0 as NULL (no group).
@@ -34,8 +42,8 @@ func nullID(id int64) any {
 
 // AddGroup inserts a group and returns its ID.
 func (s *Store) AddGroup(ctx context.Context, g Group) (int64, error) {
-	res, err := s.db.ExecContext(ctx, `INSERT INTO site_groups (name, parent_id, created_at) VALUES (?, ?, ?)`,
-		g.Name, nullID(g.ParentID), g.CreatedAt.UTC().Format(time.RFC3339))
+	res, err := s.db.ExecContext(ctx, `INSERT INTO site_groups (name, parent_id, created_at, position) VALUES (?, ?, ?, `+nextPosition("site_groups", "parent_id")+`)`,
+		g.Name, nullID(g.ParentID), g.CreatedAt.UTC().Format(time.RFC3339), nullID(g.ParentID))
 	if err != nil {
 		if strings.Contains(err.Error(), "FOREIGN KEY constraint failed") {
 			return 0, errcode.Errorf(errcode.NotFound, fmt.Sprintf("group %d not found", g.ParentID))
@@ -49,9 +57,9 @@ func (s *Store) AddGroup(ctx context.Context, g Group) (int64, error) {
 	return id, nil
 }
 
-// ListGroups returns every group ordered by ID.
+// ListGroups returns every group in list order (position, then name).
 func (s *Store) ListGroups(ctx context.Context) ([]Group, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id, name, parent_id, created_at FROM site_groups ORDER BY id`)
+	rows, err := s.db.QueryContext(ctx, `SELECT id, name, parent_id, created_at, position FROM site_groups ORDER BY position, name COLLATE NOCASE`)
 	if err != nil {
 		return nil, fmt.Errorf("list groups: %w", err)
 	}
@@ -61,7 +69,7 @@ func (s *Store) ListGroups(ctx context.Context) ([]Group, error) {
 		var g Group
 		var parent sql.NullInt64
 		var at string
-		if err := rows.Scan(&g.ID, &g.Name, &parent, &at); err != nil {
+		if err := rows.Scan(&g.ID, &g.Name, &parent, &at, &g.Position); err != nil {
 			return nil, fmt.Errorf("scan group: %w", err)
 		}
 		g.ParentID = parent.Int64
@@ -79,8 +87,8 @@ func (s *Store) Group(ctx context.Context, id int64) (Group, error) {
 	var g Group
 	var parent sql.NullInt64
 	var at string
-	err := s.db.QueryRowContext(ctx, `SELECT id, name, parent_id, created_at FROM site_groups WHERE id = ?`, id).
-		Scan(&g.ID, &g.Name, &parent, &at)
+	err := s.db.QueryRowContext(ctx, `SELECT id, name, parent_id, created_at, position FROM site_groups WHERE id = ?`, id).
+		Scan(&g.ID, &g.Name, &parent, &at, &g.Position)
 	if errors.Is(err, sql.ErrNoRows) {
 		return g, errcode.Errorf(errcode.NotFound, fmt.Sprintf("group %d not found", id))
 	}
@@ -128,6 +136,30 @@ func (s *Store) RemoveGroup(ctx context.Context, id int64) error {
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("remove group %d: %w", id, err)
+	}
+	return nil
+}
+
+// SetOrder puts groups and sites, in this order, inside parent (0: top
+// level) at positions 1, 2, … Items not listed keep their position.
+func (s *Store) SetOrder(ctx context.Context, parent int64, groups []int64, sites []string) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("order the list: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	for i, id := range groups {
+		if _, err := tx.ExecContext(ctx, `UPDATE site_groups SET parent_id = ?, position = ? WHERE id = ?`, nullID(parent), i+1, id); err != nil {
+			return fmt.Errorf("order group %d: %w", id, err)
+		}
+	}
+	for i, name := range sites {
+		if _, err := tx.ExecContext(ctx, `UPDATE sites SET group_id = ?, position = ? WHERE name = ?`, nullID(parent), i+1, name); err != nil {
+			return fmt.Errorf("order site %s: %w", name, err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("order the list: %w", err)
 	}
 	return nil
 }

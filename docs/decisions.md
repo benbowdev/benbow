@@ -180,7 +180,12 @@ Format: **decision** (date) — why. *Not chosen:* alternatives.
   for updates** (2026-10-29) — the MAMP PRO mental model, cleaner.
 - **Groups are list-only folders, nested to 16 levels** (2026-11-03) — they
   never change how a site is served. A group switch turns its sites on or
-  off (2026-11-04).
+  off (2026-11-04). The user orders each level by drag and drop
+  (2026-11-04): a `position` per site and group, 0 = by name, so lists
+  never ordered keep sorting alphabetically and new items go last only
+  once a level was ordered. Groups stay before sites. *Not chosen:*
+  SwiftUI's `onMove` (no moves between levels, clashes with dropping into
+  a group).
 - **"+" at the bottom of the sidebar, database and settings on the right
   of the toolbar** (2026-11-03) — like Tower; the user's preference.
 - **Non-obvious operations are explained inline before the user acts

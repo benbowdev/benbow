@@ -20,7 +20,7 @@ func (a *app) groupCmd() *cobra.Command {
 		Short: "Organize the site list in nested groups",
 		Long:  "Groups only organize the list: they change nothing about how sites are served.\nPaths use / between levels, e.g. Clients/Acme.",
 	}
-	cmd.AddCommand(a.groupListCmd(), a.groupAddCmd(), a.groupRenameCmd(), a.groupMoveCmd(), a.groupRemoveCmd(),
+	cmd.AddCommand(a.groupListCmd(), a.groupAddCmd(), a.groupRenameCmd(), a.groupMoveCmd(), a.groupOrderCmd(), a.groupRemoveCmd(),
 		a.groupEnableCmd(true), a.groupEnableCmd(false))
 	return cmd
 }
@@ -99,6 +99,43 @@ func (a *app) groupMoveCmd() *cobra.Command {
 			return groupResult(res), err
 		}),
 	}
+}
+
+type listOrderResult core.ListOrder
+
+func (r listOrderResult) Text(w io.Writer) {
+	fmt.Fprintf(w, "Ordered %d group(s) and %d site(s).\n", len(r.Groups), len(r.Sites))
+}
+
+func (a *app) groupOrderCmd() *cobra.Command {
+	var groups, sites []string
+	cmd := &cobra.Command{
+		Use:   "order <path>",
+		Short: `Order the groups and sites inside a group ("/" for the top level)`,
+		Long: "Groups and sites named go inside <path> in this order (moving there if needed);\n" +
+			"the others of that level follow in their current order. Groups come before sites.\n" +
+			"Example: covo group order Clients --groups Clients/Beta,Clients/Acme --sites shop,blog",
+		Args: cobra.ExactArgs(1),
+		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
+			o := core.ListOrder{Sites: sites}
+			var err error
+			if o.Group, err = c.ResolveGroup(ctx, args[0]); err != nil {
+				return nil, err
+			}
+			for _, p := range groups {
+				id, err := namedGroup(ctx, c, p)
+				if err != nil {
+					return nil, err
+				}
+				o.Groups = append(o.Groups, id)
+			}
+			res, err := c.SetListOrder(ctx, o)
+			return listOrderResult(res), err
+		}),
+	}
+	cmd.Flags().StringSliceVar(&groups, "groups", nil, "group paths, in order")
+	cmd.Flags().StringSliceVar(&sites, "sites", nil, "site names, in order")
+	return cmd
 }
 
 type groupRemoveResult core.GroupInfo

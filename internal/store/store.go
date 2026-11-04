@@ -266,9 +266,9 @@ type Site struct {
 // AddSite inserts a site. Duplicate names or domains are a Conflict.
 func (s *Store) AddSite(ctx context.Context, site Site) error {
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO sites (name, path, php_minor, domain, https, enabled, archived, db_name, db_user, php_settings, group_id, framework, app_root, db_engine, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO sites (name, path, php_minor, domain, https, enabled, archived, db_name, db_user, php_settings, group_id, framework, app_root, db_engine, created_at, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, `+nextPosition("sites", "group_id")+`)`,
 		site.Name, site.Path, site.PHPMinor, site.Domain, site.HTTPS, site.Enabled, site.Archived, site.Database, site.DBUser, encodeSettings(site.PHPSettings), nullID(site.GroupID),
-		site.Framework, site.AppRoot, site.DBEngine, site.CreatedAt.UTC().Format(time.RFC3339))
+		site.Framework, site.AppRoot, site.DBEngine, site.CreatedAt.UTC().Format(time.RFC3339), nullID(site.GroupID))
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
 			return errcode.Errorf(errcode.Conflict, fmt.Sprintf("site %q already exists", site.Name))
@@ -290,9 +290,9 @@ func (s *Store) Site(ctx context.Context, name string) (Site, error) {
 	return sites[0], nil
 }
 
-// ListSites returns all sites ordered by name.
+// ListSites returns all sites in list order (position, then name).
 func (s *Store) ListSites(ctx context.Context) ([]Site, error) {
-	return s.querySites(ctx, `ORDER BY name`)
+	return s.querySites(ctx, `ORDER BY position, name`)
 }
 
 func (s *Store) querySites(ctx context.Context, tail string, args ...any) ([]Site, error) {
