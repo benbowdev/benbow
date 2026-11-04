@@ -57,6 +57,17 @@ func checkReadOnlySQL(sql string) (string, error) {
 	if strings.Contains(bare, ";") {
 		return "", errcode.Errorf(errcode.InvalidInput, "one statement at a time (no ; inside, not even in strings)")
 	}
+	// The statement goes to the psql or mysql client, whose backslash
+	// commands (\! runs a shell, \o and \T write files, \copy reads them)
+	// work anywhere on a line, even inside what looks like a string.
+	if strings.Contains(s, "\\") {
+		return "", errcode.Errorf(errcode.Forbidden, "backslashes are not allowed in query_database (they are client commands)")
+	}
+	// MySQL runs the inside of /*! ... */ comments: what the checks below
+	// see must be what the server runs.
+	if strings.Contains(s, "/*!") {
+		return "", errcode.Errorf(errcode.Forbidden, "/*! comments are not allowed in query_database")
+	}
 	m := reFirstWord.FindStringSubmatch(bare)
 	if m == nil {
 		return "", errcode.Errorf(errcode.InvalidInput, "start with SELECT, SHOW, DESCRIBE, EXPLAIN or WITH")

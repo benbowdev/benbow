@@ -176,7 +176,9 @@ covo db query shop "SELECT * FROM wp_options WHERE option_name = 'home'"
   names.
 - **`query_database`** runs one SELECT, SHOW, DESCRIBE, EXPLAIN or WITH
   statement: no `;` inside, no `INTO OUTFILE`, `FOR UPDATE`, file or sleep
-  functions. It runs in a read-only transaction (10 seconds, 500 rows) as
+  functions, no backslash (the psql and mysql clients read `\!`, `\o`,
+  `\copy` as their own commands, even inside strings) and no MySQL `/*! */`
+  comments; the mysql client also runs with `--skip-system-command`. It runs in a read-only transaction (10 seconds, 500 rows) as
   a user that can only read: on MySQL Covo makes one per database
   (`covo_ro_…`, SELECT and SHOW VIEW only, password in the keychain); on
   PostgreSQL the site's own role. Changes go through `wp` or `artisan`

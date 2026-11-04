@@ -369,7 +369,7 @@ func QueryAs(ctx context.Context, client string, port int, user, password, db, s
 	defer cancel()
 	var out, errOut bytes.Buffer
 	cmd := exec.CommandContext(ctx, client, "--defaults-extra-file=/dev/fd/3",
-		"--protocol=TCP", "-h", "127.0.0.1", "-P", strconv.Itoa(port), "-u", user, "-D", db, "--batch")
+		"--protocol=TCP", "-h", "127.0.0.1", "-P", strconv.Itoa(port), "-u", user, "-D", db, "--batch", "--skip-system-command")
 	cmd.Stdin = strings.NewReader(sql)
 	cmd.Stdout, cmd.Stderr = &out, &errOut
 	if err := withFD3(cmd, "[client]\npassword="+password+"\n"); err != nil {

