@@ -17,6 +17,7 @@ import (
 
 	"github.com/getcovo/covo/internal/errcode"
 	"github.com/getcovo/covo/internal/fsutil"
+	"github.com/getcovo/covo/internal/keychain"
 	"github.com/getcovo/covo/internal/launchd"
 	"github.com/getcovo/covo/internal/mysql"
 	"github.com/getcovo/covo/internal/ports"
@@ -73,14 +74,11 @@ func (c *Core) mysqlCnfPath() string { return filepath.Join(c.Layout.Etc, "mysql
 // a service named after the launchd prefix, so test installations never
 // share it with the real one.
 func mysqlKeychain(prefix string) (mysql.Keychain, error) {
-	home, err := os.UserHomeDir()
+	p, err := keychain.LoginPath()
 	if err != nil {
-		return mysql.Keychain{}, fmt.Errorf("resolve home directory: %w", err)
+		return mysql.Keychain{}, err
 	}
-	return mysql.Keychain{
-		Path:    filepath.Join(home, "Library", "Keychains", "login.keychain-db"),
-		Service: prefix + "." + mysqlService,
-	}, nil
+	return mysql.Keychain{Path: p, Service: prefix + "." + mysqlService}, nil
 }
 
 func (c *Core) mysqlEnabled(ctx context.Context) (bool, error) {

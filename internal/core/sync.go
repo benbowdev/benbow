@@ -20,6 +20,7 @@ import (
 
 	"github.com/getcovo/covo/internal/dotenv"
 	"github.com/getcovo/covo/internal/errcode"
+	"github.com/getcovo/covo/internal/keychain"
 	"github.com/getcovo/covo/internal/mysql"
 	"github.com/getcovo/covo/internal/remote"
 	"github.com/getcovo/covo/internal/store"
@@ -49,6 +50,14 @@ var remoteHostRe = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
 func (c *Core) remoteKeychainService() string { return c.launchctl.Prefix + ".remote" }
 
 func remoteAccount(site, name string) string { return site + "/" + name }
+
+// remoteSecret is where a remote's password lives: the login keychain.
+// Unlike MySQL passwords it is the user's, so any character is allowed.
+func (c *Core) remoteSecret(site, name string) (keychain.Item, error) {
+	it, err := keychain.Login(c.remoteKeychainService(), remoteAccount(site, name))
+	it.Label = "Covo remote " + remoteAccount(site, name)
+	return it, err
+}
 
 // defaultSyncPaths are what pull and push copy when the remote says nothing:
 // the uploads, never the code (which belongs in git).
@@ -104,11 +113,10 @@ func (c *Core) SetRemote(ctx context.Context, r store.Remote, password *string) 
 		r.Excludes = []string{".git", "node_modules", ".DS_Store", "cache"}
 	}
 	if password != nil {
-		kc, err := mysqlKeychain(c.launchctl.Prefix)
+		kc, err := c.remoteSecret(r.Site, r.Name)
 		if err != nil {
 			return r, err
 		}
-		kc.Service, kc.Account = c.remoteKeychainService(), remoteAccount(r.Site, r.Name)
 		if *password == "" {
 			_, err = kc.Delete(ctx)
 		} else {
@@ -134,8 +142,7 @@ func (c *Core) RemoveRemote(ctx context.Context, site, name string) error {
 	if _, err := c.Store.Remote(ctx, site, name); err != nil {
 		return err
 	}
-	if kc, err := mysqlKeychain(c.launchctl.Prefix); err == nil {
-		kc.Service, kc.Account = c.remoteKeychainService(), remoteAccount(site, name)
+	if kc, err := c.remoteSecret(site, name); err == nil {
 		_, _ = kc.Delete(ctx)
 	}
 	return c.Store.DeleteRemote(ctx, site, name)
@@ -148,25 +155,23 @@ func (c *Core) AskPass(ctx context.Context) (string, error) {
 	if service != c.remoteKeychainService() || account == "" {
 		return "", errcode.Errorf(errcode.InvalidInput, "askpass only answers for Covo's remotes")
 	}
-	kc, err := mysqlKeychain(c.launchctl.Prefix)
+	kc, err := keychain.Login(service, account)
 	if err != nil {
 		return "", err
 	}
-	kc.Service, kc.Account = service, account
 	return kc.Get(ctx)
 }
 
 // server returns how to log in to a remote, with its stored password.
 func (c *Core) server(ctx context.Context, r store.Remote) (remote.Server, error) {
 	s := remote.Server{Transport: r.Transport, Host: r.Host, Port: r.Port, User: r.User}
-	kc, err := mysqlKeychain(c.launchctl.Prefix)
+	kc, err := c.remoteSecret(r.Site, r.Name)
 	if err != nil {
 		return s, err
 	}
-	kc.Service, kc.Account = c.remoteKeychainService(), remoteAccount(r.Site, r.Name)
 	if pw, err := kc.Get(ctx); err == nil {
 		s.Password = pw
-	} else if !errors.Is(err, mysql.ErrNoPassword) {
+	} else if !errors.Is(err, keychain.ErrNotFound) {
 		return s, err
 	}
 	if s.Password != "" && (r.Transport == remote.SSH || r.Transport == remote.SFTP) {

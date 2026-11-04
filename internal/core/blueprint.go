@@ -37,7 +37,7 @@ import (
 	"time"
 
 	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/mysql"
+	"github.com/getcovo/covo/internal/keychain"
 	"github.com/getcovo/covo/internal/store"
 )
 
@@ -356,9 +356,9 @@ func (c *Core) BlueprintSources(ctx context.Context) ([]store.BlueprintSource, e
 
 // --- GitHub token ---
 
-func (c *Core) githubKeychain() (mysql.Keychain, error) {
-	kc, err := mysqlKeychain(c.launchctl.Prefix)
-	kc.Service, kc.Account = c.launchctl.Prefix+".github", "github"
+func (c *Core) githubKeychain() (keychain.Item, error) {
+	kc, err := keychain.Login(c.launchctl.Prefix+".github", "github")
+	kc.Label = "Covo GitHub token"
 	return kc, err
 }
 

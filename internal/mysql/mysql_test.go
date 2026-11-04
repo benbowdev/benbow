@@ -5,6 +5,7 @@ package mysql
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"flag"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/getcovo/covo/internal/errcode"
+	"github.com/getcovo/covo/internal/keychain"
 )
 
 var update = flag.Bool("update", false, "rewrite golden files")
@@ -85,57 +87,10 @@ func TestNewPassword(t *testing.T) {
 	}
 }
 
-// fakeSecurity is an in-memory `security` that records how it was called.
-type fakeSecurity struct {
-	items map[string]string
-	calls [][]string
-	stdin []string
-}
-
-func (f *fakeSecurity) run(_ context.Context, stdin string, args ...string) (string, error) {
-	f.calls = append(f.calls, args)
-	f.stdin = append(f.stdin, stdin)
-	notFound := errors.New("exit status 44")
-	const missing = "security: SecKeychainSearchCopyNext: The specified item could not be found in the keychain."
-	flag := func(fields []string, name string) string {
-		for i, a := range fields {
-			if a == name && i+1 < len(fields) {
-				return strings.Trim(fields[i+1], `"`)
-			}
-		}
-		return ""
-	}
-	if args[0] == "-i" {
-		fields := strings.Fields(stdin)
-		f.items[flag(fields, "-a")+"@"+flag(fields, "-s")] = flag(fields, "-w")
-		return "", nil
-	}
-	acct, svc := flag(args, "-a"), flag(args, "-s")
-	match := ""
-	for key := range f.items {
-		a, s, _ := strings.Cut(key, "@")
-		if s == svc && (acct == "" || a == acct) {
-			match = key
-			break
-		}
-	}
-	if match == "" {
-		return missing, notFound
-	}
-	switch args[0] {
-	case "find-generic-password":
-		return f.items[match] + "\n", nil
-	case "delete-generic-password":
-		delete(f.items, match)
-		return "", nil
-	}
-	return "", errors.New("unexpected")
-}
-
 func TestKeychain(t *testing.T) {
 	ctx := context.Background()
-	f := &fakeSecurity{items: map[string]string{}}
-	k := Keychain{Path: "/Users/test/Library/Keychains/login.keychain-db", Service: "dev.getcovo.mysql", Run: f.run}
+	f := keychain.NewFake()
+	k := Keychain{Path: "/Users/test/Library/Keychains/login.keychain-db", Service: "dev.getcovo.mysql", Run: f.Run}
 
 	if _, err := k.Get(ctx); !errors.Is(err, ErrNoPassword) {
 		t.Fatalf("Get on empty = %v", err)
@@ -148,14 +103,14 @@ func TestKeychain(t *testing.T) {
 		t.Fatalf("Get = %q, %v", got, err)
 	}
 	// The password only ever travels on stdin.
-	for _, args := range f.calls {
+	for _, args := range f.Calls {
 		if strings.Contains(strings.Join(args, " "), pw) {
 			t.Fatalf("password in arguments: %v", args)
 		}
 	}
 	sent := false
-	for i, args := range f.calls {
-		sent = sent || args[0] == "-i" && strings.Contains(f.stdin[i], " -w "+pw+" ")
+	for i, args := range f.Calls {
+		sent = sent || args[0] == "-i" && strings.Contains(f.Stdin[i], " -X "+hex.EncodeToString([]byte(pw))+" ")
 	}
 	if !sent {
 		t.Fatal("password not sent on stdin")
@@ -179,8 +134,8 @@ func TestKeychain(t *testing.T) {
 // A lost `security -i` write (it exits 0 on failure) is detected.
 func TestKeychainAccounts(t *testing.T) {
 	ctx := context.Background()
-	f := &fakeSecurity{items: map[string]string{}}
-	root := Keychain{Path: "/k", Service: "dev.getcovo.mysql", Run: f.run}
+	f := keychain.NewFake()
+	root := Keychain{Path: "/k", Service: "dev.getcovo.mysql", Run: f.Run}
 	shop := root.For("shop")
 	rootPW, shopPW := NewPassword(), NewPassword()
 	if err := root.Set(ctx, rootPW); err != nil {
@@ -210,12 +165,12 @@ func TestKeychainAccounts(t *testing.T) {
 }
 
 func TestKeychainSetVerifies(t *testing.T) {
-	f := &fakeSecurity{items: map[string]string{}}
+	f := keychain.NewFake()
 	k := Keychain{Path: "/k", Service: "s", Run: func(ctx context.Context, stdin string, args ...string) (string, error) {
 		if args[0] == "-i" {
 			return "", nil // pretend success, store nothing
 		}
-		return f.run(ctx, stdin, args...)
+		return f.Run(ctx, stdin, args...)
 	}}
 	if err := k.Set(context.Background(), NewPassword()); !errors.Is(err, ErrNoPassword) {
 		t.Fatalf("err = %v", err)

@@ -14,7 +14,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -26,6 +25,7 @@ import (
 	"time"
 
 	"github.com/getcovo/covo/internal/errcode"
+	"github.com/getcovo/covo/internal/keychain"
 	"github.com/getcovo/covo/internal/paths"
 )
 
@@ -224,25 +224,11 @@ type Keychain struct {
 	// Account is the MySQL user; empty means root.
 	Account string
 	// Run executes /usr/bin/security with stdin; overridable in tests.
-	Run func(ctx context.Context, stdin string, args ...string) (string, error)
+	Run keychain.Runner
 }
 
 // ErrNoPassword means the keychain holds no password for Service.
-var ErrNoPassword = errors.New("no MySQL password in the keychain")
-
-func (k Keychain) run(ctx context.Context, stdin string, args ...string) (string, error) {
-	if k.Run != nil {
-		return k.Run(ctx, stdin, args...)
-	}
-	ctx, cancel := context.WithTimeout(ctx, time.Minute)
-	defer cancel()
-	var out bytes.Buffer
-	cmd := exec.CommandContext(ctx, "/usr/bin/security", args...)
-	cmd.Stdin = strings.NewReader(stdin)
-	cmd.Stdout, cmd.Stderr = &out, &out
-	err := cmd.Run()
-	return out.String(), err
-}
+var ErrNoPassword = keychain.ErrNotFound
 
 func (k Keychain) account() string {
 	if k.Account == "" {
@@ -251,100 +237,48 @@ func (k Keychain) account() string {
 	return k.Account
 }
 
+func (k Keychain) item() keychain.Item {
+	label := "Covo MySQL (" + k.Service + ")"
+	if k.account() != User {
+		label = "Covo MySQL " + k.account() + " (" + k.Service + ")"
+	}
+	return keychain.Item{Path: k.Path, Service: k.Service, Account: k.account(), Label: label, Run: k.Run}
+}
+
 // For returns the same keychain entry for another MySQL user.
 func (k Keychain) For(account string) Keychain {
 	k.Account = account
 	return k
 }
 
-// Set stores password, replacing any previous one. The password goes through
-// stdin of `security -i`, never through arguments.
+// Set stores password, replacing any previous one. Only passwords Covo
+// could have generated are accepted: they go unquoted into option files
+// and SQL.
 func (k Keychain) Set(ctx context.Context, password string) error {
 	if err := checkPassword(password); err != nil {
 		return err
 	}
-	if strings.ContainsAny(k.Service+k.Path, "\"\\\n") || !accountRe.MatchString(k.account()) {
-		return errcode.Errorf(errcode.InvalidInput, "unsupported keychain service, path or account")
+	if !accountRe.MatchString(k.account()) {
+		return errcode.Errorf(errcode.InvalidInput, "unsupported keychain account")
 	}
-	label := "Covo MySQL (" + k.Service + ")"
-	if k.account() != User {
-		label = "Covo MySQL " + k.account() + " (" + k.Service + ")"
-	}
-	line := fmt.Sprintf("add-generic-password -U -a %s -s \"%s\" -l \"%s\" -j \"Created by Covo. Removed by covo uninstall.\" -w %s \"%s\"\n",
-		k.account(), k.Service, label, password, k.Path)
-	if _, err := k.run(ctx, line, "-i"); err != nil {
-		return errcode.New(errcode.Service, fmt.Errorf("store MySQL password in the keychain: %w", err))
-	}
-	// `security -i` exits 0 even when a command fails: read it back.
-	got, err := k.Get(ctx)
-	if err != nil {
-		return err
-	}
-	if got != password {
-		return errcode.Errorf(errcode.Service, "the keychain did not store the MySQL password")
-	}
-	return nil
+	return k.item().Set(ctx, password)
 }
 
 // Get returns the stored password, or ErrNoPassword.
-func (k Keychain) Get(ctx context.Context) (string, error) {
-	out, err := k.run(ctx, "", "find-generic-password", "-a", k.account(), "-s", k.Service, "-w", k.Path)
-	if err != nil {
-		if strings.Contains(out, "could not be found") {
-			return "", ErrNoPassword
-		}
-		return "", errcode.New(errcode.Service, fmt.Errorf("read MySQL password from the keychain: %w: %s", err, strings.TrimSpace(out)))
-	}
-	return strings.TrimSpace(out), nil
-}
+func (k Keychain) Get(ctx context.Context) (string, error) { return k.item().Get(ctx) }
 
 // Exists reports whether a password is stored.
-func (k Keychain) Exists(ctx context.Context) (bool, error) {
-	_, err := k.Get(ctx)
-	if errors.Is(err, ErrNoPassword) {
-		return false, nil
-	}
-	return err == nil, err
-}
+func (k Keychain) Exists(ctx context.Context) (bool, error) { return k.item().Exists(ctx) }
 
 // Delete removes the stored password. It is a no-op if there is none.
-func (k Keychain) Delete(ctx context.Context) (bool, error) {
-	out, err := k.run(ctx, "", "delete-generic-password", "-a", k.account(), "-s", k.Service, k.Path)
-	if err != nil {
-		if strings.Contains(out, "could not be found") {
-			return false, nil
-		}
-		return false, errcode.New(errcode.Service, fmt.Errorf("remove MySQL password from the keychain: %w: %s", err, strings.TrimSpace(out)))
-	}
-	return true, nil
-}
+func (k Keychain) Delete(ctx context.Context) (bool, error) { return k.item().Delete(ctx) }
 
 // DeleteAll removes every password stored under Service, whatever the
 // account, and returns how many were removed.
-func (k Keychain) DeleteAll(ctx context.Context) (int, error) {
-	for n := 0; n < 10000; n++ {
-		out, err := k.run(ctx, "", "delete-generic-password", "-s", k.Service, k.Path)
-		if err != nil {
-			if strings.Contains(out, "could not be found") {
-				return n, nil
-			}
-			return n, errcode.New(errcode.Service, fmt.Errorf("remove MySQL passwords from the keychain: %w: %s", err, strings.TrimSpace(out)))
-		}
-	}
-	return 0, errcode.Errorf(errcode.Service, "too many MySQL passwords in the keychain")
-}
+func (k Keychain) DeleteAll(ctx context.Context) (int, error) { return k.item().DeleteAll(ctx) }
 
 // AnyExists reports whether any password is stored under Service.
-func (k Keychain) AnyExists(ctx context.Context) (bool, error) {
-	out, err := k.run(ctx, "", "find-generic-password", "-s", k.Service, k.Path)
-	if err != nil {
-		if strings.Contains(out, "could not be found") {
-			return false, nil
-		}
-		return false, errcode.New(errcode.Service, fmt.Errorf("search the keychain: %w: %s", err, strings.TrimSpace(out)))
-	}
-	return true, nil
-}
+func (k Keychain) AnyExists(ctx context.Context) (bool, error) { return k.item().AnyExists(ctx) }
 
 // accountRe is a MySQL user Covo creates: also safe in `security -i`.
 var accountRe = regexp.MustCompile(`^[a-z0-9_]{1,32}$`)

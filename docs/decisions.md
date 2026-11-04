@@ -92,6 +92,14 @@ Format: **decision** (date) — why. *Not chosen:* alternatives.
 - **Concurrent writers serialized by `flock` on `covo.lock`** (2026-10-29).
 - **App built with SwiftPM and `app/build.sh`, no Xcode project**
   (2026-11-02) — reproducible from the command line.
+- **User secrets go to the keychain hex-encoded** (2026-11-04) — remote
+  passwords and the GitHub token are the user's, so any character must
+  work; `security -i` takes them as `-X <hex>` on stdin and `-g` reads
+  them back (`internal/keychain`). Passwords Covo generates keep their
+  quote-free alphabet, since they also go into option files and SQL.
+  *Not chosen:* quoting for `security -i` (its escaping rules are not
+  documented), the Security framework through cgo (Covo builds without
+  cgo).
 
 ## Web server and PHP
 
