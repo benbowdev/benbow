@@ -30,6 +30,7 @@ const (
 	SessionFromFolder = "mcp-folder" // the agent runs inside the site's folder
 	SessionFromCall   = "mcp-call"   // first tool call naming a site it may change
 	SessionFromLaunch = "launch"     // "Work with an agent" in Covo
+	SessionFromUser   = "manual"     // covo agent session open, before using any agent
 )
 
 // Session outcomes.
@@ -54,6 +55,9 @@ type SessionRequest struct {
 	// WriteGrant lets agents change the site until the session closes.
 	WriteGrant   bool
 	LaunchedTool string
+	// Wait returns only once the starting database dump is written (the
+	// CLI and "Work with an agent", which are not in a hurry).
+	Wait bool
 }
 
 // SessionInfo is a session with its snapshots.
@@ -136,6 +140,7 @@ func (c *Core) EnsureAgentSession(ctx context.Context, req SessionRequest) (s st
 			return fmt.Errorf("the snapshot at the start of the agent session failed: %w", err)
 		}
 		s.BaseSnapshot, s.DBSaved = base.ID, !later
+		c.recordDBStats(ctx, site, base)
 		if err := c.Store.AddAgentSession(ctx, s); err != nil {
 			_ = c.removeSnapshot(ctx, base)
 			return err
@@ -151,6 +156,9 @@ func (c *Core) EnsureAgentSession(ctx context.Context, req SessionRequest) (s st
 		}
 		return nil
 	})
+	if err == nil && req.Wait {
+		err = c.WaitSessionDB(ctx, req.Site)
+	}
 	return s, opened, err
 }
 

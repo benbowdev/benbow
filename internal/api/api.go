@@ -125,6 +125,8 @@ type Backend interface {
 	AgentSessions(ctx context.Context, all bool) ([]core.SessionInfo, error)
 	AgentSession(ctx context.Context, site string) (core.SessionInfo, error)
 	CloseAgentSession(ctx context.Context, site, outcome string) (core.CloseResult, error)
+	AgentSessionDiff(ctx context.Context, site string) (core.SessionDiff, error)
+	AgentSessionFileDiff(ctx context.Context, site, file string, opts core.DiffOptions) (core.FileDiffResult, error)
 	SessionIdleHours(ctx context.Context) (int, error)
 	SetSessionIdleHours(ctx context.Context, h int) error
 	Phone(ctx context.Context) (*core.PhoneStatus, error)
@@ -534,6 +536,15 @@ func Handler(b Backend) http.Handler {
 	})
 	mux.HandleFunc("GET /v1/sites/{name}/agent-session", func(w http.ResponseWriter, r *http.Request) {
 		v, err := b.AgentSession(r.Context(), r.PathValue("name"))
+		reply(w, v, err)
+	})
+	mux.HandleFunc("GET /v1/sites/{name}/agent-session/diff", func(w http.ResponseWriter, r *http.Request) {
+		if f := r.URL.Query().Get("file"); f != "" {
+			v, err := b.AgentSessionFileDiff(r.Context(), r.PathValue("name"), f, core.DiffOptions{})
+			reply(w, v, err)
+			return
+		}
+		v, err := b.AgentSessionDiff(r.Context(), r.PathValue("name"))
 		reply(w, v, err)
 	})
 	post("POST", "/v1/sites/{name}/agent-session/keep", func(r *http.Request, _ []byte) (any, error) {

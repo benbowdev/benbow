@@ -132,6 +132,53 @@ func TestAgentSession(t *testing.T) {
 		t.Fatalf("the starting snapshot was pruned: %+v", snaps)
 	}
 
+	// What changed: the agent's file, the plugin, the options table.
+	var diff struct {
+		Files struct {
+			Added   int `json:"added"`
+			Changes []struct {
+				Path   string `json:"path"`
+				Change string `json:"change"`
+			} `json:"changes"`
+		} `json:"files"`
+		Database *struct {
+			Approximate bool `json:"approximate"`
+			Tables      []struct {
+				Table   string `json:"table"`
+				Updated int64  `json:"updated"`
+			} `json:"tables"`
+		} `json:"database"`
+	}
+	if err := json.Unmarshal([]byte(call("session_diff", map[string]any{"site": "shop"})), &diff); err != nil {
+		t.Fatal(err)
+	}
+	paths := map[string]string{}
+	for _, f := range diff.Files.Changes {
+		paths[f.Path] = f.Change
+	}
+	if paths["agent-notes.php"] != "added" || paths["wp-content/plugins/covo-e2e/covo-e2e.php"] != "added" {
+		t.Fatalf("file changes = %v", paths)
+	}
+	updated := int64(0)
+	for _, tb := range diff.Database.Tables {
+		if tb.Table == "wp_options" {
+			updated = tb.Updated
+		}
+	}
+	if diff.Database == nil || diff.Database.Approximate || updated < 12 {
+		t.Fatalf("database changes = %+v", diff.Database)
+	}
+	if out := call("session_diff", map[string]any{"site": "shop", "file": "wp-config.php"}); !strings.Contains(out, `"diff": ""`) {
+		t.Fatalf("wp-config.php should be unchanged: %s", out)
+	}
+	// After a MySQL restart the counters are gone: approximate.
+	h.mustCovo("stop")
+	h.mustCovo("start")
+	_ = json.Unmarshal(h.mustCovo("agent", "diff", "shop"), &diff)
+	if diff.Database == nil || !diff.Database.Approximate {
+		t.Fatalf("after a restart = %+v", diff.Database)
+	}
+
 	// Undo everything.
 	if env := h.covo("agent", "session", "revert", "shop"); env.OK || env.Error.Code != "confirmation_required" {
 		t.Fatalf("revert without --yes = %+v", env)

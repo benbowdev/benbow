@@ -100,8 +100,10 @@ Adminer's login form. Without the app, log in with `covo mysql password`.
 ## Server settings
 
 `my.cnf` turns off what a local development server does not need: the binary
-log (`disable-log-bin`, which would otherwise grow for 30 days) and the
-performance schema (about 400 MB of memory). `max_allowed_packet` is 64 MB for
+log (`disable-log-bin`, which would otherwise grow for 30 days) and almost all
+of the performance schema. Only its per-table row counters stay on, sized
+small (about 30 MB instead of 400): they tell what an AI agent's session
+changed (`agents.md`). `max_allowed_packet` is 64 MB for
 large imports. On the usual case-insensitive APFS volume MySQL itself sets
 `lower_case_table_names=2`, as MAMP does.
 

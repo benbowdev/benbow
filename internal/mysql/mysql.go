@@ -58,9 +58,51 @@ log-error="{{.ErrorLog}}"
 bind-address=127.0.0.1
 port={{.Port}}
 mysqlx=OFF
-# A development server: no binary log, no performance schema (saves ~400 MB).
+# A development server: no binary log.
 disable-log-bin
-performance_schema=OFF
+# Performance schema only for per-table row counters (what an AI agent's
+# session changed): every other instrument and history off, tables sized
+# small, so it costs about 30 MB instead of ~400.
+performance_schema=ON
+performance-schema-instrument='%=OFF'
+performance-schema-instrument='wait/io/table/sql/handler=ON'
+performance-schema-consumer-events-stages-current=OFF
+performance-schema-consumer-events-statements-current=OFF
+performance-schema-consumer-events-statements-cpu=OFF
+performance-schema-consumer-events-transactions-current=OFF
+performance-schema-consumer-events-waits-current=OFF
+performance-schema-consumer-statements-digest=OFF
+performance-schema-consumer-thread-instrumentation=OFF
+performance_schema_digests_size=0
+performance_schema_max_digest_length=0
+performance_schema_max_sql_text_length=0
+performance_schema_events_stages_history_size=0
+performance_schema_events_stages_history_long_size=0
+performance_schema_events_statements_history_size=0
+performance_schema_events_statements_history_long_size=0
+performance_schema_events_transactions_history_size=0
+performance_schema_events_transactions_history_long_size=0
+performance_schema_events_waits_history_size=0
+performance_schema_events_waits_history_long_size=0
+performance_schema_max_table_instances=4000
+performance_schema_max_table_handles=4000
+performance_schema_session_connect_attrs_size=0
+performance_schema_accounts_size=0
+performance_schema_hosts_size=0
+performance_schema_users_size=0
+performance_schema_error_size=0
+performance_schema_max_thread_instances=300
+performance_schema_max_statement_classes=0
+performance_schema_max_memory_classes=0
+performance_schema_max_stage_classes=0
+performance_schema_max_file_instances=0
+performance_schema_max_socket_instances=0
+performance_schema_max_mutex_instances=0
+performance_schema_max_rwlock_instances=0
+performance_schema_max_cond_instances=0
+performance_schema_max_prepared_statements_instances=0
+performance_schema_max_program_instances=0
+performance_schema_max_metadata_locks=0
 max_allowed_packet=64M
 `))
 

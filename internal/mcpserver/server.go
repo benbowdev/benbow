@@ -84,6 +84,10 @@ func New(open Open) *mcp.Server {
 	mcp.AddTool(s, &mcp.Tool{Name: "session_status", Title: "Agent session", Annotations: ro,
 		Description: "A site's agent session: when it started, the snapshot of the starting state the user can go back to, " +
 			"and the checkpoints taken before risky changes. Only the user can keep or undo a session, in Covo."}, t.sessionStatus)
+	mcp.AddTool(s, &mcp.Tool{Name: "session_diff", Title: "What changed", Annotations: ro,
+		Description: "What changed since the site's agent session started: files added, modified and deleted (.git and node_modules left out), " +
+			"and database tables with rows inserted, updated and deleted. file gives one file's unified diff; secrets in .env, " +
+			"wp-config.php and key files are masked. Show this to the user before saying the work is done."}, t.sessionDiff)
 	mcp.AddTool(s, &mcp.Tool{Name: "list_blueprints", Title: "List blueprints", Annotations: ro,
 		Description: "Saved WordPress blueprints (themes, plugins, options); name gives one blueprint's JSON."}, t.listBlueprints)
 	mcp.AddTool(s, &mcp.Tool{Name: "agent_permissions", Title: "What agents may change", Annotations: ro,
@@ -386,6 +390,20 @@ type siteIn struct {
 
 func (t tools) listSnapshots(ctx context.Context, _ *mcp.CallToolRequest, in siteIn) (*mcp.CallToolResult, any, error) {
 	return readSite(ctx, t, in.Site, func(c *core.Core) ([]store.Snapshot, error) { return c.ListSnapshots(ctx, in.Site) })
+}
+
+type diffIn struct {
+	Site string `json:"site" jsonschema:"the site's name"`
+	File string `json:"file,omitempty" jsonschema:"one file's unified diff (path inside the project folder); without it, the list of changes"`
+}
+
+func (t tools) sessionDiff(ctx context.Context, _ *mcp.CallToolRequest, in diffIn) (*mcp.CallToolResult, any, error) {
+	if in.File != "" {
+		return readSite(ctx, t, in.Site, func(c *core.Core) (core.FileDiffResult, error) {
+			return c.AgentSessionFileDiff(ctx, in.Site, in.File, core.DiffOptions{Mask: true})
+		})
+	}
+	return readSite(ctx, t, in.Site, func(c *core.Core) (core.SessionDiff, error) { return c.AgentSessionDiff(ctx, in.Site) })
 }
 
 func (t tools) sessionStatus(ctx context.Context, _ *mcp.CallToolRequest, in siteIn) (*mcp.CallToolResult, any, error) {

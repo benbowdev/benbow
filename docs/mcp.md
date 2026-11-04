@@ -66,6 +66,7 @@ Every change tool:
 | `list_blueprints` | no | saved blueprints, or one's JSON |
 | `agent_permissions` | no | what agents may change |
 | `session_status` | no | the site's agent session: starting snapshot, checkpoints |
+| `session_diff` | no | files and database tables changed since the session started; one file's diff (secrets masked) |
 | `start`, `stop` | yes | all sites and services |
 | `add_site` | yes | folder, PHP, domain, aliases, new folder, database, php.ini values |
 | `update_site` | yes | PHP version, folder, domain, aliases, on/off |

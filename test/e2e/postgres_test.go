@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 // pgPage connects to the site database with PDO pgsql (Swoole's driver in
@@ -76,6 +77,32 @@ func TestPostgresRedis(t *testing.T) {
 	if body := h.get(site.URL, st.CA.CertPath); body != "1|ok" {
 		t.Fatalf("page = %q", body)
 	}
+
+	// An agent session sees the row a request adds (PostgreSQL counters).
+	h.mustCovo("agent", "session", "open", "pgshop")
+	if body := h.get(site.URL, st.CA.CertPath); body != "2|ok" {
+		t.Fatalf("request in the session = %q", body)
+	}
+	var diff struct {
+		Database *struct {
+			Engine string `json:"engine"`
+			Tables []struct {
+				Table    string `json:"table"`
+				Inserted int64  `json:"inserted"`
+			} `json:"tables"`
+		} `json:"database"`
+	}
+	for deadline := time.Now().Add(10 * time.Second); ; time.Sleep(500 * time.Millisecond) {
+		_ = json.Unmarshal(h.mustCovo("agent", "diff", "pgshop"), &diff)
+		if diff.Database != nil && len(diff.Database.Tables) == 1 && diff.Database.Tables[0].Inserted == 1 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("PostgreSQL session diff = %+v", diff.Database)
+		}
+	}
+	// Undone: back to one row, which the snapshot steps below rely on.
+	h.mustCovo("agent", "session", "revert", "pgshop", "--yes")
 
 	// A snapshot restores the PostgreSQL database too (each request adds a row).
 	var snap struct {

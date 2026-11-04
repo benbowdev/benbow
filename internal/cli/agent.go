@@ -21,7 +21,7 @@ func (a *app) agentCmd() *cobra.Command {
 		Long: "While an AI agent works on a site, Covo keeps the site's starting state (files and\n" +
 			"database) in an agent session, until you keep the changes or undo them all.",
 	}
-	cmd.AddCommand(a.agentSessionCmd(), a.agentIdleCmd())
+	cmd.AddCommand(a.agentSessionCmd(), a.agentIdleCmd(), a.agentDiffCmd())
 	return cmd
 }
 
@@ -120,6 +120,17 @@ func (a *app) agentSessionCmd() *cobra.Command {
 		}),
 	}
 	cmd.AddCommand(list, &cobra.Command{
+		Use:   "open <site>",
+		Short: "Open a session yourself before an agent (any agent, MCP or not) works on a site",
+		Args:  cobra.ExactArgs(1),
+		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
+			if _, _, err := c.EnsureAgentSession(ctx, core.SessionRequest{Site: args[0], Source: core.SessionFromUser, Wait: true}); err != nil {
+				return nil, err
+			}
+			s, err := c.AgentSession(ctx, args[0])
+			return sessionResult(s), err
+		}),
+	}, &cobra.Command{
 		Use:   "show <site>",
 		Short: "A site's open session and its snapshots",
 		Args:  cobra.ExactArgs(1),
@@ -175,3 +186,61 @@ func (a *app) agentIdleCmd() *cobra.Command {
 type okResult struct{}
 
 func (okResult) Text(w io.Writer) { fmt.Fprintln(w, "Done.") }
+
+type diffResult core.SessionDiff
+
+func (r diffResult) Text(w io.Writer) {
+	fmt.Fprintf(w, "Since %s: %d file(s) added, %d modified, %d deleted\n", r.Since.Local().Format("2006-01-02 15:04"),
+		r.Files.Added, r.Files.Modified, r.Files.Deleted)
+	for _, f := range r.Files.Changes {
+		fmt.Fprintf(w, "  %-8s %s\n", f.Change, f.Path)
+	}
+	if r.Files.Truncated {
+		fmt.Fprintln(w, "  … (list cut)")
+	}
+	if d := r.Database; d != nil {
+		approx := ""
+		if d.Approximate {
+			approx = " (approximate)"
+		}
+		fmt.Fprintf(w, "Database %s: %d table(s) changed%s\n", d.Database, len(d.Tables), approx)
+		for _, t := range d.Tables {
+			fmt.Fprintf(w, "  %-30s %-8s +%d ~%d -%d\n", t.Table, t.Change, t.Inserted, t.Updated, t.Deleted)
+		}
+		if d.Note != "" {
+			fmt.Fprintln(w, "  "+d.Note)
+		}
+	}
+}
+
+type fileDiffResult core.FileDiffResult
+
+func (r fileDiffResult) Text(w io.Writer) {
+	switch {
+	case r.Binary:
+		fmt.Fprintf(w, "%s: binary file %s\n", r.Path, r.Change)
+	case r.Diff == "":
+		fmt.Fprintf(w, "%s: unchanged\n", r.Path)
+	default:
+		fmt.Fprint(w, r.Diff)
+	}
+}
+
+func (a *app) agentDiffCmd() *cobra.Command {
+	var file string
+	cmd := &cobra.Command{
+		Use:   "diff <site>",
+		Short: "What changed since the agent session started: files and database tables",
+		Args:  cobra.ExactArgs(1),
+		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
+			if file != "" {
+				r, err := c.AgentSessionFileDiff(ctx, args[0], file, core.DiffOptions{})
+				return fileDiffResult(r), err
+			}
+			r, err := c.AgentSessionDiff(ctx, args[0])
+			return diffResult(r), err
+		}),
+	}
+	cmd.Flags().StringVar(&file, "file", "", "one file's unified diff (path inside the project)")
+	return cmd
+}
