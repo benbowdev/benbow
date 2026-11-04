@@ -48,12 +48,16 @@ covo group list
 covo group rename Clients/Acme "Acme Corp"
 covo group move Clients/Acme /        # into another group, / for the top level
 covo group remove Clients             # its sites and groups move up one level
+covo group disable Clients            # turn off every site inside, subgroups too
+covo group enable Clients/Acme        # turn them back on (archived sites stay off)
 ```
 
 Paths are case-insensitive; names are unique within a group and cannot
 contain `/`. In the app, drag sites and groups onto a group (or use Move
 To in the context menu); right-click a group for New Site Here, New Group
-Inside, Rename and Remove.
+Inside, Turn All Sites On/Off, Rename and Remove. The switch on a group
+row turns off every site inside when any is on, and turns them all on
+otherwise.
 
 ## Logs
 

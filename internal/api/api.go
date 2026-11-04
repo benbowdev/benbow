@@ -94,6 +94,7 @@ type Backend interface {
 	AddGroup(ctx context.Context, name string, parent int64) (core.GroupInfo, error)
 	UpdateGroup(ctx context.Context, req core.UpdateGroupRequest) (core.GroupInfo, error)
 	RemoveGroup(ctx context.Context, id int64) (core.GroupInfo, error)
+	SetGroupEnabled(ctx context.Context, id int64, enabled bool) (core.GroupEnabledResult, error)
 	CheckPHP(ctx context.Context, name, target string, all bool) (core.PHPCheckResult, error)
 	NewLaravel(ctx context.Context, req core.LaravelRequest) (core.LaravelResult, error)
 	RunToolCaptured(ctx context.Context, name, tool string, args []string) (core.ToolResult, error)
@@ -243,6 +244,22 @@ func Handler(b Backend) http.Handler {
 			return nil, errcode.Errorf(errcode.InvalidInput, "group id must be a number")
 		}
 		return b.RemoveGroup(r.Context(), id)
+	})
+	post("POST", "/v1/groups/{id}/enabled", func(r *http.Request, body []byte) (any, error) {
+		id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+		if err != nil {
+			return nil, errcode.Errorf(errcode.InvalidInput, "group id must be a number")
+		}
+		var req struct {
+			Enabled *bool `json:"enabled"`
+		}
+		if err := decode(body, &req); err != nil {
+			return nil, err
+		}
+		if req.Enabled == nil {
+			return nil, errcode.Errorf(errcode.InvalidInput, "enabled is required")
+		}
+		return b.SetGroupEnabled(r.Context(), id, *req.Enabled)
 	})
 	mux.HandleFunc("GET /v1/sites/{name}/logs/{kind}", func(w http.ResponseWriter, r *http.Request) {
 		lines := 0

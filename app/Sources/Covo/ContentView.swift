@@ -344,7 +344,7 @@ struct GroupTree: View {
             )) {
                 GroupTree(parent: g.id, sites: sites, collapsed: $collapsed, actions: actions)
             } label: {
-                GroupRow(group: g, count: count(in: g.id), actions: actions)
+                GroupRow(group: g, sites: inside(g.id), actions: actions)
             }
         }
         ForEach(sites.filter { $0.groupId == parent }) { site in
@@ -353,24 +353,38 @@ struct GroupTree: View {
     }
 
     /// Sites in a group and its subgroups.
-    private func count(in id: Int64) -> Int {
+    private func inside(_ id: Int64) -> [Site] {
         let children = model.groups.filter { $0.parentId == id }.map(\.id)
-        return sites.filter { $0.groupId == id }.count + children.reduce(0) { $0 + count(in: $1) }
+        return sites.filter { $0.groupId == id } + children.flatMap { inside($0) }
     }
 }
 
 struct GroupRow: View {
     @Environment(AppModel.self) private var model
     let group: SiteGroup
-    let count: Int
+    /// Its sites and its subgroups' (archived ones left out).
+    let sites: [Site]
     let actions: SidebarActions
     @State private var targeted = false
+
+    private var anyOn: Bool { sites.contains(where: \.enabled) }
 
     var body: some View {
         HStack {
             Label(group.name, systemImage: "folder")
             Spacer()
-            Text("\(count)").font(.caption).foregroundStyle(.secondary).monospacedDigit()
+            Text("\(sites.count)").font(.caption).foregroundStyle(.secondary).monospacedDigit()
+            if !sites.isEmpty {
+                Toggle("On", isOn: Binding(
+                    get: { anyOn },
+                    set: { on in Task { await model.setGroupEnabled(group, on) } }
+                ))
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+                .disabled(model.busy != nil)
+                .help(anyOn ? "Stop serving every site in \(group.name)" : "Serve every site in \(group.name)")
+            }
         }
         .padding(.vertical, 1)
         .background(targeted ? Color.accentColor.opacity(0.2) : .clear, in: RoundedRectangle(cornerRadius: 4))
@@ -381,6 +395,15 @@ struct GroupRow: View {
         .contextMenu {
             Button { actions.newSite(group.id) } label: { Label("New Site Here…", systemImage: "plus") }
             Button { actions.newGroup(group.id) } label: { Label("New Group Inside…", systemImage: "folder.badge.plus") }
+            Divider()
+            Button { Task { await model.setGroupEnabled(group, true) } } label: {
+                Label("Turn All Sites On", systemImage: "play.circle")
+            }
+            .disabled(sites.allSatisfy(\.enabled))
+            Button { Task { await model.setGroupEnabled(group, false) } } label: {
+                Label("Turn All Sites Off", systemImage: "stop.circle")
+            }
+            .disabled(!anyOn)
             Divider()
             Button { actions.rename(group) } label: { Label("Rename…", systemImage: "pencil") }
             MoveToMenu(current: group.parentId, excluding: group) { target in

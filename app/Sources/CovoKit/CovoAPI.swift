@@ -412,6 +412,14 @@ public struct CovoAPI: Sendable {
         try await call("PATCH", "/v1/groups/\(id)", GroupRequest(name: name, parentId: parent))
     }
 
+    struct EnabledRequest: Encodable { let enabled: Bool }
+
+    /// Turns every site in a group and its subgroups on or off (archived
+    /// sites stay off).
+    public func setGroupEnabled(_ id: Int64, _ enabled: Bool) async throws {
+        let _: Ignored = try await call("POST", "/v1/groups/\(id)/enabled", EnabledRequest(enabled: enabled))
+    }
+
     /// Removes a group; its sites and groups move up one level.
     public func removeGroup(_ id: Int64) async throws {
         let _: Ignored = try await call("DELETE", "/v1/groups/\(id)")

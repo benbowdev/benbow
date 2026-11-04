@@ -293,3 +293,77 @@ func (c *Core) AddGroupPath(ctx context.Context, path string) (GroupInfo, error)
 	}
 	return res, nil
 }
+
+// GroupEnabledResult lists the sites a group switch turned on or off.
+type GroupEnabledResult struct {
+	Group   GroupInfo `json:"group"`
+	Enabled bool      `json:"enabled"`
+	// Changed are the sites switched; Archived stay off and are not counted.
+	Changed  []string `json:"changed"`
+	Archived []string `json:"archived,omitempty"`
+	Applied  bool     `json:"applied"`
+}
+
+// SetGroupEnabled turns serving on or off for every site in a group and its
+// subgroups at once (archived sites stay off). If applying fails, every
+// site goes back as it was.
+func (c *Core) SetGroupEnabled(ctx context.Context, id int64, enabled bool) (GroupEnabledResult, error) {
+	res := GroupEnabledResult{Enabled: enabled, Changed: []string{}}
+	err := c.locked(ctx, func() error {
+		var err error
+		if res.Group, err = c.groupInfo(ctx, id); err != nil {
+			return err
+		}
+		groups, err := c.Store.ListGroups(ctx)
+		if err != nil {
+			return err
+		}
+		sites, err := c.Store.ListSites(ctx)
+		if err != nil {
+			return err
+		}
+		var olds []store.Site
+		for _, s := range sites {
+			if s.GroupID == 0 || !insideGroup(groups, s.GroupID, id) {
+				continue
+			}
+			if s.Archived {
+				res.Archived = append(res.Archived, s.Name)
+				continue
+			}
+			if s.Enabled == enabled {
+				continue
+			}
+			olds = append(olds, s)
+			s.Enabled = enabled
+			if err := c.Store.UpdateSite(ctx, s); err != nil {
+				for _, o := range olds {
+					_ = c.Store.UpdateSite(ctx, o)
+				}
+				return err
+			}
+			res.Changed = append(res.Changed, s.Name)
+		}
+		if len(olds) == 0 {
+			_, res.Applied, err = c.Store.Setting(ctx, settingRunning)
+			return err
+		}
+		restore := func() {
+			for _, o := range olds {
+				_ = c.Store.UpdateSite(ctx, o)
+			}
+			_ = c.syncLocal(ctx)
+			_, _ = c.applyIfRunning(ctx)
+		}
+		if err := c.syncLocal(ctx); err != nil {
+			restore()
+			return err
+		}
+		if res.Applied, err = c.applyIfRunning(ctx); err != nil {
+			restore()
+			return err
+		}
+		return nil
+	})
+	return res, err
+}

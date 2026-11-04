@@ -62,6 +62,7 @@ Request bodies are strict JSON (unknown fields are refused).
 | `GET`, `POST /v1/groups` | `{name, parent_id}` | `covo group list`, `add` |
 | `PATCH /v1/groups/{id}` | any of `{name, parent_id}` (0: top level) | `covo group rename`, `move` |
 | `DELETE /v1/groups/{id}` | | `covo group remove` |
+| `POST /v1/groups/{id}/enabled` | `{enabled}` | `covo group enable`, `disable` |
 | `DELETE /v1/sites/{name}` | `?drop_database=true` | `covo site remove [--drop-database]` |
 | `GET /v1/sites/{name}/logs/{access\|php}` | `?lines=N` | `covo site logs` |
 | `DELETE /v1/sites/{name}/logs` | | `covo site logs --clear` |

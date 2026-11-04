@@ -20,7 +20,8 @@ func (a *app) groupCmd() *cobra.Command {
 		Short: "Organize the site list in nested groups",
 		Long:  "Groups only organize the list: they change nothing about how sites are served.\nPaths use / between levels, e.g. Clients/Acme.",
 	}
-	cmd.AddCommand(a.groupListCmd(), a.groupAddCmd(), a.groupRenameCmd(), a.groupMoveCmd(), a.groupRemoveCmd())
+	cmd.AddCommand(a.groupListCmd(), a.groupAddCmd(), a.groupRenameCmd(), a.groupMoveCmd(), a.groupRemoveCmd(),
+		a.groupEnableCmd(true), a.groupEnableCmd(false))
 	return cmd
 }
 
@@ -130,4 +131,42 @@ func namedGroup(ctx context.Context, c *core.Core, path string) (int64, error) {
 		return 0, errcode.Errorf(errcode.InvalidInput, "name a group, e.g. Clients/Acme")
 	}
 	return id, err
+}
+
+type groupEnabledResult core.GroupEnabledResult
+
+func (r groupEnabledResult) Text(w io.Writer) {
+	state := "off"
+	if r.Enabled {
+		state = "on"
+	}
+	switch len(r.Changed) {
+	case 0:
+		fmt.Fprintf(w, "Every site in %s was already %s.\n", r.Group.Path, state)
+	default:
+		fmt.Fprintf(w, "Turned %s %d site(s) in %s: %s\n", state, len(r.Changed), r.Group.Path, strings.Join(r.Changed, ", "))
+	}
+	if r.Enabled && len(r.Archived) > 0 {
+		fmt.Fprintf(w, "Archived, left off: %s\n", strings.Join(r.Archived, ", "))
+	}
+}
+
+func (a *app) groupEnableCmd(enabled bool) *cobra.Command {
+	use, short := "enable <path>", "Turn on every site in a group and its subgroups (archived sites stay off)"
+	if !enabled {
+		use, short = "disable <path>", "Turn off every site in a group and its subgroups"
+	}
+	return &cobra.Command{
+		Use:   use,
+		Short: short,
+		Args:  cobra.ExactArgs(1),
+		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
+			id, err := namedGroup(ctx, c, args[0])
+			if err != nil {
+				return nil, err
+			}
+			res, err := c.SetGroupEnabled(ctx, id, enabled)
+			return groupEnabledResult(res), err
+		}),
+	}
 }

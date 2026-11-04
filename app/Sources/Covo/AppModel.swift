@@ -209,6 +209,12 @@ final class AppModel {
         }
     }
 
+    func setGroupEnabled(_ group: SiteGroup, _ on: Bool) async {
+        await perform(on ? "Turning \(group.name) on…" : "Turning \(group.name) off…") {
+            try await $0.setGroupEnabled(group.id, on)
+        }
+    }
+
     func setArchived(_ site: Site, _ archived: Bool) async {
         await perform(archived ? "Archiving \(site.name)…" : "Bringing back \(site.name)…") {
             _ = try await $0.updateSite(site.name, archived: archived)

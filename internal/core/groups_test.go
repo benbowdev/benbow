@@ -108,3 +108,54 @@ func TestGroupDepth(t *testing.T) {
 		t.Fatalf("too deep err = %v", err)
 	}
 }
+
+func TestSetGroupEnabled(t *testing.T) {
+	ctx := context.Background()
+	c := groupsCore(t)
+	acme, err := c.AddGroupPath(ctx, "Clients/Acme")
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, err := c.AddGroupPath(ctx, "Other")
+	if err != nil {
+		t.Fatal(err)
+	}
+	clients := acme.ParentID
+	for _, s := range []store.Site{
+		{Name: "top", GroupID: clients, Enabled: true},
+		{Name: "deep", GroupID: acme.ID, Enabled: true},
+		{Name: "old", GroupID: acme.ID, Archived: true},
+		{Name: "outside", GroupID: other.ID, Enabled: true},
+		{Name: "loose", Enabled: true},
+	} {
+		s.Path, s.PHPMinor, s.Domain, s.CreatedAt = "/x", "8.4", s.Name+".localhost", time.Now()
+		if err := c.Store.AddSite(ctx, s); err != nil {
+			t.Fatal(err)
+		}
+	}
+	enabled := func() map[string]bool {
+		sites, _ := c.Store.ListSites(ctx)
+		m := map[string]bool{}
+		for _, s := range sites {
+			m[s.Name] = s.Enabled
+		}
+		return m
+	}
+
+	res, err := c.SetGroupEnabled(ctx, clients, false)
+	if err != nil || len(res.Changed) != 2 || len(res.Archived) != 1 || res.Group.Path != "Clients" {
+		t.Fatalf("off = %+v, %v", res, err)
+	}
+	if m := enabled(); m["top"] || m["deep"] || !m["outside"] || !m["loose"] || m["old"] {
+		t.Fatalf("after off = %v", m)
+	}
+	if res, err = c.SetGroupEnabled(ctx, acme.ID, true); err != nil || len(res.Changed) != 1 || res.Changed[0] != "deep" {
+		t.Fatalf("on = %+v, %v", res, err)
+	}
+	if m := enabled(); m["top"] || !m["deep"] || m["old"] {
+		t.Fatalf("after on = %v", m)
+	}
+	if _, err := c.SetGroupEnabled(ctx, 999, true); errcode.Code(err) != errcode.NotFound {
+		t.Fatalf("missing group err = %v", err)
+	}
+}

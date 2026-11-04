@@ -46,7 +46,10 @@ struct ImportSheet: View {
             footer
         }
         .padding()
-        .frame(width: 720, height: 620)
+        .frame(minWidth: 720, idealWidth: 780, maxWidth: .infinity,
+               minHeight: result == nil ? 600 : nil, idealHeight: result == nil ? 780 : nil,
+               maxHeight: result == nil ? .infinity : nil)
+        .fixedSize(horizontal: false, vertical: result != nil)
         .task(id: "\(source)-\(keepNames)-\(migrate)-\(existing)") { await load() }
         .alert("Migrate \(selected.count) site\(selected.count == 1 ? "" : "s")?", isPresented: $confirming) {
             Button("Migrate") { Task { await run() } }
@@ -94,21 +97,20 @@ struct ImportSheet: View {
                         "It saves a backup of wp-config.php (or .env) in Covo's folder, then changes only the database name, user, password and host in it.",
                         "It replaces the old address (e.g. http://site.local:8888) with the Covo one in the database copy.",
                     ],
-                    caution: "The project folder is shared with \(title): from now on the site opened in \(title) no longer finds its database. Undo Migration (site → Advanced) puts wp-config.php back and deletes the database copy Covo made."
+                    caution: "The project folder is shared with \(title): from now on the site opened in \(title) no longer finds its database. Undo Migration (site → Advanced) puts wp-config.php back and deletes the database copy Covo made.",
+                    collapsible: true
                 )
-                HStack {
-                    Picker("If Covo already has the database", selection: $existing) {
-                        Text("Use it").tag("use")
-                        Text("Copy again (after a backup)").tag("recopy")
-                        Text("Skip the site").tag("skip")
-                    }
-                    .fixedSize()
+                Picker("If Covo already has the database", selection: $existing) {
+                    Text("Use it").tag("use")
+                    Text("Copy again (after a backup)").tag("recopy")
+                    Text("Skip the site").tag("skip")
                 }
+                .fixedSize()
                 if !model.mysqlReady {
                     Label("Migrating needs Covo's MySQL running (Settings → MySQL, then start Covo).", systemImage: "exclamationmark.triangle")
                         .font(.caption).foregroundStyle(.orange)
                 }
-                Text("The database is read from \(title)'s MySQL, which must be running (Covo never starts it), with the user in wp-config.php or .env.")
+                Text("\(title)'s MySQL must be running (Covo never starts it); Covo connects with the user in wp-config.php or .env.")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
@@ -148,6 +150,8 @@ struct ImportSheet: View {
                     }
                 }
             }
+            .frame(minHeight: 260)
+            .layoutPriority(1)
         } else {
             Spacer()
         }
@@ -175,9 +179,7 @@ struct ImportSheet: View {
                     if let problem = m.problem {
                         Label("Not migrated: \(problem)", systemImage: "minus.circle").font(.caption).foregroundStyle(.secondary)
                     } else {
-                        ForEach(m.steps, id: \.self) { s in
-                            Label(s, systemImage: "arrow.right.circle").font(.caption).foregroundStyle(.secondary)
-                        }
+                        MigrationSteps(database: m.database, steps: m.steps)
                     }
                 }
             }
@@ -185,28 +187,58 @@ struct ImportSheet: View {
     }
 
     private func done(_ r: ImportPlan) -> some View {
+        let imported = r.items.filter { $0.creates && (selected.isEmpty || selected.contains($0.mamp.serverName)) }
         let migrated = r.items.filter { $0.migration?.done == true }
         let failed = r.items.filter { $0.migration?.error != nil }
         return VStack(alignment: .leading, spacing: 10) {
             Label("Imported \(r.create) site\(r.create == 1 ? "" : "s") from \(title)", systemImage: "checkmark.circle.fill")
                 .font(.title3.weight(.semibold)).foregroundStyle(.green)
             if !migrated.isEmpty {
-                Text("\(migrated.count) migrated: they now work from Covo, with their own database copy. Undo any of them from its detail (Advanced).")
+                Text("\(migrated.count == 1 ? "1 site was" : "\(migrated.count) sites were") migrated: \(migrated.count == 1 ? "it now works" : "they now work") from Covo with \(migrated.count == 1 ? "its" : "their") own database copy. Undo from the site's detail (Advanced).")
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            if !failed.isEmpty {
-                List(Array(failed.enumerated()), id: \.offset) { _, it in
-                    VStack(alignment: .leading) {
-                        Text(it.domain ?? it.mamp.serverName).font(.body.weight(.medium))
-                        Text("Migration failed and was undone: \(it.migration?.error ?? "")")
-                            .font(.caption).foregroundStyle(.orange).textSelection(.enabled)
-                    }
+            VStack(spacing: 0) {
+                ForEach(Array(imported.prefix(8).enumerated()), id: \.offset) { i, it in
+                    if i > 0 { Divider() }
+                    doneRow(it, served: r.applied)
+                }
+                if imported.count > 8 {
+                    Divider()
+                    Text("and \(imported.count - 8) more in the site list").font(.caption).foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 6)
                 }
             }
-            Text(r.applied ? "They are being served now." : "Start Covo to serve them.")
-                .foregroundStyle(.secondary)
-            Spacer()
+            .padding(.horizontal, 10)
+            .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+            ForEach(Array(failed.enumerated()), id: \.offset) { _, it in
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(it.domain ?? it.mamp.serverName).font(.body.weight(.medium))
+                    Text("Migration failed and was undone: \(it.migration?.error ?? "")")
+                        .font(.caption).foregroundStyle(.orange).textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            if !r.applied {
+                Text("Start Covo to serve them.").foregroundStyle(.secondary)
+            }
         }
+    }
+
+    private func doneRow(_ it: ImportItem, served: Bool) -> some View {
+        let site = model.sites.first { $0.domain == it.domain }
+        return HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(it.domain ?? it.mamp.serverName).font(.body.weight(.medium))
+                Text(it.migration?.done == true ? "Migrated, database \(it.migration?.database ?? "")" : "Imported, database to set by hand")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+            if let site, served {
+                Button("Open") { open(site.url) }
+            }
+        }
+        .padding(.vertical, 6)
     }
 
     private var footer: some View {
@@ -265,6 +297,38 @@ struct ImportSheet: View {
             result = try await model.importSites(from: source, options(dryRun: false))
         } catch {
             self.error = error.localizedDescription
+        }
+    }
+}
+
+/// A site's migration steps in the import list, behind a disclosure so
+/// the list stays readable.
+private struct MigrationSteps: View {
+    let database: String?
+    let steps: [String]
+    @State private var expanded = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Button {
+                expanded.toggle()
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "chevron.right")
+                        .rotationEffect(.degrees(expanded ? 90 : 0))
+                    Text("Migrate database \(database ?? "") (\(steps.count) steps)")
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            if expanded {
+                ForEach(steps, id: \.self) { s in
+                    Label(s, systemImage: "arrow.right.circle").font(.caption).foregroundStyle(.secondary)
+                        .padding(.leading, 12)
+                }
+            }
         }
     }
 }
