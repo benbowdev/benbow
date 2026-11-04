@@ -5,7 +5,10 @@ hand (no Sparkle, no public download yet). Versions are `0.1.0-beta.N`.
 
 ## Once per Mac
 
-1. Apple Developer Program membership (paid), Account Holder role.
+1. Apple Developer Program membership (paid). Only the team's **Account
+   Holder** can create Developer ID certificates (Admin is not enough): if
+   someone else is the Account Holder, they create it and send it as a
+   `.p12` to import into the login keychain.
 2. A **Developer ID Application** certificate in the login keychain: Xcode →
    Settings → Accounts → the team → Manage Certificates… → + → Developer ID
    Application. Check with `security find-identity -v -p codesigning`.
@@ -15,8 +18,12 @@ hand (no Sparkle, no public download yet). Versions are `0.1.0-beta.N`.
    command line):
 
    ```sh
-   xcrun notarytool store-credentials covo-notary --apple-id <apple-id> --team-id TMS5X2RC4R
+   xcrun notarytool store-credentials covo-notary --apple-id <apple-id> --team-id <team-id>
    ```
+
+   The Team ID is in developer.apple.com → Account → Membership details
+   (the code in an "Apple Development: Name (…)" certificate is a personal
+   ID, not the Team ID).
 
 ## Each release
 
