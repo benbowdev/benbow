@@ -5,6 +5,7 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"os"
 	"path/filepath"
 	"testing"
@@ -198,5 +199,81 @@ func TestOpenConcurrently(t *testing.T) {
 		if err := <-errs; err != nil {
 			t.Error(err)
 		}
+	}
+}
+
+// openAt opens a database migrated only up to version limit, as an older
+// covo left it.
+func openAt(t *testing.T, path string, limit int) *Store {
+	t.Helper()
+	db, err := sql.Open("sqlite", "file:"+path+"?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	db.SetMaxOpenConns(1)
+	s := &Store{db: db}
+	if err := s.migrateUpTo(context.Background(), limit); err != nil {
+		t.Fatal(err)
+	}
+	return s
+}
+
+// A database with data from an older Covo (schema 0007: sites, aliases,
+// groups) migrates to the current schema without losing anything, and the
+// newer columns get their defaults.
+func TestMigrateOldDatabaseWithData(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "covo.db")
+	old := openAt(t, path, 7)
+	for _, q := range []string{
+		`INSERT INTO site_groups (id, name, parent_id, created_at) VALUES (1, 'Clients', NULL, '2026-10-30T10:00:00Z')`,
+		`INSERT INTO sites (name, path, php_minor, domain, https, created_at, enabled, group_id) VALUES ('shop', '/Users/test/Sites/My Shop', '8.4', 'shop.localhost', 1, '2026-10-30T10:00:00Z', 1, 1)`,
+		`INSERT INTO sites (name, path, php_minor, domain, https, created_at, enabled) VALUES ('legacy', '/Users/test/Sites/legacy', '8.2', 'legacy.localhost', 1, '2026-10-30T10:00:00Z', 0)`,
+		`INSERT INTO site_aliases (site, domain) VALUES ('shop', 'www.shop.localhost')`,
+		`INSERT INTO settings (key, value) VALUES ('https_port', '9443')`,
+	} {
+		if _, err := old.db.ExecContext(ctx, q); err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+	}
+	_ = old.Close()
+
+	s, err := Open(ctx, path)
+	if err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	defer s.Close()
+	shop, err := s.Site(ctx, "shop")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if shop.Path != "/Users/test/Sites/My Shop" || shop.PHPMinor != "8.4" || !shop.Enabled || shop.GroupID != 1 ||
+		shop.Title != "" || shop.Position != 0 || len(shop.Aliases) != 1 || shop.Aliases[0] != "www.shop.localhost" {
+		t.Fatalf("shop after migration = %+v", shop)
+	}
+	legacy, err := s.Site(ctx, "legacy")
+	if err != nil || legacy.Enabled {
+		t.Fatalf("legacy after migration = %+v, %v", legacy, err)
+	}
+	if v, ok, err := s.Setting(ctx, "https_port"); err != nil || !ok || v != "9443" {
+		t.Fatalf("setting = %q, %v, %v", v, ok, err)
+	}
+	groups, err := s.ListGroups(ctx)
+	if err != nil || len(groups) != 1 || groups[0].Name != "Clients" {
+		t.Fatalf("groups = %+v, %v", groups, err)
+	}
+}
+
+// An older covo (on PATH, or after going back to an older app) refuses a
+// database a newer one has migrated, instead of writing to it.
+func TestOpenRefusesNewerSchema(t *testing.T) {
+	ctx := context.Background()
+	s, path := openTest(t)
+	if _, err := s.db.ExecContext(ctx, `INSERT INTO schema_version (version) VALUES (9999)`); err != nil {
+		t.Fatal(err)
+	}
+	_ = s.Close()
+	if _, err := Open(ctx, path); errcode.Code(err) != errcode.Unsupported {
+		t.Fatalf("Open newer schema = %v, want %s", err, errcode.Unsupported)
 	}
 }

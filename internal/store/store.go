@@ -58,10 +58,13 @@ func (s *Store) Close() error {
 // a new or older database at once (the daemon, the CLI, an agent's MCP
 // server): the whole check-and-apply runs in one IMMEDIATE transaction, so
 // they take turns, and a busy database is retried.
-func (s *Store) migrate(ctx context.Context) error {
+func (s *Store) migrate(ctx context.Context) error { return s.migrateUpTo(ctx, 0) }
+
+// migrateUpTo applies the missing migrations up to version limit (0: all).
+func (s *Store) migrateUpTo(ctx context.Context, limit int) error {
 	var err error
 	for attempt := 0; attempt < 50; attempt++ {
-		if err = s.migrateOnce(ctx); err == nil || !isBusy(err) {
+		if err = s.migrateOnce(ctx, limit); err == nil || !isBusy(err) {
 			return err
 		}
 		select {
@@ -78,7 +81,7 @@ func isBusy(err error) bool {
 	return strings.Contains(msg, "SQLITE_BUSY") || strings.Contains(msg, "database is locked")
 }
 
-func (s *Store) migrateOnce(ctx context.Context) (err error) {
+func (s *Store) migrateOnce(ctx context.Context, limit int) (err error) {
 	conn, err := s.db.Conn(ctx)
 	if err != nil {
 		return fmt.Errorf("open database connection: %w", err)
@@ -104,14 +107,23 @@ func (s *Store) migrateOnce(ctx context.Context) (err error) {
 		return fmt.Errorf("list migrations: %w", err)
 	}
 	sort.Strings(files)
-	for _, name := range files {
+	versions := make([]int, len(files))
+	for i, name := range files {
 		// Files are named NNNN_description.sql.
 		base := strings.TrimPrefix(name, "migrations/")
-		n, err := strconv.Atoi(strings.SplitN(base, "_", 2)[0])
-		if err != nil {
+		if versions[i], err = strconv.Atoi(strings.SplitN(base, "_", 2)[0]); err != nil {
 			return fmt.Errorf("bad migration name %s: %w", name, err)
 		}
-		if n <= current {
+	}
+	// A newer covo has changed the database in ways this one does not know:
+	// writing to it could break what that version relies on.
+	if known := versions[len(versions)-1]; current > known {
+		return errcode.Errorf(errcode.Unsupported, fmt.Sprintf(
+			"Covo's database is from a newer version of Covo (schema %d; this covo knows up to %d): update covo, or check which covo is first on your PATH", current, known))
+	}
+	for i, name := range files {
+		n := versions[i]
+		if n <= current || limit > 0 && n > limit {
 			continue
 		}
 		body, err := migrations.ReadFile(name)

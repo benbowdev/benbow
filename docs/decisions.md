@@ -87,6 +87,11 @@ Format: **decision** (date) — why. *Not chosen:* alternatives.
   the user starts Covo; opt-in "open at login" through SMAppService.
 - **SQLite state with a pure-Go driver (modernc), numbered migrations**
   (2026-10-29) — no CGO, one file, easy to back up.
+- **An older covo refuses a database migrated by a newer one** (2026-11-04)
+  — an older copy on PATH, or going back to an older app, would otherwise
+  write rows without knowing what the newer columns mean; it answers
+  `unsupported` and says to update. A test migrates a schema-0007 database
+  with data to the current schema.
 - **Every CLI command has `--json` with a stable envelope and error codes**
   (2026-10-29) — scripts and agents can rely on it.
 - **Concurrent writers serialized by `flock` on `covo.lock`** (2026-10-29).
