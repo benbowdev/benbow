@@ -58,7 +58,9 @@ struct ContentView: View {
         .alert("Title for “\(model.titling?.name ?? "")”", isPresented: Binding(get: { model.titling != nil }, set: { if !$0 { model.titling = nil } })) {
             TextField("Title", text: $siteTitle, prompt: Text(model.titling?.name ?? ""))
             Button("Save") {
-                if let site = model.titling { Task { await model.setTitle(site, siteTitle) } }
+                // Read the text now: closing the alert clears it.
+                let title = siteTitle
+                if let site = model.titling { Task { await model.setTitle(site, title) } }
                 model.titling = nil
             }
             Button("Cancel", role: .cancel) { model.titling = nil }
