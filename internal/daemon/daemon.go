@@ -71,6 +71,10 @@ func Run(ctx context.Context) error {
 	}
 	sock := c.Layout.Socket(api.SocketName)
 	ln, err := api.Listen(sock)
+	if errcode.Code(err) == errcode.Conflict {
+		fmt.Fprintf(os.Stderr, "%v; this one exits\n", err)
+		return nil
+	}
 	if err != nil {
 		return err
 	}
@@ -147,6 +151,9 @@ func agent(c *core.Core, program, hash string) launchd.Agent {
 		StdoutLog:   filepath.Join(c.Layout.Logs, core.DaemonService+".out.log"),
 		StderrLog:   filepath.Join(c.Layout.Logs, core.DaemonService+".err.log"),
 		ExitTimeout: exitTimeout,
+		// Run exits 0 when another daemon already answers: launchd must
+		// not keep trying.
+		RestartOnFailure: true,
 	}
 }
 

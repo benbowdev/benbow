@@ -14,6 +14,9 @@ covo daemon stop
   app (not at login). It runs as the user, never as root. A new `covo`
   binary (its SHA-256 is in the agent) restarts it. `covo stop` and the
   API's stop never stop the daemon; `covo uninstall` does.
+- launchd restarts the daemon only when it fails (`KeepAlive` with
+  `SuccessfulExit` false). A second daemon that finds the socket answering
+  exits 0, so it is not started again every few seconds.
 - The socket is `0600` in a `0700` folder, and every connection's peer UID
   is checked: only the user who runs the daemon can connect.
 - The CLI keeps running the core in-process; both share Covo's lock.

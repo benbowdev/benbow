@@ -47,6 +47,16 @@ func TestPlistGolden(t *testing.T) {
 	if strings.Contains(string(got), "ExitTimeOut") {
 		t.Error("ExitTimeOut without ExitTimeout")
 	}
+	if !strings.Contains(string(got), "<key>KeepAlive</key>\n\t<true/>") {
+		t.Error("KeepAlive must default to always")
+	}
+	onFailure, err := Plist(Agent{Label: "x", Program: "/x", StdoutLog: "/o", StderrLog: "/e", RestartOnFailure: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(onFailure), "<key>KeepAlive</key>\n\t<dict>\n\t\t<key>SuccessfulExit</key>\n\t\t<false/>\n\t</dict>") {
+		t.Errorf("RestartOnFailure plist:\n%s", onFailure)
+	}
 	got, err = Plist(Agent{Label: "x", Program: "/x", StdoutLog: "/o", StderrLog: "/e", ExitTimeout: 60})
 	if err != nil || !strings.Contains(string(got), "<key>ExitTimeOut</key>\n\t<integer>60</integer>") {
 		t.Errorf("ExitTimeOut missing: %v\n%s", err, got)

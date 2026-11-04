@@ -56,6 +56,10 @@ type Agent struct {
 	// ExitTimeout is how many seconds launchd waits after SIGTERM before
 	// SIGKILL (launchd's default, 20, if zero).
 	ExitTimeout int
+	// RestartOnFailure restarts the program only when it fails: a program
+	// that exits 0 on purpose (nothing to do) is not started again every
+	// few seconds.
+	RestartOnFailure bool
 }
 
 type envVar struct{ Key, Value string }
@@ -94,7 +98,14 @@ var plistTmpl = template.Must(template.New("plist").Funcs(template.FuncMap{"x": 
 	<key>RunAtLoad</key>
 	<true/>
 	<key>KeepAlive</key>
+{{- if .RestartOnFailure}}
+	<dict>
+		<key>SuccessfulExit</key>
+		<false/>
+	</dict>
+{{- else}}
 	<true/>
+{{- end}}
 	<key>ThrottleInterval</key>
 	<integer>5</integer>
 {{- if .ExitTimeout}}
