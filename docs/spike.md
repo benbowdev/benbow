@@ -86,7 +86,11 @@ install's CA from the keychain (by SHA-1; by name only if the CA file is
 gone), and deletes the Covo home and socket fallback. It does not open the
 database, so it also cleans a partial or corrupted install. It refuses to
 delete a home containing files Covo did not create (`conflict`) and asks for
-confirmation unless `--yes`. Site folders are never touched.
+confirmation unless `--yes`. Site folders are never touched. It also removes every
+secret Covo keeps in the login keychain, the `/etc/resolver` file and the
+`.local` helper, and Covo's MCP server from the AI agents it was connected
+to. Before asking, it lists the backups of `wp-config.php`/`.env` taken by
+migrations, which go with the Covo home.
 
 ## Logs
 

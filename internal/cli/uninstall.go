@@ -25,6 +25,9 @@ func (r uninstallResult) Text(w io.Writer) {
 		return
 	}
 	writePlan(w, r.UninstallPlan, "Removed")
+	for _, warn := range r.Warnings {
+		fmt.Fprintln(w, "Warning: "+warn)
+	}
 	fmt.Fprintln(w, "Your site folders were not touched.")
 }
 
@@ -44,8 +47,17 @@ func writePlan(w io.Writer, p core.UninstallPlan, verb string) {
 	for _, item := range p.Keychain {
 		fmt.Fprintf(w, "%s %s from the login keychain\n", verb, item)
 	}
+	for _, a := range p.AgentConfigs {
+		fmt.Fprintf(w, "%s Covo's MCP server from %s (%s)\n", verb, a.Name, a.Path)
+	}
 	for _, path := range p.Paths {
 		fmt.Fprintf(w, "%s %s\n", verb, path)
+	}
+	if len(p.MigrationBackups) > 0 && verb != "Removed" {
+		fmt.Fprintln(w, "The backups of wp-config.php and .env taken before migrations go with it; copy them first if you may still need them:")
+		for _, b := range p.MigrationBackups {
+			fmt.Fprintln(w, "  "+b)
+		}
 	}
 }
 

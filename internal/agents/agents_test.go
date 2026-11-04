@@ -165,3 +165,43 @@ func TestStart(t *testing.T) {
 		t.Fatalf("open calls = %s", calls)
 	}
 }
+
+func TestDisconnect(t *testing.T) {
+	ctx := context.Background()
+	env, log := fakeEnv(t)
+	write := func(rel, body string) string {
+		p := filepath.Join(env.Home, rel)
+		_ = os.MkdirAll(filepath.Dir(p), 0o755)
+		if err := os.WriteFile(p, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	gemini := write(".gemini/settings.json", `{"theme":"dark","mcpServers":{"other":{"command":"x"},"covo":{"command":"/covo"}}}`)
+	write(".claude.json", `{"mcpServers":{"covo":{"command":"/covo"}}}`)
+	write(".codex/config.toml", "[mcp_servers.covo]\ncommand = \"/covo\"\n")
+
+	for _, id := range []string{Gemini, Claude, Codex, Cursor} {
+		if err := Disconnect(ctx, env, id); err != nil {
+			t.Fatalf("disconnect %s: %v", id, err)
+		}
+	}
+	b, _ := os.ReadFile(gemini)
+	var cfg map[string]any
+	_ = json.Unmarshal(b, &cfg)
+	servers := cfg["mcpServers"].(map[string]any)
+	if cfg["theme"] != "dark" || servers["other"] == nil || servers["covo"] != nil {
+		t.Fatalf("gemini settings = %s", b)
+	}
+	if fi, _ := os.Stat(gemini); fi.Mode().Perm() != 0o600 {
+		t.Errorf("mode changed to %v", fi.Mode().Perm())
+	}
+	calls, _ := os.ReadFile(log)
+	if !strings.Contains(string(calls), "claude mcp remove -s user covo") || !strings.Contains(string(calls), "codex mcp remove covo") {
+		t.Fatalf("calls = %s", calls)
+	}
+	// Cursor had no entry: nothing written.
+	if _, err := os.Stat(filepath.Join(env.Home, ".cursor/mcp.json")); !os.IsNotExist(err) {
+		t.Errorf("cursor config created: %v", err)
+	}
+}

@@ -47,7 +47,10 @@ Agent: Claude Code and Codex with their own `mcp add` command (Claude Code
 user scope), Gemini, Cursor and Claude Desktop by adding `mcpServers.covo`
 to their JSON file. The file is backed up first in `data/backups/agents/`;
 a file that is not valid JSON is left alone. `covo agent tools` lists the
-agents and whether Covo is connected.
+agents and whether Covo is connected. `covo uninstall` takes the entry out again
+(`mcp remove` for Claude Code and Codex, only `mcpServers.covo` in the JSON
+files); test installations with their own label prefix never touch the real
+agents.
 
 ## Agent sessions
 

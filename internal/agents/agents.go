@@ -24,6 +24,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/getcovo/covo/internal/fsutil"
 )
 
 // Agent ids.
@@ -360,17 +362,70 @@ func addJSONServer(path string, entry map[string]any) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return fmt.Errorf("create %s: %w", filepath.Dir(path), err)
 	}
+	return writeKeepingMode(path, append(out, '\n'))
+}
+
+// writeKeepingMode replaces path atomically, keeping its permissions.
+func writeKeepingMode(path string, body []byte) error {
 	mode := fs.FileMode(0o644)
 	if fi, err := os.Stat(path); err == nil {
 		mode = fi.Mode().Perm()
 	}
-	tmp := path + ".covo-tmp"
-	if err := os.WriteFile(tmp, append(out, '\n'), mode); err != nil {
-		return fmt.Errorf("write %s: %w", path, err)
+	_, err := fsutil.WriteAtomic(path, body, mode)
+	return err
+}
+
+// Disconnect removes Covo's MCP server from an agent's global
+// configuration (covo uninstall). Claude Code and Codex do it with their
+// own command when it is there; JSON files lose only the "covo" entry.
+func Disconnect(ctx context.Context, env Env, id string) error {
+	a, err := Find(ctx, env, id)
+	if err != nil {
+		return err
 	}
-	if err := os.Rename(tmp, path); err != nil {
-		_ = os.Remove(tmp)
-		return fmt.Errorf("replace %s: %w", path, err)
+	if !a.Connected {
+		return nil
 	}
-	return nil
+	if (id == Claude || id == Codex) && a.Path != "" {
+		args := []string{"mcp", "remove"}
+		if id == Claude {
+			args = append(args, "-s", "user")
+		}
+		args = append(args, ServerName)
+		ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, a.Path, args...)
+		cmd.Dir = env.Home
+		cmd.Env = append(os.Environ(), "HOME="+env.Home)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("%s %s: %w: %s", a.Path, strings.Join(args, " "), err, strings.TrimSpace(string(out)))
+		}
+		return nil
+	}
+	if id == Codex {
+		return fmt.Errorf("remove the [mcp_servers.%s] table from %s by hand (codex is not installed)", ServerName, a.ConfigPath)
+	}
+	return removeJSONServer(a.ConfigPath)
+}
+
+// removeJSONServer deletes mcpServers.covo from a JSON configuration.
+func removeJSONServer(path string) error {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read %s: %w", path, err)
+	}
+	cfg := map[string]any{}
+	if err := json.Unmarshal(b, &cfg); err != nil {
+		return fmt.Errorf("%s is not valid JSON, so Covo leaves it alone: %w", path, err)
+	}
+	servers, _ := cfg["mcpServers"].(map[string]any)
+	if _, ok := servers[ServerName]; !ok {
+		return nil
+	}
+	delete(servers, ServerName)
+	out, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return fmt.Errorf("encode %s: %w", path, err)
+	}
+	return writeKeepingMode(path, append(out, '\n'))
 }

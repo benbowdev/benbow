@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/getcovo/covo/internal/agents"
 	"github.com/getcovo/covo/internal/ca"
 	"github.com/getcovo/covo/internal/errcode"
 	"github.com/getcovo/covo/internal/hostshelper"
@@ -45,12 +46,27 @@ type UninstallPlan struct {
 	Keychain []string `json:"keychain"`
 	Paths    []string `json:"paths"`
 	Unknown  []string `json:"unknown,omitempty"`
+	// AgentConfigs are the AI agents whose global configuration has Covo's
+	// MCP server; uninstall removes that entry only.
+	AgentConfigs []AgentConfig `json:"agent_configs,omitempty"`
+	// MigrationBackups are the folders holding the wp-config.php and .env
+	// files saved before migrations: they go with the Covo folder.
+	MigrationBackups []string `json:"migration_backups,omitempty"`
+}
+
+// AgentConfig is an agent's configuration file with Covo's MCP server.
+type AgentConfig struct {
+	Agent string `json:"agent"`
+	Name  string `json:"name"`
+	Path  string `json:"path"`
 }
 
 // UninstallResult reports what uninstall did.
 type UninstallResult struct {
 	UninstallPlan
 	Done bool `json:"done"`
+	// Warnings are steps that failed without stopping the uninstall.
+	Warnings []string `json:"warnings,omitempty"`
 }
 
 // Uninstaller works without opening the Covo home, so it also cleans up a
@@ -61,6 +77,9 @@ type Uninstaller struct {
 	Keychain  *trust.Keychain
 	CAName    string
 	Resolver  resolver.Manager
+	// Agents is where AI agents keep their configuration; nil leaves them
+	// alone (test installations must never touch the real ones).
+	Agents *agents.Env
 }
 
 // NewUninstaller resolves the environment without creating anything.
@@ -73,10 +92,15 @@ func NewUninstaller() (*Uninstaller, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Uninstaller{
+	u := &Uninstaller{
 		Layout: layout, Launchctl: launchd.New(), Keychain: kc, CAName: ca.Name(),
 		Resolver: newResolverManager(layout.Root, layout.Tmp),
-	}, nil
+	}
+	if u.Launchctl.Prefix == launchd.DefaultPrefix || os.Getenv("COVO_AGENTS_HOME") != "" {
+		env := agents.DefaultEnv()
+		u.Agents = &env
+	}
+	return u, nil
 }
 
 // Plan computes what Uninstall would remove, changing nothing.
@@ -122,6 +146,15 @@ func (u *Uninstaller) Plan(ctx context.Context) (UninstallPlan, error) {
 			plan.Resolver = append(plan.Resolver, st.Path)
 		}
 	}
+
+	if u.Agents != nil {
+		for _, a := range agents.Detect(ctx, *u.Agents) {
+			if a.Connected {
+				plan.AgentConfigs = append(plan.AgentConfigs, AgentConfig{Agent: a.ID, Name: a.Name, Path: a.ConfigPath})
+			}
+		}
+	}
+	plan.MigrationBackups = migrationBackups(u.Layout)
 
 	if _, err := os.Lstat(u.Layout.Root); err == nil {
 		plan.Paths = append(plan.Paths, u.Layout.Root)
@@ -185,6 +218,11 @@ func (u *Uninstaller) Uninstall(ctx context.Context) (UninstallResult, error) {
 			return res, err
 		}
 	}
+	for _, a := range plan.AgentConfigs {
+		if err := agents.Disconnect(ctx, *u.Agents, a.Agent); err != nil {
+			res.Warnings = append(res.Warnings, fmt.Sprintf("Covo's MCP server is still in %s: %v", a.Path, err))
+		}
+	}
 	for _, p := range plan.Paths {
 		if err := os.RemoveAll(p); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return res, fmt.Errorf("remove %s: %w", p, err)
@@ -228,4 +266,24 @@ func covoKeychains(prefix string) ([]struct {
 		{"Passwords of production and staging servers", remote},
 		{"GitHub token for blueprints", github},
 	}, nil
+}
+
+// migrationBackups lists the per-site backup folders that hold files.
+func migrationBackups(l paths.Layout) []string {
+	dir := filepath.Join(l.Data, "backups")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, e := range entries {
+		if !e.IsDir() || e.Name() == "agents" {
+			continue
+		}
+		p := filepath.Join(dir, e.Name())
+		if files, err := os.ReadDir(p); err == nil && len(files) > 0 {
+			out = append(out, p)
+		}
+	}
+	return out
 }

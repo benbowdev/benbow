@@ -5,9 +5,11 @@ package core
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/getcovo/covo/internal/errcode"
+	"github.com/getcovo/covo/internal/paths"
 )
 
 func TestCheckRemovable(t *testing.T) {
@@ -33,5 +35,36 @@ func TestCheckRemovable(t *testing.T) {
 		if !tt.ok && errcode.Code(err) != errcode.ForbiddenFolder {
 			t.Errorf("checkRemovable(%q) = %v, want forbidden_folder", tt.root, err)
 		}
+	}
+}
+
+func TestMigrationBackups(t *testing.T) {
+	l := paths.Layout{Data: t.TempDir()}
+	if got := migrationBackups(l); got != nil {
+		t.Fatalf("no backups dir = %v", got)
+	}
+	writeFile(t, filepath.Join(l.Data, "backups", "shop", "wp-config.php.20261104"), "x")
+	writeFile(t, filepath.Join(l.Data, "backups", "agents", ".claude.json.20261104"), "x")
+	if err := os.MkdirAll(filepath.Join(l.Data, "backups", "empty"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	got := migrationBackups(l)
+	if len(got) != 1 || filepath.Base(got[0]) != "shop" {
+		t.Fatalf("migrationBackups = %v", got)
+	}
+}
+
+// A test installation (own label prefix) never touches the real agents'
+// configuration.
+func TestUninstallerLeavesRealAgentsOfTestInstalls(t *testing.T) {
+	t.Setenv("COVO_LABEL_PREFIX", "test.covo.uninstall")
+	t.Setenv("COVO_AGENTS_HOME", "")
+	t.Setenv("COVO_HOME", t.TempDir())
+	u, err := NewUninstaller()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u.Agents != nil {
+		t.Fatalf("agents env = %+v, want none", u.Agents)
 	}
 }
