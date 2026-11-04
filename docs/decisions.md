@@ -313,6 +313,16 @@ Format: **decision** (date) — why. *Not chosen:* alternatives.
   hosts** (2026-11-04) — checking must not change the site or reach the
   internet.
 
+## Releases
+
+- **Preliminary betas: Developer ID, notarized DMG sent by hand**
+  (2026-11-04) — a collaborator tries Covo before the public beta; a
+  notarized app opens with a double click and keeps one identity across
+  builds (keychain items, login item). Versions `0.1.0-beta.N`; Sparkle and
+  a public download come with the public beta. *Not chosen:* ad-hoc
+  signing ("Open Anyway" in Settings, keychain prompts after every build),
+  a GitHub release (the repository stays private).
+
 ## Later (v2+), decided not now
 
 - Own binary build pipeline (signed, reproducible, SBOM); Apache and Nginx;

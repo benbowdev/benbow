@@ -8,6 +8,7 @@
 #
 #   app/build.sh          build the app
 #   app/build.sh test     run the Swift tests, including a live daemon test
+#   app/release.sh        signed, notarized DMG for testers (uses this script)
 set -euo pipefail
 
 app=$(cd "$(dirname "$0")" && pwd)
@@ -15,7 +16,12 @@ repo=$(dirname "$app")
 out="$app/build"
 mkdir -p "$out"
 
-(cd "$repo" && go build -o "$out/covo" ./cmd/covo && go build -o "$out/covo-hostshelper" ./cmd/covo-hostshelper)
+# COVO_VERSION (e.g. 0.1.0-beta.1) is stamped into covo and the app; "dev"
+# otherwise. COVO_BUILD is the bundle's build number (default 1).
+version="${COVO_VERSION:-dev}"
+ldflags="-X github.com/getcovo/covo/internal/version.Version=$version"
+(cd "$repo" && go build -trimpath -ldflags "$ldflags" -o "$out/covo" ./cmd/covo &&
+	go build -trimpath -ldflags "$ldflags" -o "$out/covo-hostshelper" ./cmd/covo-hostshelper)
 
 if [[ "${1:-}" == "test" ]]; then
 	COVO_BIN="$out/covo" swift test --package-path "$app"
@@ -29,6 +35,10 @@ bundle="$out/Covo.app"
 rm -rf "$bundle"
 mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources/bin"
 cp "$app/Info.plist" "$bundle/Contents/Info.plist"
+if [[ "$version" != "dev" ]]; then
+	/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $version" "$bundle/Contents/Info.plist"
+	/usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${COVO_BUILD:-1}" "$bundle/Contents/Info.plist"
+fi
 cp "$bin/Covo" "$bundle/Contents/MacOS/Covo"
 cp "$out/covo" "$out/covo-hostshelper" "$bundle/Contents/Resources/bin/"
 # Icons come from the brand kit (docs/brand).
