@@ -17,7 +17,6 @@ struct ContentView: View {
     @State private var duplicating: Site?
     @State private var showArchived = false
     @State private var phoneSite: Site?
-    @State private var sidebarDrag = SidebarDrag()
 
     /// Sites whose name, domain, alias or folder match the search.
     private var filtered: [Site] {
@@ -96,7 +95,6 @@ struct ContentView: View {
             .dropDestination(for: String.self) { items, _ in
                 sidebarActions.drop(items, nil)
             }
-            .environment(sidebarDrag)
             .searchable(text: $search, placement: .sidebar, prompt: "Search sites")
             .overlay {
                 if model.sites.isEmpty {
@@ -352,11 +350,19 @@ struct GroupTree: View {
                 GroupRow(group: g, sites: inside(g.id), actions: actions)
             }
         }
+        // Dropped between rows: macOS draws the insertion line.
+        .onInsert(of: [.plainText]) { index, providers in
+            sidebarItems(providers) { items in
+                Task { await model.insertGroups(items, into: parent, at: index) }
+            }
+        }
         ForEach(sites.filter { $0.groupId == parent }) { site in
             SiteRow(site: site, groupPath: nil, duplicate: { actions.duplicate(site) })
-                .sidebarReorder(.site(site.name)) { item, zone in
-                    Task { await model.place(item, zone, relativeTo: .site(site.name)) }
-                }
+        }
+        .onInsert(of: [.plainText]) { index, providers in
+            sidebarItems(providers) { items in
+                Task { await model.insertSites(items, into: parent, at: index) }
+            }
         }
     }
 
@@ -373,6 +379,7 @@ struct GroupRow: View {
     /// Its sites and its subgroups' (archived ones left out).
     let sites: [Site]
     let actions: SidebarActions
+    @State private var targeted = false
 
     private var anyOn: Bool { sites.contains(where: \.enabled) }
 
@@ -394,10 +401,11 @@ struct GroupRow: View {
             }
         }
         .padding(.vertical, 1)
-        .sidebarReorder(.group(group.id)) { item, zone in
-            if zone == .into { actions.expand(group.id) }
-            Task { await model.place(item, zone, relativeTo: .group(group.id)) }
-        }
+        .background(targeted ? Color.accentColor.opacity(0.2) : .clear, in: RoundedRectangle(cornerRadius: 4))
+        .draggable(SidebarItem.group(group.id).token)
+        .dropDestination(for: String.self) { items, _ in
+            actions.drop(items, group.id)
+        } isTargeted: { targeted = $0 }
         .contextMenu {
             Button { actions.newSite(group.id) } label: { Label("New Site Here…", systemImage: "plus") }
             Button { actions.newGroup(group.id) } label: { Label("New Group Inside…", systemImage: "folder.badge.plus") }
@@ -494,6 +502,7 @@ struct SiteRow: View {
             }
         }
         .opacity(site.enabled ? 1 : 0.55)
+        .draggable(SidebarItem.site(site.name).token)
         .contextMenu {
             SiteActions(site: site)
             Divider()

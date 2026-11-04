@@ -183,9 +183,10 @@ Format: **decision** (date) — why. *Not chosen:* alternatives.
   off (2026-11-04). The user orders each level by drag and drop
   (2026-11-04): a `position` per site and group, 0 = by name, so lists
   never ordered keep sorting alphabetically and new items go last only
-  once a level was ordered. Groups stay before sites. *Not chosen:*
-  SwiftUI's `onMove` (no moves between levels, clashes with dropping into
-  a group).
+  once a level was ordered. Groups stay before sites. The app uses the
+  list's own `.draggable` + `.onInsert` + `.dropDestination`: a custom
+  `onDrag`/`DropDelegate` per row is ignored by macOS lists. *Not chosen:*
+  `onMove` (no moves between levels).
 - **"+" at the bottom of the sidebar, database and settings on the right
   of the toolbar** (2026-11-03) — like Tower; the user's preference.
 - **Non-obvious operations are explained inline before the user acts
