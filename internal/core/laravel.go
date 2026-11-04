@@ -16,6 +16,7 @@ import (
 
 	"github.com/getcovo/covo/internal/dotenv"
 	"github.com/getcovo/covo/internal/errcode"
+	"github.com/getcovo/covo/internal/fsutil"
 	"github.com/getcovo/covo/internal/store"
 )
 
@@ -311,18 +312,28 @@ func (c *Core) NewLaravel(ctx context.Context, req LaravelRequest) (LaravelResul
 
 // editEnvFile sets keys in a .env file, keeping its mode.
 func editEnvFile(path string, pairs []dotenv.Pair) error {
-	info, err := os.Stat(path)
-	if err != nil {
-		return fmt.Errorf("read %s: %w", path, err)
-	}
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("read %s: %w", path, err)
 	}
-	if err := os.WriteFile(path, []byte(dotenv.Set(string(b), pairs)), info.Mode().Perm()); err != nil {
-		return fmt.Errorf("write %s: %w", path, err)
+	return rewriteProjectFile(path, []byte(dotenv.Set(string(b), pairs)))
+}
+
+// rewriteProjectFile replaces a file in the user's project (.env,
+// wp-config.php) all at once, so a crash or a full disk never leaves half
+// of it. It keeps the file's mode and writes through a symbolic link to
+// its target instead of replacing the link.
+func rewriteProjectFile(path string, body []byte) error {
+	target, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return fmt.Errorf("read %s: %w", path, err)
 	}
-	return nil
+	info, err := os.Stat(target)
+	if err != nil {
+		return fmt.Errorf("read %s: %w", path, err)
+	}
+	_, err = fsutil.WriteAtomic(target, body, info.Mode().Perm())
+	return err
 }
 
 // lastChars keeps the end of a long tool output.

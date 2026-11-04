@@ -481,34 +481,25 @@ func (c *Core) restoreDatabaseBackup(ctx context.Context, db, path string) error
 
 // pointConfigAt changes the project's configuration to Covo's database.
 func (c *Core) pointConfigAt(p projectDB, db SiteDatabase, host, url string) error {
-	b, err := os.ReadFile(p.configPath)
-	if err != nil {
-		return fmt.Errorf("read %s: %w", p.configPath, err)
-	}
-	info, err := os.Stat(p.configPath)
-	if err != nil {
-		return fmt.Errorf("stat %s: %w", p.configPath, err)
-	}
-	var out string
 	if p.framework == FrameworkLaravel {
 		hostOnly, port, _ := strings.Cut(host, ":")
-		out = dotenv.Set(string(b), []dotenv.Pair{
+		return editEnvFile(p.configPath, []dotenv.Pair{
 			{Key: "APP_URL", Value: url}, {Key: "DB_CONNECTION", Value: "mysql"},
 			{Key: "DB_HOST", Value: hostOnly}, {Key: "DB_PORT", Value: port},
 			{Key: "DB_DATABASE", Value: db.Database}, {Key: "DB_USERNAME", Value: db.User}, {Key: "DB_PASSWORD", Value: db.Password},
 		})
-	} else {
-		out, err = wpconfig.Set(string(b), map[string]string{
-			"DB_NAME": db.Database, "DB_USER": db.User, "DB_PASSWORD": db.Password, "DB_HOST": host,
-		})
-		if err != nil {
-			return err
-		}
 	}
-	if err := os.WriteFile(p.configPath, []byte(out), info.Mode().Perm()); err != nil {
-		return fmt.Errorf("write %s: %w", p.configPath, err)
+	b, err := os.ReadFile(p.configPath)
+	if err != nil {
+		return fmt.Errorf("read %s: %w", p.configPath, err)
 	}
-	return nil
+	out, err := wpconfig.Set(string(b), map[string]string{
+		"DB_NAME": db.Database, "DB_USER": db.User, "DB_PASSWORD": db.Password, "DB_HOST": host,
+	})
+	if err != nil {
+		return err
+	}
+	return rewriteProjectFile(p.configPath, []byte(out))
 }
 
 // wpHome reads WordPress's home address from a database on Covo's server.
