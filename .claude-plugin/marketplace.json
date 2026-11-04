@@ -1,0 +1,18 @@
+{
+  "name": "getcovo",
+  "owner": {
+    "name": "Covo",
+    "url": "https://getcovo.dev"
+  },
+  "metadata": {
+    "description": "Covo for Claude Code: work on local PHP, WordPress and Laravel sites safely, with files and database saved before you start."
+  },
+  "plugins": [
+    {
+      "name": "covo",
+      "source": "./integrations/claude-code/covo",
+      "description": "Connects Claude Code to Covo and teaches the safe workflow: agent sessions, checkpoints, fetch_page, mail and the diff before you finish.",
+      "category": "development"
+    }
+  ]
+}

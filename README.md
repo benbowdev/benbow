@@ -10,6 +10,17 @@ and `covo uninstall` puts your Mac back the way it was.
 
 **Status:** early development, not ready for use.
 
+## AI agents
+
+Covo is a safe workbench for the agent you already use: it saves a site's
+files **and database** before an agent works on it, and you keep or undo
+the changes (`docs/agents.md`). For Claude Code, the Covo plugin connects
+Covo and teaches the workflow:
+
+```
+/plugin install covo --marketplace getcovo/covo
+```
+
 ## Build
 
 Requires Go (from go.dev) on macOS.

@@ -39,16 +39,26 @@ const maxOutput = 100 << 10
 // may change state in between.
 type Open func(ctx context.Context) (*core.Core, error)
 
+// Instructions tell agents what Covo is and the recommended workflow.
+const Instructions = "Covo is a local PHP/WordPress/Laravel development environment on this Mac (like MAMP PRO): sites are folders " +
+	"served over HTTPS at local addresses (e.g. https://shop.localhost:8443), each with its own PHP version and database.\n\n" +
+	"Recommended workflow:\n" +
+	"1. covo_status, then agent_permissions: you can always read; you change a site only where the user allowed it " +
+	"(or while a \"Work with an agent\" session gives you the site).\n" +
+	"2. Work inside the site's agent session (session_status): Covo saved the site's files and database when the session " +
+	"started and the user will keep your changes or undo them all. Make changes with Covo's wp, composer and artisan tools " +
+	"(they use the site's PHP); Covo takes a checkpoint before risky ones. Use dry_run first when unsure.\n" +
+	"3. Check your work: fetch_page (the page, its redirects and the PHP errors of that very request), site_logs, " +
+	"mail_messages and read_mail for mail PHP sent, query_database to read the database.\n" +
+	"4. Before saying you are done, call session_diff and show the user what changed (files and database tables), " +
+	"and remind them to keep or undo the changes in Covo.\n\n" +
+	"Covo never lets agents delete sites, databases or snapshots, push to servers, or keep or undo a session: those stay with the user."
+
 // New returns the MCP server.
 func New(open Open) *mcp.Server {
 	t := tools{open: open, conn: &conn{}}
 	s := mcp.NewServer(&mcp.Implementation{Name: "covo", Title: "Covo", Version: version.Get().Version}, &mcp.ServerOptions{
-		Instructions: "Covo is a local PHP/WordPress/Laravel development environment on this Mac (like MAMP PRO). " +
-			"Sites are folders served over HTTPS at local addresses (e.g. https://shop.localhost:8443) with their own PHP version. " +
-			"Start with covo_status. Tools that change something are refused unless the user allowed it for that site " +
-			"(or for everything) in Covo; use dry_run first to show the user what would happen. Before a site is changed, " +
-			"Covo keeps an agent session per site: its starting state (files and database) stays until the user keeps the changes " +
-			"or undoes them all in Covo, and a checkpoint is taken before risky changes. Covo never deletes project folders.",
+		Instructions: Instructions,
 	})
 	// On the agent's first request (initialize, or server/discover in the
 	// newer protocol, or anything else), check where it works.

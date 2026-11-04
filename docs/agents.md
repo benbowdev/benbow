@@ -182,3 +182,38 @@ covo db query shop "SELECT * FROM wp_options WHERE option_name = 'home'"
 API: `POST /v1/sites/{name}/fetch` (`path`, `method`, `html`),
 `GET /v1/mail/messages` (`to`, `subject`, `limit`), `GET /v1/mail/messages/{id}`
 (`latest` for the newest), `POST /v1/sites/{name}/query` (`sql`).
+
+## Teaching agents the workflow
+
+Covo's MCP server describes the recommended workflow to every agent that
+connects (`covo_status` and permissions first, work inside the session,
+check with `fetch_page`, `site_logs` and mail, show `session_diff` before
+finishing).
+
+**Claude Code plugin.** `integrations/claude-code/covo` is a plugin with a
+`covo` skill (the workflow) and the MCP server entry for
+`/Applications/Covo.app`. The repository is a plugin marketplace
+(`.claude-plugin/marketplace.json`):
+
+```
+/plugin install covo --marketplace getcovo/covo      # once the repository is public
+/plugin marketplace add /path/to/covo                # meanwhile, from a checkout
+```
+
+**Other agents (AGENTS.md).** Codex, Cursor and Gemini read an `AGENTS.md`
+(Gemini: `GEMINI.md`) in the project. Covo never writes one into a client's
+repository; if you want it, paste this yourself:
+
+```markdown
+## Local environment: Covo
+
+This site runs in Covo (local PHP/WordPress/Laravel on this Mac). Use Covo's
+MCP server ("covo"):
+- Start with covo_status and agent_permissions; work inside the site's agent
+  session (session_status): Covo saved files and database, the user keeps or
+  undoes the changes.
+- Run wp, composer and artisan through Covo (site's PHP and database).
+- Check with fetch_page (PHP errors of that request), site_logs,
+  mail_messages/read_mail, query_database (read-only).
+- Before finishing, show session_diff to the user.
+```
