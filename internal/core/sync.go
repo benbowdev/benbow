@@ -216,6 +216,16 @@ type SyncResult struct {
 // Pull copies a remote's database and files into the site. A snapshot is
 // taken first; WordPress addresses are replaced with the local one.
 func (c *Core) Pull(ctx context.Context, name, remoteName string, opts SyncOptions) (SyncResult, error) {
+	var res SyncResult
+	err := c.locked(ctx, func() error {
+		var err error
+		res, err = c.pull(ctx, name, remoteName, opts)
+		return err
+	})
+	return res, err
+}
+
+func (c *Core) pull(ctx context.Context, name, remoteName string, opts SyncOptions) (SyncResult, error) {
 	site, err := c.Store.Site(ctx, name)
 	if err != nil {
 		return SyncResult{}, err
@@ -231,7 +241,7 @@ func (c *Core) Pull(ctx context.Context, name, remoteName string, opts SyncOptio
 	res := SyncResult{Site: name, Remote: r.Name, DryRun: opts.DryRun, Files: []string{}, Steps: []string{}}
 	localURL := siteURL(site, c.publicHTTPS(ctx))
 	if !opts.DryRun {
-		snap, err := c.CreateSnapshot(ctx, name, SnapshotPrePull, "before pulling from "+r.Name)
+		snap, err := c.createSnapshot(ctx, name, SnapshotPrePull, "before pulling from "+r.Name, "")
 		if err != nil {
 			return res, err
 		}
@@ -251,7 +261,7 @@ func (c *Core) Pull(ctx context.Context, name, remoteName string, opts SyncOptio
 			return res, errcode.Errorf(errcode.Unsupported, "pulling PostgreSQL databases is not supported yet")
 		}
 		if site.Database == "" && !opts.DryRun {
-			if _, err := c.CreateSiteDatabase(ctx, name, ""); err != nil {
+			if _, err := c.createMySQLSiteDatabase(ctx, name, ""); err != nil {
 				return res, err
 			}
 			if site, err = c.Store.Site(ctx, name); err != nil {
@@ -533,6 +543,16 @@ func (c *Core) bridgeDump(ctx context.Context, srv remote.Server, r store.Remote
 // Push copies the site's files and database to a staging remote, never to
 // production. A snapshot of the site is taken first.
 func (c *Core) Push(ctx context.Context, name, remoteName string, opts SyncOptions) (SyncResult, error) {
+	var res SyncResult
+	err := c.locked(ctx, func() error {
+		var err error
+		res, err = c.push(ctx, name, remoteName, opts)
+		return err
+	})
+	return res, err
+}
+
+func (c *Core) push(ctx context.Context, name, remoteName string, opts SyncOptions) (SyncResult, error) {
 	site, err := c.Store.Site(ctx, name)
 	if err != nil {
 		return SyncResult{}, err
@@ -551,7 +571,7 @@ func (c *Core) Push(ctx context.Context, name, remoteName string, opts SyncOptio
 	res := SyncResult{Site: name, Remote: r.Name, DryRun: opts.DryRun, Files: []string{}, Steps: []string{}}
 	localURL := siteURL(site, c.publicHTTPS(ctx))
 	if !opts.DryRun {
-		snap, err := c.CreateSnapshot(ctx, name, SnapshotManual, "before pushing to "+r.Name)
+		snap, err := c.createSnapshot(ctx, name, SnapshotManual, "before pushing to "+r.Name, "")
 		if err != nil {
 			return res, err
 		}

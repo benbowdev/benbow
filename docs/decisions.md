@@ -90,6 +90,14 @@ Format: **decision** (date) — why. *Not chosen:* alternatives.
 - **Every CLI command has `--json` with a stable envelope and error codes**
   (2026-10-29) — scripts and agents can rely on it.
 - **Concurrent writers serialized by `flock` on `covo.lock`** (2026-10-29).
+- **Exported core methods that change things take the lock; unexported
+  ones assume it is held** (2026-11-04) — the flock is not reentrant (a new
+  file descriptor waits for the one already held), so a test reads the
+  package's source and fails when code under the lock calls a method that
+  takes it again. Restore, pull, push, blueprint apply and migration undo
+  now hold it for their whole run; other commands wait up to 30 s and then
+  answer `locked`. *Not chosen:* a reentrant lock (hides which code runs
+  under it).
 - **App built with SwiftPM and `app/build.sh`, no Xcode project**
   (2026-11-02) — reproducible from the command line.
 - **User secrets go to the keychain hex-encoded** (2026-11-04) — remote

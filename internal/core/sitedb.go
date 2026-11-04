@@ -144,6 +144,18 @@ func (c *Core) CreateSiteDatabaseOn(ctx context.Context, name, db, engine string
 	}
 	var res SiteDatabase
 	err = c.locked(ctx, func() error {
+		var err error
+		res, err = c.createMySQLSiteDatabase(ctx, name, db)
+		return err
+	})
+	return res, err
+}
+
+// createMySQLSiteDatabase is CreateSiteDatabase on MySQL; the caller holds
+// the lock.
+func (c *Core) createMySQLSiteDatabase(ctx context.Context, name, db string) (SiteDatabase, error) {
+	var res SiteDatabase
+	err := func() error {
 		site, err := c.Store.Site(ctx, name)
 		if err != nil {
 			return err
@@ -205,7 +217,7 @@ func (c *Core) CreateSiteDatabaseOn(ctx context.Context, name, db, engine string
 		}
 		res, err = c.siteDatabase(ctx, site)
 		return err
-	})
+	}()
 	return res, err
 }
 

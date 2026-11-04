@@ -419,6 +419,16 @@ func isWordPressDir(dir string) bool {
 // after a snapshot. Themes, plugins and must-use plugins already there are
 // left alone.
 func (c *Core) ApplyBlueprint(ctx context.Context, siteName, name string, opts ApplyOptions) (BlueprintResult, error) {
+	var res BlueprintResult
+	err := c.locked(ctx, func() error {
+		var err error
+		res, err = c.applySavedBlueprint(ctx, siteName, name, opts)
+		return err
+	})
+	return res, err
+}
+
+func (c *Core) applySavedBlueprint(ctx context.Context, siteName, name string, opts ApplyOptions) (BlueprintResult, error) {
 	bp, err := c.GetBlueprint(ctx, name)
 	if err != nil {
 		return BlueprintResult{}, err
@@ -433,7 +443,7 @@ func (c *Core) ApplyBlueprint(ctx context.Context, siteName, name string, opts A
 	if opts.DryRun {
 		return c.planBlueprint(site, bp), nil
 	}
-	snap, err := c.CreateSnapshot(ctx, siteName, SnapshotPreBlueprint, "before blueprint "+name)
+	snap, err := c.createSnapshot(ctx, siteName, SnapshotPreBlueprint, "before blueprint "+name, "")
 	if err != nil {
 		return BlueprintResult{}, fmt.Errorf("the snapshot before the blueprint failed, nothing was changed: %w", err)
 	}

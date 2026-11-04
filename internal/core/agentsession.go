@@ -336,13 +336,23 @@ func (c *Core) CloseAgentSession(ctx context.Context, site, outcome string) (Clo
 		if err := c.WaitSessionDB(ctx, site); err != nil {
 			return res, err
 		}
-		r, err := c.RestoreSnapshot(ctx, site, s.BaseSnapshot)
-		if err != nil {
-			return res, fmt.Errorf("undo the agent session: %w", err)
-		}
-		res.Restored = &r
 	}
 	err = c.locked(ctx, func() error {
+		if outcome == SessionRevert {
+			// The agent loses its write permission before the restore, so
+			// nothing it does can slip in after it.
+			if s.WriteGrant {
+				s.WriteGrant = false
+				if err := c.Store.UpdateAgentSession(ctx, s); err != nil {
+					return err
+				}
+			}
+			r, err := c.restoreSnapshot(ctx, site, s.BaseSnapshot)
+			if err != nil {
+				return fmt.Errorf("undo the agent session: %w", err)
+			}
+			res.Restored = &r
+		}
 		cps, _ := c.sessionCheckpoints(ctx, s)
 		for _, cp := range cps {
 			_ = c.removeSnapshot(ctx, cp)

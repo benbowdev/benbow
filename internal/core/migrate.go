@@ -559,6 +559,16 @@ func (c *Core) replaceURL(ctx context.Context, site store.Site, from, to string)
 // its configuration file from the backup, and the database Covo copied
 // (with the site's own user) deleted. The site itself stays.
 func (c *Core) UndoMigration(ctx context.Context, name string) (store.Migration, error) {
+	var m store.Migration
+	err := c.locked(ctx, func() error {
+		var err error
+		m, err = c.undoMigration(ctx, name)
+		return err
+	})
+	return m, err
+}
+
+func (c *Core) undoMigration(ctx context.Context, name string) (store.Migration, error) {
 	m, err := c.Store.Migration(ctx, name)
 	if err != nil {
 		return m, err

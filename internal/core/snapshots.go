@@ -76,7 +76,13 @@ func (c *Core) SetSnapshotKeep(ctx context.Context, n int) error {
 
 // CreateSnapshot saves a site's files and database.
 func (c *Core) CreateSnapshot(ctx context.Context, name, kind, note string) (store.Snapshot, error) {
-	return c.createSnapshot(ctx, name, kind, note, "")
+	var sn store.Snapshot
+	err := c.locked(ctx, func() error {
+		var err error
+		sn, err = c.createSnapshot(ctx, name, kind, note, "")
+		return err
+	})
+	return sn, err
 }
 
 // createSnapshot never prunes the snapshot keep (the one being restored).
@@ -197,11 +203,13 @@ func (c *Core) ListSnapshots(ctx context.Context, name string) ([]store.Snapshot
 
 // DeleteSnapshot deletes one snapshot.
 func (c *Core) DeleteSnapshot(ctx context.Context, name, id string) error {
-	sn, err := c.Store.Snapshot(ctx, name, id)
-	if err != nil {
-		return err
-	}
-	return c.removeSnapshot(ctx, sn)
+	return c.locked(ctx, func() error {
+		sn, err := c.Store.Snapshot(ctx, name, id)
+		if err != nil {
+			return err
+		}
+		return c.removeSnapshot(ctx, sn)
+	})
 }
 
 // RestoreResult is a restore and the snapshot taken just before it.
@@ -215,6 +223,17 @@ type RestoreResult struct {
 // snapshot. The current state is saved first (a pre-restore snapshot), and
 // if any step fails it is put back.
 func (c *Core) RestoreSnapshot(ctx context.Context, name, id string) (RestoreResult, error) {
+	var res RestoreResult
+	err := c.locked(ctx, func() error {
+		var err error
+		res, err = c.restoreSnapshot(ctx, name, id)
+		return err
+	})
+	return res, err
+}
+
+// restoreSnapshot is RestoreSnapshot; the caller holds the lock.
+func (c *Core) restoreSnapshot(ctx context.Context, name, id string) (RestoreResult, error) {
 	var res RestoreResult
 	sn, err := c.Store.Snapshot(ctx, name, id)
 	if err != nil {
