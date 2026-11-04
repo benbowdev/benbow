@@ -288,16 +288,18 @@ func (s *Server) sync(names []string) (bool, error) {
 	return true, nil
 }
 
-// CheckForwards validates forwards: at most one per source port, from a
-// privileged port to an unprivileged one.
+// CheckForwards validates forwards: at most one per source port, from 80
+// or 443 (the only ports Covo forwards: anything else would let a process
+// of the user take over another system service's port) to an unprivileged
+// one.
 func CheckForwards(fw []Forward) error {
 	if len(fw) > maxForwards {
 		return fmt.Errorf("at most %d forwards", maxForwards)
 	}
 	seen := map[int]bool{}
 	for _, f := range fw {
-		if f.From < 1 || f.From > 1023 {
-			return fmt.Errorf("forwards must start from a port below 1024, got %d", f.From)
+		if f.From != 80 && f.From != 443 {
+			return fmt.Errorf("only ports 80 and 443 can be forwarded, got %d", f.From)
 		}
 		if f.To < 1024 || f.To > 65535 {
 			return fmt.Errorf("forwards must go to a port from 1024 to 65535, got %d", f.To)

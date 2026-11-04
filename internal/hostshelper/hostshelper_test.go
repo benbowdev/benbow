@@ -122,6 +122,8 @@ func TestPorts(t *testing.T) {
 		{{From: 443, To: 70000}},
 		{{From: 443, To: 8443}, {From: 443, To: 9443}},
 		{{From: 443, To: 8443}, {From: 80, To: 8080}, {From: 22, To: 2222}},
+		{{From: 22, To: 2222}},
+		{{From: 631, To: 8631}},
 	} {
 		if _, err := f.client.Do(ctx, Request{Op: OpPorts, Forwards: bad}); err == nil {
 			t.Errorf("forwards %+v accepted", bad)
