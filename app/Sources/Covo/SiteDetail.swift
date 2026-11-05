@@ -167,22 +167,30 @@ struct SiteDetail: View {
             }
 
             Section("Tools") {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 116), spacing: 8)], spacing: 8) {
-                    ToolTile(title: "Snapshots", symbol: "clock.arrow.circlepath",
-                             help: "Save and restore the files and the database.") { snapshotsSheet = true }
-                    ToolTile(title: "Open on Phone", symbol: "iphone",
-                             help: "This site on your Wi-Fi for a while, with a QR code.",
-                             active: model.status?.phone?.site == site.name) { phoneSheet = true }
-                        .disabled(site.archived)
-                    ToolTile(title: "Production", symbol: "arrow.up.arrow.down",
-                             help: "Pull the live site's database and uploads; push to staging.") { remoteSheet = true }
-                    ToolTile(title: toolTitle, symbol: "apple.terminal",
-                             help: "Commands with this site's PHP version, in its project folder.") { runningTool = true }
-                    ToolTile(title: "PHP Check", symbol: "checkmark.seal",
-                             help: "What in the code would break on a newer PHP version.") { checkingPHP = true }
-                    if site.framework == "wordpress" {
-                        ToolTile(title: "Blueprints", symbol: "square.stack.3d.up",
-                                 help: "Install a blueprint's themes and plugins, or save this site as one.") { blueprintSheet = true }
+                // Two rows of three: what keeps or moves the site (snapshots,
+                // production, blueprints), then what runs or shows it.
+                Grid(horizontalSpacing: 8, verticalSpacing: 8) {
+                    GridRow {
+                        ToolTile(title: "Snapshots", symbol: "clock.arrow.circlepath",
+                                 help: "Save and restore the files and the database.") { snapshotsSheet = true }
+                        ToolTile(title: "Production", symbol: "arrow.up.arrow.down",
+                                 help: "Pull the live site's database and uploads; push to staging.") { remoteSheet = true }
+                        if site.framework == "wordpress" {
+                            ToolTile(title: "Blueprints", symbol: "square.stack.3d.up",
+                                     help: "Install a blueprint's themes and plugins, or save this site as one.") { blueprintSheet = true }
+                        } else {
+                            Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+                        }
+                    }
+                    GridRow {
+                        ToolTile(title: toolTitle, symbol: "apple.terminal",
+                                 help: "Commands with this site's PHP version, in its project folder.") { runningTool = true }
+                        ToolTile(title: "PHP Check", symbol: "checkmark.seal",
+                                 help: "What in the code would break on a newer PHP version.") { checkingPHP = true }
+                        ToolTile(title: "Open on Phone", symbol: "iphone",
+                                 help: "This site on your Wi-Fi for a while, with a QR code.",
+                                 active: model.status?.phone?.site == site.name) { phoneSheet = true }
+                            .disabled(site.archived)
                     }
                 }
                 .padding(.vertical, 2)
@@ -351,7 +359,8 @@ struct SiteDetail: View {
     }
 }
 
-/// One of the site's tools: an icon over a short name, the description on hover.
+/// One of the site's tools: an icon and a short name on one line, the
+/// description on hover.
 private struct ToolTile: View {
     let title: String
     let symbol: String
@@ -361,18 +370,18 @@ private struct ToolTile: View {
 
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 6) {
+            HStack(spacing: 8) {
                 Image(systemName: symbol)
-                    .font(.title3)
                     .foregroundStyle(active ? Color.green : Color.accentColor)
-                    .frame(height: 22)
+                    .frame(width: 18)
                 Text(title)
-                    .font(.caption.weight(.medium))
-                    .lineLimit(2)
-                    .multilineTextAlignment(.center)
+                    .font(.callout.weight(.medium))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                Spacer(minLength: 0)
             }
-            .frame(maxWidth: .infinity, minHeight: 58)
-            .padding(.vertical, 6)
+            .padding(.horizontal, 10)
+            .frame(maxWidth: .infinity, minHeight: 34)
             .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
             .overlay {
                 if active { RoundedRectangle(cornerRadius: 8).strokeBorder(.green.opacity(0.6)) }
