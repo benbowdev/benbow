@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 Andrea Casali
 
-// Package wpconfig reads the database settings of a wp-config.php and
-// changes them, and nothing else, in place.
+// Package wpconfig reads the database and address settings of a
+// wp-config.php and changes them, and nothing else, in place.
 package wpconfig
 
 import (
@@ -34,6 +34,32 @@ func valueAt(m []int) (start, end int) {
 		return m[2], m[3]
 	}
 	return m[4], m[5]
+}
+
+// URLKeys are the address constants a wp-config.php may set. When set,
+// WordPress uses them instead of the address in the database.
+var URLKeys = []string{"WP_HOME", "WP_SITEURL"}
+
+// Define is how a wp-config.php defines one key.
+type Define struct {
+	// Count is how many define() lines name the key outside comments,
+	// whatever their value.
+	Count int
+	// Value is the value when the key is defined exactly once, as a plain
+	// string (Literal true). A value built by code is not read.
+	Value   string
+	Literal bool
+}
+
+// Lookup returns how content defines key.
+func Lookup(content, key string) Define {
+	clean := stripComments(content)
+	d := Define{Count: len(regexp.MustCompile(`define\(\s*['"]`+key+`['"]\s*,`).FindAllStringIndex(clean, -1))}
+	if ms := defineRe(key).FindAllStringSubmatchIndex(clean, -1); d.Count == 1 && len(ms) == 1 {
+		start, end := valueAt(ms[0])
+		d.Value, d.Literal = unquote(content[start:end]), true
+	}
+	return d
 }
 
 var prefixRe = regexp.MustCompile(`\$table_prefix\s*=\s*['"]([A-Za-z0-9_]+)['"]`)

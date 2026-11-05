@@ -59,3 +59,22 @@ func TestSet(t *testing.T) {
 		t.Fatal("a define from code was replaced")
 	}
 }
+
+func TestLookup(t *testing.T) {
+	content := `<?php
+// define('WP_HOME', 'http://old.local');
+define( 'WP_HOME', 'http://acme.local' );
+define('WP_SITEURL', 'http://' . $_SERVER['HTTP_HOST'] . '/wp');
+if ($dev) { define('WP_DEBUG', true); } else { define("WP_DEBUG", false); }
+`
+	for key, want := range map[string]Define{
+		"WP_HOME":    {Count: 1, Value: "http://acme.local", Literal: true},
+		"WP_SITEURL": {Count: 1},
+		"WP_DEBUG":   {Count: 2},
+		"DB_NAME":    {},
+	} {
+		if got := Lookup(content, key); got != want {
+			t.Errorf("Lookup(%s) = %+v, want %+v", key, got, want)
+		}
+	}
+}

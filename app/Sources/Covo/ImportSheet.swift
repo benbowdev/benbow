@@ -180,6 +180,9 @@ struct ImportSheet: View {
                         Label("Not migrated: \(problem)", systemImage: "minus.circle").font(.caption).foregroundStyle(.secondary)
                     } else {
                         MigrationSteps(database: m.database, steps: m.steps)
+                        ForEach(m.warnings ?? [], id: \.self) { w in
+                            Label(w, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange)
+                        }
                     }
                 }
             }
@@ -232,6 +235,10 @@ struct ImportSheet: View {
                 Text(it.domain ?? it.mamp.serverName).font(.body.weight(.medium))
                 Text(it.migration?.done == true ? "Migrated, database \(it.migration?.database ?? "")" : "Imported, database to set by hand")
                     .font(.caption).foregroundStyle(.secondary)
+                ForEach(it.migration?.done == true ? it.migration?.warnings ?? [] : [], id: \.self) { w in
+                    Label(w, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
             Spacer()
             if let site, served {

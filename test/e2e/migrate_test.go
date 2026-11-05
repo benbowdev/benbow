@@ -64,6 +64,13 @@ func TestImportMigrate(t *testing.T) {
 			t.Fatalf("source %s: %s", opt, out)
 		}
 	}
+	// The address also written in wp-config.php (after the options: with
+	// WP_HOME set, wp option update home writes nothing). It wins over the
+	// database, so the migration has to change it too.
+	asMAMP = strings.Replace(asMAMP, "<?php\n", "<?php\ndefine( 'WP_HOME', 'http://legacy' );\ndefine( 'WP_SITEURL', 'http://legacy' );\n", 1)
+	if err := os.WriteFile(cfgPath, []byte(asMAMP), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	oldHome, code := src.raw("wp", "legacy", "option", "get", "home")
 	if code != 0 {
 		t.Fatalf("source home: %s", oldHome)
@@ -140,6 +147,11 @@ func TestImportMigrate(t *testing.T) {
 	}
 	if err := json.Unmarshal(h.mustCovo("site", "list"), &sites); err != nil || len(sites) != 1 {
 		t.Fatal(err)
+	}
+	for _, k := range wpconfig.URLKeys {
+		if d := wpconfig.Lookup(string(b), k); d.Value != sites[0].URL {
+			t.Errorf("%s after migration = %+v, want %s", k, d, sites[0].URL)
+		}
 	}
 	newHome, code := h.raw("wp", "legacy", "option", "get", "home")
 	if code != 0 || strings.TrimSpace(newHome) != sites[0].URL {

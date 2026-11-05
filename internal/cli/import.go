@@ -52,6 +52,9 @@ func (r importResult) Text(w io.Writer) {
 				for _, step := range m.Steps {
 					fmt.Fprintf(w, "      - %s\n", step)
 				}
+				for _, warn := range m.Warnings {
+					fmt.Fprintf(w, "      ! %s\n", warn)
+				}
 			}
 		}
 	}

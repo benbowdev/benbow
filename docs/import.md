@@ -44,13 +44,21 @@ Laravel site, in one step:
    in the keychain, like `covo db create`.
 3. **Configuration**: `wp-config.php` (or `.env`) is backed up to
    `data/backups/<site>/` in the Covo folder, then only `DB_NAME`,
-   `DB_USER`, `DB_PASSWORD` and `DB_HOST` change (Laravel: the `DB_*` keys
+   `DB_USER`, `DB_PASSWORD` and `DB_HOST` change (plus the address
+   defines, step 4) (Laravel: the `DB_*` keys
    and `APP_URL`). If one of the four `define()` lines cannot be found
    exactly once, nothing changes. Other PHP sites are not touched: the
    values to set are shown.
 4. **Address**: WordPress's real `home` is read from the copied database and
    replaced with the Covo address (both schemes) by `wp search-replace`,
-   which handles serialized data; `guid` columns are left alone.
+   which handles serialized data; `guid` columns are left alone. If
+   `wp-config.php` sets `WP_HOME` or `WP_SITEURL` (they win over the
+   database, so the site would keep redirecting to the old address), they
+   change too, in the same edit as the database settings: `WP_HOME` to the
+   Covo address, `WP_SITEURL` keeping its path under the old home (`/wp`).
+   A define set from code, written more than once, or pointing outside the
+   old address is left alone and listed as a warning to check by hand
+   (`warnings` in `--json`).
 
 If a step fails, everything that site's migration did is undone; other
 sites carry on. **The project folder stays shared with the source tool**:

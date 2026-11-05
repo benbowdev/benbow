@@ -230,6 +230,13 @@ Format: **decision** (date) — why. *Not chosen:* alternatives.
   (2026-11-03) — moving a real site by hand was the slow and risky part.
   The project folder stays shared with the old tool: that is explained
   before migrating.
+- **Migration also points `WP_HOME`/`WP_SITEURL` at Covo when
+  wp-config.php sets them as plain strings** (2026-11-05) — they win over
+  the database, so after a migration the site kept redirecting to the old
+  `.local` address. `WP_SITEURL` keeps its path under the old home. Defines
+  built by code, repeated, or pointing elsewhere are left alone with a
+  warning. *Not chosen:* warning only (the fix is mechanical and the file
+  is already backed up and being edited).
 - **Old and new address replaced through a placeholder** (2026-11-04) — a
   MAMP address without a suffix (`http://site`) is the start of the new
   one, and replacing http and https variants in turn applied it twice.

@@ -57,6 +57,8 @@ type MigrationPlan struct {
 	Steps []string `json:"steps"`
 	// Manual are settings to make by hand (sites Covo cannot configure).
 	Manual map[string]string `json:"manual,omitempty"`
+	// Warnings are things to check by hand after the migration.
+	Warnings []string `json:"warnings,omitempty"`
 	// Problem, when set, means the site cannot be migrated: why.
 	Problem string `json:"problem,omitempty"`
 	// Done is set after a successful migration.
@@ -80,6 +82,8 @@ type projectDB struct {
 	framework, configPath string
 	server                mysql.Server
 	db, prefix            string
+	// wpConfig is the content of wp-config.php (WordPress only).
+	wpConfig string
 }
 
 // readProjectDB reads the database settings of a WordPress (wp-config.php
@@ -135,7 +139,7 @@ func readProjectDB(site store.Site, h mamp.Host) (projectDB, error) {
 			continue
 		}
 		cfg := wpconfig.Read(string(b))
-		p.framework, p.configPath, p.prefix = FrameworkWordPress, path, cfg.TablePrefix
+		p.framework, p.configPath, p.prefix, p.wpConfig = FrameworkWordPress, path, cfg.TablePrefix, string(b)
 		p.server = resolveHost(cfg.Values["DB_HOST"])
 		p.server.User, p.server.Password = cfg.Values["DB_USER"], cfg.Values["DB_PASSWORD"]
 		p.db = cfg.Values["DB_NAME"]
@@ -199,6 +203,11 @@ func (c *Core) planMigration(ctx context.Context, site store.Site, h mamp.Host, 
 	plan.Steps = append(plan.Steps, "back up "+filepath.Base(p.configPath)+" in Covo's folder, then set its database settings to Covo's")
 	if p.framework == FrameworkWordPress {
 		plan.Steps = append(plan.Steps, "replace the old address with "+url+" in the database (wp search-replace)")
+		step, warnings := wpAddressPlan(p.wpConfig, url)
+		if step != "" {
+			plan.Steps = append(plan.Steps, step)
+		}
+		plan.Warnings = warnings
 	} else {
 		plan.Steps = append(plan.Steps, "set APP_URL to "+url)
 	}
@@ -286,10 +295,16 @@ func (c *Core) migrateSite(ctx context.Context, source string, site store.Site, 
 	mig.BackupPath = backup
 	undo = append(undo, func() { _ = copyFile(backup, p.configPath) })
 	host := "127.0.0.1:" + strconv.Itoa(port)
-	if err := c.pointConfigAt(p, db, host, url); err != nil {
+	var old string // WordPress's home address in the database
+	if p.framework == FrameworkWordPress {
+		old, _ = c.wpHome(ctx, dbName, p.prefix)
+	}
+	warnings, err := c.pointConfigAt(p, db, host, url, old)
+	if err != nil {
 		rollback()
 		return plan, err
 	}
+	plan.Warnings = warnings
 
 	// 3. The address (WordPress keeps it in the database).
 	if p.framework == FrameworkWordPress {
@@ -298,8 +313,7 @@ func (c *Core) migrateSite(ctx context.Context, source string, site store.Site, 
 			rollback()
 			return plan, err
 		}
-		old, err := c.wpHome(ctx, dbName, p.prefix)
-		if err == nil && old != "" && old != url {
+		if old != "" && old != url {
 			plan.URLFrom, mig.URLFrom = old, old
 			if err := c.replaceURL(ctx, stored, old, url); err != nil {
 				rollback()
@@ -479,11 +493,13 @@ func (c *Core) restoreDatabaseBackup(ctx context.Context, db, path string) error
 	return c.loadIntoDatabase(ctx, projectDB{}, db, path, client, port, pw)
 }
 
-// pointConfigAt changes the project's configuration to Covo's database.
-func (c *Core) pointConfigAt(p projectDB, db SiteDatabase, host, url string) error {
+// pointConfigAt changes the project's configuration to Covo's database and
+// address. dbHome is WordPress's home address in the database. It returns
+// what the user should check by hand.
+func (c *Core) pointConfigAt(p projectDB, db SiteDatabase, host, url, dbHome string) ([]string, error) {
 	if p.framework == FrameworkLaravel {
 		hostOnly, port, _ := strings.Cut(host, ":")
-		return editEnvFile(p.configPath, []dotenv.Pair{
+		return nil, editEnvFile(p.configPath, []dotenv.Pair{
 			{Key: "APP_URL", Value: url}, {Key: "DB_CONNECTION", Value: "mysql"},
 			{Key: "DB_HOST", Value: hostOnly}, {Key: "DB_PORT", Value: port},
 			{Key: "DB_DATABASE", Value: db.Database}, {Key: "DB_USERNAME", Value: db.User}, {Key: "DB_PASSWORD", Value: db.Password},
@@ -491,15 +507,95 @@ func (c *Core) pointConfigAt(p projectDB, db SiteDatabase, host, url string) err
 	}
 	b, err := os.ReadFile(p.configPath)
 	if err != nil {
-		return fmt.Errorf("read %s: %w", p.configPath, err)
+		return nil, fmt.Errorf("read %s: %w", p.configPath, err)
 	}
-	out, err := wpconfig.Set(string(b), map[string]string{
-		"DB_NAME": db.Database, "DB_USER": db.User, "DB_PASSWORD": db.Password, "DB_HOST": host,
-	})
+	values, warnings := wpAddressDefines(string(b), dbHome, url)
+	values["DB_NAME"], values["DB_USER"], values["DB_PASSWORD"], values["DB_HOST"] = db.Database, db.User, db.Password, host
+	out, err := wpconfig.Set(string(b), values)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return rewriteProjectFile(p.configPath, []byte(out))
+	return warnings, rewriteProjectFile(p.configPath, []byte(out))
+}
+
+// wpAddressDefines works out new values for WP_HOME and WP_SITEURL when
+// wp-config.php sets them: WordPress then ignores the address in the
+// database and keeps sending visitors to the old one. WP_HOME becomes url;
+// WP_SITEURL keeps its path under the old home (often /wp). dbHome is the
+// home address in the database, "" when not known yet (planning). Defines
+// Covo cannot change safely become warnings.
+func wpAddressDefines(content, dbHome, url string) (map[string]string, []string) {
+	values := map[string]string{}
+	warnings := []string{}
+	oldHome := dbHome
+	if home := wpconfig.Lookup(content, "WP_HOME"); home.Literal {
+		oldHome = home.Value
+	}
+	for _, key := range wpconfig.URLKeys {
+		d := wpconfig.Lookup(content, key)
+		switch {
+		case d.Count == 0:
+			continue
+		case d.Count > 1:
+			warnings = append(warnings, fmt.Sprintf("wp-config.php defines %s %d times: point it at %s by hand", key, d.Count, url))
+			continue
+		case !d.Literal:
+			warnings = append(warnings, fmt.Sprintf("wp-config.php sets %s from code: check that it gives %s", key, url))
+			continue
+		}
+		v := url
+		if key == "WP_SITEURL" {
+			var ok bool
+			v, ok = rebaseURL(d.Value, oldHome, url)
+			if !ok && dbHome != "" {
+				v, ok = rebaseURL(d.Value, dbHome, url)
+			}
+			if !ok {
+				if oldHome != "" {
+					warnings = append(warnings, fmt.Sprintf("wp-config.php sets WP_SITEURL to %s, outside the old address %s: point it at %s by hand", d.Value, oldHome, url))
+				}
+				continue
+			}
+		}
+		if v != d.Value {
+			values[key] = v
+		}
+	}
+	return values, warnings
+}
+
+// wpAddressPlan describes, before the migration, what happens to
+// WP_HOME and WP_SITEURL: the step ("" when wp-config.php sets neither as
+// a plain string) and the warnings known already.
+func wpAddressPlan(content, url string) (string, []string) {
+	var keys []string
+	for _, k := range wpconfig.URLKeys {
+		if wpconfig.Lookup(content, k).Literal {
+			keys = append(keys, k)
+		}
+	}
+	_, warnings := wpAddressDefines(content, "", url)
+	if len(keys) == 0 {
+		return "", warnings
+	}
+	return "set " + strings.Join(keys, " and ") + " in wp-config.php to the new address", warnings
+}
+
+// rebaseURL moves an address under oldHome to newHome, keeping the rest of
+// its path. Either scheme of oldHome matches.
+func rebaseURL(v, oldHome, newHome string) (string, bool) {
+	bare := func(s string) string {
+		s = strings.TrimPrefix(s, "https://")
+		return strings.TrimRight(strings.TrimPrefix(s, "http://"), "/")
+	}
+	if bare(oldHome) == "" {
+		return "", false
+	}
+	rest, ok := strings.CutPrefix(bare(v), bare(oldHome))
+	if !ok || (rest != "" && rest[0] != '/') {
+		return "", false
+	}
+	return strings.TrimRight(newHome, "/") + rest, true
 }
 
 // wpHome reads WordPress's home address from a database on Covo's server.

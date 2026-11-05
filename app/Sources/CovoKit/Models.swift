@@ -631,6 +631,7 @@ public struct MigrationPlan: Codable, Sendable, Hashable {
     public var urlTo: String?
     public var steps: [String]
     public var manual: [String: String]?
+    public var warnings: [String]?
     public var problem: String?
     public var done: Bool?
     public var error: String?
