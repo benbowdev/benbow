@@ -4,9 +4,9 @@
 API client, tested) and `Covo` (the SwiftUI app, macOS 14+).
 
 ```sh
-app/build.sh          # builds app/build/Covo.app (ad-hoc signed)
+app/build.sh          # builds "app/build/Covo Dev.app" (ad-hoc signed, bundle ID dev.getcovo.app.dev)
 app/build.sh test     # Swift tests, including one against a live daemon
-open app/build/Covo.app
+open "app/build/Covo Dev.app"
 ```
 
 `Covo.app` carries `covo` and `covo-hostshelper` in

@@ -2,7 +2,8 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # Copyright (C) 2026 Andrea Casali
 #
-# Builds build/Covo.app: the SwiftUI app plus the covo and covo-hostshelper
+# Builds build/Covo Dev.app (build/Covo.app with COVO_VERSION, for release.sh):
+# the SwiftUI app plus the covo and covo-hostshelper
 # binaries it runs (Contents/Resources/bin) and Sparkle. Ad-hoc signed, for local use;
 # signing and notarization come with the public beta.
 #
@@ -31,7 +32,15 @@ fi
 swift build --package-path "$app" -c release --product Covo
 bin=$(swift build --package-path "$app" -c release --show-bin-path)
 
-bundle="$out/Covo.app"
+# Development builds are "Covo Dev" with their own bundle ID, so Spotlight,
+# Raycast and Launch Services never mix them up with the installed Covo.
+# Both use the same Covo home and daemon: opening one restarts the daemon
+# from its own binaries.
+if [[ "$version" == "dev" ]]; then
+	bundle="$out/Covo Dev.app"
+else
+	bundle="$out/Covo.app"
+fi
 rm -rf "$bundle"
 mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources/bin"
 cp "$app/Info.plist" "$bundle/Contents/Info.plist"
@@ -40,6 +49,10 @@ if [[ "$version" != "dev" ]]; then
 	/usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${COVO_BUILD:-1}" "$bundle/Contents/Info.plist"
 	# Only versioned builds look for app updates; dev builds never do.
 	/usr/libexec/PlistBuddy -c "Add :SUFeedURL string ${COVO_FEED_URL:-https://getcovo.dev/appcast.xml}" "$bundle/Contents/Info.plist"
+else
+	/usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier dev.getcovo.app.dev" "$bundle/Contents/Info.plist"
+	/usr/libexec/PlistBuddy -c "Set :CFBundleName Covo Dev" "$bundle/Contents/Info.plist"
+	/usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Covo Dev" "$bundle/Contents/Info.plist"
 fi
 cp "$bin/Covo" "$bundle/Contents/MacOS/Covo"
 # Sparkle (app updates). Covo is not sandboxed, so Sparkle's XPC services

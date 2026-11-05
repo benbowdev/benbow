@@ -98,7 +98,7 @@ go build -o covo ./cmd/covo && go build -o covo-hostshelper ./cmd/covo-hostshelp
 ./covo trust          # one macOS confirmation, no sudo
 open https://demo.localhost:8443
 
-app/build.sh          # the app, in app/build/Covo.app
+app/build.sh          # the app, as "app/build/Covo Dev.app"
 ```
 
 Tests:
