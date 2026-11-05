@@ -27,6 +27,13 @@ binary, plus newer ones published by `getcovo/covo-binaries`:
   one: it can add versions but never change an artifact Covo already knows
   (same component, version, architecture: different URL or checksum is
   refused), and every artifact URL must be HTTPS.
+- A published manifest carries an `expires` date, 14 days after it was
+  signed. `covo-binaries` signs it again when less than 7 days are left,
+  even with nothing new. Covo refuses a manifest without one or past it
+  (`checksum_mismatch`, "the published manifest expired on …"): a stuck
+  server, or someone serving an old copy, would otherwise hide newer
+  versions, security fixes included. The versions in use do not change,
+  and the error shows where updates are listed.
 - Every download is then checked against the manifest's SHA-256 (and the
   upstream SHA-512 or MD5 where there is one), and binaries that report
   their version (Caddy, PHP) must report the one the manifest claims.

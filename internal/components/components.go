@@ -86,7 +86,10 @@ type Artifact struct {
 type Manifest struct {
 	// Serial grows with every published manifest (YYYYMMDDnn). A signed
 	// manifest is only accepted if it is newer than what Covo has.
-	Serial    int64      `json:"serial"`
+	Serial int64 `json:"serial"`
+	// Expires is set on published manifests only (covo-binaries signs them
+	// again before it passes): see CheckFresh.
+	Expires   *time.Time `json:"expires,omitempty"`
 	Artifacts []Artifact `json:"artifacts"`
 }
 

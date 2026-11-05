@@ -18,6 +18,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 type updates struct {
@@ -129,8 +130,9 @@ func TestUpdates(t *testing.T) {
 			extra = append(extra, b)
 		}
 	}
+	expires := time.Now().Add(14 * 24 * time.Hour).UTC().Format(time.RFC3339)
 	publish := func(serial int64, key ed25519.PrivateKey) {
-		body, _ := json.Marshal(map[string]any{"serial": serial, "artifacts": extra})
+		body, _ := json.Marshal(map[string]any{"serial": serial, "expires": expires, "artifacts": extra})
 		srv.set(body, []byte(base64.StdEncoding.EncodeToString(ed25519.Sign(key, body))))
 	}
 
@@ -143,6 +145,14 @@ func TestUpdates(t *testing.T) {
 	if u := h.updates(); len(u.Updates) != 0 {
 		t.Fatalf("updates after a refused manifest: %+v", u.Updates)
 	}
+
+	// Properly signed but expired: refused (a stuck or replayed server).
+	expires = time.Now().Add(-time.Hour).UTC().Format(time.RFC3339)
+	publish(embedded.Serial+1, priv)
+	if env := h.covo("update", "check"); env.OK || env.Error.Code != "checksum_mismatch" || !strings.Contains(env.Error.Message, "expired") {
+		t.Fatalf("check with an expired manifest = %+v", env)
+	}
+	expires = time.Now().Add(14 * 24 * time.Hour).UTC().Format(time.RFC3339)
 
 	publish(embedded.Serial+1, priv)
 	u := h.updates("check")

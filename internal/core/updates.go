@@ -160,6 +160,9 @@ func (c *Core) checkUpdates(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	if err := m.CheckFresh(time.Now()); err != nil {
+		return err
+	}
 	if m.Serial <= c.Manifest.Serial {
 		return nil // nothing newer (or an older copy: never go back)
 	}

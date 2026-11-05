@@ -191,6 +191,11 @@ Format: **decision** (date) — why. *Not chosen:* alternatives.
   — one trust root for every component; a stolen server cannot swap a
   known artifact or replay an old manifest. Private key only as a GitHub
   Actions secret.
+- **The published manifest expires after 14 days** (2026-11-05) — the
+  serial stops replays of older manifests, but not a server that keeps
+  serving the last one (a freeze): Covo would never hear of security
+  fixes. Renewed weekly by the workflow. *Not chosen:* a short expiry (a
+  day: one failed run would raise errors everywhere), no expiry.
 - **Updates are a badge and a click, never automatic; versions pinned per
   installation** (2026-11-02) — a client site must not change under the
   user's feet; rollback keeps the previous version.

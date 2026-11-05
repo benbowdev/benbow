@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/getcovo/covo/internal/errcode"
 )
@@ -126,5 +127,30 @@ func TestParseKeys(t *testing.T) {
 	}
 	if _, err := ParseKeys(TrustedKeys); err != nil {
 		t.Fatalf("embedded keys: %v", err)
+	}
+}
+
+func TestCheckFresh(t *testing.T) {
+	now := time.Date(2026, 11, 5, 12, 0, 0, 0, time.UTC)
+	at := func(d time.Duration) *time.Time { x := now.Add(d); return &x }
+	tests := []struct {
+		name    string
+		expires *time.Time
+		wantErr bool
+	}{
+		{"missing", nil, true},
+		{"expired", at(-time.Minute), true},
+		{"valid", at(14 * 24 * time.Hour), false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := Manifest{Serial: 1, Expires: tt.expires}.CheckFresh(now)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("CheckFresh = %v, want error %v", err, tt.wantErr)
+			}
+			if err != nil && errcode.Code(err) != errcode.Checksum {
+				t.Fatalf("code = %s", errcode.Code(err))
+			}
+		})
 	}
 }

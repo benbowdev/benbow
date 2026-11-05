@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/getcovo/covo/internal/errcode"
 )
@@ -74,6 +75,23 @@ func VerifySigned(body, sig []byte, keys []ed25519.PublicKey) (Manifest, error) 
 		}
 	}
 	return m, nil
+}
+
+// CheckFresh refuses a published manifest without an expiry or past it.
+// covo-binaries signs the manifest again every week even when nothing is
+// new, so an expired one means the update server is stuck or someone keeps
+// serving an old copy: Covo would otherwise never learn about newer
+// versions (security fixes included). The versions in use stay as they are.
+func (m Manifest) CheckFresh(now time.Time) error {
+	if m.Expires == nil {
+		return errcode.Errorf(errcode.Checksum, "the published manifest has no expiry date")
+	}
+	if now.After(*m.Expires) {
+		return errcode.Newf(errcode.Checksum,
+			"the published manifest expired on %s: the update server may be stuck, or this Mac's clock is wrong. Covo keeps the versions it has",
+			m.Expires.UTC().Format("2006-01-02"))
+	}
+	return nil
 }
 
 func artifactKey(a Artifact) string {
