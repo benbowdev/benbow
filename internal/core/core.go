@@ -23,6 +23,7 @@ import (
 	"github.com/getcovo/covo/internal/paths"
 	"github.com/getcovo/covo/internal/resolver"
 	"github.com/getcovo/covo/internal/store"
+	"github.com/getcovo/covo/internal/version"
 )
 
 // DaemonService is the agent serving the local API (`covo daemon`). Start,
@@ -83,7 +84,7 @@ func Open(ctx context.Context) (*Core, error) {
 		Installer: components.Installer{
 			BinDir: layout.Bin,
 			TmpDir: layout.Tmp,
-			Client: &http.Client{Timeout: 10 * time.Minute},
+			Client: &http.Client{Timeout: 10 * time.Minute, Transport: version.Transport{}},
 		},
 		launchctl: lc,
 		resolver:  newResolverManager(layout.Root, layout.Tmp),

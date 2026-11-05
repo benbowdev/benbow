@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/getcovo/covo/internal/errcode"
+	"github.com/getcovo/covo/internal/version"
 )
 
 // The bridge reaches a site's database on hosts without SSH: a small PHP
@@ -99,7 +100,7 @@ func bridgeClient() *http.Client {
 	}
 	// Never follow a redirect: Go would send the token along, possibly to
 	// another host or over plain HTTP.
-	return &http.Client{Transport: tr, Timeout: 30 * time.Minute, CheckRedirect: func(*http.Request, []*http.Request) error {
+	return &http.Client{Transport: version.Transport{Base: tr}, Timeout: 30 * time.Minute, CheckRedirect: func(*http.Request, []*http.Request) error {
 		return http.ErrUseLastResponse
 	}}
 }

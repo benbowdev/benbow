@@ -39,6 +39,7 @@ import (
 	"github.com/getcovo/covo/internal/errcode"
 	"github.com/getcovo/covo/internal/keychain"
 	"github.com/getcovo/covo/internal/store"
+	"github.com/getcovo/covo/internal/version"
 )
 
 // SnapshotPreBlueprint is taken before a blueprint is applied to an
@@ -800,7 +801,7 @@ func (c *Core) httpDo(ctx context.Context, u, auth, accept string) (*http.Respon
 	if err != nil {
 		return nil, errcode.New(errcode.Download, fmt.Errorf("download %s: %w", u, err))
 	}
-	req.Header.Set("User-Agent", "Covo")
+	req.Header.Set("User-Agent", version.UserAgent())
 	if accept != "" {
 		req.Header.Set("Accept", accept)
 	}
@@ -809,7 +810,7 @@ func (c *Core) httpDo(ctx context.Context, u, auth, accept string) (*http.Respon
 	}
 	client := c.Installer.Client
 	if client == nil {
-		client = &http.Client{Timeout: 10 * time.Minute}
+		client = &http.Client{Timeout: 10 * time.Minute, Transport: version.Transport{}}
 	}
 	resp, err := client.Do(req)
 	if err != nil {
