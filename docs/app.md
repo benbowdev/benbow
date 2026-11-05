@@ -63,10 +63,14 @@ Update / Update All; the same list is in Settings → General, and the menu
 bar offers to install them. Nothing is installed without a click
 (`docs/updates.md`).
 
-## Not yet
+## Updates of the app itself
 
-Signing and notarization and Sparkle (updates of the app itself) come with
-the public beta.
+Released builds check `https://getcovo.dev/appcast.xml` once a day with
+Sparkle. A newer Covo shows as a discreet "Covo x.y.z" button in the
+toolbar; clicking it (or Covo → Check for Updates…) opens Sparkle's window
+with the release notes and Install. Nothing installs without a click.
+Settings → General → Updates turns the daily check off. Development builds
+(`app/build.sh` without `COVO_VERSION`) have no feed and never check.
 
 ## AI agents
 

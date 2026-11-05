@@ -351,6 +351,21 @@ Format: **decision** (date) — why. *Not chosen:* alternatives.
   signing ("Open Anyway" in Settings, keychain prompts after every build),
   a GitHub release (the repository stays private).
 
+- **App updates: Sparkle 2, feed on getcovo.dev, DMG on GitHub releases**
+  (2026-11-05) — the standard for apps outside the App Store; EdDSA
+  signature on top of Developer ID and notarization. Feed on the domain
+  so moving off GitHub later needs no app update. Scheduled checks only
+  show a toolbar badge (gentle reminders): Sparkle's window opens only on
+  a click, like component updates. XPC services removed (Covo is not
+  sandboxed). Development builds have no feed. *Not chosen:* the feed as
+  a GitHub release asset (ties every installed copy to GitHub), a
+  self-written updater.
+- **Public history rewritten before going public** (2026-11-05) — client
+  site names and notes about the author's Mac replaced in all commits;
+  the original history stays in the private `getcovo/covo-archive`, the
+  rewritten one is a new `getcovo/covo` (a force push would leave old
+  commits reachable by hash).
+
 ## Later (v2+), decided not now
 
 - Own binary build pipeline (signed, reproducible, SBOM); Apache and Nginx;

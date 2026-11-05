@@ -73,6 +73,7 @@ struct GeneralSettings: View {
                 }
             }
             Section("Updates") {
+                AppUpdateRow()
                 UpdatesList()
             }
             SnapshotKeepRow()

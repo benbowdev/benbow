@@ -200,6 +200,9 @@ struct ContentView: View {
             .disabled(!(model.mysqlReady || model.postgresReady) || !model.running)
         }
         ToolbarItem(placement: .automatic) {
+            AppUpdateBadge()
+        }
+        ToolbarItem(placement: .automatic) {
             UpdatesBadge()
         }
         if let phone = model.status?.phone {

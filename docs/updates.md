@@ -1,5 +1,8 @@
 # Component updates
 
+This page is about the components (PHP, Caddy, MySQL…). The app itself
+updates through Sparkle: see `docs/app.md` and `docs/release.md`.
+
 ```sh
 covo update                  # what is available (no network)
 covo update check            # download and verify the signed manifest

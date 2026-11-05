@@ -3,7 +3,7 @@
 # Copyright (C) 2026 Andrea Casali
 #
 # Builds build/Covo.app: the SwiftUI app plus the covo and covo-hostshelper
-# binaries it runs (Contents/Resources/bin). Ad-hoc signed, for local use;
+# binaries it runs (Contents/Resources/bin) and Sparkle. Ad-hoc signed, for local use;
 # signing and notarization come with the public beta.
 #
 #   app/build.sh          build the app
@@ -38,13 +38,22 @@ cp "$app/Info.plist" "$bundle/Contents/Info.plist"
 if [[ "$version" != "dev" ]]; then
 	/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $version" "$bundle/Contents/Info.plist"
 	/usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${COVO_BUILD:-1}" "$bundle/Contents/Info.plist"
+	# Only versioned builds look for app updates; dev builds never do.
+	/usr/libexec/PlistBuddy -c "Add :SUFeedURL string ${COVO_FEED_URL:-https://getcovo.dev/appcast.xml}" "$bundle/Contents/Info.plist"
 fi
 cp "$bin/Covo" "$bundle/Contents/MacOS/Covo"
+# Sparkle (app updates). Covo is not sandboxed, so Sparkle's XPC services
+# are not needed: dropped, then the framework is signed again below.
+mkdir -p "$bundle/Contents/Frameworks"
+ditto "$bin/Sparkle.framework" "$bundle/Contents/Frameworks/Sparkle.framework"
+rm -rf "$bundle/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices" "$bundle/Contents/Frameworks/Sparkle.framework/XPCServices"
 cp "$out/covo" "$out/covo-hostshelper" "$bundle/Contents/Resources/bin/"
 # Icons come from the brand kit (docs/brand).
 iconutil -c icns "$app/Resources/AppIcon.iconset" -o "$bundle/Contents/Resources/AppIcon.icns"
 cp "$app/Resources/covo-menubar-template.png" "$app/Resources/covo-menubar-template@2x.png" "$bundle/Contents/Resources/"
 
+sparkle="$bundle/Contents/Frameworks/Sparkle.framework"
+codesign --force --sign - "$sparkle/Versions/B/Autoupdate" "$sparkle/Versions/B/Updater.app" "$sparkle"
 codesign --force --sign - "$bundle/Contents/Resources/bin/covo" "$bundle/Contents/Resources/bin/covo-hostshelper"
 codesign --force --sign - "$bundle"
 codesign --verify --strict "$bundle"

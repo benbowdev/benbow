@@ -6,16 +6,22 @@ import SwiftUI
 @main
 struct CovoApp: App {
     @State private var model = AppModel()
+    @State private var updater = AppUpdater()
 
     var body: some Scene {
         Window("Covo", id: "main") {
             ContentView()
                 .environment(model)
+                .environment(updater)
                 .task { await model.connect() }
                 .frame(minWidth: 760, minHeight: 460)
         }
         .windowToolbarStyle(.unified)
         .commands {
+            CommandGroup(after: .appInfo) {
+                Button("Check for Updates…") { updater.check() }
+                    .disabled(!updater.enabled)
+            }
             CommandGroup(after: .newItem) {
                 Button("Import from Another Tool…") { model.importing = true }
                     .disabled(model.phase != .ready || model.busy != nil)
@@ -35,7 +41,7 @@ struct CovoApp: App {
         }
 
         Settings {
-            SettingsView().environment(model)
+            SettingsView().environment(model).environment(updater)
         }
     }
 }
