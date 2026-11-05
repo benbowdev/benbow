@@ -1,54 +1,75 @@
 # Covo
 
-A native macOS local development environment for people who build PHP,
-WordPress and Laravel sites: an open source, modern alternative to MAMP PRO.
+**Local PHP development on your Mac, without breaking it.**
 
-Covo never breaks your Mac. It does not use or modify Homebrew, installs
-nothing system-wide, and coexists with MAMP, Valet, Herd or anything else
-already running. Everything lives in `~/Library/Application Support/covo/`,
-and `covo uninstall` puts your Mac back the way it was.
+Covo is a free, open source Mac app that runs WordPress, Laravel, Symfony,
+Drupal or plain PHP, each site on its own PHP version from 5.6 to 8.5, all
+at once, with trusted HTTPS, MySQL or PostgreSQL, Redis and a mail catcher
+on board. Bring your AI agent too: Covo saves the site's files and database
+first, and you keep or undo whatever it did.
 
-**Status:** public beta. Expect rough edges and
-[tell us about them](https://github.com/getcovo/covo/issues).
+It never touches Homebrew, installs nothing system-wide and runs next to
+MAMP, Valet, Herd or anything else you already have. Everything lives in
+`~/Library/Application Support/covo/`, and `covo uninstall` puts your Mac
+back the way it was. A modern alternative to MAMP PRO, Local and Herd.
+
+**Website:** [getcovo.dev](https://getcovo.dev) · **Status:** public beta.
+Expect rough edges and [tell us about them](https://github.com/getcovo/covo/issues).
 
 ## Install
 
-Download the latest DMG from
-[Releases](https://github.com/getcovo/covo/releases), open it and drag Covo
-into Applications. It is signed and notarized by Apple and updates itself.
+Download the latest DMG from [getcovo.dev/download](https://getcovo.dev/download)
+or [Releases](https://github.com/getcovo/covo/releases), open it and drag
+Covo into Applications. It is signed and notarized by Apple and updates
+itself.
 
 Requirements: a Mac with Apple Silicon and macOS 14 Sonoma or later. Covo
 downloads PHP, Caddy, MySQL and the rest on first use, each checked against
 a pinned SHA-256. More in [docs/beta.md](docs/beta.md).
 
-## What it does
+## A safe workbench for your AI agent
 
-- Unlimited sites, each on its own PHP version (5.6 to 8.5), served by Caddy
-  over HTTPS at `https://<site>.localhost:8443`, or on 443 if you want
-- MySQL 8.4, PostgreSQL 18 and Redis 8, a database per site in one click,
-  Adminer already logged in
-- WordPress and Laravel in one step, wp-cli, Composer, Mailpit for outgoing
-  mail, Xdebug per site
-- Import from MAMP PRO, Local, Herd, Valet and XAMPP, database included,
-  with undo
-- Snapshots of files and database (APFS clones), pull from production over
-  SSH, SFTP or FTP, open a site on your phone with a QR code
-- A CLI where every command supports `--json`, and an MCP server
+Git guards your code; Covo guards the code and the database together. Click
+**Work with an Agent** on a site and Covo saves its files and database,
+opens your terminal with the agent already connected, and steps back. When
+it is done you see which files and tables changed, then keep it all or undo
+it all ([docs/agents.md](docs/agents.md)).
 
-### A safe workbench for AI agents
-
-Git protects your code, but nothing protects your database. Covo saves a
-site's files **and database** before an agent works on it, shows what
-changed, and lets you keep everything or undo it all
-([docs/agents.md](docs/agents.md)). It works with Claude Code, Codex, Gemini
-CLI, Cursor and Copilot CLI. Agents get read-only access by default. Covo
-never runs a model and never asks for an API key.
+- Works with Claude Code, Codex, Gemini CLI, Cursor and Copilot CLI
+- Agents check their own work: they open pages and see that request's PHP
+  errors, read caught mail and query the database read only
+- A checkpoint before risky moves like plugin updates, migrations or a
+  search-replace
+- Read only by default; deleting, pushing to servers and the final keep or
+  undo stay with you
+- Covo is not an agent: it never runs a model and never asks for an API key
 
 For Claude Code, the Covo plugin connects Covo and teaches the workflow:
 
 ```
 /plugin install covo --marketplace getcovo/covo
 ```
+
+## What it does
+
+- **Any PHP app:** WordPress, Laravel, Symfony, Drupal, Craft CMS,
+  Statamic, Kirby, Joomla or your own `index.php`. Drag a folder in and it is
+  served at `https://<site>.localhost:8443` (or on 443), with a certificate
+  your browsers already trust
+- **Every PHP from 5.6 to 8.5**, side by side, one PHP-FPM per version;
+  php.ini per version and per site, Xdebug per site, and a check of what
+  would break before you move a site to a newer PHP
+- **Databases:** MySQL 8.4, PostgreSQL 18 and Redis 8, a database per site
+  in one click, Adminer already logged in
+- **New sites in one step:** WordPress (with blueprints of themes and
+  plugins) and Laravel; wp-cli, Composer and Artisan with the site's PHP
+- **Mailpit** catches every email your sites send
+- **Moving in:** import from MAMP PRO, Local, Herd, Valet and XAMPP,
+  database included, with undo
+- **Snapshots** of files and database (APFS clones), **pull from
+  production** over SSH, SFTP or FTP, push to staging, and **open a site on
+  your phone** with a QR code
+- **A CLI** where every command supports `--json`, and an **MCP server**
 
 ## How it stays out of the way
 
