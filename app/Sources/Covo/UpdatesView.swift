@@ -97,3 +97,19 @@ struct UpdatesBadge: View {
         }
     }
 }
+
+/// Settings → General → Updates: the daemon's daily component check.
+struct ComponentAutoRow: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        Toggle(isOn: Binding(
+            get: { model.updates?.auto ?? true },
+            set: { on in Task { await model.setAutoUpdates(on) } }
+        )) {
+            Text("Check for component updates daily")
+            Text("Once a day from GitHub (getcovo/covo-binaries). Only the daily total of checks is counted, with no identifier. Off: Covo asks nothing by itself; Check Now still works.")
+        }
+        .disabled(model.busy != nil)
+    }
+}

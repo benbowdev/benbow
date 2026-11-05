@@ -110,25 +110,34 @@ func expirePhone(ctx context.Context, c *core.Core) {
 	}
 }
 
+// checkUpdatesDaily runs the automatic update check: at most once every 24
+// hours after the last one that worked (so a Mac counts once a day, see
+// docs/updates.md), never when the user turned it off. It looks at the
+// wall clock every 30 minutes because Go's timers stop while the Mac
+// sleeps; after a failure it waits an hour.
 func checkUpdatesDaily(ctx context.Context, c *core.Core) {
 	if os.Getenv("COVO_NO_UPDATE_CHECK") != "" {
 		return
 	}
 	wait := 3 * time.Minute
+	var retryAt time.Time
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-time.After(wait):
 		}
-		wait = 24 * time.Hour
-		st, err := c.Updates(ctx)
-		if err == nil && st.CheckedAt != nil && time.Since(*st.CheckedAt) < 20*time.Hour {
-			wait = 24*time.Hour - time.Since(*st.CheckedAt)
+		wait = 30 * time.Minute
+		now := time.Now()
+		if now.Before(retryAt) {
 			continue
 		}
-		if _, err := c.CheckUpdates(ctx); err != nil {
+		if due, err := c.AutoCheckDue(ctx, now); err != nil || !due {
+			continue
+		}
+		if _, err := c.AutoCheckUpdates(ctx); err != nil {
 			fmt.Fprintf(os.Stderr, "update check: %v\n", err)
+			retryAt = now.Add(time.Hour)
 		}
 	}
 }

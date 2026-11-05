@@ -196,6 +196,17 @@ Format: **decision** (date) — why. *Not chosen:* alternatives.
   serving the last one (a freeze): Covo would never hear of security
   fixes. Renewed weekly by the workflow. *Not chosen:* a short expiry (a
   day: one failed run would raise errors everywhere), no expiry.
+- **Active users from the release download count, not telemetry**
+  (2026-11-05) — the automatic update check downloads the signed manifest
+  from a GitHub release asset at most once every 24 hours per Mac; the
+  daily download count (public CSV in covo-binaries) is the number of
+  active Macs. No identifier, no new service, nothing beyond the request
+  GitHub already serves. Manual checks use the raw copy so they do not
+  count; the raw copy is also the fallback. *Not chosen:* our own
+  telemetry endpoint (a server, personal data, a privacy policy to
+  defend), a counter on getcovo.dev or Plausible (the app never visits
+  the site), the CSV in a private repository (a token in a public
+  workflow; the live count is public through the API anyway).
 - **Updates are a badge and a click, never automatic; versions pinned per
   installation** (2026-11-02) — a client site must not change under the
   user's feet; rollback keeps the previous version.

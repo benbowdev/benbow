@@ -70,6 +70,7 @@ type Backend interface {
 	SetMail(ctx context.Context, on bool) (core.MailResult, error)
 	Updates(ctx context.Context) (core.UpdatesStatus, error)
 	CheckUpdates(ctx context.Context) (core.UpdatesStatus, error)
+	SetAutoUpdates(ctx context.Context, on bool) (core.UpdatesStatus, error)
 	ApplyUpdates(ctx context.Context, names []string) (core.UpdatesStatus, error)
 	RollbackUpdate(ctx context.Context, name string) (core.UpdatesStatus, error)
 	SiteLogs(ctx context.Context, name, kind string, lines int) (core.SiteLog, error)
@@ -359,6 +360,18 @@ func Handler(b Backend) http.Handler {
 	})
 	get("/v1/updates", func(ctx context.Context) (any, error) { return b.Updates(ctx) })
 	post("POST", "/v1/updates/check", func(r *http.Request, _ []byte) (any, error) { return b.CheckUpdates(r.Context()) })
+	post("PUT", "/v1/updates/auto", func(r *http.Request, body []byte) (any, error) {
+		var req struct {
+			On *bool `json:"on"`
+		}
+		if err := decode(body, &req); err != nil {
+			return nil, err
+		}
+		if req.On == nil {
+			return nil, errcode.Errorf(errcode.InvalidInput, `"on" (true or false) is required`)
+		}
+		return b.SetAutoUpdates(r.Context(), *req.On)
+	})
 	post("POST", "/v1/updates/apply", func(r *http.Request, body []byte) (any, error) {
 		var req struct {
 			Components []string `json:"components"`

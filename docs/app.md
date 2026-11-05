@@ -60,8 +60,9 @@ bar.
 When the daemon's daily check (or Check Now) finds component updates, a
 discreet "n Updates" button appears in the toolbar (on its own, left of
 Adminer and Mail; Settings sits apart at the end), with the list and
-Update / Update All; the same list is in Settings → General, and the menu
-bar offers to install them. Nothing is installed without a click
+Update / Update All; the same list is in Settings → General (with "Check
+for component updates daily": off, Covo makes no update request by
+itself), and the menu bar offers to install them. Nothing is installed without a click
 (`docs/updates.md`).
 
 ## Updates of the app itself

@@ -102,6 +102,7 @@ up as a diff of those files: adding a field is fine (rerun the Go test with
 | `GET /v1/mysql`, `POST /v1/mysql/enable\|disable` | `{port}` | `covo mysql` |
 | `GET /v1/mysql/credentials` | | `covo mysql password` |
 | `GET /v1/mail`, `POST /v1/mail/enable\|disable` | | `covo mail` |
+| `GET /v1/updates`, `POST /v1/updates/check\|apply\|rollback`, `PUT /v1/updates/auto` | `{components}`, `{component}`, `{on}` | `covo update`, `check`, `apply`, `rollback`, `auto on\|off` |
 | `POST /v1/adminer/login` | `{site}` (empty: root) | (app only) |
 | `POST /v1/adminer/redeem` | `{token}` | (Covo's Adminer front file) |
 | `POST /v1/trust`, `POST /v1/untrust` | | `covo trust`, `untrust` |

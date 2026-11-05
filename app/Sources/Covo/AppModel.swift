@@ -423,6 +423,13 @@ final class AppModel {
         }
     }
 
+    func setAutoUpdates(_ on: Bool) async {
+        await perform(on ? "Turning daily checks on…" : "Turning daily checks off…") { [weak self] api in
+            let st = try await api.setAutoUpdates(on)
+            await MainActor.run { self?.updates = st }
+        }
+    }
+
     /// Installs updates (all ready ones when empty).
     func applyUpdates(_ components: [String] = []) async {
         await perform("Updating…") { _ = try await $0.applyUpdates(components) }

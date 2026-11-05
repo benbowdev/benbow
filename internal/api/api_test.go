@@ -140,6 +140,9 @@ func (f *fake) RemoveSiteAndDatabase(_ context.Context, name string) (core.SiteR
 	return core.SiteResult{}, f.record("remove with database " + name)
 }
 
+func (f *fake) SetAutoUpdates(_ context.Context, on bool) (core.UpdatesStatus, error) {
+	return core.UpdatesStatus{Auto: on}, f.record(fmt.Sprintf("auto %v", on))
+}
 func (f *fake) ApplyUpdates(_ context.Context, names []string) (core.UpdatesStatus, error) {
 	return core.UpdatesStatus{}, f.record("apply " + strings.Join(names, ","))
 }
@@ -271,6 +274,9 @@ func TestRoutes(t *testing.T) {
 		{"PUT", "/v1/ports", `{"https_port":443,"admin":true}`, 400, "", errcode.InvalidInput},
 		{"POST", "/v1/updates/apply", `{"components":["caddy","php-8.4"]}`, 200, "apply caddy,php-8.4", ""},
 		{"POST", "/v1/updates/apply", "", 200, "apply ", ""},
+		{"PUT", "/v1/updates/auto", `{"on":false}`, 200, "auto false", ""},
+		{"PUT", "/v1/updates/auto", `{"on":true}`, 200, "auto true", ""},
+		{"PUT", "/v1/updates/auto", `{}`, 400, "", errcode.InvalidInput},
 		{"PATCH", "/v1/sites/demo", `{"name":"x"}`, 400, "", errcode.InvalidInput},
 		{"PUT", "/v1/xdebug/8.4", `{"enabled":true}`, 200, "xdebug 8.4 on", ""},
 		{"PUT", "/v1/xdebug/8.4", `{"enabled":false}`, 200, "xdebug 8.4 off", ""},

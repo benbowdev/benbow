@@ -6,6 +6,7 @@ updates through Sparkle: see `docs/app.md` and `docs/release.md`.
 ```sh
 covo update                  # what is available (no network)
 covo update check            # download and verify the signed manifest
+covo update auto on|off      # the daemon's daily check (on by default)
 covo update apply            # install everything available
 covo update apply caddy php-8.4
 covo update rollback mailpit # back to the version before the last update
@@ -39,6 +40,47 @@ binary, plus newer ones published by `getcovo/covo-binaries`:
   their version (Caddy, PHP) must report the one the manifest claims.
 - The accepted manifest is kept in `data/manifest/` and checked again on
   every start.
+
+## Where Covo looks, and what is counted
+
+The same signed manifest is published in two places by
+`getcovo/covo-binaries`' daily workflow:
+
+- the release asset
+  `https://github.com/getcovo/covo-binaries/releases/download/manifest/manifest.json`
+  (and `.sig`), replaced once a day;
+- `https://raw.githubusercontent.com/getcovo/covo-binaries/main/manifest/manifest.json`.
+
+**The automatic check** runs in the daemon (which the app starts): 3
+minutes after it starts, then only when the last automatic check that
+worked is at least 24 hours old (the daemon looks at the clock every 30
+minutes, since timers stop while the Mac sleeps; after a failure it waits
+an hour). It asks the release asset first and falls back to `main` if the
+asset cannot be downloaded (for a few seconds a day it is missing while the
+workflow replaces it), has a bad signature or has expired.
+
+**Manual checks** (Check Now, `covo update check`) ask `main` only.
+
+**What is counted.** GitHub counts the downloads of each release asset.
+Since a Mac checks automatically at most once every 24 hours, the release
+asset's daily download count is about the number of Macs that ran Covo
+that day. The workflow writes it, once a day, to the public
+`stats/manifest-checks.csv` of `getcovo/covo-binaries`
+(`period_start,period_end,checks`); `scripts/stats.sh` sums it by day and
+adds the app's DMG downloads per version. That total is all we see.
+
+**What is not.** Covo sends no identifier, cookie or extra parameter:
+only the request itself, with the User-Agent `Covo/<version> (macOS
+<version>; <arch>)` that Covo puts on all its network requests. GitHub
+receives the IP address and that User-Agent like for any download; we do
+not. Manual checks, Macs that only use the CLI (no daemon) and Covo
+versions before 0.1.0-beta.4 are not counted.
+
+**Turning it off.** Settings → General → Updates → "Check for component
+updates daily", or `covo update auto off`: Covo then makes no update
+request by itself; Check Now still works. (The app's own updates are a
+separate setting: Sparkle reads `getcovo.dev/appcast.xml`, see
+`docs/app.md`.)
 
 ## What updates
 

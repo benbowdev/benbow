@@ -19,21 +19,37 @@ import (
 	"github.com/getcovo/covo/internal/errcode"
 	"github.com/getcovo/covo/internal/fsutil"
 	"github.com/getcovo/covo/internal/store"
+	"github.com/getcovo/covo/internal/version"
 )
 
 const (
-	// DefaultManifestURL is where getcovo/covo-binaries publishes the signed
-	// manifest (the signature is at the same URL plus ".sig").
+	// ReleaseManifestURL is the signed manifest attached to getcovo/covo-binaries'
+	// "manifest" release (the signature is at the same URL plus ".sig").
+	// Only the daemon's automatic check (at most once every 24 hours) uses
+	// it: the asset's daily download count is how many Macs ran Covo, and
+	// nothing else is counted (docs/updates.md).
+	ReleaseManifestURL = "https://github.com/getcovo/covo-binaries/releases/download/manifest/manifest.json"
+	// DefaultManifestURL is the same manifest on covo-binaries' main branch:
+	// manual checks use it, and the automatic check falls back to it.
 	DefaultManifestURL = "https://raw.githubusercontent.com/getcovo/covo-binaries/main/manifest/manifest.json"
-	// EnvManifestURL points Covo at another manifest (tests).
+	// EnvManifestURL replaces DefaultManifestURL (tests).
 	EnvManifestURL = "COVO_MANIFEST_URL"
+	// EnvManifestReleaseURL replaces ReleaseManifestURL (tests).
+	EnvManifestReleaseURL = "COVO_MANIFEST_RELEASE_URL"
 	// EnvManifestTestKey adds a trusted public key (base64). Only honored
 	// together with COVO_HOME, i.e. in an isolated test installation.
 	EnvManifestTestKey = "COVO_MANIFEST_TEST_KEY"
 
 	settingUpdatesChecked = "updates_checked_at"
 	settingUpdatesError   = "updates_error"
-	maxManifestSize       = 4 << 20
+	// settingUpdatesAuto is "off" when the user turned the daily check off.
+	settingUpdatesAuto = "updates_auto"
+	// settingUpdatesAutoChecked: the last automatic check that succeeded.
+	settingUpdatesAutoChecked = "updates_auto_checked_at"
+	// autoCheckEvery is the least time between two automatic checks, so a
+	// Mac is never counted twice in one day.
+	autoCheckEvery  = 24 * time.Hour
+	maxManifestSize = 4 << 20
 )
 
 // ComponentUpdate is a newer version Covo can switch to.
@@ -48,10 +64,12 @@ type ComponentUpdate struct {
 
 // UpdatesStatus is what covo update reports.
 type UpdatesStatus struct {
-	CheckedAt *time.Time        `json:"checked_at,omitempty"`
-	Serial    int64             `json:"serial"`
-	Error     string            `json:"error,omitempty"`
-	Updates   []ComponentUpdate `json:"updates"`
+	CheckedAt *time.Time `json:"checked_at,omitempty"`
+	// Auto is true when the daemon checks once a day by itself.
+	Auto    bool              `json:"auto"`
+	Serial  int64             `json:"serial"`
+	Error   string            `json:"error,omitempty"`
+	Updates []ComponentUpdate `json:"updates"`
 	// Applied lists what an update or rollback changed.
 	Applied []ComponentUpdate `json:"applied,omitempty"`
 	// Live is false when Covo is stopped: changes apply on start.
@@ -91,6 +109,8 @@ func (c *Core) loadSignedManifest() {
 	}
 }
 
+var manifestClient = &http.Client{Transport: version.Transport{}}
+
 func fetch(ctx context.Context, url string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
@@ -98,7 +118,7 @@ func fetch(ctx context.Context, url string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("request %s: %w", url, err)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := manifestClient.Do(req)
 	if err != nil {
 		return nil, errcode.New(errcode.Download, fmt.Errorf("fetch %s: %w", url, err))
 	}
@@ -116,18 +136,39 @@ func fetch(ctx context.Context, url string) ([]byte, error) {
 	return body, nil
 }
 
-// CheckUpdates downloads the published manifest, verifies its signature,
-// keeps it if it is newer, and reports the updates now available. Nothing
-// is installed.
+// CheckUpdates downloads the published manifest from covo-binaries' main
+// branch, verifies its signature and expiry, keeps it if it is newer, and
+// reports the updates now available. Nothing is installed. This is the
+// manual check: it never touches the release asset that counts daily
+// checks.
 func (c *Core) CheckUpdates(ctx context.Context) (UpdatesStatus, error) {
+	return c.runCheck(ctx, false)
+}
+
+// AutoCheckUpdates is the daemon's daily check: the release asset first,
+// main as a fallback (the asset is briefly missing while the workflow
+// replaces it). A success is recorded for AutoCheckDue.
+func (c *Core) AutoCheckUpdates(ctx context.Context) (UpdatesStatus, error) {
+	return c.runCheck(ctx, true)
+}
+
+func (c *Core) runCheck(ctx context.Context, auto bool) (UpdatesStatus, error) {
 	err := c.locked(ctx, func() error {
-		err := c.checkUpdates(ctx)
+		urls := []string{manifestURL()}
+		if auto {
+			urls = []string{releaseManifestURL(), manifestURL()}
+		}
+		err := c.checkUpdates(ctx, urls)
 		msg := ""
 		if err != nil {
 			msg = err.Error()
 		}
-		_ = c.Store.SetSetting(ctx, settingUpdatesChecked, time.Now().UTC().Format(time.RFC3339))
+		now := time.Now().UTC().Format(time.RFC3339)
+		_ = c.Store.SetSetting(ctx, settingUpdatesChecked, now)
 		_ = c.Store.SetSetting(ctx, settingUpdatesError, msg)
+		if auto && err == nil {
+			_ = c.Store.SetSetting(ctx, settingUpdatesAutoChecked, now)
+		}
 		return err
 	})
 	if err != nil {
@@ -136,11 +177,65 @@ func (c *Core) CheckUpdates(ctx context.Context) (UpdatesStatus, error) {
 	return c.Updates(ctx)
 }
 
-func (c *Core) checkUpdates(ctx context.Context) error {
-	url := DefaultManifestURL
+func manifestURL() string {
 	if u := os.Getenv(EnvManifestURL); u != "" {
-		url = u
+		return u
 	}
+	return DefaultManifestURL
+}
+
+func releaseManifestURL() string {
+	if u := os.Getenv(EnvManifestReleaseURL); u != "" {
+		return u
+	}
+	return ReleaseManifestURL
+}
+
+// AutoCheckDue says whether the daemon should check now: the daily check
+// is on, and the last automatic check that succeeded is at least a day old.
+func (c *Core) AutoCheckDue(ctx context.Context, now time.Time) (bool, error) {
+	on, err := c.autoUpdates(ctx)
+	if err != nil || !on {
+		return false, err
+	}
+	var last time.Time
+	if v, ok, err := c.Store.Setting(ctx, settingUpdatesAutoChecked); err != nil {
+		return false, err
+	} else if ok {
+		last, _ = time.Parse(time.RFC3339, v)
+	}
+	return dueForAutoCheck(last, now), nil
+}
+
+// dueForAutoCheck: never checked, a day or more since, or a last check in
+// the future (the clock went back).
+func dueForAutoCheck(last, now time.Time) bool {
+	return last.IsZero() || now.Sub(last) >= autoCheckEvery || last.After(now.Add(time.Hour))
+}
+
+func (c *Core) autoUpdates(ctx context.Context) (bool, error) {
+	v, _, err := c.Store.Setting(ctx, settingUpdatesAuto)
+	return v != "off", err
+}
+
+// SetAutoUpdates turns the daemon's daily check on or off. Off, Covo makes
+// no update request by itself; `covo update check` still works.
+func (c *Core) SetAutoUpdates(ctx context.Context, on bool) (UpdatesStatus, error) {
+	var err error
+	if on {
+		err = c.Store.DeleteSetting(ctx, settingUpdatesAuto)
+	} else {
+		err = c.Store.SetSetting(ctx, settingUpdatesAuto, "off")
+	}
+	if err != nil {
+		return UpdatesStatus{}, err
+	}
+	return c.Updates(ctx)
+}
+
+// checkUpdates takes the first of urls whose manifest downloads, is signed
+// by a trusted key and has not expired; the next one is tried otherwise.
+func (c *Core) checkUpdates(ctx context.Context, urls []string) error {
 	keys, err := trustedKeys()
 	if err != nil {
 		return err
@@ -148,19 +243,8 @@ func (c *Core) checkUpdates(ctx context.Context) error {
 	if len(keys) == 0 {
 		return errcode.Errorf(errcode.Unsupported, "this build of Covo has no manifest key: updates come with a newer Covo")
 	}
-	body, err := fetch(ctx, url)
+	m, body, sig, err := firstVerified(ctx, urls, keys)
 	if err != nil {
-		return err
-	}
-	sig, err := fetch(ctx, url+".sig")
-	if err != nil {
-		return err
-	}
-	m, err := components.VerifySigned(body, sig, keys)
-	if err != nil {
-		return err
-	}
-	if err := m.CheckFresh(time.Now()); err != nil {
 		return err
 	}
 	if m.Serial <= c.Manifest.Serial {
@@ -180,6 +264,38 @@ func (c *Core) checkUpdates(ctx context.Context) error {
 	return nil
 }
 
+// firstVerified returns the manifest of the first url that works; the
+// error is the last url's.
+func firstVerified(ctx context.Context, urls []string, keys []ed25519.PublicKey) (m components.Manifest, body, sig []byte, err error) {
+	for _, url := range urls {
+		if m, body, sig, err = fetchVerified(ctx, url, keys); err == nil {
+			return m, body, sig, nil
+		}
+	}
+	return m, nil, nil, err
+}
+
+// fetchVerified downloads url and url+".sig" and returns the manifest if
+// the signature and the expiry are good.
+func fetchVerified(ctx context.Context, url string, keys []ed25519.PublicKey) (components.Manifest, []byte, []byte, error) {
+	body, err := fetch(ctx, url)
+	if err != nil {
+		return components.Manifest{}, nil, nil, err
+	}
+	sig, err := fetch(ctx, url+".sig")
+	if err != nil {
+		return components.Manifest{}, nil, nil, err
+	}
+	m, err := components.VerifySigned(body, sig, keys)
+	if err != nil {
+		return components.Manifest{}, nil, nil, err
+	}
+	if err := m.CheckFresh(time.Now()); err != nil {
+		return components.Manifest{}, nil, nil, err
+	}
+	return m, body, sig, nil
+}
+
 // major is the series an update stays in: "8.4" for MySQL (LTS), the
 // major version otherwise.
 func updateSeries(component, version string) string {
@@ -194,6 +310,11 @@ func updateSeries(component, version string) string {
 // not go online: see CheckUpdates).
 func (c *Core) Updates(ctx context.Context) (UpdatesStatus, error) {
 	st := UpdatesStatus{Serial: c.Manifest.Serial, Updates: []ComponentUpdate{}}
+	auto, err := c.autoUpdates(ctx)
+	if err != nil {
+		return st, err
+	}
+	st.Auto = auto
 	if v, ok, err := c.Store.Setting(ctx, settingUpdatesChecked); err == nil && ok {
 		if t, err := time.Parse(time.RFC3339, v); err == nil {
 			st.CheckedAt = &t

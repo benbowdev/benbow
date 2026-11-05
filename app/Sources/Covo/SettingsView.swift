@@ -77,6 +77,7 @@ struct GeneralSettings: View {
             }
             Section("Updates") {
                 AppUpdateRow()
+                ComponentAutoRow()
                 UpdatesList()
             }
             SnapshotKeepRow()

@@ -3,6 +3,7 @@
   "ok": true,
   "data": {
     "checked_at": "2026-11-04T10:30:00Z",
+    "auto": true,
     "serial": 1,
     "error": "x",
     "updates": [

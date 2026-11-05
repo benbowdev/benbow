@@ -21,6 +21,9 @@ func (r updatesResult) Text(w io.Writer) {
 	if len(r.Applied) > 0 && !r.Live {
 		fmt.Fprintln(w, "Covo is stopped: the new versions run with `covo start`.")
 	}
+	if !r.Auto {
+		fmt.Fprintln(w, "The daily automatic check is off (`covo update auto on`).")
+	}
 	if r.Error != "" {
 		fmt.Fprintf(w, "Last check failed: %s\n", r.Error)
 	}
@@ -51,12 +54,30 @@ func (a *app) updateCmd() *cobra.Command {
 			return updatesResult(st), err
 		}),
 	}
-	cmd.AddCommand(&cobra.Command{
+	var auto bool
+	check := &cobra.Command{
 		Use:   "check",
 		Short: "Download and verify the signed manifest; install nothing",
 		Args:  cobra.NoArgs,
 		RunE: a.withCore(func(ctx context.Context, c *core.Core, _ []string) (Result, error) {
+			if auto {
+				st, err := c.AutoCheckUpdates(ctx)
+				return updatesResult(st), err
+			}
 			st, err := c.CheckUpdates(ctx)
+			return updatesResult(st), err
+		}),
+	}
+	// The daemon's daily check (release asset, then main), for tests.
+	check.Flags().BoolVar(&auto, "auto", false, "run the automatic check instead")
+	_ = check.Flags().MarkHidden("auto")
+	cmd.AddCommand(check, &cobra.Command{
+		Use:       "auto on|off",
+		Short:     "Turn the daily automatic check on or off (off: Covo makes no update request by itself)",
+		Args:      cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
+		ValidArgs: []string{"on", "off"},
+		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
+			st, err := c.SetAutoUpdates(ctx, args[0] == "on")
 			return updatesResult(st), err
 		}),
 	}, &cobra.Command{

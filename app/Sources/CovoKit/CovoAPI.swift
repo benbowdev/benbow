@@ -499,6 +499,13 @@ public struct CovoAPI: Sendable {
 
     public func checkUpdates() async throws -> UpdatesStatus { try await call("POST", "/v1/updates/check") }
 
+    struct AutoRequest: Encodable { let on: Bool }
+
+    /// Turns the daemon's daily update check on or off.
+    public func setAutoUpdates(_ on: Bool) async throws -> UpdatesStatus {
+        try await call("PUT", "/v1/updates/auto", AutoRequest(on: on))
+    }
+
     struct ApplyRequest: Encodable { let components: [String] }
 
     /// Installs updates; an empty list means every available one.

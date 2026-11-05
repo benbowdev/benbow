@@ -137,6 +137,8 @@ public struct ComponentUpdate: Codable, Sendable, Hashable, Identifiable {
 
 public struct UpdatesStatus: Codable, Sendable, Hashable {
     public var checkedAt: Date?
+    /// The daemon checks once a day by itself (nil from an older core: on).
+    public var auto: Bool?
     public var serial: Int
     public var error: String?
     public var updates: [ComponentUpdate]

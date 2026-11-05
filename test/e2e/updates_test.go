@@ -32,6 +32,7 @@ type updates struct {
 		Component string `json:"component"`
 	} `json:"applied"`
 	Live bool `json:"live"`
+	Auto bool `json:"auto"`
 }
 
 func (h *harness) updates(args ...string) updates {
@@ -57,6 +58,22 @@ func (u updates) has(component, available string) bool {
 type manifestServer struct {
 	mu        sync.Mutex
 	body, sig []byte
+	// release: the copy at /release/ (the release asset) is served;
+	// releaseHits counts requests for it.
+	release     bool
+	releaseHits int
+}
+
+func (s *manifestServer) setRelease(on bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.release = on
+}
+
+func (s *manifestServer) hits() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.releaseHits
 }
 
 func (s *manifestServer) set(body, sig []byte) {
@@ -68,7 +85,16 @@ func (s *manifestServer) set(body, sig []byte) {
 func (s *manifestServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	switch r.URL.Path {
+	path := r.URL.Path
+	if p, ok := strings.CutPrefix(path, "/release"); ok {
+		s.releaseHits++
+		if !s.release {
+			http.NotFound(w, r) // being replaced by the workflow
+			return
+		}
+		path = p
+	}
+	switch path {
 	case "/manifest.json":
 		_, _ = w.Write(s.body)
 	case "/manifest.json.sig":
@@ -93,6 +119,7 @@ func TestUpdates(t *testing.T) {
 
 	h := newHarness(t)
 	h.env = append(h.env, "COVO_MANIFEST_URL="+ts.URL+"/manifest.json",
+		"COVO_MANIFEST_RELEASE_URL="+ts.URL+"/release/manifest.json",
 		"COVO_MANIFEST_TEST_KEY="+base64.StdEncoding.EncodeToString(pub))
 	h.mustCovo("site", "add", "demo", "--php", "8.4", "--path", newSite(t))
 	h.mustCovo("mail", "enable")
@@ -158,6 +185,33 @@ func TestUpdates(t *testing.T) {
 	u := h.updates("check")
 	if u.Serial != embedded.Serial+1 || !u.has("mailpit", "1.33.99") || !u.has("caddy", "2.11.99") || !u.has("php-8.4", "8.4.99") {
 		t.Fatalf("check = %+v", u)
+	}
+
+	// Manual checks never ask the release asset (it counts daily checks);
+	// the automatic one falls back to main while the asset is missing,
+	// then takes it from the release.
+	if n := srv.hits(); n != 0 {
+		t.Fatalf("manual check asked the release asset %d times", n)
+	}
+	if u := h.updates("check", "--auto"); u.Serial != embedded.Serial+1 || !u.Auto {
+		t.Fatalf("automatic check with the asset missing = %+v", u)
+	}
+	if srv.hits() == 0 {
+		t.Fatal("the automatic check did not try the release asset")
+	}
+	srv.setRelease(true)
+	before := srv.hits()
+	if env := h.covo("update", "check", "--auto"); !env.OK {
+		t.Fatalf("automatic check from the release = %+v", env)
+	}
+	if got := srv.hits() - before; got != 2 {
+		t.Fatalf("release requests = %d, want the manifest and its signature", got)
+	}
+	if u := h.updates("auto", "off"); u.Auto {
+		t.Fatalf("update auto off = %+v", u)
+	}
+	if u := h.updates("auto", "on"); !u.Auto {
+		t.Fatalf("update auto on = %+v", u)
 	}
 
 	plist := filepath.Join(homeOf(t, h), "launchd", h.prefix()+".mailpit.plist")
