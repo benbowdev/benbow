@@ -64,7 +64,9 @@ Then publish, in this order (an appcast must never point at a missing DMG):
 1. Tag the commit (`git tag -a v<version>`) and push the tag.
 2. GitHub release `v<version>` with the DMG and its `.sha256`, notes in the
    description (Sparkle shows the release page).
-3. Copy `dist/appcast.xml` to the website (`public/appcast.xml`) and deploy.
+3. Copy `dist/appcast.xml` to the website (`public/appcast.xml`), commit,
+   and run `deploy/deploy.sh` there (it also rebuilds the download page,
+   which reads the latest release).
 
 Before the repository is public, GitHub release downloads need a login,
 so Sparkle cannot fetch them: until then, send the DMG by hand.
