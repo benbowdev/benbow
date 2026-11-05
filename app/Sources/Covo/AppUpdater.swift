@@ -6,7 +6,7 @@ import Sparkle
 import SwiftUI
 
 /// Updates of the app itself, through Sparkle (docs/updates.md). Sparkle
-/// checks once a day; a found update is shown as a discreet toolbar badge
+/// checks once a day; a found update joins the toolbar's updates badge
 /// (gentle reminders), never as a window on its own. Sparkle's window opens
 /// only when the user clicks the badge or Check for Updates….
 /// Dev builds have no SUFeedURL and never check.
@@ -54,23 +54,6 @@ extension AppUpdater: @preconcurrency SPUStandardUserDriverDelegate {
 
     func standardUserDriverWillFinishUpdateSession() {
         available = nil
-    }
-}
-
-/// Toolbar badge, there only when a newer Covo is available.
-struct AppUpdateBadge: View {
-    @Environment(AppUpdater.self) private var updater
-
-    var body: some View {
-        if let version = updater.available {
-            Button {
-                updater.check()
-            } label: {
-                Label("Covo \(version)", systemImage: "sparkles")
-                    .labelStyle(.titleAndIcon)
-            }
-            .help("A new version of Covo is available")
-        }
     }
 }
 

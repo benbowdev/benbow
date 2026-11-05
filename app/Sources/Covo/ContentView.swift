@@ -7,6 +7,7 @@ import UniformTypeIdentifiers
 
 struct ContentView: View {
     @Environment(AppModel.self) private var model
+    @Environment(AppUpdater.self) private var updater
     @State private var selection: Site.ID?
     @State private var adding: NewSiteRequest?
     @State private var dropTargeted = false
@@ -183,27 +184,12 @@ struct ContentView: View {
         .onAppear { selection = selection ?? model.sites.first?.id }
     }
 
-    /// Right side of the window: databases, updates, phone, mail, settings.
+    /// Right side of the window, in three groups: what is happening now
+    /// (phone, updates; only when there is something), the tools (Adminer,
+    /// Mail), and Settings on its own at the end.
     @ToolbarContentBuilder private var trailingToolbar: some ToolbarContent {
         if #available(macOS 26.0, *) {
             ToolbarSpacer(.flexible)
-        }
-        ToolbarItem(placement: .automatic) {
-            Button {
-                Task { await model.openAdminer() }
-            } label: {
-                Label("Adminer", systemImage: "cylinder.split.1x2")
-            }
-            .help((model.mysqlReady || model.postgresReady) && model.running
-                  ? "Open Adminer with every database, already logged in"
-                  : "Adminer needs MySQL or PostgreSQL on and Covo started")
-            .disabled(!(model.mysqlReady || model.postgresReady) || !model.running)
-        }
-        ToolbarItem(placement: .automatic) {
-            AppUpdateBadge()
-        }
-        ToolbarItem(placement: .automatic) {
-            UpdatesBadge()
         }
         if let phone = model.status?.phone {
             ToolbarItem(placement: .automatic) {
@@ -216,6 +202,25 @@ struct ContentView: View {
                 .help("\(phone.site) is open on your local network: \(phone.url)")
             }
         }
+        if UpdatesBadge.count(model, updater) > 0 {
+            ToolbarItem(placement: .automatic) {
+                UpdatesBadge()
+            }
+        }
+        if model.status?.phone != nil || UpdatesBadge.count(model, updater) > 0, #available(macOS 26.0, *) {
+            ToolbarSpacer(.fixed)
+        }
+        ToolbarItem(placement: .automatic) {
+            Button {
+                Task { await model.openAdminer() }
+            } label: {
+                Label("Adminer", systemImage: "cylinder.split.1x2")
+            }
+            .help((model.mysqlReady || model.postgresReady) && model.running
+                  ? "Open Adminer with every database, already logged in"
+                  : "Adminer needs MySQL or PostgreSQL on and Covo started")
+            .disabled(!(model.mysqlReady || model.postgresReady) || !model.running)
+        }
         if let mail = model.status?.mail, mail.enabled, let u = mail.url, let url = URL(string: u) {
             ToolbarItem(placement: .automatic) {
                 Button {
@@ -226,6 +231,9 @@ struct ContentView: View {
                 .help("Open the inbox of the mail your sites sent")
                 .disabled(!mail.running)
             }
+        }
+        if #available(macOS 26.0, *) {
+            ToolbarSpacer(.fixed)
         }
         ToolbarItem(placement: .automatic) {
             SettingsLink {

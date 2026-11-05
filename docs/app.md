@@ -58,7 +58,8 @@ bar.
 ## Updates
 
 When the daemon's daily check (or Check Now) finds component updates, a
-discreet "n Updates" button appears in the toolbar, with the list and
+discreet "n Updates" button appears in the toolbar (on its own, left of
+Adminer and Mail; Settings sits apart at the end), with the list and
 Update / Update All; the same list is in Settings → General, and the menu
 bar offers to install them. Nothing is installed without a click
 (`docs/updates.md`).
@@ -66,9 +67,9 @@ bar offers to install them. Nothing is installed without a click
 ## Updates of the app itself
 
 Released builds check `https://getcovo.dev/appcast.xml` once a day with
-Sparkle. A newer Covo shows as a discreet "Covo x.y.z" button in the
-toolbar; clicking it (or Covo → Check for Updates…) opens Sparkle's window
-with the release notes and Install. Nothing installs without a click.
+Sparkle. A newer Covo joins the same "n Updates" button as the components,
+at the top of its list; Install… there (or Covo → Check for Updates…)
+opens Sparkle's window with the release notes and Install. Nothing installs without a click.
 Settings → General → Updates turns the daily check off. Development builds
 (`app/build.sh` without `COVO_VERSION`) have no feed and never check.
 

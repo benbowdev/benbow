@@ -53,24 +53,47 @@ struct UpdatesList: View {
     }
 }
 
-/// The discreet badge in the toolbar: only there when something is ready.
+/// The one discreet badge in the toolbar for every update: a newer Covo
+/// (Sparkle) and component updates. Only there when something is ready.
 struct UpdatesBadge: View {
     @Environment(AppModel.self) private var model
+    @Environment(AppUpdater.self) private var updater
     @State private var showing = false
 
+    static func count(_ model: AppModel, _ updater: AppUpdater) -> Int {
+        (model.updates?.ready.count ?? 0) + (updater.available == nil ? 0 : 1)
+    }
+
     var body: some View {
-        let n = model.updates?.ready.count ?? 0
-        if n > 0 {
-            Button {
-                showing = true
-            } label: {
-                Label("\(n) Update\(n == 1 ? "" : "s")", systemImage: "arrow.down.circle.fill")
-                    .labelStyle(.titleAndIcon)
+        let n = Self.count(model, updater)
+        Button {
+            showing = true
+        } label: {
+            Label("\(n) Update\(n == 1 ? "" : "s")", systemImage: "arrow.down.circle")
+                .labelStyle(.titleAndIcon)
+        }
+        .help("Updates are available")
+        .popover(isPresented: $showing, arrowEdge: .bottom) {
+            VStack(alignment: .leading, spacing: 12) {
+                if let version = updater.available {
+                    HStack(alignment: .firstTextBaseline) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Covo \(version)")
+                            Text("A new version of the app").font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Button("Install…") {
+                            showing = false
+                            updater.check()
+                        }
+                    }
+                    Divider()
+                    Text("Components").font(.headline)
+                }
+                UpdatesList()
             }
-            .help("Component updates are available")
-            .popover(isPresented: $showing, arrowEdge: .bottom) {
-                UpdatesList().padding().frame(width: 360)
-            }
+            .padding()
+            .frame(width: 360)
         }
     }
 }
