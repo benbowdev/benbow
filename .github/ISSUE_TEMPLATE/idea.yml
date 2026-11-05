@@ -1,0 +1,11 @@
+name: Idea
+description: Suggest a feature or a change
+labels: [idea]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What you are trying to do
+      description: The problem first, then the solution you have in mind, if any.
+    validations:
+      required: true
