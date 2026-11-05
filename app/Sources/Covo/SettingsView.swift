@@ -20,7 +20,10 @@ struct SettingsView: View {
             MailSettings().tabItem { Label("Mail", systemImage: "envelope") }
             DomainSettings().tabItem { Label("Domains", systemImage: "globe") }
         }
-        .frame(width: 520)
+        // Wide enough for all nine tabs in the toolbar (narrower, macOS hides
+        // the last ones behind an overflow chevron); resizable beyond that.
+        .frame(minWidth: 760, idealWidth: 760, maxWidth: .infinity,
+               minHeight: 420, idealHeight: 560, maxHeight: .infinity)
         .disabled(model.phase != .ready)
     }
 

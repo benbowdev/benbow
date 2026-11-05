@@ -43,5 +43,6 @@ struct CovoApp: App {
         Settings {
             SettingsView().environment(model).environment(updater)
         }
+        .windowResizability(.contentMinSize)
     }
 }
