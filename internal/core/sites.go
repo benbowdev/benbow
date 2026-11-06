@@ -50,6 +50,17 @@ type AddSiteRequest struct {
 	// DatabaseEngine is "mysql" (default) or "pgsql".
 	DatabaseEngine string
 
+	// Command makes the site an app that Covo starts (docs/apps.md); Path
+	// is then the project folder and PHP is unused. Port fixes its port
+	// (default: a free one from 41000).
+	Command string
+	Port    int
+	// ProxyPort makes the site an app Covo only proxies to: the user runs
+	// the dev server on this port.
+	ProxyPort int
+	// AppHost is the Host header the app receives ("" or "localhost").
+	AppHost string
+
 	// Set by AddSite from the folder (or by NewLaravel): the project root
 	// when the document root is inside it, and the framework.
 	appRoot, framework string
@@ -80,6 +91,14 @@ func phpWarning(minor string) string {
 func (c *Core) AddSite(ctx context.Context, req AddSiteRequest) (SiteResult, error) {
 	if req.Domain == "" {
 		req.Domain = req.Name + "." + suffixLocalhost
+	}
+	if req.isApp() {
+		if err := req.checkApp(); err != nil {
+			return SiteResult{}, err
+		}
+		// An app's folder is its project: no index file to look for.
+		req.Force = true
+		req.PHP = ""
 	}
 	if req.NewDatabase && req.LinkDatabase != "" {
 		return SiteResult{}, errcode.Errorf(errcode.InvalidInput, "choose a new database or an existing one, not both")
@@ -118,7 +137,12 @@ func (c *Core) AddSite(ctx context.Context, req AddSiteRequest) (SiteResult, err
 			cleanupDir(req.Path, created)
 		}
 	}
-	if !req.CreateFolder && req.appRoot == "" {
+	switch {
+	case req.isApp():
+		if d, err := DetectApp(req.Path); err == nil {
+			req.framework = d.Framework
+		}
+	case !req.CreateFolder && req.appRoot == "":
 		req.Path, req.appRoot, req.framework = detectFramework(req.Path)
 	}
 	if err := c.checkSiteRequest(req); err != nil {
@@ -136,7 +160,10 @@ func (c *Core) AddSite(ctx context.Context, req AddSiteRequest) (SiteResult, err
 			_ = c.Store.RemoveSite(ctx, site.Name)
 			return err
 		}
-		res = SiteResult{SiteStatus: SiteStatus{Site: site, URL: siteURL(site, port)}, Warning: phpWarning(site.PHPMinor)}
+		res = SiteResult{SiteStatus: SiteStatus{Site: site, URL: siteURL(site, port)}}
+		if !site.IsApp() {
+			res.Warning = phpWarning(site.PHPMinor)
+		}
 		res.Applied, err = c.goLive(ctx, []store.Site{site})
 		return err
 	})
@@ -184,6 +211,12 @@ func (c *Core) checkSiteFields(req AddSiteRequest) error {
 	}
 	if _, err := domainSuffix(domain); err != nil {
 		return err
+	}
+	if req.isApp() {
+		if len(req.PHPSettings) > 0 {
+			return errcode.Errorf(errcode.InvalidInput, "php.ini values are only for PHP sites")
+		}
+		return nil
 	}
 	if err := validMinor(req.PHP); err != nil {
 		return err
@@ -237,8 +270,14 @@ func (c *Core) insertSite(ctx context.Context, req AddSiteRequest) (store.Site, 
 	if err != nil {
 		return store.Site{}, err
 	}
-	if _, err := c.ensurePHP(ctx, req.PHP); err != nil {
+	app, err := c.appFields(ctx, req)
+	if err != nil {
 		return store.Site{}, err
+	}
+	if !req.isApp() {
+		if _, err := c.ensurePHP(ctx, req.PHP); err != nil {
+			return store.Site{}, err
+		}
 	}
 	site := store.Site{
 		Name:        req.Name,
@@ -253,6 +292,10 @@ func (c *Core) insertSite(ctx context.Context, req AddSiteRequest) (store.Site, 
 		Framework:   req.framework,
 		AppRoot:     req.appRoot,
 		CreatedAt:   time.Now(),
+		Kind:        store.KindPHP,
+	}
+	if req.isApp() {
+		site.Kind, site.AppMode, site.Command, site.AppPort, site.AppHost = store.KindApp, app.AppMode, app.Command, app.AppPort, app.AppHost
 	}
 	if err := c.Store.AddSite(ctx, site); err != nil {
 		return store.Site{}, err
@@ -306,6 +349,13 @@ type UpdateSiteRequest struct {
 	Group *int64
 	// Force accepts a new folder without index.php or index.html.
 	Force bool
+	// Apps only: Command switches to (or changes) the command Covo starts,
+	// ProxyPort to proxying a server the user runs, Port fixes the port of
+	// a started app, AppHost (when set) the Host header ("" or "localhost").
+	Command   string
+	ProxyPort int
+	Port      int
+	AppHost   *string
 }
 
 // maxAliases keeps the certificate and /etc/hosts block reasonable.
@@ -374,13 +424,27 @@ func (c *Core) UpdateSite(ctx context.Context, req UpdateSiteRequest) (SiteResul
 			return err
 		}
 		site := old
+		if err := c.updateAppFields(ctx, req, &site); err != nil {
+			return err
+		}
+		if req.PHP != "" && site.IsApp() {
+			return phpOnly(site, "a PHP version")
+		}
 		if req.PHP != "" && req.PHP != old.PHPMinor {
 			if err := validMinor(req.PHP); err != nil {
 				return err
 			}
 			site.PHPMinor = req.PHP
 		}
-		if req.Path != "" && req.Path != old.Path {
+		if req.Path != "" && req.Path != old.Path && site.IsApp() {
+			if err := c.checkSiteFolder(req.Path, true); err != nil {
+				return err
+			}
+			site.Path = req.Path
+			if d, err := DetectApp(req.Path); err == nil {
+				site.Framework = d.Framework
+			}
+		} else if req.Path != "" && req.Path != old.Path {
 			docroot, appRoot, fw := detectFramework(req.Path)
 			if err := c.checkSiteFolder(docroot, req.Force); err != nil {
 				return err
@@ -432,7 +496,7 @@ func (c *Core) UpdateSite(ctx context.Context, req UpdateSiteRequest) (SiteResul
 			return err
 		}
 		res = SiteResult{SiteStatus: SiteStatus{Site: site, URL: siteURL(site, port)}}
-		if site.PHPMinor != old.PHPMinor {
+		if site.PHPMinor != old.PHPMinor && !site.IsApp() {
 			res.Warning = phpWarning(site.PHPMinor)
 		}
 		if site.GroupID != old.GroupID || site.Title != old.Title {
@@ -453,7 +517,7 @@ func (c *Core) UpdateSite(ctx context.Context, req UpdateSiteRequest) (SiteResul
 			res.Applied, err = c.applyIfRunning(ctx)
 			return err
 		}
-		if site.PHPMinor != old.PHPMinor {
+		if site.PHPMinor != old.PHPMinor && !site.IsApp() {
 			if _, err := c.ensurePHP(ctx, site.PHPMinor); err != nil {
 				return err
 			}
@@ -487,7 +551,8 @@ func (c *Core) UpdateSite(ctx context.Context, req UpdateSiteRequest) (SiteResul
 func siteEqual(a, b store.Site) bool {
 	return a.Path == b.Path && a.AppRoot == b.AppRoot && a.Framework == b.Framework && a.PHPMinor == b.PHPMinor && a.Domain == b.Domain &&
 		a.HTTPS == b.HTTPS && a.Enabled == b.Enabled && a.Archived == b.Archived && slices.Equal(a.Aliases, b.Aliases) &&
-		maps.Equal(a.PHPSettings, b.PHPSettings)
+		maps.Equal(a.PHPSettings, b.PHPSettings) && a.Kind == b.Kind && a.AppMode == b.AppMode && a.Command == b.Command &&
+		a.AppPort == b.AppPort && a.AppHost == b.AppHost && a.CompanionCommand == b.CompanionCommand && a.CompanionPort == b.CompanionPort
 }
 
 // RemoveSiteAndDatabase deletes the site's database (and its own MySQL

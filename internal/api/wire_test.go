@@ -61,6 +61,7 @@ var wireTypes = map[string]any{
 	"agent-connect":     agents.ConnectResult{},
 	"agent-start":       core.StartAgentResult{},
 	"phone":             core.PhoneStatus{},
+	"app-detection":     core.AppDetection{},
 }
 
 // TestWireGolden pins the JSON of every answer the app decodes, with every

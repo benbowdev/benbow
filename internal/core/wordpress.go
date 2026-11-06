@@ -109,6 +109,9 @@ func (c *Core) phpToolCommand(ctx context.Context, minor, dir, script string, ar
 // wpCommand prepares wp-cli for a site, with its cache inside the Covo
 // folder.
 func (c *Core) wpCommand(ctx context.Context, site store.Site, args ...string) (*exec.Cmd, error) {
+	if err := phpOnly(site, "wp-cli"); err != nil {
+		return nil, err
+	}
 	art, err := c.pinned(ctx, "wpcli", "")
 	if err != nil {
 		return nil, err

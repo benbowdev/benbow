@@ -43,6 +43,11 @@ func TestCaddyfileGolden(t *testing.T) {
 				PHPValue: "memory_limit=1G\nauto_prepend_file=" + home + "/data/phone/prepend.php",
 				LocalURL: "https://demo.localhost", PhoneURL: "https://demo-mac.local:9443", CAPort: 9444, CADir: home + "/data/phone/ca",
 				PlainPort: 9445, PlainURL: "http://192.168.1.5:9445"}},
+		{"apps", []Site{
+			{Name: "shop", Domain: "shop.localhost", Aliases: []string{"www.shop.localhost"}, Upstream: 41000,
+				AccessLog: home + "/logs/sites/shop/access.log"},
+			{Name: "api", Domain: "api.covo.test", Upstream: 3000, UpstreamLocalHost: true},
+		}, nil, nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

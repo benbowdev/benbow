@@ -77,6 +77,13 @@ type Site struct {
 	// <ProbeDir>/<id>.log; ProbePHPValue is PHPValue without the error log.
 	ProbeDir      string
 	ProbePHPValue string
+	// Upstream, when set, makes the site a reverse proxy to a dev server on
+	// localhost:Upstream (both 127.0.0.1 and ::1 are tried) instead of
+	// PHP: Root, FPMSocket, PHPValue and the probe are then unused.
+	Upstream int
+	// UpstreamLocalHost sends Host: localhost:<Upstream> instead of the
+	// site's domain, for dev servers that only accept localhost.
+	UpstreamLocalHost bool
 }
 
 // ProbeHeader is the request header that sends one request's PHP errors to
@@ -117,7 +124,6 @@ var tmpl = template.Must(template.New("Caddyfile").Funcs(template.FuncMap{"q": q
 # site: {{.Name}}
 {{q (print "https://" .Domain ":" $.HTTPSPort)}}{{range .Aliases}}, {{q (print "https://" . ":" $.HTTPSPort)}}{{end}} {
 	tls internal
-	root * {{q .Root}}
 	{{- if .AccessLog}}
 	log {
 		output file {{q .AccessLog}} {
@@ -126,6 +132,14 @@ var tmpl = template.Must(template.New("Caddyfile").Funcs(template.FuncMap{"q": q
 		}
 	}
 	{{- end}}
+	{{- if .Upstream}}
+	reverse_proxy localhost:{{.Upstream}}
+	{{- if .UpstreamLocalHost}} {
+		header_up Host localhost:{{.Upstream}}
+	}
+	{{- end}}
+	{{- else}}
+	root * {{q .Root}}
 	{{- if .ProbeDir}}
 	@covoprobe header_regexp covoprobe X-Covo-Probe ^[0-9a-f]{32}$
 	php_fastcgi @covoprobe {{q (print "unix/" .FPMSocket)}} {
@@ -138,6 +152,7 @@ var tmpl = template.Must(template.New("Caddyfile").Funcs(template.FuncMap{"q": q
 	}
 	{{- end}}
 	file_server
+	{{- end}}
 }
 {{end}}
 {{- with .Adminer}}
@@ -272,7 +287,13 @@ func Caddyfile(cfg Config) (string, error) {
 		}
 	}
 	for _, s := range cfg.Sites {
-		check = append(check, s.Root, s.FPMSocket)
+		if s.Upstream != 0 {
+			if s.Upstream < 1 || s.Upstream > 65535 {
+				return "", errcode.Newf(errcode.InvalidInput, "bad upstream port %d", s.Upstream)
+			}
+		} else {
+			check = append(check, s.Root, s.FPMSocket)
+		}
 		if s.AccessLog != "" {
 			check = append(check, s.AccessLog)
 		}

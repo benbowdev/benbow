@@ -181,7 +181,15 @@ func (c *Core) agentContext(site store.Site, s SessionInfo) string {
 	fmt.Fprintf(&b, "You are working on a local website managed by Covo, a PHP/WordPress/Laravel development environment on this Mac.\n\n")
 	fmt.Fprintf(&b, "- Site: %s, address %s\n", site.Name, s.URL)
 	fmt.Fprintf(&b, "- Project folder: %s\n", projectRoot(site))
-	fmt.Fprintf(&b, "- PHP %s", site.PHPMinor)
+	if site.IsApp() {
+		fmt.Fprintf(&b, "- App (dev server on port %d", site.AppPort)
+		if site.Command != "" {
+			fmt.Fprintf(&b, ", started by Covo with: %s", site.Command)
+		}
+		b.WriteString(")")
+	} else {
+		fmt.Fprintf(&b, "- PHP %s", site.PHPMinor)
+	}
 	if site.Framework != "" {
 		fmt.Fprintf(&b, ", %s", site.Framework)
 	}

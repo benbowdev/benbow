@@ -2,7 +2,8 @@
 
 A site is a folder served at `https://<name>.localhost:8443` (or another
 domain under `.localhost`, `.test` or `.local`, see `domains.md`) with its own
-PHP version.
+PHP version. A site can also be an app: a dev server in any language behind
+the same kind of domain, see `apps.md`.
 
 ```sh
 covo site add shop --php 8.4 --path ~/Sites/shop   # --domain shop.test

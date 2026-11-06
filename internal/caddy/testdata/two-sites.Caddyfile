@@ -32,13 +32,13 @@
 # site: demo
 "https://demo.localhost:8443", "https://shop.test:8443", "https://www.demo.localhost:8443" {
 	tls internal
-	root * "/Users/test/Sites/My Demo"
 	log {
 		output file "/Users/test/Library/Application Support/covo/logs/sites/demo/access.log" {
 			roll_size 5MiB
 			roll_keep 2
 		}
 	}
+	root * "/Users/test/Sites/My Demo"
 	@covoprobe header_regexp covoprobe X-Covo-Probe ^[0-9a-f]{32}$
 	php_fastcgi @covoprobe "unix//Users/test/Library/Application Support/covo/run/php84.sock" {
 		env PHP_VALUE "memory_limit=1G

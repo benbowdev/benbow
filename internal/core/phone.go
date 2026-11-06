@@ -176,6 +176,9 @@ func (c *Core) SharePhone(ctx context.Context, name string, minutes int) (PhoneS
 		if !site.Enabled {
 			return errcode.Newf(errcode.Conflict, "%s is off: turn it on first", name)
 		}
+		if site.IsApp() {
+			return errcode.Newf(errcode.Unsupported, "Open on Phone does not support apps yet")
+		}
 		if _, running, err := c.Store.Setting(ctx, settingRunning); err != nil {
 			return err
 		} else if !running {

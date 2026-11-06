@@ -20,7 +20,17 @@ Format: **decision** (date) — why. *Not chosen:* alternatives.
 - **macOS only until the public beta** (2026-11-03) — one platform done
   well before spreading out. Windows and Linux maybe after the beta.
 - **No Node, Python or other generic runtimes** (2026-11-03) — they belong
-  to their own tools; adding them is the road to FlyEnv.
+  to their own tools; adding them is the road to FlyEnv. Refined on
+  2026-11-06 by the next entry.
+- **Apps: Covo runs your dev server, it does not manage runtimes**
+  (2026-11-06) — a site can be a dev server in any language (Next.js, Vite,
+  Django…) behind a Covo domain with trusted HTTPS, started from the user's
+  own command or only proxied (`docs/apps.md`). Covo never installs or
+  chooses Node, Python or packages: the command runs with the user's own
+  version managers. It answers the common case of a PHP site with a
+  frontend next to it without becoming a runtime manager. The website,
+  README and announcements stay PHP-first. *Not chosen:* managing Node and
+  Python versions (FlyEnv's road), Docker, production builds.
 - **Pre-beta block** (2026-11-03): Laravel, PostgreSQL/Redis, Open on
   phone, importers with assisted migration, snapshots, SSH/FTP sync, MCP
   agent safety, blueprints — moved before the beta because they are what

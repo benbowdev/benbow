@@ -58,6 +58,9 @@ func (c *Core) composerCommand(ctx context.Context, minor, dir string, args ...s
 
 // toolCommand prepares wp-cli, Composer or Artisan for a site.
 func (c *Core) toolCommand(ctx context.Context, site store.Site, tool string, args []string) (*exec.Cmd, error) {
+	if err := phpOnly(site, tool); err != nil {
+		return nil, err
+	}
 	switch tool {
 	case ToolWP:
 		return c.wpCommand(ctx, site, args...)

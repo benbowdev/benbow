@@ -201,6 +201,10 @@ func Handler(b Backend) http.Handler {
 			NewDatabase  bool              `json:"new_database"`
 			LinkDatabase string            `json:"link_database"`
 			Engine       string            `json:"database_engine"`
+			Command      string            `json:"command"`
+			Port         int               `json:"port"`
+			ProxyPort    int               `json:"proxy_port"`
+			AppHost      string            `json:"app_host"`
 		}
 		if err := decode(body, &req); err != nil {
 			return nil, err
@@ -209,6 +213,7 @@ func Handler(b Backend) http.Handler {
 			Name: req.Name, Domain: req.Domain, PHP: req.PHP, Path: req.Path, Force: req.Force,
 			CreateFolder: req.CreateFolder, Aliases: req.Aliases, Group: req.GroupID, PHPSettings: req.PHPSettings,
 			NewDatabase: req.NewDatabase, LinkDatabase: req.LinkDatabase, DatabaseEngine: req.Engine,
+			Command: req.Command, Port: req.Port, ProxyPort: req.ProxyPort, AppHost: req.AppHost,
 		})
 	})
 	post("PATCH", "/v1/sites/{name}", func(r *http.Request, body []byte) (any, error) {
@@ -222,6 +227,10 @@ func Handler(b Backend) http.Handler {
 			GroupID  *int64    `json:"group_id"`
 			Title    *string   `json:"title"`
 			Force    bool      `json:"force"`
+			Command  string    `json:"command"`
+			Port     int       `json:"port"`
+			Proxy    int       `json:"proxy_port"`
+			AppHost  *string   `json:"app_host"`
 		}
 		if err := decode(body, &req); err != nil {
 			return nil, err
@@ -229,7 +238,13 @@ func Handler(b Backend) http.Handler {
 		return b.UpdateSite(r.Context(), core.UpdateSiteRequest{
 			Name: r.PathValue("name"), PHP: req.PHP, Path: req.Path, Domain: req.Domain, Enabled: req.Enabled,
 			Archived: req.Archived, Aliases: req.Aliases, Group: req.GroupID, Title: req.Title, Force: req.Force,
+			Command: req.Command, Port: req.Port, ProxyPort: req.Proxy, AppHost: req.AppHost,
 		})
+	})
+	// The command Covo proposes for an app's folder (it changes nothing).
+	mux.HandleFunc("GET /v1/detect", func(w http.ResponseWriter, r *http.Request) {
+		v, err := core.DetectApp(r.URL.Query().Get("path"))
+		reply(w, v, err)
 	})
 	get("/v1/groups", func(ctx context.Context) (any, error) { return b.ListGroups(ctx) })
 	post("PUT", "/v1/list-order", func(r *http.Request, body []byte) (any, error) {

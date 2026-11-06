@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "ok": true,
+  "data": {
+    "path": "x",
+    "framework": "x",
+    "command": "x",
+    "package_manager": "x",
+    "notes": [
+      "x"
+    ]
+  }
+}

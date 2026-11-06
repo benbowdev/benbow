@@ -191,6 +191,7 @@ extension Result where Failure == Error {
         "agent-connect": { try check("agent-connect", AgentConnectResult.self) },
         "agent-start": { try check("agent-start", AgentStartResult.self) },
         "phone": { try check("phone", PhoneStatus.self) },
+        "app-detection": { try check("app-detection", AppDetection.self) },
     ]
     let dir = try #require(Bundle.module.url(forResource: "wire", withExtension: nil, subdirectory: "Fixtures"))
     let files = try FileManager.default.contentsOfDirectory(atPath: dir.path).filter { $0.hasSuffix(".json") }

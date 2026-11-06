@@ -127,6 +127,9 @@ func (c *Core) GetSitePHPSettings(ctx context.Context, name string) (SitePHPSett
 	if err != nil {
 		return SitePHPSettings{}, err
 	}
+	if err := phpOnly(site, "php.ini"); err != nil {
+		return SitePHPSettings{}, err
+	}
 	s, err := c.sitePHPSettings(ctx, site)
 	return SitePHPSettings{Site: name, PHP: site.PHPMinor, Settings: s, Overrides: site.PHPSettings}, err
 }
@@ -139,6 +142,9 @@ func (c *Core) SetSitePHPSettings(ctx context.Context, name string, values map[s
 	err := c.locked(ctx, func() error {
 		old, err := c.Store.Site(ctx, name)
 		if err != nil {
+			return err
+		}
+		if err := phpOnly(old, "php.ini"); err != nil {
 			return err
 		}
 		site := old

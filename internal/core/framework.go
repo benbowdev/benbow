@@ -75,7 +75,7 @@ func (c *Core) backfillFrameworks(ctx context.Context) {
 		return
 	}
 	for _, s := range sites {
-		if s.Framework != "" {
+		if s.Framework != "" || s.IsApp() {
 			continue
 		}
 		docroot, appRoot, fw := detectFramework(s.Path)

@@ -514,7 +514,7 @@ struct SiteRow: View {
             if let session = model.session(for: site) {
                 AgentBadge(session: session)
             }
-            Text("PHP \(site.php)").font(.caption).foregroundStyle(.secondary)
+            Text(site.isApp ? "app :\(site.appPort ?? 0)" : "PHP \(site.php)").font(.caption).foregroundStyle(.secondary)
             if site.archived {
                 Image(systemName: "archivebox").foregroundStyle(.secondary).help("Archived")
             } else {

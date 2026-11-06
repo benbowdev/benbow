@@ -38,6 +38,13 @@
         "created_at": "2026-11-04T10:30:00Z",
         "position": 1,
         "title": "x",
+        "kind": "x",
+        "app_mode": "x",
+        "command": "x",
+        "app_port": 1,
+        "app_host": "x",
+        "companion_command": "x",
+        "companion_port": 1,
         "url": "x",
         "migration": {
           "site": "x",

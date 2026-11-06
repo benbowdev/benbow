@@ -158,6 +158,17 @@ func (c *Core) renderCaddyfile(ctx context.Context, p Ports, sites []store.Site,
 		CA:          c.caddyCA(),
 	}
 	for _, s := range sites {
+		if s.IsApp() {
+			cfg.Sites = append(cfg.Sites, caddy.Site{
+				Name:              s.Name,
+				Domain:            s.Domain,
+				Aliases:           s.Aliases,
+				AccessLog:         c.siteLogPath(s.Name, LogAccess),
+				Upstream:          s.AppPort,
+				UpstreamLocalHost: s.AppHost == AppHostLocalhost,
+			})
+			continue
+		}
 		settings, err := c.sitePHPSettings(ctx, s)
 		if err != nil {
 			return "", err
@@ -396,7 +407,7 @@ func (c *Core) reconcile(ctx context.Context) (StartResult, error) {
 	var agents []launchd.Agent
 	var minors []string
 	for _, s := range sites {
-		if !slices.Contains(minors, s.PHPMinor) {
+		if !s.IsApp() && !slices.Contains(minors, s.PHPMinor) {
 			minors = append(minors, s.PHPMinor)
 		}
 	}
@@ -646,7 +657,7 @@ func (c *Core) Status(ctx context.Context) (Status, error) {
 	}
 	services := []string{caddyService}
 	for _, s := range sites {
-		if svc := phpService(s.PHPMinor); s.Enabled && !slices.Contains(services, svc) {
+		if svc := phpService(s.PHPMinor); s.Enabled && !s.IsApp() && !slices.Contains(services, svc) {
 			services = append(services, svc)
 		}
 		st.Sites = append(st.Sites, SiteStatus{Site: s, URL: siteURL(s, st.HTTPSPort)})

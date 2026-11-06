@@ -74,6 +74,9 @@ func (c *Core) CheckPHP(ctx context.Context, name, target string, all bool) (PHP
 	if err != nil {
 		return PHPCheckResult{}, err
 	}
+	if err := phpOnly(site, "the PHP compatibility check"); err != nil {
+		return PHPCheckResult{}, err
+	}
 	if target == "" {
 		target = c.recommendedPHP()
 	}

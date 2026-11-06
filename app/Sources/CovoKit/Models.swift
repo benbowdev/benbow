@@ -40,6 +40,19 @@ public struct Site: Codable, Sendable, Identifiable, Hashable {
     public var databaseEngine: String?
     /// Set when Covo migrated the site from another tool.
     public var migration: SiteMigration?
+    /// "php" (or nil, older cores) or "app": a dev server behind the proxy.
+    public var kind: String?
+    /// Apps: "run" (Covo starts `command`) or "proxy" (the user runs it).
+    public var appMode: String?
+    public var command: String?
+    public var appPort: Int?
+    /// Apps: "localhost" when the app receives Host: localhost:<port>.
+    public var appHost: String?
+    /// A command started and stopped with a PHP site (e.g. Vite).
+    public var companionCommand: String?
+    public var companionPort: Int?
+
+    public var isApp: Bool { kind == "app" }
 
     /// Where the project's files are: the Laravel root, else the folder.
     public var projectRoot: String { appRoot ?? path }
@@ -653,4 +666,14 @@ public struct DaemonInfo: Codable, Sendable, Hashable {
     public var socket: String
     public var answering: Bool
     public var pid: Int?
+}
+
+/// The command Covo proposes for an app's folder (GET /v1/detect).
+public struct AppDetection: Codable, Sendable, Hashable {
+    public var path: String
+    public var framework: String?
+    /// "" when nothing was recognised; "{port}" is the app's port.
+    public var command: String
+    public var packageManager: String?
+    public var notes: [String]
 }

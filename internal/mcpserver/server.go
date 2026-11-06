@@ -83,6 +83,10 @@ func New(open Open) *mcp.Server {
 		Description: "Every site: name, folder, framework, PHP version, address, domain and aliases, database, on/off, group."}, t.listSites)
 	mcp.AddTool(s, &mcp.Tool{Name: "site_logs", Title: "Site logs", Annotations: ro,
 		Description: "The end of a site's PHP error log (kind \"php\") or request log (kind \"access\")."}, t.siteLogs)
+	mcp.AddTool(s, &mcp.Tool{Name: "detect_app", Title: "Detect an app's command", Annotations: ro,
+		Description: "For a folder with a dev server in any language (package.json, manage.py, FastAPI, Flask, Rails), the command Covo proposes " +
+			"to start it, with {port} for its port. Covo never installs Node, Python or packages: the command runs with the user's own tools. " +
+			"Show the command to the user before adding the site with add_site and command."}, t.detectApp)
 	mcp.AddTool(s, &mcp.Tool{Name: "list_php_versions", Title: "PHP versions", Annotations: ro,
 		Description: "Installed and available PHP versions, with php.net's support status (active, security, eol)."}, t.listPHP)
 	mcp.AddTool(s, &mcp.Tool{Name: "php_compatibility_check", Title: "PHP compatibility check", Annotations: ro,
@@ -476,6 +480,9 @@ type addSiteIn struct {
 	DatabaseEngine string            `json:"database_engine,omitempty" jsonschema:"mysql (default) or pgsql"`
 	PHPSettings    map[string]string `json:"php_settings,omitempty" jsonschema:"php.ini values: memory_limit, upload_max_filesize, max_execution_time, display_errors"`
 	Force          bool              `json:"force,omitempty" jsonschema:"accept a folder without index.php or index.html"`
+	Command        string            `json:"command,omitempty" jsonschema:"makes the site an app: the dev server command Covo starts from path, e.g. npm run dev ({port} is its port; see detect_app)"`
+	Port           int               `json:"port,omitempty" jsonschema:"with command: a fixed port (default: a free one from 41000)"`
+	ProxyPort      int               `json:"proxy_port,omitempty" jsonschema:"makes the site an app Covo only proxies to: the port where the user runs the dev server"`
 	DryRun         bool              `json:"dry_run,omitempty" jsonschema:"only say what would happen"`
 }
 
@@ -486,8 +493,9 @@ func (t tools) addSite(ctx context.Context, _ *mcp.CallToolRequest, in addSiteIn
 	req := core.AddSiteRequest{
 		Name: in.Name, Path: filepath.Clean(in.Path), PHP: in.PHP, Domain: in.Domain, Aliases: in.Aliases,
 		CreateFolder: in.CreateFolder, PHPSettings: in.PHPSettings, Force: in.Force, DatabaseEngine: in.DatabaseEngine,
+		Command: in.Command, Port: in.Port, ProxyPort: in.ProxyPort,
 	}
-	if req.PHP == "" {
+	if req.PHP == "" && in.Command == "" && in.ProxyPort == 0 {
 		req.PHP = "8.4"
 	}
 	switch in.Database {
@@ -499,10 +507,23 @@ func (t tools) addSite(ctx context.Context, _ *mcp.CallToolRequest, in addSiteIn
 	}
 	return change(ctx, t, "add_site", "", in, in.DryRun, false, func(c *core.Core) (any, error) {
 		if in.DryRun {
-			return map[string]any{"would_add": req.Name, "folder": req.Path, "php": req.PHP, "domain": req.Domain, "database": in.Database}, nil
+			return map[string]any{"would_add": req.Name, "folder": req.Path, "php": req.PHP, "domain": req.Domain, "database": in.Database,
+				"command": req.Command, "proxy_port": req.ProxyPort}, nil
 		}
 		return c.AddSite(ctx, req)
 	})
+}
+
+type detectAppIn struct {
+	Path string `json:"path" jsonschema:"absolute path of the project folder"`
+}
+
+func (t tools) detectApp(_ context.Context, _ *mcp.CallToolRequest, in detectAppIn) (*mcp.CallToolResult, any, error) {
+	d, err := core.DetectApp(in.Path)
+	if err != nil {
+		return toolError(err), nil, nil
+	}
+	return jsonResult(d), nil, nil
 }
 
 type updateSiteIn struct {
@@ -513,6 +534,9 @@ type updateSiteIn struct {
 	Aliases *[]string `json:"aliases,omitempty" jsonschema:"replace the extra domains (empty list clears them)"`
 	Enabled *bool     `json:"enabled,omitempty" jsonschema:"serve the site (true) or not (false)"`
 	Force   bool      `json:"force,omitempty" jsonschema:"accept a folder without index.php or index.html"`
+	Command string    `json:"command,omitempty" jsonschema:"apps: new command Covo starts"`
+	Port    int       `json:"port,omitempty" jsonschema:"apps: new fixed port for the command"`
+	Proxy   int       `json:"proxy_port,omitempty" jsonschema:"apps: only proxy to a dev server the user runs on this port"`
 	DryRun  bool      `json:"dry_run,omitempty" jsonschema:"only say what would change"`
 }
 
@@ -520,7 +544,8 @@ func (t tools) updateSite(ctx context.Context, _ *mcp.CallToolRequest, in update
 	if in.Path != "" && !filepath.IsAbs(in.Path) {
 		return toolError(errcode.Errorf(errcode.InvalidInput, "path must be absolute")), nil, nil
 	}
-	req := core.UpdateSiteRequest{Name: in.Name, PHP: in.PHP, Domain: in.Domain, Aliases: in.Aliases, Enabled: in.Enabled, Force: in.Force}
+	req := core.UpdateSiteRequest{Name: in.Name, PHP: in.PHP, Domain: in.Domain, Aliases: in.Aliases, Enabled: in.Enabled, Force: in.Force,
+		Command: in.Command, Port: in.Port, ProxyPort: in.Proxy}
 	if in.Path != "" {
 		req.Path = filepath.Clean(in.Path)
 	}

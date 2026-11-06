@@ -38,7 +38,7 @@ func (s statusResult) Text(w io.Writer) {
 		fmt.Fprintln(w, "No sites. Add one with: covo site add <name> --php 8.4")
 	}
 	for _, site := range s.Sites {
-		fmt.Fprintf(w, "  %-14s PHP %-4s %s\n", site.Name, site.PHPMinor, site.URL)
+		fmt.Fprintf(w, "  %-14s %-10s %s\n", site.Name, runtimeLabel(site.Site), site.URL)
 	}
 	if s.MySQL.Enabled {
 		writeMySQLLine(w, s.MySQL)

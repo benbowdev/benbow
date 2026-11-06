@@ -279,14 +279,44 @@ type Site struct {
 	Position int `json:"position,omitempty"`
 	// Title is a free label shown instead of the name; empty: the name.
 	Title string `json:"title,omitempty"`
+	// Kind is KindPHP (served by PHP-FPM) or KindApp (a dev server behind
+	// Caddy's reverse proxy, docs/apps.md).
+	Kind string `json:"kind"`
+	// AppMode (apps only) is AppRun (Covo starts Command) or AppProxy (the
+	// user runs the server on AppPort).
+	AppMode string `json:"app_mode,omitempty"`
+	// Command is the app's command, run in the user's login shell from the
+	// project folder; "{port}" is replaced by AppPort.
+	Command string `json:"command,omitempty"`
+	// AppPort is the port the app listens on (127.0.0.1 or ::1).
+	AppPort int `json:"app_port,omitempty"`
+	// AppHost is the Host header the app receives: "" (the site's domain)
+	// or "localhost" (localhost:<AppPort>).
+	AppHost string `json:"app_host,omitempty"`
+	// CompanionCommand is a command started and stopped with a PHP site
+	// (e.g. "npm run dev" for Vite), on CompanionPort.
+	CompanionCommand string `json:"companion_command,omitempty"`
+	CompanionPort    int    `json:"companion_port,omitempty"`
 }
+
+// Site kinds and app modes.
+const (
+	KindPHP  = "php"
+	KindApp  = "app"
+	AppRun   = "run"
+	AppProxy = "proxy"
+)
+
+// IsApp reports whether the site is a dev server behind the proxy.
+func (s Site) IsApp() bool { return s.Kind == KindApp }
 
 // AddSite inserts a site. Duplicate names or domains are a Conflict.
 func (s *Store) AddSite(ctx context.Context, site Site) error {
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO sites (name, path, php_minor, domain, https, enabled, archived, db_name, db_user, php_settings, group_id, framework, app_root, db_engine, created_at, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, `+nextPosition+`)`,
+		`INSERT INTO sites (name, path, php_minor, domain, https, enabled, archived, db_name, db_user, php_settings, group_id, framework, app_root, db_engine, created_at, title, kind, app_mode, command, app_port, app_host, companion_command, companion_port, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, `+nextPosition+`)`,
 		site.Name, site.Path, site.PHPMinor, site.Domain, site.HTTPS, site.Enabled, site.Archived, site.Database, site.DBUser, encodeSettings(site.PHPSettings), nullID(site.GroupID),
-		site.Framework, site.AppRoot, site.DBEngine, site.CreatedAt.UTC().Format(time.RFC3339), nullID(site.GroupID), nullID(site.GroupID))
+		site.Framework, site.AppRoot, site.DBEngine, site.CreatedAt.UTC().Format(time.RFC3339), site.Title, kindOrPHP(site.Kind), site.AppMode, site.Command, site.AppPort, site.AppHost,
+		site.CompanionCommand, site.CompanionPort, nullID(site.GroupID), nullID(site.GroupID))
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
 			return errcode.Newf(errcode.Conflict, "site %q already exists", site.Name)
@@ -315,7 +345,7 @@ func (s *Store) ListSites(ctx context.Context) ([]Site, error) {
 
 func (s *Store) querySites(ctx context.Context, tail string, args ...any) ([]Site, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT name, path, php_minor, domain, https, enabled, archived, db_name, db_user, php_settings, group_id, framework, app_root, db_engine, created_at, position, title FROM sites `+tail, args...)
+		`SELECT name, path, php_minor, domain, https, enabled, archived, db_name, db_user, php_settings, group_id, framework, app_root, db_engine, created_at, position, title, kind, app_mode, command, app_port, app_host, companion_command, companion_port FROM sites `+tail, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query sites: %w", err)
 	}
@@ -325,7 +355,8 @@ func (s *Store) querySites(ctx context.Context, tail string, args ...any) ([]Sit
 		var site Site
 		var at, settings string
 		var group sql.NullInt64
-		if err := rows.Scan(&site.Name, &site.Path, &site.PHPMinor, &site.Domain, &site.HTTPS, &site.Enabled, &site.Archived, &site.Database, &site.DBUser, &settings, &group, &site.Framework, &site.AppRoot, &site.DBEngine, &at, &site.Position, &site.Title); err != nil {
+		if err := rows.Scan(&site.Name, &site.Path, &site.PHPMinor, &site.Domain, &site.HTTPS, &site.Enabled, &site.Archived, &site.Database, &site.DBUser, &settings, &group, &site.Framework, &site.AppRoot, &site.DBEngine, &at, &site.Position, &site.Title,
+			&site.Kind, &site.AppMode, &site.Command, &site.AppPort, &site.AppHost, &site.CompanionCommand, &site.CompanionPort); err != nil {
 			return nil, fmt.Errorf("scan site: %w", err)
 		}
 		site.PHPSettings = map[string]string{}
@@ -405,9 +436,10 @@ func (s *Store) SetAliases(ctx context.Context, name string, aliases []string) e
 // site called site.Name. A domain used by another site is a Conflict.
 func (s *Store) UpdateSite(ctx context.Context, site Site) error {
 	res, err := s.db.ExecContext(ctx,
-		`UPDATE sites SET path = ?, php_minor = ?, domain = ?, https = ?, enabled = ?, archived = ?, db_name = ?, db_user = ?, php_settings = ?, group_id = ?, framework = ?, app_root = ?, db_engine = ?, title = ? WHERE name = ?`,
+		`UPDATE sites SET path = ?, php_minor = ?, domain = ?, https = ?, enabled = ?, archived = ?, db_name = ?, db_user = ?, php_settings = ?, group_id = ?, framework = ?, app_root = ?, db_engine = ?, title = ?, kind = ?, app_mode = ?, command = ?, app_port = ?, app_host = ?, companion_command = ?, companion_port = ? WHERE name = ?`,
 		site.Path, site.PHPMinor, site.Domain, site.HTTPS, site.Enabled, site.Archived, site.Database, site.DBUser, encodeSettings(site.PHPSettings), nullID(site.GroupID),
-		site.Framework, site.AppRoot, site.DBEngine, site.Title, site.Name)
+		site.Framework, site.AppRoot, site.DBEngine, site.Title, kindOrPHP(site.Kind), site.AppMode, site.Command, site.AppPort, site.AppHost,
+		site.CompanionCommand, site.CompanionPort, site.Name)
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
 			return errcode.Newf(errcode.Conflict, "domain %q is used by another site", site.Domain)
@@ -418,6 +450,13 @@ func (s *Store) UpdateSite(ctx context.Context, site Site) error {
 		return errcode.Newf(errcode.NotFound, "site %q not found", site.Name)
 	}
 	return nil
+}
+
+func kindOrPHP(kind string) string {
+	if kind == "" {
+		return KindPHP
+	}
+	return kind
 }
 
 func encodeSettings(m map[string]string) string {

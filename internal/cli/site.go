@@ -13,6 +13,7 @@ import (
 
 	"github.com/getcovo/covo/internal/core"
 	"github.com/getcovo/covo/internal/errcode"
+	"github.com/getcovo/covo/internal/store"
 	"github.com/spf13/cobra"
 )
 
@@ -21,14 +22,17 @@ func (a *app) siteCmd() *cobra.Command {
 		Use:   "site",
 		Short: "Manage sites",
 	}
-	cmd.AddCommand(a.siteAddCmd(), a.siteSetCmd(), a.siteToggleCmd(true), a.siteToggleCmd(false), a.siteArchiveCmd(true), a.siteArchiveCmd(false), a.siteLogsCmd(), a.sitePHPCmd(), a.siteListCmd(), a.siteRemoveCmd())
+	cmd.AddCommand(a.siteAddCmd(), a.siteSetCmd(), a.siteToggleCmd(true), a.siteToggleCmd(false), a.siteArchiveCmd(true), a.siteArchiveCmd(false), a.siteLogsCmd(), a.sitePHPCmd(), a.siteListCmd(), a.siteRemoveCmd(), a.siteDetectCmd())
 	return cmd
 }
 
 type siteResult core.SiteResult
 
 func (r siteResult) Text(w io.Writer) {
-	fmt.Fprintf(w, "%s  PHP %s  %s\n  %s\n", r.Name, r.PHPMinor, r.URL, r.Path)
+	fmt.Fprintf(w, "%s  %s  %s\n  %s\n", r.Name, runtimeLabel(r.Site), r.URL, r.Path)
+	if r.IsApp() && r.Command != "" {
+		fmt.Fprintf(w, "  command: %s\n", r.Command)
+	}
 	if len(r.Aliases) > 0 {
 		fmt.Fprintf(w, "  also: %s\n", strings.Join(r.Aliases, ", "))
 	}
@@ -52,7 +56,15 @@ func (a *app) siteAddCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "add <name>",
 		Short: "Add a site served at https://<name>.localhost (or --domain)",
-		Args:  cobra.ExactArgs(1),
+		Long: `Add a site served at https://<name>.localhost (or --domain).
+
+A PHP site by default. With --command it is an app: Covo starts that command
+(any dev server: npm run dev, uvicorn…) in your login shell from the folder,
+with PORT set and {port} replaced, and proxies the domain to it. With
+--proxy-port Covo only proxies to a server you run yourself. Covo never
+installs Node, Python or anything else: see docs/apps.md and
+` + "`covo site detect`" + ` for a proposed command.`,
+		Args: cobra.ExactArgs(1),
 		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
 			req.Name = args[0]
 			var err error
@@ -91,7 +103,56 @@ func (a *app) siteAddCmd() *cobra.Command {
 	cmd.Flags().StringVar(&database, "database", "", `"new" for a database with its own user, or the name of an existing one to link`)
 	cmd.Flags().StringArrayVar(&ini, "ini", nil, "php.ini value of this site, name=value (repeatable)")
 	cmd.Flags().StringVar(&engine, "engine", "mysql", "database engine for --database: mysql or pgsql")
+	cmd.Flags().StringVar(&req.Command, "command", "", `app: the command Covo starts, e.g. "npm run dev" ({port} is replaced by its port)`)
+	cmd.Flags().IntVar(&req.Port, "port", 0, "app: fixed port for --command (default: a free one from 41000)")
+	cmd.Flags().IntVar(&req.ProxyPort, "proxy-port", 0, "app: only proxy to a dev server you run on this port")
+	cmd.Flags().StringVar(&req.AppHost, "host-header", "", `app: "localhost" sends Host: localhost:<port> instead of the site's domain`)
 	return cmd
+}
+
+// runtimeLabel is "PHP 8.4" or "app :41000".
+func runtimeLabel(s store.Site) string {
+	if s.IsApp() {
+		return fmt.Sprintf("app :%d", s.AppPort)
+	}
+	return "PHP " + s.PHPMinor
+}
+
+type detectResult core.AppDetection
+
+func (r detectResult) Text(w io.Writer) {
+	if r.Framework != "" {
+		fmt.Fprintf(w, "Framework: %s\n", r.Framework)
+	}
+	if r.Command != "" {
+		fmt.Fprintf(w, "Command:   %s\n", r.Command)
+	}
+	for _, n := range r.Notes {
+		fmt.Fprintf(w, "Note: %s\n", n)
+	}
+	if r.Command != "" {
+		fmt.Fprintf(w, "\nAdd it with: covo site add <name> --path %q --command %q\n", r.Path, r.Command)
+	}
+}
+
+func (a *app) siteDetectCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "detect [folder]",
+		Short: "Propose the command that starts the dev server in a folder (default: current)",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: a.run(func(_ context.Context, args []string) (Result, error) {
+			dir := ""
+			if len(args) == 1 {
+				dir = args[0]
+			}
+			abs, err := absDir(dir)
+			if err != nil {
+				return nil, err
+			}
+			d, err := core.DetectApp(abs)
+			return detectResult(d), err
+		}),
+	}
 }
 
 // iniFlags parses repeated name=value flags.
@@ -111,16 +172,20 @@ func iniFlags(flags []string) (map[string]string, error) {
 }
 
 func (a *app) siteSetCmd() *cobra.Command {
-	var phpVersion, path, domain, group, title string
+	var phpVersion, path, domain, group, title, command, hostHeader string
 	var aliases []string
 	var force bool
+	var port, proxyPort int
 	var cmd *cobra.Command
 	cmd = &cobra.Command{
 		Use:   "set <name>",
-		Short: "Change a site's PHP version, folder, domain, aliases, group or title",
+		Short: "Change a site's PHP version or command, folder, domain, aliases, group or title",
 		Args:  cobra.ExactArgs(1),
 		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
-			req := core.UpdateSiteRequest{Name: args[0], PHP: phpVersion, Domain: domain, Force: force}
+			req := core.UpdateSiteRequest{Name: args[0], PHP: phpVersion, Domain: domain, Force: force, Command: command, Port: port, ProxyPort: proxyPort}
+			if cmd.Flags().Changed("host-header") {
+				req.AppHost = &hostHeader
+			}
 			if cmd.Flags().Changed("aliases") {
 				req.Aliases = &aliases
 			}
@@ -156,6 +221,10 @@ func (a *app) siteSetCmd() *cobra.Command {
 	cmd.Flags().StringVar(&group, "group", "", `move the site into a group, e.g. Clients/Acme ("" for the top level)`)
 	cmd.Flags().StringVar(&title, "title", "", `label shown in the list instead of the name ("" clears)`)
 	cmd.Flags().BoolVar(&force, "force", false, "accept a folder without index.php or index.html")
+	cmd.Flags().StringVar(&command, "command", "", "app: new command Covo starts (also switches a proxied app to started)")
+	cmd.Flags().IntVar(&port, "port", 0, "app: new fixed port for the command")
+	cmd.Flags().IntVar(&proxyPort, "proxy-port", 0, "app: only proxy to a dev server you run on this port")
+	cmd.Flags().StringVar(&hostHeader, "host-header", "", `app: "localhost" sends Host: localhost:<port>; "" the site's domain`)
 	return cmd
 }
 
@@ -293,7 +362,7 @@ func (r siteListResult) Text(w io.Writer) {
 		case !s.Enabled:
 			off = "  (disabled)"
 		}
-		fmt.Fprintf(w, "%-14s PHP %-4s %-36s %s%s\n", s.Name, s.PHPMinor, s.URL, s.Path, off)
+		fmt.Fprintf(w, "%-14s %-10s %-36s %s%s\n", s.Name, runtimeLabel(s.Site), s.URL, s.Path, off)
 	}
 }
 
