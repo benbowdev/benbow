@@ -71,7 +71,7 @@ struct SiteDetail: View {
                 }
                 LabeledContent {
                     HStack {
-                        Text(site.projectRoot).lineLimit(1).truncationMode(.middle).textSelection(.enabled)
+                        Text((site.projectRoot as NSString).abbreviatingWithTildeInPath).lineLimit(1).truncationMode(.middle).textSelection(.enabled)
                         Button {
                             NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: site.projectRoot)
                         } label: {
