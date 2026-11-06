@@ -87,6 +87,16 @@ tools="$app/.build/artifacts/sparkle/Sparkle/bin"
 edsig=$("$tools/sign_update" --account covo "$dmg")
 build=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$bundle/Contents/Info.plist")
 feed=$(/usr/libexec/PlistBuddy -c "Print :SUFeedURL" "$bundle/Contents/Info.plist")
+# Release notes shown in Sparkle's window: dist/notes-<version>.md (basic
+# Markdown, also used for the GitHub release). A link to the release page
+# would show all of GitHub's page inside that window.
+notes="$dist/notes-$version.md"
+description=""
+if [[ -f "$notes" ]]; then
+	description="<description sparkle:format=\"markdown\"><![CDATA[$(cat "$notes")]]></description>"
+else
+	echo "warning: no $notes, the update window will show no release notes" >&2
+fi
 cat >"$dist/appcast.xml" <<XML
 <?xml version="1.0" encoding="utf-8"?>
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
@@ -99,7 +109,8 @@ cat >"$dist/appcast.xml" <<XML
       <sparkle:version>$build</sparkle:version>
       <sparkle:shortVersionString>$version</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-      <sparkle:releaseNotesLink>https://github.com/getcovo/covo/releases/tag/v$version</sparkle:releaseNotesLink>
+      $description
+      <sparkle:fullReleaseNotesLink>https://github.com/getcovo/covo/releases</sparkle:fullReleaseNotesLink>
       <enclosure url="https://github.com/getcovo/covo/releases/download/v$version/$(basename "$dmg")" type="application/octet-stream" $edsig/>
     </item>
   </channel>

@@ -59,11 +59,19 @@ are dropped: Covo is not sandboxed) and signed the same way. Last, it signs
 the DMG with the Sparkle key and writes `dist/appcast.xml`, which points at
 `https://github.com/getcovo/covo/releases/download/v<version>/Covo-<version>.dmg`.
 
+Write the release notes first in `dist/notes-<version>.md`: a few lines of
+basic Markdown (paragraphs, lists, `code`, links; no tables or images).
+`release.sh` puts them in the appcast, and Sparkle shows them in its update
+window; "Version History" there opens the GitHub releases page. Without the
+file the window shows no notes. (Do not link the release page as the notes:
+Sparkle then shows all of GitHub's page in the window.)
+
 Then publish, in this order (an appcast must never point at a missing DMG):
 
 1. Tag the commit (`git tag -a v<version>`) and push the tag.
 2. GitHub release `v<version>` with the DMG and its `.sha256`, notes in the
-   description (Sparkle shows the release page).
+   description (`--notes-file dist/notes-<version>.md`, plus anything only
+   new users need, such as how to install).
 3. Copy `dist/appcast.xml` to the website (`public/appcast.xml`), commit,
    and run `deploy/deploy.sh` there (it also rebuilds the download page,
    which reads the latest release).
