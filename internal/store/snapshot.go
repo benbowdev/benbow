@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/getcovo/covo/internal/errcode"
+	"github.com/benbowdev/benbow/internal/errcode"
 )
 
 // Snapshot is a saved state of a site: its files and its database.

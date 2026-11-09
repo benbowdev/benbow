@@ -4,7 +4,7 @@
 // Package daemon runs the core as a launchd user agent serving the local API
 // (see package api), and starts, stops and inspects that agent.
 //
-// Like every Covo service it is loaded from the Covo home and does not start
+// Like every Benbow service it is loaded from the Benbow home and does not start
 // at login: the app starts it when it opens.
 package daemon
 
@@ -24,11 +24,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/getcovo/covo/internal/api"
-	"github.com/getcovo/covo/internal/core"
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/launchd"
-	"github.com/getcovo/covo/internal/version"
+	"github.com/benbowdev/benbow/internal/api"
+	"github.com/benbowdev/benbow/internal/core"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/launchd"
+	"github.com/benbowdev/benbow/internal/version"
 )
 
 const (
@@ -81,7 +81,7 @@ func Run(ctx context.Context) error {
 	defer func() { _ = os.Remove(sock) }()
 	ctx, stop := signal.NotifyContext(ctx, syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
-	fmt.Fprintf(os.Stderr, "covo daemon %s listening on %s\n", version.Get().Version, sock)
+	fmt.Fprintf(os.Stderr, "benbow daemon %s listening on %s\n", version.Get().Version, sock)
 	go checkUpdatesDaily(ctx, c)
 	go expirePhone(ctx, c)
 	return api.Serve(ctx, ln, c)
@@ -89,7 +89,7 @@ func Run(ctx context.Context) error {
 
 // checkUpdatesDaily looks for component updates a few minutes after start
 // and then every day. It only downloads the signed manifest: nothing is
-// installed without the user (covo update apply, or the app).
+// installed without the user (benbow update apply, or the app).
 // expirePhone turns "Open on phone" off when its time is up, and closes
 // idle agent sessions (keeping the changes).
 func expirePhone(ctx context.Context, c *core.Core) {
@@ -116,7 +116,7 @@ func expirePhone(ctx context.Context, c *core.Core) {
 // wall clock every 30 minutes because Go's timers stop while the Mac
 // sleeps; after a failure it waits an hour.
 func checkUpdatesDaily(ctx context.Context, c *core.Core) {
-	if os.Getenv("COVO_NO_UPDATE_CHECK") != "" {
+	if os.Getenv("BENBOW_NO_UPDATE_CHECK") != "" {
 		return
 	}
 	wait := 3 * time.Minute
@@ -143,11 +143,11 @@ func checkUpdatesDaily(ctx context.Context, c *core.Core) {
 }
 
 func agent(c *core.Core, program, hash string) launchd.Agent {
-	env := map[string]string{"COVO_BINARY_HASH": hash}
-	// The daemon must see the same Covo home, label prefix and overrides as
+	env := map[string]string{"BENBOW_BINARY_HASH": hash}
+	// The daemon must see the same Benbow home, label prefix and overrides as
 	// whoever started it (tests rely on this).
 	for _, kv := range os.Environ() {
-		if k, v, ok := strings.Cut(kv, "="); ok && strings.HasPrefix(k, "COVO_") && k != "COVO_BINARY_HASH" {
+		if k, v, ok := strings.Cut(kv, "="); ok && strings.HasPrefix(k, "BENBOW_") && k != "BENBOW_BINARY_HASH" {
 			env[k] = v
 		}
 	}
@@ -166,13 +166,13 @@ func agent(c *core.Core, program, hash string) launchd.Agent {
 	}
 }
 
-// Start loads the daemon agent running program (the covo binary), or
+// Start loads the daemon agent running program (the benbow binary), or
 // restarts it if program or its contents changed, and waits until the API
 // answers.
 func Start(ctx context.Context, c *core.Core, program string) (Result, error) {
 	program, err := filepath.EvalSymlinks(program)
 	if err != nil {
-		return Result{}, fmt.Errorf("resolve covo binary: %w", err)
+		return Result{}, fmt.Errorf("resolve benbow binary: %w", err)
 	}
 	hash, err := fileHash(program)
 	if err != nil {
@@ -201,7 +201,7 @@ func Start(ctx context.Context, c *core.Core, program string) (Result, error) {
 			return res, nil
 		}
 		if time.Now().After(deadline) {
-			return res, errcode.Errorf(errcode.Service, "the Covo daemon did not answer on "+res.Socket+"; see "+a.StderrLog)
+			return res, errcode.Errorf(errcode.Service, "the Benbow daemon did not answer on "+res.Socket+"; see "+a.StderrLog)
 		}
 		select {
 		case <-ctx.Done():
@@ -249,7 +249,7 @@ func Inspect(ctx context.Context, c *core.Core) (Status, error) {
 func ping(ctx context.Context, sock string) (version.Info, error) {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://covo/v1/version", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://benbow/v1/version", nil)
 	if err != nil {
 		return version.Info{}, fmt.Errorf("ping: %w", err)
 	}

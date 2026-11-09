@@ -48,12 +48,12 @@ func TestBlueprint(t *testing.T) {
 	}
 	var mu sync.Mutex
 	zips := map[string][]byte{
-		"/covo-own.zip": zipOf(t, map[string]string{
-			"covo-own/covo-own.php": "<?php\n/*\nPlugin Name: Covo Own\n*/\nadd_action('wp_head', function () { echo '<meta name=\"covo-own\" content=\"v1\">'; });\n",
+		"/benbow-own.zip": zipOf(t, map[string]string{
+			"benbow-own/benbow-own.php": "<?php\n/*\nPlugin Name: Benbow Own\n*/\nadd_action('wp_head', function () { echo '<meta name=\"benbow-own\" content=\"v1\">'; });\n",
 		}),
-		"/covo-theme.zip": zipOf(t, map[string]string{
-			"covo-theme/style.css": "/*\nTheme Name: Covo Theme\n*/\n",
-			"covo-theme/index.php": "<?php wp_head(); echo 'covo-theme-home'; ?>",
+		"/benbow-theme.zip": zipOf(t, map[string]string{
+			"benbow-theme/style.css": "/*\nTheme Name: Benbow Theme\n*/\n",
+			"benbow-theme/index.php": "<?php wp_head(); echo 'benbow-theme-home'; ?>",
 		}),
 	}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -69,36 +69,36 @@ func TestBlueprint(t *testing.T) {
 	defer srv.Close()
 
 	h := newHarness(t)
-	h.mustCovo("mysql", "enable")
-	h.mustCovo("start")
+	h.mustBenbow("mysql", "enable")
+	h.mustBenbow("start")
 	root := t.TempDir()
 
 	bp := fmt.Sprintf(`{
   "name": "agency",
-  "description": "Covo test",
+  "description": "Benbow test",
   "themes": [{"url": %q, "activate": true}],
   "plugins": [{"slug": "hello-dolly"}, {"url": %q}],
   "options": {"permalinks": "/%%postname%%/", "timezone": "Europe/Rome", "remove_sample_content": true,
-              "set": {"blogdescription": "Made by Covo"}},
-  "constants": {"COVO_TEST": "yes", "WP_DEBUG_LOG": true},
-  "mu_plugins": [{"name": "covo-mu.php", "content": "<?php define('COVO_MU', 1);"}]
-}`, srv.URL+"/covo-theme.zip", srv.URL+"/covo-own.zip")
+              "set": {"blogdescription": "Made by Benbow"}},
+  "constants": {"BENBOW_TEST": "yes", "WP_DEBUG_LOG": true},
+  "mu_plugins": [{"name": "benbow-mu.php", "content": "<?php define('BENBOW_MU', 1);"}]
+}`, srv.URL+"/benbow-theme.zip", srv.URL+"/benbow-own.zip")
 	file := filepath.Join(root, "agency.json")
 	if err := os.WriteFile(file, []byte(bp), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	h.mustCovo("blueprint", "import", file)
-	if env := h.covo("blueprint", "import", file); env.OK || env.Error.Code != "conflict" {
+	h.mustBenbow("blueprint", "import", file)
+	if env := h.benbow("blueprint", "import", file); env.OK || env.Error.Code != "conflict" {
 		t.Fatalf("second import = %+v", env)
 	}
 	bad := filepath.Join(root, "bad.json")
 	_ = os.WriteFile(bad, []byte(`{"name":"bad","constants":{"DB_PASSWORD":"x"}}`), 0o600)
-	if env := h.covo("blueprint", "import", bad); env.OK || env.Error.Code != "invalid_input" {
+	if env := h.benbow("blueprint", "import", bad); env.OK || env.Error.Code != "invalid_input" {
 		t.Fatalf("bad blueprint = %+v", env)
 	}
 
 	// --json never asks: a blueprint needs --yes.
-	if env := h.covo("wordpress", "shop", "--path", filepath.Join(root, "shop"), "--blueprint", "agency"); env.OK || env.Error.Code != "confirmation_required" {
+	if env := h.benbow("wordpress", "shop", "--path", filepath.Join(root, "shop"), "--blueprint", "agency"); env.OK || env.Error.Code != "confirmation_required" {
 		t.Fatalf("without --yes = %+v", env)
 	}
 	var res struct {
@@ -112,7 +112,7 @@ func TestBlueprint(t *testing.T) {
 			Notice string `json:"notice"`
 		} `json:"blueprint"`
 	}
-	data := h.mustCovo("wordpress", "shop", "--path", filepath.Join(root, "shop"), "--blueprint", "agency", "--yes")
+	data := h.mustBenbow("wordpress", "shop", "--path", filepath.Join(root, "shop"), "--blueprint", "agency", "--yes")
 	if err := json.Unmarshal(data, &res); err != nil {
 		t.Fatal(err)
 	}
@@ -121,14 +121,14 @@ func TestBlueprint(t *testing.T) {
 	}
 	checks := [][2]string{
 		{"plugin is-active hello-dolly", ""},
-		{"plugin is-active covo-own", ""},
-		{"option get stylesheet", "covo-theme"},
+		{"plugin is-active benbow-own", ""},
+		{"option get stylesheet", "benbow-theme"},
 		{"option get permalink_structure", "/%postname%/"},
 		{"option get timezone_string", "Europe/Rome"},
-		{"option get blogdescription", "Made by Covo"},
-		{"config get COVO_TEST", "yes"},
+		{"option get blogdescription", "Made by Benbow"},
+		{"config get BENBOW_TEST", "yes"},
 		{"config get WP_DEBUG_LOG", "1"},
-		{"eval echo(defined('COVO_MU')?'mu':'none');", "mu"},
+		{"eval echo(defined('BENBOW_MU')?'mu':'none');", "mu"},
 		{"post list --post_type=post,page --name=hello-world --format=count", "0"},
 	}
 	for _, c := range checks {
@@ -147,30 +147,30 @@ func TestBlueprint(t *testing.T) {
 		t.Errorf("akismet still there: %v", err)
 	}
 	st := h.status()
-	if body := h.get(res.URL, st.CA.CertPath); !strings.Contains(body, "covo-theme-home") || !strings.Contains(body, `content="v1"`) {
+	if body := h.get(res.URL, st.CA.CertPath); !strings.Contains(body, "benbow-theme-home") || !strings.Contains(body, `content="v1"`) {
 		t.Fatalf("home page: %.300q", body)
 	}
 	var sources []struct{ URL string }
-	_ = json.Unmarshal(h.mustCovo("blueprint", "sources"), &sources)
+	_ = json.Unmarshal(h.mustBenbow("blueprint", "sources"), &sources)
 	if len(sources) != 3 {
 		t.Fatalf("sources = %+v", sources)
 	}
 
 	// Applying to an existing site: dry run, then a changed zip is refused
 	// until the change is accepted; a snapshot comes first.
-	h.mustCovo("wordpress", "plain", "--path", filepath.Join(root, "plain"))
+	h.mustBenbow("wordpress", "plain", "--path", filepath.Join(root, "plain"))
 	var plan struct{ Installed []string }
-	_ = json.Unmarshal(h.mustCovo("blueprint", "apply", "agency", "plain", "--dry-run"), &plan)
+	_ = json.Unmarshal(h.mustBenbow("blueprint", "apply", "agency", "plain", "--dry-run"), &plan)
 	if len(plan.Installed) != 4 { // theme, 2 plugins, mu-plugin
 		t.Fatalf("dry run = %+v", plan)
 	}
-	if _, err := os.Stat(filepath.Join(root, "plain", "wp-content", "plugins", "covo-own")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(root, "plain", "wp-content", "plugins", "benbow-own")); !os.IsNotExist(err) {
 		t.Fatal("dry run installed something")
 	}
 	mu.Lock()
-	zips["/covo-own.zip"] = zipOf(t, map[string]string{"covo-own/covo-own.php": "<?php\n/*\nPlugin Name: Covo Own\n*/\n// changed\n"})
+	zips["/benbow-own.zip"] = zipOf(t, map[string]string{"benbow-own/benbow-own.php": "<?php\n/*\nPlugin Name: Benbow Own\n*/\n// changed\n"})
 	mu.Unlock()
-	env := h.covo("blueprint", "apply", "agency", "plain", "--yes")
+	env := h.benbow("blueprint", "apply", "agency", "plain", "--yes")
 	if env.OK || env.Error.Code != "checksum_mismatch" || !strings.Contains(env.Error.Message, "changed since") || !strings.Contains(env.Error.Message, "snapshot") {
 		t.Fatalf("changed source = %+v", env.Error)
 	}
@@ -178,41 +178,41 @@ func TestBlueprint(t *testing.T) {
 		Snapshot string
 		Warnings []string
 	}
-	_ = json.Unmarshal(h.mustCovo("blueprint", "apply", "agency", "plain", "--yes", "--accept-changes"), &applied)
+	_ = json.Unmarshal(h.mustBenbow("blueprint", "apply", "agency", "plain", "--yes", "--accept-changes"), &applied)
 	if applied.Snapshot == "" || len(applied.Warnings) == 0 {
 		t.Fatalf("accepted apply = %+v", applied)
 	}
-	if out, code := h.wp("plain", "plugin", "is-active", "covo-own"); code != 0 {
-		t.Fatalf("covo-own on plain: %q", out)
+	if out, code := h.wp("plain", "plugin", "is-active", "benbow-own"); code != 0 {
+		t.Fatalf("benbow-own on plain: %q", out)
 	}
 
 	// Saving a site: wordpress.org plugins pinned, others as warnings.
 	var saved struct {
 		Warnings []string
 	}
-	_ = json.Unmarshal(h.mustCovo("blueprint", "save", "shop", "from-shop"), &saved)
+	_ = json.Unmarshal(h.mustBenbow("blueprint", "save", "shop", "from-shop"), &saved)
 	var got struct {
 		Plugins []struct{ Slug, Version string }
 		Themes  []struct{ Slug string }
 		Options struct{ Permalinks, Timezone string }
 		MU      []struct{ Name string } `json:"mu_plugins"`
 	}
-	_ = json.Unmarshal(h.mustCovo("blueprint", "show", "from-shop"), &got)
+	_ = json.Unmarshal(h.mustBenbow("blueprint", "show", "from-shop"), &got)
 	if len(got.Plugins) != 1 || got.Plugins[0].Slug != "hello-dolly" || got.Plugins[0].Version == "" ||
 		got.Options.Permalinks != "/%postname%/" || got.Options.Timezone != "Europe/Rome" || len(got.MU) != 1 {
 		t.Fatalf("saved blueprint = %+v", got)
 	}
-	if !strings.Contains(strings.Join(saved.Warnings, "\n"), "covo-own") {
+	if !strings.Contains(strings.Join(saved.Warnings, "\n"), "benbow-own") {
 		t.Fatalf("warnings = %v", saved.Warnings)
 	}
 	out := filepath.Join(root, "export.json")
-	h.mustCovo("blueprint", "export", "from-shop", out)
+	h.mustBenbow("blueprint", "export", "from-shop", out)
 	if b, err := os.ReadFile(out); err != nil || !bytes.Contains(b, []byte(`"hello-dolly"`)) {
 		t.Fatalf("export: %v", err)
 	}
-	h.mustCovo("blueprint", "delete", "from-shop")
+	h.mustBenbow("blueprint", "delete", "from-shop")
 	var list []struct{ Name string }
-	_ = json.Unmarshal(h.mustCovo("blueprint", "list"), &list)
+	_ = json.Unmarshal(h.mustBenbow("blueprint", "list"), &list)
 	if len(list) != 1 || list[0].Name != "agency" {
 		t.Fatalf("list = %+v", list)
 	}

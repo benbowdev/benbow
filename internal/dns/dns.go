@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 Andrea Casali
 
-// Package dns is the tiny DNS server behind Covo's .test domains. macOS
+// Package dns is the tiny DNS server behind Benbow's .test domains. macOS
 // sends it queries for the zones listed in /etc/resolver; it answers every
 // name in those zones with the loopback addresses and refuses anything else.
 // It listens on 127.0.0.1 only, on a high port, as the user.

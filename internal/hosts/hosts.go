@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 Andrea Casali
 
-// Package hosts edits Covo's block in /etc/hosts and nothing else. The block
+// Package hosts edits Benbow's block in /etc/hosts and nothing else. The block
 // sits between two marker lines; everything outside it is preserved byte for
 // byte. Every name gets a 127.0.0.1 and a ::1 line (both are needed: with an
 // IPv4 line only, macOS may wait on mDNS for the IPv6 answer).
@@ -18,10 +18,10 @@ import (
 	"strings"
 )
 
-// Markers delimit Covo's block.
+// Markers delimit Benbow's block.
 const (
-	Begin = "# BEGIN Covo: managed automatically, do not edit"
-	End   = "# END Covo"
+	Begin = "# BEGIN Benbow: managed automatically, do not edit"
+	End   = "# END Benbow"
 )
 
 const (
@@ -36,7 +36,7 @@ const (
 var nameRe = regexp.MustCompile(`^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+local$`)
 
 // ErrMarkers means the markers are malformed; nothing is written then.
-var ErrMarkers = errors.New("malformed Covo markers in the hosts file")
+var ErrMarkers = errors.New("malformed Benbow markers in the hosts file")
 
 // ValidName reports whether name may be written in the block.
 func ValidName(name string) bool {
@@ -83,7 +83,7 @@ func find(content string) (start, end int, ok bool, err error) {
 	}
 }
 
-// Names returns the names in Covo's block.
+// Names returns the names in Benbow's block.
 func Names(content string) ([]string, error) {
 	start, end, ok, err := find(content)
 	if err != nil || !ok {
@@ -99,7 +99,7 @@ func Names(content string) ([]string, error) {
 	return names, nil
 }
 
-// block renders Covo's block for names, which must be normalized.
+// block renders Benbow's block for names, which must be normalized.
 func block(names []string) string {
 	var b strings.Builder
 	b.WriteString(Begin + "\n")
@@ -110,7 +110,7 @@ func block(names []string) string {
 	return b.String()
 }
 
-// Sync returns content with Covo's block holding exactly names. With no
+// Sync returns content with Benbow's block holding exactly names. With no
 // names the block is removed. Without a block, it is appended at the end.
 // Clearing a block that Sync added restores the original content exactly:
 // a file without a final newline gets the block after a newline and without

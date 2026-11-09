@@ -32,7 +32,7 @@ type mysqlStatus struct {
 func (h *harness) mysqlStatus() mysqlStatus {
 	h.t.Helper()
 	var st mysqlStatus
-	if err := json.Unmarshal(h.mustCovo("mysql"), &st); err != nil {
+	if err := json.Unmarshal(h.mustBenbow("mysql"), &st); err != nil {
 		h.t.Fatal(err)
 	}
 	return st
@@ -43,7 +43,7 @@ func (h *harness) mysqlStatus() mysqlStatus {
 func (h *harness) keychainItem() bool {
 	prefix := ""
 	for _, kv := range h.env {
-		if v, ok := strings.CutPrefix(kv, "COVO_LABEL_PREFIX="); ok {
+		if v, ok := strings.CutPrefix(kv, "BENBOW_LABEL_PREFIX="); ok {
 			prefix = v
 		}
 	}
@@ -51,19 +51,19 @@ func (h *harness) keychainItem() bool {
 }
 
 // The PHP page connects through the socket ("localhost") and through
-// 127.0.0.1 without a port: php.ini must send both to Covo's MySQL.
+// 127.0.0.1 without a port: php.ini must send both to Benbow's MySQL.
 const mysqlPage = `<?php
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 $pw = file_get_contents(__DIR__ . '/pw.txt');
 $a = new mysqli('localhost', 'root', $pw);
-$a->query('CREATE DATABASE IF NOT EXISTS covo_e2e');
-$a->query('CREATE TABLE IF NOT EXISTS covo_e2e.t (v VARCHAR(20))');
-if (isset($_GET['write'])) { $a->query("INSERT INTO covo_e2e.t VALUES ('kept')"); }
+$a->query('CREATE DATABASE IF NOT EXISTS benbow_e2e');
+$a->query('CREATE TABLE IF NOT EXISTS benbow_e2e.t (v VARCHAR(20))');
+if (isset($_GET['write'])) { $a->query("INSERT INTO benbow_e2e.t VALUES ('kept')"); }
 $b = new mysqli('127.0.0.1', 'root', $pw);
 $pdo = new PDO('mysql:host=localhost', 'root', $pw);
 echo $a->query('SELECT VERSION()')->fetch_row()[0], '|',
 	$b->query('SELECT @@port')->fetch_row()[0], '|',
-	$pdo->query("SELECT COUNT(*) FROM covo_e2e.t WHERE v='kept'")->fetchColumn(), '|',
+	$pdo->query("SELECT COUNT(*) FROM benbow_e2e.t WHERE v='kept'")->fetchColumn(), '|',
 	$a->query("SELECT 'a1' REGEXP '^[a-z][0-9]$'")->fetch_row()[0];
 `
 
@@ -78,7 +78,7 @@ func TestMySQL(t *testing.T) {
 		mysqlStatus
 		Applied bool `json:"applied"`
 	}
-	if err := json.Unmarshal(h.mustCovo("mysql", "enable"), &res); err != nil {
+	if err := json.Unmarshal(h.mustBenbow("mysql", "enable"), &res); err != nil {
 		t.Fatal(err)
 	}
 	if !res.Enabled || !res.Initialized || !res.PasswordStored || res.Applied || res.Running || res.Version != "8.4.13" {
@@ -95,7 +95,7 @@ func TestMySQL(t *testing.T) {
 		Port     int    `json:"port"`
 		Password string `json:"password"`
 	}
-	if err := json.Unmarshal(h.mustCovo("mysql", "password"), &cred); err != nil {
+	if err := json.Unmarshal(h.mustBenbow("mysql", "password"), &cred); err != nil {
 		t.Fatal(err)
 	}
 	if len(cred.Password) != 24 || cred.Port != res.Port {
@@ -123,7 +123,7 @@ func TestMySQL(t *testing.T) {
 			PID  int    `json:"pid"`
 		} `json:"services"`
 	}
-	if err := json.Unmarshal(h.mustCovo("status"), &status); err != nil {
+	if err := json.Unmarshal(h.mustBenbow("status"), &status); err != nil {
 		t.Fatal(err)
 	}
 	pid := 0
@@ -149,7 +149,7 @@ func TestMySQL(t *testing.T) {
 		t.Fatalf("mysqld listens on %v, want only 127.0.0.1:%d", listen, res.Port)
 	}
 
-	// The password is nowhere in Covo's home outside the data directory.
+	// The password is nowhere in Benbow's home outside the data directory.
 	home := homeOf(t, h)
 	_ = filepath.WalkDir(home, func(p string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
@@ -165,16 +165,16 @@ func TestMySQL(t *testing.T) {
 	})
 
 	// Data survives stop/start and disable/enable.
-	h.mustCovo("stop")
-	h.mustCovo("start")
+	h.mustBenbow("stop")
+	h.mustBenbow("start")
 	if got := h.get(url, dir.RootCert()); got != want {
 		t.Fatalf("after restart body = %q", got)
 	}
-	h.mustCovo("mysql", "disable")
+	h.mustBenbow("mysql", "disable")
 	if st := h.mysqlStatus(); st.Enabled || st.Running || !st.Initialized {
 		t.Fatalf("after disable: %+v", st)
 	}
-	h.mustCovo("mysql", "enable")
+	h.mustBenbow("mysql", "enable")
 	if got := h.get(url, dir.RootCert()); got != want {
 		t.Fatalf("after re-enable body = %q", got)
 	}
@@ -183,7 +183,7 @@ func TestMySQL(t *testing.T) {
 	var plan struct {
 		Keychain []string `json:"keychain"`
 	}
-	if err := json.Unmarshal(h.mustCovo("uninstall", "--yes"), &plan); err != nil {
+	if err := json.Unmarshal(h.mustBenbow("uninstall", "--yes"), &plan); err != nil {
 		t.Fatal(err)
 	}
 	if len(plan.Keychain) != 1 {
@@ -208,7 +208,7 @@ func TestMySQLPortInUse(t *testing.T) {
 	}
 	defer l.Close()
 	busy := l.Addr().(*net.TCPAddr).Port
-	env := h.covo("mysql", "enable", "--port", strconv.Itoa(busy))
+	env := h.benbow("mysql", "enable", "--port", strconv.Itoa(busy))
 	if env.OK || env.Error.Code != "port_in_use" {
 		t.Fatalf("enable on busy port: %+v", env)
 	}
@@ -222,7 +222,7 @@ func siteDirOf(t *testing.T, h *harness) string {
 	var sites []struct {
 		Path string `json:"path"`
 	}
-	if err := json.Unmarshal(h.mustCovo("site", "list"), &sites); err != nil {
+	if err := json.Unmarshal(h.mustBenbow("site", "list"), &sites); err != nil {
 		t.Fatal(err)
 	}
 	if len(sites) != 1 {
@@ -236,7 +236,7 @@ func homeOf(t *testing.T, h *harness) string {
 	var st struct {
 		Home string `json:"home"`
 	}
-	if err := json.Unmarshal(h.mustCovo("status"), &st); err != nil {
+	if err := json.Unmarshal(h.mustBenbow("status"), &st); err != nil {
 		t.Fatal(err)
 	}
 	return st.Home

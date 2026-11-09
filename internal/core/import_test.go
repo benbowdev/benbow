@@ -22,7 +22,7 @@ func TestImportDomain(t *testing.T) {
 		{"Shop.Local", false, "shop.local", "shop", 1, false},
 		{"intranet", false, "intranet.local", "intranet", 1, false},
 		{"intranet", true, "intranet.localhost", "intranet", 1, false},
-		{"demo.covo.test", false, "demo.covo.test", "demo-covo", 0, false},
+		{"demo.benbow.test", false, "demo.benbow.test", "demo-benbow", 0, false},
 		{"example.com", false, "", "", 0, true},
 		{"bad_name.local", false, "", "", 0, true},
 		{"x..local", false, "", "", 0, true},

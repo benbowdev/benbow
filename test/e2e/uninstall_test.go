@@ -17,23 +17,23 @@ import (
 func (h *harness) home() string {
 	h.t.Helper()
 	for _, kv := range h.env {
-		if v, ok := strings.CutPrefix(kv, "COVO_HOME="); ok {
+		if v, ok := strings.CutPrefix(kv, "BENBOW_HOME="); ok {
 			return v
 		}
 	}
-	h.t.Fatal("no COVO_HOME")
+	h.t.Fatal("no BENBOW_HOME")
 	return ""
 }
 
 func TestUninstallRestoresInitialState(t *testing.T) {
 	h := newHarness(t)
-	h.mustCovo("site", "add", "demo", "--php", "8.4", "--path", newSite(t))
-	h.mustCovo("start")
+	h.mustBenbow("site", "add", "demo", "--php", "8.4", "--path", newSite(t))
+	h.mustBenbow("start")
 	if len(h.loadedLabels()) == 0 {
 		t.Fatal("nothing running before uninstall")
 	}
 
-	// Secrets Covo keeps besides the databases': a server password and the
+	// Secrets Benbow keeps besides the databases': a server password and the
 	// GitHub token. Uninstall removes them too.
 	for _, it := range [][2]string{{".remote", "demo/production"}, {".github", "github"}} {
 		add := exec.Command("/usr/bin/security", "add-generic-password", "-U", "-s", h.prefix()+it[0], "-a", it[1], "-w", "test-secret")
@@ -44,7 +44,7 @@ func TestUninstallRestoresInitialState(t *testing.T) {
 	}
 
 	// Without --yes and without a terminal, uninstall refuses.
-	if env := h.covo("uninstall"); env.OK || env.Error.Code != "confirmation_required" {
+	if env := h.benbow("uninstall"); env.OK || env.Error.Code != "confirmation_required" {
 		t.Fatalf("uninstall without --yes: %+v", env)
 	}
 
@@ -53,7 +53,7 @@ func TestUninstallRestoresInitialState(t *testing.T) {
 		Agents []string `json:"agents"`
 		Paths  []string `json:"paths"`
 	}
-	if err := json.Unmarshal(h.mustCovo("uninstall", "--yes"), &res); err != nil {
+	if err := json.Unmarshal(h.mustBenbow("uninstall", "--yes"), &res); err != nil {
 		t.Fatal(err)
 	}
 	if !res.Done || len(res.Agents) != 2 || len(res.Paths) == 0 {
@@ -72,7 +72,7 @@ func TestUninstallRestoresInitialState(t *testing.T) {
 	}
 
 	// Idempotent: a second run has nothing to do.
-	if err := json.Unmarshal(h.mustCovo("uninstall", "--yes"), &res); err != nil {
+	if err := json.Unmarshal(h.mustBenbow("uninstall", "--yes"), &res); err != nil {
 		t.Fatal(err)
 	}
 	if len(res.Agents)+len(res.Paths) != 0 {
@@ -90,10 +90,10 @@ func TestUninstallPartialInstall(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(home, "tmp", "download-123"), []byte("partial"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(home, "covo.lock"), nil, 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(home, "benbow.lock"), nil, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	h.mustCovo("uninstall", "--yes")
+	h.mustBenbow("uninstall", "--yes")
 	if _, err := os.Lstat(home); !os.IsNotExist(err) {
 		t.Fatalf("home still exists: %v", err)
 	}
@@ -109,7 +109,7 @@ func TestUninstallRefusesForeignFiles(t *testing.T) {
 	if err := os.WriteFile(foreign, []byte("keep me"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if env := h.covo("uninstall", "--yes"); env.OK || env.Error.Code != "conflict" {
+	if env := h.benbow("uninstall", "--yes"); env.OK || env.Error.Code != "conflict" {
 		t.Fatalf("uninstall with foreign files: %+v", env)
 	}
 	if _, err := os.Stat(foreign); err != nil {

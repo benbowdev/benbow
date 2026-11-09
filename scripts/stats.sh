@@ -2,16 +2,16 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # Copyright (C) 2026 Andrea Casali
 #
-# How many Macs ran Covo, and how many times the app was downloaded:
+# How many Macs ran Benbow, and how many times the app was downloaded:
 #
 #   scripts/stats.sh          # the last 30 days
 #   scripts/stats.sh -d 90
 #
-# Daily checks come from stats/manifest-checks.csv in getcovo/covo-binaries
-# (docs/updates.md): one row per life of the release asset Covo's
+# Daily checks come from stats/manifest-checks.csv in benbowdev/benbow-binaries
+# (docs/updates.md): one row per life of the release asset Benbow's
 # automatic update check downloads, at most once a day per Mac. Rows are
 # added to the UTC day their period ends. App downloads are the DMG assets
-# of getcovo/covo's releases. Needs gh (logged in) and jq.
+# of benbowdev/benbow's releases. Needs gh (logged in) and jq.
 set -euo pipefail
 
 days=30
@@ -26,13 +26,13 @@ while getopts "d:" opt; do
 done
 [[ "$days" =~ ^[0-9]+$ ]] || { echo "-d wants a number of days" >&2; exit 2; }
 
-echo "Daily update checks (≈ Macs running Covo), last $days days"
+echo "Daily update checks (≈ Macs running Benbow), last $days days"
 # gh prints GitHub's error body on stdout: only keep the answer if it worked.
-# COVO_STATS_CSV reads a local copy instead.
-if [[ -n "${COVO_STATS_CSV:-}" ]]; then
-	csv=$(cat "$COVO_STATS_CSV")
+# BENBOW_STATS_CSV reads a local copy instead.
+if [[ -n "${BENBOW_STATS_CSV:-}" ]]; then
+	csv=$(cat "$BENBOW_STATS_CSV")
 else
-	csv=$(gh api -H "Accept: application/vnd.github.raw" repos/getcovo/covo-binaries/contents/stats/manifest-checks.csv 2>/dev/null) || csv=""
+	csv=$(gh api -H "Accept: application/vnd.github.raw" repos/benbowdev/benbow-binaries/contents/stats/manifest-checks.csv 2>/dev/null) || csv=""
 fi
 if [[ -z "$csv" ]]; then
 	echo "  no data yet (the first row comes the day after the manifest release is created)"
@@ -57,11 +57,11 @@ else
 			}
 		}'
 fi
-current=$(gh api repos/getcovo/covo-binaries/releases/tags/manifest --jq '.assets[] | select(.name == "manifest.json") | "\(.download_count) since \(.created_at)"' 2>/dev/null) || current=""
+current=$(gh api repos/benbowdev/benbow-binaries/releases/tags/manifest --jq '.assets[] | select(.name == "manifest.json") | "\(.download_count) since \(.created_at)"' 2>/dev/null) || current=""
 echo "  now:        ${current:-no release asset yet}"
 
 echo
 echo "App downloads (DMG) per version"
-gh api --paginate repos/getcovo/covo/releases \
+gh api --paginate repos/benbowdev/benbow/releases \
 	--jq '.[] | select(.draft | not) | [.tag_name, ([.assets[] | select(.name | endswith(".dmg")) | .download_count] | add // 0)] | @tsv' |
 	awk -F'\t' '{ printf "  %-20s %6d\n", $1, $2; total += $2 } END { printf "  %-20s %6d\n", "total", total }'

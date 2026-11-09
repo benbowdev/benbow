@@ -3,10 +3,10 @@
 
 // Package agents knows the AI coding agents a user may already have
 // (Claude Code, Codex, Gemini CLI, Cursor, GitHub Copilot CLI, Claude
-// Desktop): where they are installed, whether Covo's MCP server is
+// Desktop): where they are installed, whether Benbow's MCP server is
 // connected to them, how to connect it (only in the user's own home, never
 // in a project folder, always after a backup), and how to start them in a
-// site's folder with Covo connected for that run only. Covo never installs
+// site's folder with Benbow connected for that run only. Benbow never installs
 // an agent and never calls a model.
 package agents
 
@@ -25,7 +25,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/getcovo/covo/internal/fsutil"
+	"github.com/benbowdev/benbow/internal/fsutil"
 )
 
 // Agent ids.
@@ -39,10 +39,10 @@ const (
 	ClaudeDesktop = "claude-desktop"
 )
 
-// ServerName is the name Covo's MCP server has in agents' configurations.
-const ServerName = "covo"
+// ServerName is the name Benbow's MCP server has in agents' configurations.
+const ServerName = "benbow"
 
-// Agent is one agent and what Covo knows about it.
+// Agent is one agent and what Benbow knows about it.
 type Agent struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
@@ -51,15 +51,15 @@ type Agent struct {
 	Kind      string `json:"kind"`
 	Installed bool   `json:"installed"`
 	Path      string `json:"path,omitempty"`
-	// Connected reports a global entry for Covo in the agent's own
+	// Connected reports a global entry for Benbow in the agent's own
 	// configuration (the user's home).
 	Connected bool `json:"connected"`
 	// ConfigPath is the file that entry lives in.
 	ConfigPath string `json:"config_path,omitempty"`
-	// PerRun is set when Covo can connect itself just for one run started
-	// from Covo, writing no configuration.
+	// PerRun is set when Benbow can connect itself just for one run started
+	// from Benbow, writing no configuration.
 	PerRun bool `json:"per_run"`
-	// CanConnect is set when Covo can add the global entry.
+	// CanConnect is set when Benbow can add the global entry.
 	CanConnect bool `json:"can_connect"`
 }
 
@@ -69,7 +69,7 @@ type spec struct {
 	apps           []string // app bundles (relative to /Applications)
 	// config is the global configuration file, relative to home.
 	config string
-	// perRun: Covo can pass its MCP server on the command line.
+	// perRun: Benbow can pass its MCP server on the command line.
 	perRun bool
 }
 
@@ -102,15 +102,15 @@ type Env struct {
 	Apps []string
 }
 
-// DefaultEnv is the real user's environment (COVO_AGENTS_HOME and
-// COVO_AGENTS_PATH override it, for tests).
+// DefaultEnv is the real user's environment (BENBOW_AGENTS_HOME and
+// BENBOW_AGENTS_PATH override it, for tests).
 func DefaultEnv() Env {
 	home, _ := os.UserHomeDir()
 	e := Env{Home: home, Apps: []string{"/Applications", filepath.Join(home, "Applications")}}
-	if h := os.Getenv("COVO_AGENTS_HOME"); h != "" {
+	if h := os.Getenv("BENBOW_AGENTS_HOME"); h != "" {
 		e.Home, e.Apps = h, []string{filepath.Join(h, "Applications")}
 	}
-	if p := os.Getenv("COVO_AGENTS_PATH"); p != "" {
+	if p := os.Getenv("BENBOW_AGENTS_PATH"); p != "" {
 		e.Path = p
 	}
 	return e
@@ -230,16 +230,16 @@ func (e Env) bundledCodex() string {
 	return ""
 }
 
-var reCodexCovo = regexp.MustCompile(`(?m)^\s*\[mcp_servers\.` + ServerName + `\]\s*$`)
+var reCodexBenbow = regexp.MustCompile(`(?m)^\s*\[mcp_servers\.` + ServerName + `\]\s*$`)
 
-// connected reads the agent's global configuration for a "covo" server.
+// connected reads the agent's global configuration for a "benbow" server.
 func connected(s spec, path string) bool {
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return false
 	}
 	if s.id == Codex {
-		return reCodexCovo.Match(b)
+		return reCodexBenbow.Match(b)
 	}
 	var cfg struct {
 		MCPServers map[string]json.RawMessage `json:"mcpServers"`
@@ -256,17 +256,17 @@ type ConnectResult struct {
 	Agent      string `json:"agent"`
 	ConfigPath string `json:"config_path"`
 	Backup     string `json:"backup,omitempty"`
-	// Command is the agent's own command Covo ran, if any.
+	// Command is the agent's own command Benbow ran, if any.
 	Command string `json:"command,omitempty"`
 	Already bool   `json:"already,omitempty"`
-	// Restart is set when the agent must be restarted to see Covo.
+	// Restart is set when the agent must be restarted to see Benbow.
 	Restart bool `json:"restart,omitempty"`
 }
 
-// Connect adds Covo's MCP server (covoBin mcp) to an agent's global
+// Connect adds Benbow's MCP server (benbowBin mcp) to an agent's global
 // configuration in the user's home, after a backup into backupDir. Claude
 // Code and Codex do it with their own command.
-func Connect(ctx context.Context, env Env, id, covoBin, backupDir string) (ConnectResult, error) {
+func Connect(ctx context.Context, env Env, id, benbowBin, backupDir string) (ConnectResult, error) {
 	res := ConnectResult{Agent: id}
 	s, ok := specFor(id)
 	if !ok {
@@ -281,7 +281,7 @@ func Connect(ctx context.Context, env Env, id, covoBin, backupDir string) (Conne
 		return res, fmt.Errorf("%s is not installed on this Mac", s.name)
 	}
 	if !a.CanConnect {
-		return res, fmt.Errorf("%s gets Covo when started from Covo; there is no global entry to add", s.name)
+		return res, fmt.Errorf("%s gets Benbow when started from Benbow; there is no global entry to add", s.name)
 	}
 	if a.Connected {
 		res.Already = true
@@ -296,7 +296,7 @@ func Connect(ctx context.Context, env Env, id, covoBin, backupDir string) (Conne
 		if id == Claude {
 			args = append(args, "-s", "user")
 		}
-		args = append(args, ServerName, "--", covoBin, "mcp")
+		args = append(args, ServerName, "--", benbowBin, "mcp")
 		res.Command = a.Path + " " + strings.Join(args, " ")
 		ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 		defer cancel()
@@ -307,7 +307,7 @@ func Connect(ctx context.Context, env Env, id, covoBin, backupDir string) (Conne
 			return res, fmt.Errorf("%s: %w: %s", res.Command, err, strings.TrimSpace(string(out)))
 		}
 	default:
-		entry := map[string]any{"command": covoBin, "args": []string{"mcp"}}
+		entry := map[string]any{"command": benbowBin, "args": []string{"mcp"}}
 		if err := addJSONServer(a.ConfigPath, entry); err != nil {
 			return res, err
 		}
@@ -335,7 +335,7 @@ func backup(path, dir string) (string, error) {
 	return dst, nil
 }
 
-// addJSONServer adds mcpServers.covo to a JSON configuration, keeping
+// addJSONServer adds mcpServers.benbow to a JSON configuration, keeping
 // everything else (key order may change; the backup keeps the original).
 func addJSONServer(path string, entry map[string]any) error {
 	cfg := map[string]any{}
@@ -346,7 +346,7 @@ func addJSONServer(path string, entry map[string]any) error {
 		return fmt.Errorf("read %s: %w", path, err)
 	case len(bytes.TrimSpace(b)) > 0:
 		if err := json.Unmarshal(b, &cfg); err != nil {
-			return fmt.Errorf("%s is not valid JSON, so Covo leaves it alone: %w", path, err)
+			return fmt.Errorf("%s is not valid JSON, so Benbow leaves it alone: %w", path, err)
 		}
 	}
 	servers, _ := cfg["mcpServers"].(map[string]any)
@@ -375,9 +375,9 @@ func writeKeepingMode(path string, body []byte) error {
 	return err
 }
 
-// Disconnect removes Covo's MCP server from an agent's global
-// configuration (covo uninstall). Claude Code and Codex do it with their
-// own command when it is there; JSON files lose only the "covo" entry.
+// Disconnect removes Benbow's MCP server from an agent's global
+// configuration (benbow uninstall). Claude Code and Codex do it with their
+// own command when it is there; JSON files lose only the "benbow" entry.
 func Disconnect(ctx context.Context, env Env, id string) error {
 	a, err := Find(ctx, env, id)
 	if err != nil {
@@ -408,7 +408,7 @@ func Disconnect(ctx context.Context, env Env, id string) error {
 	return removeJSONServer(a.ConfigPath)
 }
 
-// removeJSONServer deletes mcpServers.covo from a JSON configuration.
+// removeJSONServer deletes mcpServers.benbow from a JSON configuration.
 func removeJSONServer(path string) error {
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -416,7 +416,7 @@ func removeJSONServer(path string) error {
 	}
 	cfg := map[string]any{}
 	if err := json.Unmarshal(b, &cfg); err != nil {
-		return fmt.Errorf("%s is not valid JSON, so Covo leaves it alone: %w", path, err)
+		return fmt.Errorf("%s is not valid JSON, so Benbow leaves it alone: %w", path, err)
 	}
 	servers, _ := cfg["mcpServers"].(map[string]any)
 	if _, ok := servers[ServerName]; !ok {

@@ -9,9 +9,9 @@ import (
 	"io"
 	"strings"
 
-	"github.com/getcovo/covo/internal/core"
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/php"
+	"github.com/benbowdev/benbow/internal/core"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/php"
 	"github.com/spf13/cobra"
 )
 
@@ -105,7 +105,7 @@ type xdebugResult core.XdebugResult
 func (r xdebugResult) Text(w io.Writer) {
 	writeXdebug(w, r.XdebugStatus)
 	if r.Changed && !r.Applied {
-		fmt.Fprintln(w, "Covo is not running: PHP picks this up with `covo start`.")
+		fmt.Fprintln(w, "Benbow is not running: PHP picks this up with `benbow start`.")
 	}
 }
 
@@ -148,7 +148,7 @@ func (r phpSettingsResult) Text(w io.Writer) {
 	fmt.Fprintf(w, "PHP %s\n  memory_limit         %s\n  upload_max_filesize  %s (post_max_size follows)\n  max_execution_time   %d\n  display_errors       %s\n",
 		r.PHP, r.MemoryLimit, r.UploadMaxFilesize, r.MaxExecutionTime, onOff[r.DisplayErrors])
 	if r.Changed && !r.Applied {
-		fmt.Fprintln(w, "Saved: applied when Covo starts.")
+		fmt.Fprintln(w, "Saved: applied when Benbow starts.")
 	}
 }
 

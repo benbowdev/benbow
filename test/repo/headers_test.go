@@ -77,18 +77,18 @@ func TestRequiredDocs(t *testing.T) {
 	}
 }
 
-// TestHostsHelperStaysSmall keeps the privileged helper free of Covo's core
+// TestHostsHelperStaysSmall keeps the privileged helper free of Benbow's core
 // and third-party code: it runs as root.
 func TestHostsHelperStaysSmall(t *testing.T) {
-	out, err := exec.Command("go", "list", "-deps", "github.com/getcovo/covo/cmd/covo-hostshelper").Output()
+	out, err := exec.Command("go", "list", "-deps", "github.com/benbowdev/benbow/cmd/benbow-hostshelper").Output()
 	if err != nil {
 		t.Fatal(err)
 	}
 	allowed := map[string]bool{
-		"github.com/getcovo/covo/cmd/covo-hostshelper": true,
-		"github.com/getcovo/covo/internal/hostshelper": true,
-		"github.com/getcovo/covo/internal/hosts":       true,
-		"golang.org/x/sys/unix":                        true,
+		"github.com/benbowdev/benbow/cmd/benbow-hostshelper": true,
+		"github.com/benbowdev/benbow/internal/hostshelper":   true,
+		"github.com/benbowdev/benbow/internal/hosts":         true,
+		"golang.org/x/sys/unix":                              true,
 	}
 	for _, pkg := range strings.Fields(string(out)) {
 		first, _, _ := strings.Cut(pkg, "/")
@@ -96,7 +96,7 @@ func TestHostsHelperStaysSmall(t *testing.T) {
 			continue // standard library
 		}
 		if !allowed[pkg] {
-			t.Errorf("covo-hostshelper depends on %s", pkg)
+			t.Errorf("benbow-hostshelper depends on %s", pkg)
 		}
 	}
 }

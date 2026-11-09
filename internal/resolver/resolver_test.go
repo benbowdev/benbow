@@ -10,11 +10,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/getcovo/covo/internal/errcode"
+	"github.com/benbowdev/benbow/internal/errcode"
 )
 
 func TestRenderParse(t *testing.T) {
-	f := File{Home: "/Users/x/Library/Application Support/covo", Port: 53535, CreatedDir: true}
+	f := File{Home: "/Users/x/Library/Application Support/benbow", Port: 53535, CreatedDir: true}
 	got, ok := Parse(f.Render())
 	if !ok || got != f {
 		t.Fatalf("Parse(Render()) = %+v, %v", got, ok)
@@ -41,7 +41,7 @@ func newManager(t *testing.T, dir string) (Manager, *recorder) {
 	t.Helper()
 	r := &recorder{}
 	base := filepath.Join(t.TempDir(), "with space")
-	return Manager{Dir: filepath.Join(base, dir), Home: "/covo home", Run: r.run, TmpDir: filepath.Join(base, "tmp")}, r
+	return Manager{Dir: filepath.Join(base, dir), Home: "/benbow home", Run: r.run, TmpDir: filepath.Join(base, "tmp")}, r
 }
 
 func TestInstallRemoveCreatedDir(t *testing.T) {
@@ -78,7 +78,7 @@ func TestInstallRemoveCreatedDir(t *testing.T) {
 		t.Fatalf("remove: changed=%v err=%v", changed, err)
 	}
 	if _, err := os.Stat(m.Dir); !os.IsNotExist(err) {
-		t.Fatalf("resolver dir created by Covo must be removed: %v", err)
+		t.Fatalf("resolver dir created by Benbow must be removed: %v", err)
 	}
 	n = len(r.cmds)
 	if changed, err := m.Remove(ctx, "test"); err != nil || changed || len(r.cmds) != n {
@@ -117,7 +117,7 @@ func TestForeignFileIsNeverTouched(t *testing.T) {
 	ctx := context.Background()
 	for name, content := range map[string]string{
 		"other tool": "nameserver 127.0.0.1\nport 53\n",
-		"other home": File{Home: "/another/covo", Port: 1234}.Render(),
+		"other home": File{Home: "/another/benbow", Port: 1234}.Render(),
 	} {
 		t.Run(name, func(t *testing.T) {
 			m, r := newManager(t, "resolver")

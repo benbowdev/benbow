@@ -16,9 +16,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/php"
-	"github.com/getcovo/covo/internal/store"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/php"
+	"github.com/benbowdev/benbow/internal/store"
 )
 
 var minorRe = regexp.MustCompile(`^\d+\.\d+$`)
@@ -107,7 +107,7 @@ type PHPList struct {
 	Support []php.Support `json:"support"`
 }
 
-// ListPHP returns installed versions and the versions Covo can install.
+// ListPHP returns installed versions and the versions Benbow can install.
 func (c *Core) ListPHP(ctx context.Context) (PHPList, error) {
 	inst, err := c.Store.ListPHP(ctx)
 	if err != nil {

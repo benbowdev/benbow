@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// MCPAction is one change an AI agent asked for through Covo's MCP server.
+// MCPAction is one change an AI agent asked for through Benbow's MCP server.
 type MCPAction struct {
 	ID       int64     `json:"id"`
 	At       time.Time `json:"at"`

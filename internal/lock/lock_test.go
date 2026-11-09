@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/getcovo/covo/internal/errcode"
+	"github.com/benbowdev/benbow/internal/errcode"
 )
 
 func TestAcquire(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "covo.lock")
+	path := filepath.Join(t.TempDir(), "benbow.lock")
 	first, err := Acquire(context.Background(), path)
 	if err != nil {
 		t.Fatal(err)

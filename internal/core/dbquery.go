@@ -13,9 +13,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/mysql"
-	"github.com/getcovo/covo/internal/postgres"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/mysql"
+	"github.com/benbowdev/benbow/internal/postgres"
 )
 
 // query_database: read-only SQL on a site's database, for agents (and the
@@ -96,7 +96,7 @@ func (c *Core) QueryDatabase(ctx context.Context, name, sql string) (QueryResult
 		return res, err
 	}
 	if site.Database == "" {
-		return res, errcode.Errorf(errcode.NotFound, name+" has no database in Covo")
+		return res, errcode.Errorf(errcode.NotFound, name+" has no database in Benbow")
 	}
 	start := time.Now()
 	var out string
@@ -130,7 +130,7 @@ func (c *Core) QueryDatabase(ctx context.Context, name, sql string) (QueryResult
 // readOnlyUser is the MySQL user that may only read db.
 func readOnlyUser(db string) string {
 	h := sha256.Sum256([]byte(db))
-	return "covo_ro_" + hex.EncodeToString(h[:6])
+	return "benbow_ro_" + hex.EncodeToString(h[:6])
 }
 
 func (c *Core) queryMySQLReadOnly(ctx context.Context, db, stmt string) (string, error) {
@@ -179,7 +179,7 @@ func (c *Core) queryPostgresReadOnly(ctx context.Context, name, stmt string) (st
 		return "", err
 	}
 	if !db.Dedicated || db.User == "" || db.User == postgres.Superuser {
-		return "", errcode.Errorf(errcode.Unsupported, "this database has no role of its own in Covo")
+		return "", errcode.Errorf(errcode.Unsupported, "this database has no role of its own in Benbow")
 	}
 	dir, _, err := c.ensurePostgres(ctx)
 	if err != nil {

@@ -30,7 +30,7 @@ type portsData struct {
 func (h *harness) ports(args ...string) portsData {
 	h.t.Helper()
 	var p portsData
-	if err := json.Unmarshal(h.mustCovo(append([]string{"ports"}, args...)...), &p); err != nil {
+	if err := json.Unmarshal(h.mustBenbow(append([]string{"ports"}, args...)...), &p); err != nil {
 		h.t.Fatal(err)
 	}
 	return p
@@ -48,16 +48,16 @@ func (h *harness) pfCalls() string {
 
 // TestPorts sets an HTTP redirect port, then the standard ports: addresses
 // lose the port, Caddy stays on high ports and the helper forwards 443 and
-// 80 only while Covo runs (pf is a stand-in here).
+// 80 only while Benbow runs (pf is a stand-in here).
 func TestPorts(t *testing.T) {
 	h := newHarness(t)
 	var site struct {
 		URL string `json:"url"`
 	}
-	if err := json.Unmarshal(h.mustCovo("site", "add", "demo", "--php", "8.4", "--path", newSite(t)), &site); err != nil {
+	if err := json.Unmarshal(h.mustBenbow("site", "add", "demo", "--php", "8.4", "--path", newSite(t)), &site); err != nil {
 		t.Fatal(err)
 	}
-	h.mustCovo("start")
+	h.mustBenbow("start")
 	st := h.status()
 
 	// An HTTP port above 1024: Caddy redirects it itself.
@@ -78,17 +78,17 @@ func TestPorts(t *testing.T) {
 		t.Fatalf("redirect = %d %q, want 308 %q", resp.StatusCode, resp.Header.Get("Location"), want)
 	}
 
-	if env := h.covo("ports", "--https", "80"); env.OK || env.Error.Code != "invalid_input" {
+	if env := h.benbow("ports", "--https", "80"); env.OK || env.Error.Code != "invalid_input" {
 		t.Fatalf("https 80 = %+v", env)
 	}
-	if env := h.covo("ports", "--https", strconv.Itoa(httpPort)); env.OK || env.Error.Code != "invalid_input" {
+	if env := h.benbow("ports", "--https", strconv.Itoa(httpPort)); env.OK || env.Error.Code != "invalid_input" {
 		t.Fatalf("https = http = %+v", env)
 	}
 
 	// 443 and 80: forwarded by the helper to high ports. If another program
-	// (MAMP…) has 80, Covo refuses it and the HTTP port stays as it was.
+	// (MAMP…) has 80, Benbow refuses it and the HTTP port stays as it was.
 	forwards := 2
-	if env := h.covo("ports", "--https", "443", "--http", "80"); !env.OK {
+	if env := h.benbow("ports", "--https", "443", "--http", "80"); !env.OK {
 		if env.Error.Code != "port_in_use" || !strings.Contains(env.Error.Message, "port 80") {
 			t.Fatalf("standard ports = %+v", env)
 		}
@@ -103,7 +103,7 @@ func TestPorts(t *testing.T) {
 	}
 	calls := h.pfCalls()
 	wantRules := []string{
-		"pfctl -a com.apple/dev.getcovo.hostshelper -f -",
+		"pfctl -a com.apple/dev.benbow.hostshelper -f -",
 		"rdr pass on lo0 inet proto tcp from any to 127.0.0.1 port 443 -> 127.0.0.1 port " + strconv.Itoa(p.HTTPSListen),
 		"rdr pass on lo0 inet6 proto tcp from any to ::1 port 443 -> ::1 port " + strconv.Itoa(p.HTTPSListen),
 		"pfctl -E",
@@ -123,7 +123,7 @@ func TestPorts(t *testing.T) {
 			URL string `json:"url"`
 		} `json:"sites"`
 	}
-	if err := json.Unmarshal(h.mustCovo("status"), &list); err != nil {
+	if err := json.Unmarshal(h.mustBenbow("status"), &list); err != nil {
 		t.Fatal(err)
 	}
 	if list.HTTPSPort != 443 || list.Sites[0].URL != "https://demo.localhost" {
@@ -143,14 +143,14 @@ func TestPorts(t *testing.T) {
 	}
 
 	// Stop: 443 and 80 are released; start puts them back.
-	h.mustCovo("stop")
-	if calls := h.pfCalls(); !strings.Contains(calls, "pfctl -a com.apple/dev.getcovo.hostshelper -F all") || !strings.Contains(calls, "pfctl -X 42") {
+	h.mustBenbow("stop")
+	if calls := h.pfCalls(); !strings.Contains(calls, "pfctl -a com.apple/dev.benbow.hostshelper -F all") || !strings.Contains(calls, "pfctl -X 42") {
 		t.Fatalf("stop pfctl calls:\n%s", calls)
 	}
 	if p := h.ports(); len(p.Active) != 0 {
 		t.Fatalf("forwards after stop = %+v", p.Active)
 	}
-	h.mustCovo("start")
+	h.mustBenbow("start")
 	if p := h.ports(); len(p.Active) != forwards {
 		t.Fatalf("forwards after start = %+v", p.Active)
 	}

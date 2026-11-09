@@ -12,14 +12,14 @@ import (
 	"testing"
 )
 
-// TestOldestAndNewestPHP serves the oldest and newest PHP versions Covo
+// TestOldestAndNewestPHP serves the oldest and newest PHP versions Benbow
 // offers side by side, and warns about the one php.net no longer fixes.
 func TestOldestAndNewestPHP(t *testing.T) {
 	h := newHarness(t)
 	urls := map[string]string{}
 	minors := []string{"8.0", "8.5"}
 	if runtime.GOARCH == "arm64" {
-		minors = append(minors, "5.6", "7.4") // covo-binaries' legacy builds
+		minors = append(minors, "5.6", "7.4") // benbow-binaries' legacy builds
 	}
 	for _, minor := range minors {
 		var res struct {
@@ -27,7 +27,7 @@ func TestOldestAndNewestPHP(t *testing.T) {
 			Warning string `json:"warning"`
 		}
 		name := "php" + strings.ReplaceAll(minor, ".", "")
-		if err := json.Unmarshal(h.mustCovo("site", "add", name, "--php", minor, "--path", newSite(t)), &res); err != nil {
+		if err := json.Unmarshal(h.mustBenbow("site", "add", name, "--php", minor, "--path", newSite(t)), &res); err != nil {
 			t.Fatal(err)
 		}
 		if got := strings.Contains(res.Warning, "no security fixes"); got != (minor != "8.5") {
@@ -35,7 +35,7 @@ func TestOldestAndNewestPHP(t *testing.T) {
 		}
 		urls[minor] = res.URL
 	}
-	h.mustCovo("start")
+	h.mustBenbow("start")
 	st := h.status()
 	for minor, url := range urls {
 		if body := h.get(url, st.CA.CertPath); !strings.HasPrefix(body, minor+".") {

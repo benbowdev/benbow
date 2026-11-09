@@ -11,9 +11,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/getcovo/covo/internal/core"
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/store"
+	"github.com/benbowdev/benbow/internal/core"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/store"
 	"github.com/spf13/cobra"
 )
 
@@ -21,7 +21,7 @@ type blueprintListResult []core.BlueprintInfo
 
 func (r blueprintListResult) Text(w io.Writer) {
 	if len(r) == 0 {
-		fmt.Fprintln(w, "No blueprints. Save one from a site with: covo blueprint save <site> <name>")
+		fmt.Fprintln(w, "No blueprints. Save one from a site with: benbow blueprint save <site> <name>")
 	}
 	for _, b := range r {
 		fmt.Fprintf(w, "%-24s %d themes, %d plugins  %s\n", b.Name, b.Themes, b.Plugins, b.Description)
@@ -242,7 +242,7 @@ func (a *app) blueprintCmd() *cobra.Command {
 		}),
 	}, &cobra.Command{
 		Use:   "sources",
-		Short: "List the downloads Covo recorded, with their SHA-256",
+		Short: "List the downloads Benbow recorded, with their SHA-256",
 		Args:  cobra.NoArgs,
 		RunE: a.withCore(func(ctx context.Context, c *core.Core, _ []string) (Result, error) {
 			l, err := c.BlueprintSources(ctx)

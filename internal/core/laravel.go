@@ -14,10 +14,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/getcovo/covo/internal/dotenv"
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/fsutil"
-	"github.com/getcovo/covo/internal/store"
+	"github.com/benbowdev/benbow/internal/dotenv"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/fsutil"
+	"github.com/benbowdev/benbow/internal/store"
 )
 
 // Tools a site can run with its own PHP version.
@@ -37,7 +37,7 @@ func composerFor(minor string) string {
 }
 
 // composerCommand prepares Composer with minor's PHP in dir; its home and
-// cache live inside the Covo folder, not in ~/.composer.
+// cache live inside the Benbow folder, not in ~/.composer.
 func (c *Core) composerCommand(ctx context.Context, minor, dir string, args ...string) (*exec.Cmd, error) {
 	art, err := c.pinned(ctx, composerFor(minor), "")
 	if err != nil {
@@ -260,7 +260,7 @@ func (c *Core) NewLaravel(ctx context.Context, req LaravelRequest) (LaravelResul
 		res.Database = db.Database
 		conn, host := "mysql", "127.0.0.1"
 		if db.Engine == EnginePostgres {
-			// PostgreSQL through Covo's Unix socket: PDO pgsql in the static
+			// PostgreSQL through Benbow's Unix socket: PDO pgsql in the static
 			// PHP 8 builds (Swoole's driver) hangs over TCP.
 			conn, host = "pgsql", db.Socket
 		}

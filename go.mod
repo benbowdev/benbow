@@ -1,4 +1,4 @@
-module github.com/getcovo/covo
+module github.com/benbowdev/benbow
 
 go 1.27.3
 

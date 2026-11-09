@@ -6,17 +6,17 @@ package core
 import (
 	"testing"
 
-	"github.com/getcovo/covo/internal/launchd"
+	"github.com/benbowdev/benbow/internal/launchd"
 )
 
 func TestNames(t *testing.T) {
-	c := &Core{launchctl: &launchd.Launchctl{Prefix: "dev.getcovo"}}
+	c := &Core{launchctl: &launchd.Launchctl{Prefix: "dev.benbow"}}
 	tests := []struct {
 		service, label string
 	}{
-		{caddyService, "dev.getcovo.caddy"},
-		{phpService("8.4"), "dev.getcovo.php84"},
-		{phpService("8.2"), "dev.getcovo.php82"},
+		{caddyService, "dev.benbow.caddy"},
+		{phpService("8.4"), "dev.benbow.php84"},
+		{phpService("8.2"), "dev.benbow.php82"},
 	}
 	for _, tt := range tests {
 		if got := c.labelFor(tt.service); got != tt.label {

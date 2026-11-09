@@ -18,13 +18,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/getcovo/covo/internal/dotenv"
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/keychain"
-	"github.com/getcovo/covo/internal/mysql"
-	"github.com/getcovo/covo/internal/remote"
-	"github.com/getcovo/covo/internal/store"
-	"github.com/getcovo/covo/internal/wpconfig"
+	"github.com/benbowdev/benbow/internal/dotenv"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/keychain"
+	"github.com/benbowdev/benbow/internal/mysql"
+	"github.com/benbowdev/benbow/internal/remote"
+	"github.com/benbowdev/benbow/internal/store"
+	"github.com/benbowdev/benbow/internal/wpconfig"
 )
 
 // Sync with a server: pull a site's database and files from production or
@@ -39,10 +39,10 @@ const (
 	RemoteStaging    = "staging"
 )
 
-// Env for `covo askpass`: the keychain item ssh asks for.
+// Env for `benbow askpass`: the keychain item ssh asks for.
 const (
-	EnvAskPassService = "COVO_ASKPASS_SERVICE"
-	EnvAskPassAccount = "COVO_ASKPASS_ACCOUNT"
+	EnvAskPassService = "BENBOW_ASKPASS_SERVICE"
+	EnvAskPassAccount = "BENBOW_ASKPASS_ACCOUNT"
 )
 
 // remoteHostRe never starts with "-": ssh would read it as an option.
@@ -56,7 +56,7 @@ func remoteAccount(site, name string) string { return site + "/" + name }
 // Unlike MySQL passwords it is the user's, so any character is allowed.
 func (c *Core) remoteSecret(site, name string) (keychain.Item, error) {
 	it, err := keychain.Login(c.remoteKeychainService(), remoteAccount(site, name))
-	it.Label = "Covo remote " + remoteAccount(site, name)
+	it.Label = "Benbow remote " + remoteAccount(site, name)
 	return it, err
 }
 
@@ -150,11 +150,11 @@ func (c *Core) RemoveRemote(ctx context.Context, site, name string) error {
 }
 
 // AskPass prints the password of the keychain item named by the
-// environment (ssh runs `covo askpass` through SSH_ASKPASS).
+// environment (ssh runs `benbow askpass` through SSH_ASKPASS).
 func (c *Core) AskPass(ctx context.Context) (string, error) {
 	service, account := os.Getenv(EnvAskPassService), os.Getenv(EnvAskPassAccount)
 	if service != c.remoteKeychainService() || account == "" {
-		return "", errcode.Errorf(errcode.InvalidInput, "askpass only answers for Covo's remotes")
+		return "", errcode.Errorf(errcode.InvalidInput, "askpass only answers for Benbow's remotes")
 	}
 	kc, err := keychain.Login(service, account)
 	if err != nil {
@@ -178,13 +178,13 @@ func (c *Core) server(ctx context.Context, r store.Remote) (remote.Server, error
 	if s.Password != "" && (r.Transport == remote.SSH || r.Transport == remote.SFTP) {
 		exe, err := os.Executable()
 		if err != nil {
-			return s, fmt.Errorf("locate covo: %w", err)
+			return s, fmt.Errorf("locate benbow: %w", err)
 		}
 		s.AskPass = exe
 		s.AskPassEnv = []string{EnvAskPassService + "=" + kc.Service, EnvAskPassAccount + "=" + kc.Account}
 	}
 	if (r.Transport == remote.FTP || r.Transport == remote.FTPS) && s.Password == "" {
-		return s, errcode.Errorf(errcode.InvalidInput, "FTP needs the password: set it with covo remote set … --password")
+		return s, errcode.Errorf(errcode.InvalidInput, "FTP needs the password: set it with benbow remote set … --password")
 	}
 	return s, nil
 }
@@ -363,7 +363,7 @@ func mirrorDown(ctx context.Context, fs remote.FS, remoteDir, local string, skip
 		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 			return changed, fmt.Errorf("create %s: %w", filepath.Dir(dst), err)
 		}
-		tmp := dst + ".covo-part"
+		tmp := dst + ".benbow-part"
 		f, err := os.Create(tmp)
 		if err != nil {
 			return changed, fmt.Errorf("create %s: %w", tmp, err)
@@ -563,7 +563,7 @@ func (c *Core) push(ctx context.Context, name, remoteName string, opts SyncOptio
 		return SyncResult{}, err
 	}
 	if r.Kind != RemoteStaging {
-		return SyncResult{}, errcode.Newf(errcode.Unsupported, "%s is %s: Covo only pushes to staging", r.Name, r.Kind)
+		return SyncResult{}, errcode.Newf(errcode.Unsupported, "%s is %s: Benbow only pushes to staging", r.Name, r.Kind)
 	}
 	srv, err := c.server(ctx, r)
 	if err != nil {
@@ -716,7 +716,7 @@ func (c *Core) pushDatabase(ctx context.Context, srv remote.Server, r store.Remo
 		}
 		// Credentials go through a private file that is removed at once:
 		// stdin carries the SQL.
-		cnf := "$HOME/.covo-push-" + time.Now().Format("150405") + ".cnf"
+		cnf := "$HOME/.benbow-push-" + time.Now().Format("150405") + ".cnf"
 		if err := srv.Run(ctx, "umask 077 && cat > "+cnf, strings.NewReader(remoteClientOptions(creds)), io.Discard); err != nil {
 			return err
 		}

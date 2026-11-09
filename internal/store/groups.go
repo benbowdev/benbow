@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/getcovo/covo/internal/errcode"
+	"github.com/benbowdev/benbow/internal/errcode"
 )
 
 // Group organizes sites in the list. Groups nest to any depth; they change

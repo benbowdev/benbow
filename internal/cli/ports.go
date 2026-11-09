@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/getcovo/covo/internal/core"
+	"github.com/benbowdev/benbow/internal/core"
 	"github.com/spf13/cobra"
 )
 
@@ -29,7 +29,7 @@ func (r portsResult) Text(w io.Writer) {
 		fmt.Fprintf(w, "HTTP   %d, redirects to HTTPS\n", r.HTTP)
 	}
 	if r.Forwarded && len(r.Active) == 0 {
-		fmt.Fprintln(w, "Forwards are put in place while Covo is running.")
+		fmt.Fprintln(w, "Forwards are put in place while Benbow is running.")
 	}
 	if r.Error != "" {
 		fmt.Fprintf(w, "Helper: %s\n", r.Error)
@@ -43,8 +43,8 @@ func (a *app) portsCmd() *cobra.Command {
 		Use:   "ports",
 		Short: "Show or change the web ports (--https 443 for addresses without a port)",
 		Long: "The HTTPS port is the one in site addresses; 443 leaves it out. The HTTP port\n" +
-			"(0: off) only redirects to HTTPS. 443 and 80 need Covo's helper, installed\n" +
-			"with one administrator password: it forwards them to Covo while Covo runs.",
+			"(0: off) only redirects to HTTPS. 443 and 80 need Benbow's helper, installed\n" +
+			"with one administrator password: it forwards them to Benbow while Benbow runs.",
 		Args: cobra.NoArgs,
 		RunE: a.withCore(func(ctx context.Context, c *core.Core, _ []string) (Result, error) {
 			if !cmd.Flags().Changed("https") && !cmd.Flags().Changed("http") {
@@ -63,7 +63,7 @@ func (a *app) portsCmd() *cobra.Command {
 			}
 			res, err := c.SetPorts(ctx, https, http, func() {
 				if !a.json {
-					fmt.Fprintln(a.stderr, "macOS will now ask for an administrator password to install Covo's helper, which forwards the standard ports to Covo.")
+					fmt.Fprintln(a.stderr, "macOS will now ask for an administrator password to install Benbow's helper, which forwards the standard ports to Benbow.")
 				}
 			})
 			return portsResult(res), err

@@ -13,9 +13,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/getcovo/covo/internal/ca"
-	"github.com/getcovo/covo/internal/caddy"
-	"github.com/getcovo/covo/internal/php"
+	"github.com/benbowdev/benbow/internal/ca"
+	"github.com/benbowdev/benbow/internal/caddy"
+	"github.com/benbowdev/benbow/internal/php"
 )
 
 // TestGeneratedConfigsAreValid feeds generated configs, with spaces in every
@@ -25,19 +25,19 @@ func TestGeneratedConfigsAreValid(t *testing.T) {
 	var c struct {
 		Binary string `json:"binary"`
 	}
-	if err := json.Unmarshal(h.mustCovo("caddy", "install"), &c); err != nil {
+	if err := json.Unmarshal(h.mustBenbow("caddy", "install"), &c); err != nil {
 		t.Fatal(err)
 	}
 	var p struct {
 		Binary string `json:"binary"`
 	}
-	if err := json.Unmarshal(h.mustCovo("php", "install", "8.4"), &p); err != nil {
+	if err := json.Unmarshal(h.mustBenbow("php", "install", "8.4"), &p); err != nil {
 		t.Fatal(err)
 	}
 
 	dir := filepath.Join(t.TempDir(), "with space")
 	// Sockets need a short path (see paths.Layout.Run).
-	run, err := os.MkdirTemp("", "covo e2e")
+	run, err := os.MkdirTemp("", "benbow e2e")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +49,7 @@ func TestGeneratedConfigsAreValid(t *testing.T) {
 	}
 
 	caDir := ca.Dir(filepath.Join(dir, "data/ca"))
-	if _, err := ca.Ensure(caDir, "Covo Test CA", time.Now()); err != nil {
+	if _, err := ca.Ensure(caDir, "Benbow Test CA", time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	caddyfile, err := caddy.Caddyfile(caddy.Config{
@@ -58,7 +58,7 @@ func TestGeneratedConfigsAreValid(t *testing.T) {
 		StorageDir:  filepath.Join(dir, "data/caddy"),
 		LogFile:     filepath.Join(dir, "logs/caddy.log"),
 		CA: caddy.CA{
-			Name: "Covo Test CA", RootCert: caDir.RootCert(),
+			Name: "Benbow Test CA", RootCert: caDir.RootCert(),
 			IntermediateCert: caDir.IntermediateCert(), IntermediateKey: caDir.IntermediateKey(),
 		},
 		Sites: []caddy.Site{{

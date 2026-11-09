@@ -13,23 +13,23 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/importers"
-	"github.com/getcovo/covo/internal/mamp"
-	"github.com/getcovo/covo/internal/store"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/importers"
+	"github.com/benbowdev/benbow/internal/mamp"
+	"github.com/benbowdev/benbow/internal/store"
 )
 
 // EnvMAMPSettings points the importer at another settings6.plist (tests).
-const EnvMAMPSettings = "COVO_MAMP_SETTINGS"
+const EnvMAMPSettings = "BENBOW_MAMP_SETTINGS"
 
 // EnvImportHome replaces the home folder (and / for XAMPP) where the other
 // importers look (tests).
-const EnvImportHome = "COVO_IMPORT_HOME"
+const EnvImportHome = "BENBOW_IMPORT_HOME"
 
 // mampDB is MAMP PRO's MySQL with its default credentials.
 var mampDB = mamp.DBServer{Host: "127.0.0.1", Port: 3306, Socket: "/Applications/MAMP/tmp/mysql/mysql.sock", User: "root", Password: "root"}
 
-// legacyPHP is where PHP versions older than any Covo offers go.
+// legacyPHP is where PHP versions older than any Benbow offers go.
 const legacyPHP = "8.1"
 
 // Import actions.
@@ -44,14 +44,14 @@ type ImportItem struct {
 	Action string    `json:"action"`
 	// Reason says why a host is skipped.
 	Reason string `json:"reason,omitempty"`
-	// Name, Domain and PHP are the Covo site, for "create".
+	// Name, Domain and PHP are the Benbow site, for "create".
 	Name   string `json:"name,omitempty"`
 	Domain string `json:"domain,omitempty"`
 	PHP    string `json:"php,omitempty"`
 	// Aliases are MAMP's aliases mapped like the domain.
 	Aliases []string `json:"aliases,omitempty"`
 	// Database is the MAMP database linked to the new site because it
-	// already exists on Covo's MySQL (only when MAMP linked exactly one).
+	// already exists on Benbow's MySQL (only when MAMP linked exactly one).
 	Database string `json:"database,omitempty"`
 	// Warnings are differences from MAMP the user should know about.
 	Warnings []string `json:"warnings"`
@@ -85,11 +85,11 @@ type ImportOptions struct {
 	// Source is mamp (default), local, herd, valet or xampp.
 	Source string
 	DryRun bool
-	// Sites limits the import to these hosts (server name, or the Covo
+	// Sites limits the import to these hosts (server name, or the Benbow
 	// site name it would get); empty imports every host.
 	Sites []string
 	// Migrate also copies each new site's database and points its
-	// configuration at Covo (see MigrateOptions).
+	// configuration at Benbow (see MigrateOptions).
 	Migrate   bool
 	Migration MigrateOptions
 	// Localhost serves imported sites as <name>.localhost instead of keeping
@@ -97,7 +97,7 @@ type ImportOptions struct {
 	Localhost bool
 }
 
-// ImportMAMP recreates MAMP PRO's hosts as Covo sites, same names and
+// ImportMAMP recreates MAMP PRO's hosts as Benbow sites, same names and
 // document roots. MAMP is never modified: its settings are read from a
 // temporary copy. With DryRun nothing is created.
 func (c *Core) ImportMAMP(ctx context.Context, opts ImportOptions) (ImportPlan, error) {
@@ -149,9 +149,9 @@ func (c *Core) readImportSource(ctx context.Context, source string) ([]mamp.Host
 	return nil, "", errcode.Newf(errcode.InvalidInput, "unknown source %q (%s)", source, strings.Join(importers.Names, ", "))
 }
 
-// Import recreates another tool's sites as Covo sites, same names and
+// Import recreates another tool's sites as Benbow sites, same names and
 // folders, reading its configuration only. With Migrate, each new site's
-// database is copied and its configuration pointed at Covo. With DryRun
+// database is copied and its configuration pointed at Benbow. With DryRun
 // nothing changes.
 func (c *Core) Import(ctx context.Context, opts ImportOptions) (ImportPlan, error) {
 	if opts.Source == "" {
@@ -186,11 +186,11 @@ func (c *Core) Import(ctx context.Context, opts ImportOptions) (ImportPlan, erro
 		}
 		if plan.NeedsLocal {
 			return errcode.Errorf(errcode.ConfirmationRequired,
-				"these sites keep their .local names, which needs `covo domains enable local` first; or pass --localhost to serve them as <name>.localhost")
+				"these sites keep their .local names, which needs `benbow domains enable local` first; or pass --localhost to serve them as <name>.localhost")
 		}
 		if plan.NeedsTest {
 			return errcode.Errorf(errcode.ConfirmationRequired,
-				"these sites keep their .test names, which needs `covo domains enable test` first; or pass --localhost to serve them as <name>.localhost")
+				"these sites keep their .test names, which needs `benbow domains enable test` first; or pass --localhost to serve them as <name>.localhost")
 		}
 		var added []store.Site
 		for _, it := range plan.Items {
@@ -265,7 +265,7 @@ func (c *Core) publicHTTPS(ctx context.Context) int {
 }
 
 // linkImportedDatabases links each new site to its MAMP database when MAMP
-// linked exactly one and a database of that name exists on Covo's MySQL
+// linked exactly one and a database of that name exists on Benbow's MySQL
 // (e.g. copied over with mysqldump). Best effort: without a running MySQL
 // nothing is linked. Callers hold the lock.
 func (c *Core) linkImportedDatabases(ctx context.Context, plan *ImportPlan) {
@@ -339,7 +339,7 @@ func (c *Core) planImport(ctx context.Context, src string, hosts []mamp.Host, op
 			continue
 		}
 		if domains[domain] {
-			skip("a Covo site already uses " + domain)
+			skip("a Benbow site already uses " + domain)
 			continue
 		}
 		base := name
@@ -376,7 +376,7 @@ func (c *Core) planImport(ctx context.Context, src string, hosts []mamp.Host, op
 				it.Warnings = append(it.Warnings, "alias "+a+" not imported: "+err.Error())
 			case ad == domain || slices.Contains(it.Aliases, ad):
 			case domains[ad]:
-				it.Warnings = append(it.Warnings, "alias "+a+" not imported: a Covo site already uses "+ad)
+				it.Warnings = append(it.Warnings, "alias "+a+" not imported: a Benbow site already uses "+ad)
 			case !strings.HasSuffix(ad, "."+suffixLocal) && c.checkSiteDomain(ctx, ad) != nil:
 				it.Warnings = append(it.Warnings, "alias "+a+" not imported: "+c.checkSiteDomain(ctx, ad).Error())
 			default:
@@ -408,7 +408,7 @@ func (c *Core) planImport(ctx context.Context, src string, hosts []mamp.Host, op
 	return plan, nil
 }
 
-// importDomain maps a MAMP server name to a Covo domain and site name.
+// importDomain maps a MAMP server name to a Benbow domain and site name.
 func importDomain(serverName string, toLocalhost bool) (domain, name string, warnings []string, err error) {
 	n := strings.ToLower(strings.TrimSuffix(serverName, "."))
 	if n != serverName {
@@ -418,7 +418,7 @@ func importDomain(serverName string, toLocalhost bool) (domain, name string, war
 	switch {
 	case isLocal:
 	case !strings.Contains(n, "."):
-		warnings = append(warnings, fmt.Sprintf("MAMP served it as %q; Covo needs a reserved suffix", n))
+		warnings = append(warnings, fmt.Sprintf("MAMP served it as %q; Benbow needs a reserved suffix", n))
 		label = n
 	default:
 		if s, err := domainSuffix(n); err == nil && s != suffixLocal {
@@ -449,7 +449,7 @@ func siteName(label string) string {
 	return n
 }
 
-// importPHP maps a MAMP PHP version to one Covo offers.
+// importPHP maps a MAMP PHP version to one Benbow offers.
 func importPHP(version string, available []string) (string, []string, error) {
 	minor := minorOf(version)
 	if validMinor(minor) != nil {

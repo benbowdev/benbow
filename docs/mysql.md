@@ -1,39 +1,39 @@
 # MySQL
 
-Covo runs MySQL 8.4 LTS, the official Oracle build, as the launchd agent
-`dev.getcovo.mysql`.
+Benbow runs MySQL 8.4 LTS, the official Oracle build, as the launchd agent
+`dev.benbow.mysql`.
 
 ```
-covo mysql enable      # download, verify, initialize, start (if Covo is running)
-covo mysql             # status
-covo mysql password    # host, port, socket, user, root password
-covo mysql disable     # stop; databases are kept
+benbow mysql enable      # download, verify, initialize, start (if Benbow is running)
+benbow mysql             # status
+benbow mysql password    # host, port, socket, user, root password
+benbow mysql disable     # stop; databases are kept
 ```
 
 | | |
 |---|---|
 | Host | `127.0.0.1` only (no other interface, X Protocol off) |
-| Port | first free from 3307 (3306 is usually MAMP's), stored; `covo mysql enable --port N` changes it |
-| Socket | `<covo>/run/mysql.sock` |
+| Port | first free from 3307 (3306 is usually MAMP's), stored; `benbow mysql enable --port N` changes it |
+| Socket | `<benbow>/run/mysql.sock` |
 | User | `root`, with a 24-character random password |
-| Data | `~/Library/Application Support/covo/data/mysql` |
+| Data | `~/Library/Application Support/benbow/data/mysql` |
 | Config | `etc/mysql/my.cnf`, generated; error log `logs/mysql-error.log` |
 
 PHP sites need no extra settings: `php.ini` points `mysqli` and `PDO` at
-Covo's socket and port, so `DB_HOST` `localhost` (socket) and a bare
-`127.0.0.1` both reach Covo's MySQL, never another server on 3306.
+Benbow's socket and port, so `DB_HOST` `localhost` (socket) and a bare
+`127.0.0.1` both reach Benbow's MySQL, never another server on 3306.
 `127.0.0.1:3307` works too.
 
 ## Site databases
 
 ```
-covo db create shop               # database "shop" + user "shop" that can only use it
-covo db create shop --name shop_wp
-covo db link blog blog_old        # an existing database; the site connects as root
-covo db show shop --json          # credentials, password included
-covo db list
-covo db unlink shop               # forget the link, keep the data
-covo db unlink shop --drop --yes  # delete the database and the site's user
+benbow db create shop               # database "shop" + user "shop" that can only use it
+benbow db create shop --name shop_wp
+benbow db link blog blog_old        # an existing database; the site connects as root
+benbow db show shop --json          # credentials, password included
+benbow db list
+benbow db unlink shop               # forget the link, keep the data
+benbow db unlink shop --drop --yes  # delete the database and the site's user
 ```
 
 - A created database gets `utf8mb4_unicode_ci` and its own MySQL user
@@ -45,14 +45,14 @@ covo db unlink shop --drop --yes  # delete the database and the site's user
 - SQL with passwords reaches the `mysql` client on its standard input, never
   in its arguments.
 - Removing a site keeps its database; only `unlink --drop` deletes data.
-- `covo uninstall` removes every Covo MySQL password from the keychain (and
-  Covo's other secrets: PostgreSQL, servers, GitHub token).
+- `benbow uninstall` removes every Benbow MySQL password from the keychain (and
+  Benbow's other secrets: PostgreSQL, servers, GitHub token).
 - In the app: the Database line of the site detail (Add → Create or Link,
   Adminer, credentials, wp-config.php settings to copy).
 
 ## Adminer
 
-While MySQL is enabled, Covo serves Adminer 6.2.0 (MySQL-only build, pinned
+While MySQL is enabled, Benbow serves Adminer 6.2.0 (MySQL-only build, pinned
 by SHA-256, the same as GitHub's published digest) at
 `https://adminer.localhost:8443/` on PHP 8.4. `adminer.localhost` cannot be
 used by a site.
@@ -61,12 +61,12 @@ The app opens Adminer already logged in: as root (toolbar button, every
 database) or as a site's own user on its database (site detail). It asks
 the daemon for a one-time login (`POST /v1/adminer/login`), a random
 256-bit token valid once for 60 seconds and kept only in the daemon's
-memory, and opens `https://adminer.localhost:8443/?covo_login=<token>`.
-Covo's front file for Adminer (`etc/adminer/index.php`) exchanges the token
+memory, and opens `https://adminer.localhost:8443/?benbow_login=<token>`.
+Benbow's front file for Adminer (`etc/adminer/index.php`) exchanges the token
 for the credentials over the daemon's Unix socket (`POST
 /v1/adminer/redeem`) and logs in. The password never appears in a URL, the
 clipboard, a file or the browser; a spent or expired token just shows
-Adminer's login form. Without the app, log in with `covo mysql password`.
+Adminer's login form. Without the app, log in with `benbow mysql password`.
 
 ## Binary
 
@@ -74,7 +74,7 @@ Adminer's login form. Without the app, log in with `covo mysql password`.
   SHA-256 in the embedded manifest. Before pinning (2026-10-29) the archive was
   checked against Oracle's GPG signature (key `BCA4 3417 C3B4 85DD 128E C6D4
   B7B3 B788 A8D3 785C`, MySQL Release Engineering, fingerprint as published in
-  the MySQL manual) and the MD5 on the download page; Covo checks that MD5
+  the MySQL manual) and the MD5 on the download page; Benbow checks that MD5
   again on every download, next to the SHA-256.
 - Only what the server and the basic clients need is extracted (about 100 MB
   of the 640 MB the archive expands to): `mysqld`, `mysql`, `mysqladmin`, `mysqldump`, their
@@ -83,20 +83,20 @@ Adminer's login form. Without the app, log in with `covo mysql password`.
   accepted because it is listed in the manifest and points at another
   extracted file.
 - Apple Silicon only: Oracle stopped publishing Intel builds after 8.4.11.
-  On an Intel Mac `covo mysql enable` answers `unsupported`.
+  On an Intel Mac `benbow mysql enable` answers `unsupported`.
 
 ## Root password
 
-- Generated by Covo (24 characters, about 140 bits) and stored in the login
-  keychain as a generic password, service `dev.getcovo.mysql`, account `root`.
+- Generated by Benbow (24 characters, about 140 bits) and stored in the login
+  keychain as a generic password, service `dev.benbow.mysql`, account `root`.
   It is stored before the data directory is created, so it can never be lost.
 - It is never in a command line, an environment variable or a file:
   - the data directory is initialized with `--initialize-insecure
     --init-file=/dev/fd/3`, and the `ALTER USER` comes through a pipe, so
     root has its password from the first moment;
-  - Covo talks to the keychain through the standard input of `security -i`;
+  - Benbow talks to the keychain through the standard input of `security -i`;
   - the `mysql` client gets it through `--defaults-extra-file=/dev/fd/3`.
-- `covo mysql password` prints it, for a GUI client or `wp-config.php`.
+- `benbow mysql password` prints it, for a GUI client or `wp-config.php`.
 
 ## Server settings
 
@@ -110,9 +110,9 @@ large imports. On the usual case-insensitive APFS volume MySQL itself sets
 
 ## Lifecycle
 
-- `covo mysql disable` stops the server and keeps databases and password.
-- `covo uninstall` deletes the data directory with the rest of Covo's home and
+- `benbow mysql disable` stops the server and keeps databases and password.
+- `benbow uninstall` deletes the data directory with the rest of Benbow's home and
   removes the keychain item.
 - Tests use the test launchd prefix as keychain service, so they never see
   the real password; the e2e inventory checks the login keychain for leftover
-  Covo items.
+  Benbow items.

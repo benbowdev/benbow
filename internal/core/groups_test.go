@@ -12,20 +12,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/paths"
-	"github.com/getcovo/covo/internal/store"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/paths"
+	"github.com/benbowdev/benbow/internal/store"
 )
 
 func groupsCore(t *testing.T) *Core {
 	t.Helper()
 	dir := t.TempDir()
-	st, err := store.Open(context.Background(), filepath.Join(dir, "covo.db"))
+	st, err := store.Open(context.Background(), filepath.Join(dir, "benbow.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = st.Close() })
-	return &Core{Store: st, Layout: paths.Layout{Lock: filepath.Join(dir, "covo.lock")}}
+	return &Core{Store: st, Layout: paths.Layout{Lock: filepath.Join(dir, "benbow.lock")}}
 }
 
 func TestGroups(t *testing.T) {

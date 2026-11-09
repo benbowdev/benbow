@@ -1,5 +1,5 @@
 name: Bug report
-description: Something in Covo does not work as expected
+description: Something in Benbow does not work as expected
 labels: [bug]
 body:
   - type: markdown
@@ -15,8 +15,8 @@ body:
   - type: input
     id: version
     attributes:
-      label: Covo version
-      description: Covo → About Covo, or `covo version`.
+      label: Benbow version
+      description: Benbow → About Benbow, or `benbow version`.
     validations:
       required: true
   - type: input
@@ -30,5 +30,5 @@ body:
     id: logs
     attributes:
       label: Logs
-      description: The site's Logs window, or files from ~/Library/Application Support/covo/logs/. Remove anything private first.
+      description: The site's Logs window, or files from ~/Library/Application Support/benbow/logs/. Remove anything private first.
       render: text

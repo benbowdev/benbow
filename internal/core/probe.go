@@ -23,17 +23,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/getcovo/covo/internal/caddy"
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/store"
+	"github.com/benbowdev/benbow/internal/caddy"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/store"
 )
 
-// fetch_page: Covo requests a page of one of its sites, the way a browser
+// fetch_page: Benbow requests a page of one of its sites, the way a browser
 // would, and returns the status, headers, redirects, the page's text and
 // the PHP errors, warnings and deprecations that request produced. Each
-// request carries an X-Covo-Probe header: Caddy then gives that request
+// request carries an X-Benbow-Probe header: Caddy then gives that request
 // its own PHP error log (caddy.Site.ProbeDir), so errors are matched to it
-// exactly. Sites cost nothing extra when Covo does not fetch.
+// exactly. Sites cost nothing extra when Benbow does not fetch.
 
 const (
 	maxFetchRedirects = 10
@@ -47,7 +47,7 @@ func (c *Core) probeDir() string { return filepath.Join(c.Layout.Tmp, "probes") 
 // FetchRequest is one page to fetch.
 type FetchRequest struct {
 	Site string
-	// Path is a path on the site ("/shop/?p=1") or a full URL on any Covo
+	// Path is a path on the site ("/shop/?p=1") or a full URL on any Benbow
 	// site's address.
 	Path   string
 	Method string // GET (default) or HEAD
@@ -70,7 +70,7 @@ type FetchResult struct {
 	// PHP lists what PHP logged for these requests (redirects included).
 	PHP []PHPMessage `json:"php"`
 	// AppOutput is what an app's dev server printed while answering (apps
-	// Covo starts), in place of PHP errors.
+	// Benbow starts), in place of PHP errors.
 	AppOutput []string `json:"app_output,omitempty"`
 }
 
@@ -88,7 +88,7 @@ type PHPMessage struct {
 	Line    int    `json:"line,omitempty"`
 }
 
-// FetchPage requests a page of a Covo site (never another address).
+// FetchPage requests a page of a Benbow site (never another address).
 func (c *Core) FetchPage(ctx context.Context, req FetchRequest) (FetchResult, error) {
 	var res FetchResult
 	site, err := c.Store.Site(ctx, req.Site)
@@ -106,7 +106,7 @@ func (c *Core) FetchPage(ctx context.Context, req FetchRequest) (FetchResult, er
 	if err != nil {
 		return res, err
 	}
-	hosts, err := c.covoHosts(ctx)
+	hosts, err := c.benbowHosts(ctx)
 	if err != nil {
 		return res, err
 	}
@@ -146,10 +146,10 @@ func (c *Core) FetchPage(ctx context.Context, req FetchRequest) (FetchResult, er
 			return res, errcode.New(errcode.InvalidInput, err)
 		}
 		r.Header.Set(caddy.ProbeHeader, id)
-		r.Header.Set("User-Agent", "Covo fetch_page")
+		r.Header.Set("User-Agent", "Benbow fetch_page")
 		resp, err = client.Do(r)
 		if err != nil {
-			return res, errcode.New(errcode.Service, fmt.Errorf("request %s: %w (is Covo started and the site on?)", target, err))
+			return res, errcode.New(errcode.Service, fmt.Errorf("request %s: %w (is Benbow started and the site on?)", target, err))
 		}
 		loc := resp.Header.Get("Location")
 		if resp.StatusCode < 300 || resp.StatusCode >= 400 || loc == "" {
@@ -238,8 +238,8 @@ func appOutputSince(log string, from int64) []string {
 
 const maxOutputHTML = 100 << 10
 
-// covoHosts are the domains and aliases of every site.
-func (c *Core) covoHosts(ctx context.Context) ([]string, error) {
+// benbowHosts are the domains and aliases of every site.
+func (c *Core) benbowHosts(ctx context.Context) ([]string, error) {
 	sites, err := c.Store.ListSites(ctx)
 	if err != nil {
 		return nil, err
@@ -253,7 +253,7 @@ func (c *Core) covoHosts(ctx context.Context) ([]string, error) {
 }
 
 // fetchTarget resolves path against the site's address; a full URL must
-// be on a Covo site.
+// be on a Benbow site.
 func fetchTarget(base, path string, hosts []string) (*url.URL, error) {
 	b, err := url.Parse(base)
 	if err != nil {
@@ -270,7 +270,7 @@ func fetchTarget(base, path string, hosts []string) (*url.URL, error) {
 		u.Scheme, u.Host = "https", strings.ToLower(u.Hostname())+portSuffix(b)
 	}
 	if u.Scheme != "https" || !slices.Contains(hosts, strings.ToLower(u.Hostname())) {
-		return nil, errcode.Newf(errcode.Forbidden, "%s is not a Covo site: fetch_page only opens Covo's own sites", u.Redacted())
+		return nil, errcode.Newf(errcode.Forbidden, "%s is not a Benbow site: fetch_page only opens Benbow's own sites", u.Redacted())
 	}
 	return u, nil
 }
@@ -283,15 +283,15 @@ func portSuffix(u *url.URL) string {
 }
 
 // fetchClient connects to Caddy on loopback whatever the address resolves
-// to, trusting only Covo's CA, and follows no redirect by itself.
+// to, trusting only Benbow's CA, and follows no redirect by itself.
 func (c *Core) fetchClient(listen int) (*http.Client, error) {
 	pem, err := os.ReadFile(c.caddyCA().RootCert)
 	if err != nil {
-		return nil, errcode.New(errcode.Service, fmt.Errorf("read Covo's CA: %w", err))
+		return nil, errcode.New(errcode.Service, fmt.Errorf("read Benbow's CA: %w", err))
 	}
 	pool := x509.NewCertPool()
 	if !pool.AppendCertsFromPEM(pem) {
-		return nil, errcode.Errorf(errcode.Service, "Covo's CA certificate is not valid")
+		return nil, errcode.Errorf(errcode.Service, "Benbow's CA certificate is not valid")
 	}
 	dialer := &net.Dialer{Timeout: 10 * time.Second}
 	tr := &http.Transport{

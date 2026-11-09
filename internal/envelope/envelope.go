@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 Andrea Casali
 
-// Package envelope is the stable JSON shape shared by `covo --json` and the
+// Package envelope is the stable JSON shape shared by `benbow --json` and the
 // local API, so every client parses the same document.
 package envelope
 
@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/getcovo/covo/internal/errcode"
+	"github.com/benbowdev/benbow/internal/errcode"
 )
 
 // SchemaVersion is the version of the envelope. Bump it only on a breaking

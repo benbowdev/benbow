@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 Andrea Casali
 
-// Package paths defines where Covo keeps everything on disk. All files Covo
-// creates live under Root (~/Library/Application Support/covo by default); the
+// Package paths defines where Benbow keeps everything on disk. All files Benbow
+// creates live under Root (~/Library/Application Support/benbow by default); the
 // only exception is the socket fallback directory, see RunDir.
 package paths
 
@@ -15,20 +15,20 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/getcovo/covo/internal/errcode"
+	"github.com/benbowdev/benbow/internal/errcode"
 )
 
 // EnvHome overrides the root directory (used by tests).
-const EnvHome = "COVO_HOME"
+const EnvHome = "BENBOW_HOME"
 
 // maxSocketPath is the usable length of sockaddr_un.sun_path on macOS
 // (104 bytes including the trailing NUL).
 const maxSocketPath = 103
 
-// longestSocketName is the longest socket file name Covo creates in RunDir.
+// longestSocketName is the longest socket file name Benbow creates in RunDir.
 const longestSocketName = "caddy-admin.sock"
 
-// Layout is the resolved set of Covo directories and files.
+// Layout is the resolved set of Benbow directories and files.
 type Layout struct {
 	Root    string `json:"root"`
 	Bin     string `json:"bin"`
@@ -44,7 +44,7 @@ type Layout struct {
 	Lock string `json:"lock"`
 }
 
-// Default returns the layout rooted at $COVO_HOME or the standard location.
+// Default returns the layout rooted at $BENBOW_HOME or the standard location.
 func Default() (Layout, error) {
 	root := os.Getenv(EnvHome)
 	if root == "" {
@@ -52,7 +52,7 @@ func Default() (Layout, error) {
 		if err != nil {
 			return Layout{}, fmt.Errorf("resolve home directory: %w", err)
 		}
-		root = filepath.Join(home, "Library", "Application Support", "covo")
+		root = filepath.Join(home, "Library", "Application Support", "benbow")
 	}
 	return New(root)
 }
@@ -60,7 +60,7 @@ func Default() (Layout, error) {
 // New returns the layout rooted at root, which must be absolute.
 func New(root string) (Layout, error) {
 	if !filepath.IsAbs(root) {
-		return Layout{}, errcode.Newf(errcode.InvalidInput, "covo home must be an absolute path: %q", root)
+		return Layout{}, errcode.Newf(errcode.InvalidInput, "benbow home must be an absolute path: %q", root)
 	}
 	root = filepath.Clean(root)
 	l := Layout{
@@ -72,8 +72,8 @@ func New(root string) (Layout, error) {
 		Logs:    filepath.Join(root, "logs"),
 		Tmp:     filepath.Join(root, "tmp"),
 		Run:     filepath.Join(root, "run"),
-		DB:      filepath.Join(root, "covo.db"),
-		Lock:    filepath.Join(root, "covo.lock"),
+		DB:      filepath.Join(root, "benbow.db"),
+		Lock:    filepath.Join(root, "benbow.lock"),
 	}
 	if len(filepath.Join(l.Run, longestSocketName)) > maxSocketPath {
 		l.Run = fallbackRunDir(root)
@@ -85,7 +85,7 @@ func New(root string) (Layout, error) {
 // that test homes never share sockets with the real one.
 func fallbackRunDir(root string) string {
 	sum := sha256.Sum256([]byte(root))
-	return filepath.Join(os.TempDir(), fmt.Sprintf("covo-%d-%s", os.Getuid(), hex.EncodeToString(sum[:4])))
+	return filepath.Join(os.TempDir(), fmt.Sprintf("benbow-%d-%s", os.Getuid(), hex.EncodeToString(sum[:4])))
 }
 
 // Ensure creates the directory tree with restrictive permissions.

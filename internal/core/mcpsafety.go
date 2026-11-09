@@ -9,8 +9,8 @@ import (
 	"slices"
 	"time"
 
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/store"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/store"
 )
 
 // AI agents (MCP) are read-only unless the user allows writes, for one site
@@ -26,7 +26,7 @@ type MCPPermissions struct {
 	// Sites lists the sites agents may change.
 	Sites []string `json:"sites"`
 	// Temporary lists the sites agents may change only while the agent
-	// session Covo opened for "Work with an agent" lasts.
+	// session Benbow opened for "Work with an agent" lasts.
 	Temporary []string `json:"temporary"`
 }
 
@@ -84,7 +84,7 @@ func (c *Core) CheckMCPWrite(ctx context.Context, site string) error {
 		what = "changes to " + site
 	}
 	return errcode.Newf(errcode.Forbidden,
-		"AI agents are read-only for %s: the user can allow them in Covo → Settings → AI agents, or with `covo mcp allow %s`",
+		"AI agents are read-only for %s: the user can allow them in Benbow → Settings → AI agents, or with `benbow mcp allow %s`",
 		what, map[bool]string{true: site, false: MCPAll}[site != ""])
 
 }

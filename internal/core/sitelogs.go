@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/getcovo/covo/internal/errcode"
+	"github.com/benbowdev/benbow/internal/errcode"
 )
 
 // Site log kinds.

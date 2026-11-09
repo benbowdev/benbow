@@ -1,29 +1,29 @@
 # Production and staging
 
 ```sh
-covo remote set shop --kind production --host example.com --user deploy \
+benbow remote set shop --kind production --host example.com --user deploy \
   --path /var/www/shop --url https://shop.example.com            # SSH (default)
-covo remote set shop --kind staging --name stage --transport sftp --host … --password …
-covo remote show shop
-covo pull shop                  # from "production": database + uploads
-covo pull shop stage --dry-run  # what would change
-covo push shop stage            # staging only; asks first (--yes)
-covo remote remove shop stage
+benbow remote set shop --kind staging --name stage --transport sftp --host … --password …
+benbow remote show shop
+benbow pull shop                  # from "production": database + uploads
+benbow pull shop stage --dry-run  # what would change
+benbow push shop stage            # staging only; asks first (--yes)
+benbow remote remove shop stage
 ```
 
 A **remote** is a copy of the site on a server: `production` (pull only) or
-`staging` (pull and push). Covo never pushes to production.
+`staging` (pull and push). Benbow never pushes to production.
 
 | Transport | Login | Files | Database |
 |---|---|---|---|
 | `ssh` | `/usr/bin/ssh`: your keys, ssh-agent and `~/.ssh/config` | `/usr/bin/rsync` (openrsync) | the server's `wp db export`/`wp db import` when it has wp-cli, else `mysqldump`/`mysql` with the credentials of the remote `wp-config.php` or `.env` |
 | `sftp` | same, for hosts that give SFTP but no shell | SFTP (`ssh -s sftp`) | the PHP bridge |
-| `ftps`, `ftp` | user and password | FTP (`ftp` is unencrypted: Covo warns) | the PHP bridge |
+| `ftps`, `ftp` | user and password | FTP (`ftp` is unencrypted: Benbow warns) | the PHP bridge |
 
-Covo never creates or changes `~/.ssh`. New host keys are accepted the first
+Benbow never creates or changes `~/.ssh`. New host keys are accepted the first
 time (`StrictHostKeyChecking=accept-new`), a changed one is refused. A
 password (`--password`, asked on the terminal; any character) is kept in the login keychain
-(`dev.getcovo.remote`, removed by `covo uninstall`); ssh gets it through `SSH_ASKPASS` = `covo askpass`,
+(`dev.benbow.remote`, removed by `benbow uninstall`); ssh gets it through `SSH_ASKPASS` = `benbow askpass`,
 never as an argument. Database credentials read on the server are used for
 that run only: over SSH they reach `mysqldump` on its stdin (or a private
 file removed at once, when stdin carries the SQL).
@@ -50,18 +50,18 @@ writes the converted dump without changing the local database.
 
 ## The PHP bridge (hosts without SSH)
 
-Covo uploads `covo-bridge-<random>.php` into the remote web folder (`--path`,
+Benbow uploads `benbow-bridge-<random>.php` into the remote web folder (`--path`,
 plus `--webroot public` for Laravel) and calls it over HTTPS with a 256-bit
 token in a header. It reads the database settings from `wp-config.php` or
 `.env` next to it, answers only requests with the token, stops working 10
-minutes after it was written and then deletes itself; Covo deletes it as soon
+minutes after it was written and then deletes itself; Benbow deletes it as soon
 as it is done, whatever happens. Dumps are streamed (gzip, 200 rows per
 `INSERT`); imports are sent with their size. Some hosts block new PHP files
-(WAF, mod_security): Covo then says the bridge did not answer.
+(WAF, mod_security): Benbow then says the bridge did not answer.
 
 The remote's address must be `https://` (plain `http://` only for loopback
 addresses): over HTTP the token and the whole database would cross the network
-in clear. Covo never follows a redirect from the bridge, which would carry the
+in clear. Benbow never follows a redirect from the bridge, which would carry the
 token along; it reports the new address so the remote can be set to it.
 
 `--dry-run` shows the files that would change and what would happen to the

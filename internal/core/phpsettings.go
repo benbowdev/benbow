@@ -12,9 +12,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/php"
-	"github.com/getcovo/covo/internal/store"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/php"
+	"github.com/benbowdev/benbow/internal/store"
 )
 
 func settingPHP(minor string) string { return "php_settings_" + minor }
@@ -29,7 +29,7 @@ type PHPSettings struct {
 type PHPSettingsResult struct {
 	PHPSettings
 	Changed bool `json:"changed"`
-	// Applied is false when Covo is stopped: PHP-FPM picks it up on start.
+	// Applied is false when Benbow is stopped: PHP-FPM picks it up on start.
 	Applied bool `json:"applied"`
 }
 
@@ -55,7 +55,7 @@ func (c *Core) GetPHPSettings(ctx context.Context, minor string) (PHPSettings, e
 }
 
 // SetPHPSettings changes php.ini values (name → value, e.g. "memory_limit"
-// → "1G") for a PHP minor version and restarts its PHP-FPM if Covo is
+// → "1G") for a PHP minor version and restarts its PHP-FPM if Benbow is
 // running. Nothing is saved unless every value is valid.
 func (c *Core) SetPHPSettings(ctx context.Context, minor string, values map[string]string) (PHPSettingsResult, error) {
 	res := PHPSettingsResult{PHPSettings: PHPSettings{PHP: minor}}
@@ -136,7 +136,7 @@ func (c *Core) GetSitePHPSettings(ctx context.Context, name string) (SitePHPSett
 
 // SetSitePHPSettings sets php.ini values for one site (name → value); an
 // empty value removes the site's own value so its PHP version's applies.
-// Applied at once if Covo is running.
+// Applied at once if Benbow is running.
 func (c *Core) SetSitePHPSettings(ctx context.Context, name string, values map[string]string) (SitePHPSettings, error) {
 	var res SitePHPSettings
 	err := c.locked(ctx, func() error {
@@ -182,7 +182,7 @@ func withSitePHPValues(current, values map[string]string) (map[string]string, er
 	for k, v := range values {
 		if !slices.Contains(php.SettingNames, k) {
 			return nil, errcode.Newf(errcode.InvalidInput,
-				"unknown PHP setting %q; Covo manages %s", k, strings.Join(php.SettingNames, ", "))
+				"unknown PHP setting %q; Benbow manages %s", k, strings.Join(php.SettingNames, ", "))
 
 		}
 		if strings.TrimSpace(v) == "" {

@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/getcovo/covo/internal/errcode"
+	"github.com/benbowdev/benbow/internal/errcode"
 )
 
 // Migration records what an assisted migration did to a site, so that it
@@ -52,7 +52,7 @@ func (s *Store) Migration(ctx context.Context, site string) (Migration, error) {
 		FROM site_migrations WHERE site = ?`, site).
 		Scan(&m.Site, &m.Source, &m.DBName, &m.DBUser, &m.CreatedDB, &m.ConfigPath, &m.BackupPath, &m.URLFrom, &m.URLTo, &at)
 	if errors.Is(err, sql.ErrNoRows) {
-		return m, errcode.Newf(errcode.NotFound, "%s was not migrated by Covo", site)
+		return m, errcode.Newf(errcode.NotFound, "%s was not migrated by Benbow", site)
 	}
 	if err != nil {
 		return m, fmt.Errorf("read migration of %s: %w", site, err)

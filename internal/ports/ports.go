@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 Andrea Casali
 
-// Package ports checks that TCP ports are free before Covo binds them.
+// Package ports checks that TCP ports are free before Benbow binds them.
 package ports
 
 import (
@@ -16,11 +16,11 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/getcovo/covo/internal/errcode"
+	"github.com/benbowdev/benbow/internal/errcode"
 )
 
 // Free reports whether port can be bound on both loopback addresses, which
-// is where Covo listens.
+// is where Benbow listens.
 func Free(port int) bool {
 	for _, host := range []string{"127.0.0.1", "::1"} {
 		l, err := net.Listen("tcp", net.JoinHostPort(host, strconv.Itoa(port)))
@@ -33,7 +33,7 @@ func Free(port int) bool {
 }
 
 // FreeDNS reports whether port is free for both UDP and TCP on 127.0.0.1,
-// where Covo's DNS server listens.
+// where Benbow's DNS server listens.
 func FreeDNS(port int) bool {
 	addr := net.JoinHostPort("127.0.0.1", strconv.Itoa(port))
 	pc, err := net.ListenPacket("udp", addr)

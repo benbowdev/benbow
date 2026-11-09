@@ -44,10 +44,10 @@ func TestBridgeSource(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.HasPrefix(b.File, "covo-bridge-") || len(b.Token) != 64 || b.URL != "https://shop.example.com/"+b.File {
+	if !strings.HasPrefix(b.File, "benbow-bridge-") || len(b.Token) != 64 || b.URL != "https://shop.example.com/"+b.File {
 		t.Fatalf("bridge = %+v", b)
 	}
-	if !strings.Contains(src, "'"+b.Token+"'") || strings.Contains(src, "COVO_TOKEN_VALUE") || strings.Contains(src, "COVO_EXPIRES_VALUE") {
+	if !strings.Contains(src, "'"+b.Token+"'") || strings.Contains(src, "BENBOW_TOKEN_VALUE") || strings.Contains(src, "BENBOW_EXPIRES_VALUE") {
 		t.Fatal("token or expiry not filled in")
 	}
 	if !strings.Contains(src, "hash_equals") || !strings.Contains(src, "unlink(__FILE__)") {

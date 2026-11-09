@@ -15,9 +15,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/paths"
-	"github.com/getcovo/covo/internal/store"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/paths"
+	"github.com/benbowdev/benbow/internal/store"
 )
 
 func TestParseBlueprint(t *testing.T) {
@@ -166,7 +166,7 @@ func TestInstallPackageRecordsSHA256(t *testing.T) {
 	defer func() { wporgAPI, wporgDownloads = oldAPI, oldDL }()
 
 	dir := t.TempDir()
-	st, err := store.Open(ctx, filepath.Join(dir, "covo.db"))
+	st, err := store.Open(ctx, filepath.Join(dir, "benbow.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -11,8 +11,8 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/store"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/store"
 )
 
 // Groups organize the site list into nested folders. They only matter to
@@ -402,7 +402,7 @@ func (c *Core) ResolveGroup(ctx context.Context, path string) (int64, error) {
 			return g.ID, nil
 		}
 	}
-	return 0, errcode.Newf(errcode.NotFound, "group %q not found (see covo group list)", path)
+	return 0, errcode.Newf(errcode.NotFound, "group %q not found (see benbow group list)", path)
 }
 
 // AddGroupPath creates every missing group along path ("Clients/Acme") and

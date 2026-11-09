@@ -29,13 +29,13 @@ func TestTestDomains(t *testing.T) {
 
 	// .test is refused until enabled; other suffixes are always refused.
 	site := newSite(t)
-	if env := h.covo("site", "add", "demo", "--domain", "demo.covo.test", "--path", site); env.OK || env.Error.Code != "unsupported" {
+	if env := h.benbow("site", "add", "demo", "--domain", "demo.benbow.test", "--path", site); env.OK || env.Error.Code != "unsupported" {
 		t.Fatalf("site add .test before enable: %+v", env.Error)
 	}
 	for domain, code := range map[string]string{
-		"demo.covo": "invalid_input", "example.com": "invalid_input", "demo.local": "unsupported", "Demo.test": "invalid_input",
+		"demo.benbow": "invalid_input", "example.com": "invalid_input", "demo.local": "unsupported", "Demo.test": "invalid_input",
 	} {
-		if env := h.covo("site", "add", "x", "--domain", domain, "--path", site); env.OK || env.Error.Code != code {
+		if env := h.benbow("site", "add", "x", "--domain", domain, "--path", site); env.OK || env.Error.Code != code {
 			t.Errorf("--domain %s: %+v, want %s", domain, env.Error, code)
 		}
 	}
@@ -49,7 +49,7 @@ func TestTestDomains(t *testing.T) {
 			Installed bool   `json:"installed"`
 		} `json:"resolver"`
 	}
-	if err := json.Unmarshal(h.mustCovo("domains", "enable", "test"), &enabled); err != nil {
+	if err := json.Unmarshal(h.mustBenbow("domains", "enable", "test"), &enabled); err != nil {
 		t.Fatal(err)
 	}
 	if !enabled.Enabled || !enabled.Changed || !enabled.Resolver.Installed || enabled.Resolver.Path != resolverFile {
@@ -62,15 +62,15 @@ func TestTestDomains(t *testing.T) {
 	if !strings.Contains(string(body), "\nnameserver 127.0.0.1\nport "+strconv.Itoa(enabled.DNSPort)+"\n") {
 		t.Fatalf("resolver file:\n%s", body)
 	}
-	if err := json.Unmarshal(h.mustCovo("domains", "enable", "test"), &enabled); err != nil || enabled.Changed {
+	if err := json.Unmarshal(h.mustBenbow("domains", "enable", "test"), &enabled); err != nil || enabled.Changed {
 		t.Fatalf("second enable must change nothing: %+v %v", enabled, err)
 	}
 
-	h.mustCovo("site", "add", "demo", "--domain", "demo.covo.test", "--php", "8.4", "--path", site)
-	if env := h.covo("site", "add", "other", "--domain", "demo.covo.test", "--path", site); env.OK || env.Error.Code != "conflict" {
+	h.mustBenbow("site", "add", "demo", "--domain", "demo.benbow.test", "--php", "8.4", "--path", site)
+	if env := h.benbow("site", "add", "other", "--domain", "demo.benbow.test", "--path", site); env.OK || env.Error.Code != "conflict" {
 		t.Fatalf("duplicate domain: %+v", env.Error)
 	}
-	h.mustCovo("start")
+	h.mustBenbow("start")
 
 	var status struct {
 		Services []struct {
@@ -85,7 +85,7 @@ func TestTestDomains(t *testing.T) {
 			CertPath string `json:"cert_path"`
 		} `json:"ca"`
 	}
-	if err := json.Unmarshal(h.mustCovo("status"), &status); err != nil {
+	if err := json.Unmarshal(h.mustBenbow("status"), &status); err != nil {
 		t.Fatal(err)
 	}
 	dnsPID := 0
@@ -97,7 +97,7 @@ func TestTestDomains(t *testing.T) {
 	if dnsPID == 0 {
 		t.Fatalf("dns service not running: %+v", status.Services)
 	}
-	wantURL := "https://demo.covo.test:" + strconv.Itoa(h.port)
+	wantURL := "https://demo.benbow.test:" + strconv.Itoa(h.port)
 	if len(status.Sites) != 1 || status.Sites[0].URL != wantURL {
 		t.Fatalf("sites = %+v", status.Sites)
 	}
@@ -109,10 +109,10 @@ func TestTestDomains(t *testing.T) {
 	}}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	ips, err := r.LookupHost(ctx, "demo.covo.test")
+	ips, err := r.LookupHost(ctx, "demo.benbow.test")
 	slices.Sort(ips)
 	if err != nil || !slices.Equal(ips, []string{"127.0.0.1", "::1"}) {
-		t.Fatalf("lookup demo.covo.test = %v, %v", ips, err)
+		t.Fatalf("lookup demo.benbow.test = %v, %v", ips, err)
 	}
 	if ips, err := r.LookupHost(ctx, "example.com"); err == nil {
 		t.Fatalf("example.com resolved to %v", ips)
@@ -130,7 +130,7 @@ func TestTestDomains(t *testing.T) {
 		}
 	}
 
-	// HTTPS on the .test domain, resolved by Covo's DNS, trusting only Covo's CA.
+	// HTTPS on the .test domain, resolved by Benbow's DNS, trusting only Benbow's CA.
 	pem, err := os.ReadFile(status.CA.CertPath)
 	if err != nil {
 		t.Fatal(err)
@@ -158,15 +158,15 @@ func TestTestDomains(t *testing.T) {
 	}
 
 	// Disable refuses while a site uses .test, then removes everything.
-	if env := h.covo("domains", "disable", "test"); env.OK || env.Error.Code != "conflict" {
+	if env := h.benbow("domains", "disable", "test"); env.OK || env.Error.Code != "conflict" {
 		t.Fatalf("disable with a .test site: %+v", env.Error)
 	}
-	h.mustCovo("site", "remove", "demo")
-	h.mustCovo("domains", "disable", "test")
+	h.mustBenbow("site", "remove", "demo")
+	h.mustBenbow("domains", "disable", "test")
 	if _, err := os.Stat(h.resolverDir); !os.IsNotExist(err) {
-		t.Fatalf("resolver dir created by Covo must be gone: %v", err)
+		t.Fatalf("resolver dir created by Benbow must be gone: %v", err)
 	}
-	if err := json.Unmarshal(h.mustCovo("status"), &status); err != nil {
+	if err := json.Unmarshal(h.mustBenbow("status"), &status); err != nil {
 		t.Fatal(err)
 	}
 	for _, s := range status.Services {
@@ -182,13 +182,13 @@ func TestTestDomains(t *testing.T) {
 
 func TestUninstallRemovesResolverFile(t *testing.T) {
 	h := newHarness(t)
-	h.mustCovo("domains", "enable", "test")
-	h.mustCovo("start")
+	h.mustBenbow("domains", "enable", "test")
+	h.mustBenbow("start")
 	var plan struct {
 		Resolver []string `json:"resolver"`
 		Done     bool     `json:"done"`
 	}
-	if err := json.Unmarshal(h.mustCovo("uninstall", "--yes"), &plan); err != nil {
+	if err := json.Unmarshal(h.mustBenbow("uninstall", "--yes"), &plan); err != nil {
 		t.Fatal(err)
 	}
 	if !plan.Done || len(plan.Resolver) != 1 {
@@ -209,10 +209,10 @@ func TestForeignResolverFileIsKept(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(h.resolverDir, "test"), []byte(foreign), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if env := h.covo("domains", "enable", "test"); env.OK || env.Error.Code != "conflict" {
+	if env := h.benbow("domains", "enable", "test"); env.OK || env.Error.Code != "conflict" {
 		t.Fatalf("enable over a foreign file: %+v", env.Error)
 	}
-	h.mustCovo("uninstall", "--yes")
+	h.mustBenbow("uninstall", "--yes")
 	if b, _ := os.ReadFile(filepath.Join(h.resolverDir, "test")); string(b) != foreign {
 		t.Fatal("foreign resolver file modified")
 	}

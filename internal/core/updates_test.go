@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/getcovo/covo/internal/version"
+	"github.com/benbowdev/benbow/internal/version"
 )
 
 func TestDueForAutoCheck(t *testing.T) {
@@ -108,7 +108,7 @@ func TestFirstVerifiedFallsBack(t *testing.T) {
 	}
 	for _, s := range seen() {
 		if !strings.HasSuffix(s, " "+version.UserAgent()) {
-			t.Fatalf("request without Covo's User-Agent: %q", s)
+			t.Fatalf("request without Benbow's User-Agent: %q", s)
 		}
 	}
 }

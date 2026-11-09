@@ -5,10 +5,10 @@
 import PackageDescription
 
 let package = Package(
-    name: "Covo",
+    name: "Benbow",
     platforms: [.macOS(.v14)],
     products: [
-        .executable(name: "Covo", targets: ["Covo"]),
+        .executable(name: "Benbow", targets: ["Benbow"]),
     ],
     dependencies: [
         // App updates (docs/updates.md). Exact version: SwiftPM checks the
@@ -16,17 +16,17 @@ let package = Package(
         .package(url: "https://github.com/sparkle-project/Sparkle", exact: "2.10.1"),
     ],
     targets: [
-        // CovoKit talks to the core's local API; no UI, fully testable.
-        .target(name: "CovoKit"),
+        // BenbowKit talks to the core's local API; no UI, fully testable.
+        .target(name: "BenbowKit"),
         .executableTarget(
-            name: "Covo",
-            dependencies: ["CovoKit", .product(name: "Sparkle", package: "Sparkle")],
+            name: "Benbow",
+            dependencies: ["BenbowKit", .product(name: "Sparkle", package: "Sparkle")],
             // Sparkle.framework sits in Contents/Frameworks of the bundle.
             linkerSettings: [.unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"])]
         ),
         .testTarget(
-            name: "CovoKitTests",
-            dependencies: ["CovoKit"],
+            name: "BenbowKitTests",
+            dependencies: ["BenbowKit"],
             resources: [.copy("Fixtures")]
         ),
     ]

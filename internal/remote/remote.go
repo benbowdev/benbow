@@ -25,7 +25,7 @@ import (
 	"github.com/jlaffaye/ftp"
 	"github.com/pkg/sftp"
 
-	"github.com/getcovo/covo/internal/errcode"
+	"github.com/benbowdev/benbow/internal/errcode"
 )
 
 // Transports.
@@ -38,8 +38,8 @@ const (
 
 // Env overrides for tests: another ssh and rsync.
 const (
-	EnvSSH   = "COVO_SSH"
-	EnvRsync = "COVO_RSYNC"
+	EnvSSH   = "BENBOW_SSH"
+	EnvRsync = "BENBOW_RSYNC"
 )
 
 // Server is how to log in. Password, when set, comes from the keychain and
@@ -50,7 +50,7 @@ type Server struct {
 	Port      int
 	User      string
 	Password  string
-	// AskPass is the program ssh asks for the password (Covo itself with
+	// AskPass is the program ssh asks for the password (Benbow itself with
 	// its askpass command), with AskPassEnv telling it which item to read.
 	AskPass    string
 	AskPassEnv []string
@@ -116,7 +116,7 @@ func (s Server) target() string {
 func (s Server) sshEnv() []string {
 	env := os.Environ()
 	if s.Password != "" && s.AskPass != "" {
-		env = append(env, "SSH_ASKPASS="+s.AskPass, "SSH_ASKPASS_REQUIRE=force", "DISPLAY=covo:0")
+		env = append(env, "SSH_ASKPASS="+s.AskPass, "SSH_ASKPASS_REQUIRE=force", "DISPLAY=benbow:0")
 		env = append(env, s.AskPassEnv...)
 	}
 	return env

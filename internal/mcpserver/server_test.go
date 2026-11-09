@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/getcovo/covo/internal/core"
-	"github.com/getcovo/covo/internal/errcode"
+	"github.com/benbowdev/benbow/internal/core"
+	"github.com/benbowdev/benbow/internal/errcode"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -49,14 +49,14 @@ func TestTools(t *testing.T) {
 			t.Errorf("tool %s deletes: removal stays with the user", tool.Name)
 		}
 	}
-	for _, want := range []string{"covo_status", "list_sites", "site_logs", "list_php_versions", "php_compatibility_check", "wp", "add_site", "new_wordpress",
+	for _, want := range []string{"benbow_status", "list_sites", "site_logs", "list_php_versions", "php_compatibility_check", "wp", "add_site", "new_wordpress",
 		"session_status", "session_diff", "fetch_page", "mail_messages", "read_mail", "query_database"} {
 		if !slices.Contains(names, want) {
 			t.Errorf("no tool %s in %v", want, names)
 		}
 	}
 
-	// Core errors reach the agent as tool errors with Covo's code.
+	// Core errors reach the agent as tool errors with Benbow's code.
 	r, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: "list_sites"})
 	if err != nil || !r.IsError || !strings.HasPrefix(r.Content[0].(*mcp.TextContent).Text, "service_failed:") {
 		t.Fatalf("list_sites = %+v, %v", r, err)

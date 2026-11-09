@@ -1,0 +1,13 @@
+{
+  "name": "benbow",
+  "version": "0.1.0",
+  "description": "Work on local PHP, WordPress and Laravel sites in Benbow safely: agent sessions that save files and database, checks with fetch_page, mail and read-only queries, and the diff before you finish.",
+  "author": {
+    "name": "Andrea Casali",
+    "url": "https://benbow.dev"
+  },
+  "homepage": "https://benbow.dev",
+  "repository": "https://github.com/benbowdev/benbow",
+  "license": "GPL-3.0-only",
+  "keywords": ["php", "wordpress", "laravel", "local-development", "mcp"]
+}

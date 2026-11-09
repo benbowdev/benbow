@@ -6,9 +6,9 @@ package core
 import (
 	"context"
 
-	"github.com/getcovo/covo/internal/ca"
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/trust"
+	"github.com/benbowdev/benbow/internal/ca"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/trust"
 )
 
 const (
@@ -25,7 +25,7 @@ type TrustResult struct {
 	Removed  []trust.Cert `json:"removed,omitempty"`
 }
 
-// Trust adds Covo's local CA to the login keychain as a trusted root, and
+// Trust adds Benbow's local CA to the login keychain as a trusted root, and
 // removes the unconstrained CA left by the spike, if any. beforePrompt is
 // called once, right before macOS may show its authorization dialog, and not
 // at all if there is nothing to change.
@@ -108,7 +108,7 @@ func (c *Core) Trust(ctx context.Context, beforePrompt func()) (TrustResult, err
 	return res, err
 }
 
-// Untrust removes Covo's CAs from the login keychain: the certificates on
+// Untrust removes Benbow's CAs from the login keychain: the certificates on
 // disk (current and spike-era) by SHA-1 or, if no file is left, every
 // certificate named ca.Name(). It is a no-op when nothing is there.
 func (c *Core) Untrust(ctx context.Context) (TrustResult, error) {

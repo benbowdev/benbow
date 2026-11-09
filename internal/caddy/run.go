@@ -13,17 +13,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/getcovo/covo/internal/errcode"
+	"github.com/benbowdev/benbow/internal/errcode"
 )
 
-// Binary runs a Caddy executable against Covo's data directory.
+// Binary runs a Caddy executable against Benbow's data directory.
 type Binary struct {
 	Path    string
 	DataDir string // XDG_DATA_HOME; Caddy's storage lives in DataDir/caddy
 }
 
 // Env returns the environment Caddy must run with so that it never writes
-// outside the Covo home (default is ~/Library/Application Support/Caddy).
+// outside the Benbow home (default is ~/Library/Application Support/Caddy).
 func (b Binary) Env() map[string]string {
 	return map[string]string{
 		"XDG_DATA_HOME":   b.DataDir,

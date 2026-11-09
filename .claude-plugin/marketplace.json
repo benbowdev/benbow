@@ -1,17 +1,17 @@
 {
-  "name": "getcovo",
+  "name": "benbowdev",
   "owner": {
-    "name": "Covo",
-    "url": "https://getcovo.dev"
+    "name": "Benbow",
+    "url": "https://benbow.dev"
   },
   "metadata": {
-    "description": "Covo for Claude Code: work on local PHP, WordPress and Laravel sites safely, with files and database saved before you start."
+    "description": "Benbow for Claude Code: work on local PHP, WordPress and Laravel sites safely, with files and database saved before you start."
   },
   "plugins": [
     {
-      "name": "covo",
-      "source": "./integrations/claude-code/covo",
-      "description": "Connects Claude Code to Covo and teaches the safe workflow: agent sessions, checkpoints, fetch_page, mail and the diff before you finish.",
+      "name": "benbow",
+      "source": "./integrations/claude-code/benbow",
+      "description": "Connects Claude Code to Benbow and teaches the safe workflow: agent sessions, checkpoints, fetch_page, mail and the diff before you finish.",
       "category": "development"
     }
   ]

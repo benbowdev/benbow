@@ -15,30 +15,30 @@ import (
 	"strings"
 	"time"
 
-	"github.com/getcovo/covo/internal/components"
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/fsutil"
-	"github.com/getcovo/covo/internal/store"
-	"github.com/getcovo/covo/internal/version"
+	"github.com/benbowdev/benbow/internal/components"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/fsutil"
+	"github.com/benbowdev/benbow/internal/store"
+	"github.com/benbowdev/benbow/internal/version"
 )
 
 const (
-	// ReleaseManifestURL is the signed manifest attached to getcovo/covo-binaries'
+	// ReleaseManifestURL is the signed manifest attached to benbowdev/benbow-binaries'
 	// "manifest" release (the signature is at the same URL plus ".sig").
 	// Only the daemon's automatic check (at most once every 24 hours) uses
-	// it: the asset's daily download count is how many Macs ran Covo, and
+	// it: the asset's daily download count is how many Macs ran Benbow, and
 	// nothing else is counted (docs/updates.md).
-	ReleaseManifestURL = "https://github.com/getcovo/covo-binaries/releases/download/manifest/manifest.json"
-	// DefaultManifestURL is the same manifest on covo-binaries' main branch:
+	ReleaseManifestURL = "https://github.com/benbowdev/benbow-binaries/releases/download/manifest/manifest.json"
+	// DefaultManifestURL is the same manifest on benbow-binaries' main branch:
 	// manual checks use it, and the automatic check falls back to it.
-	DefaultManifestURL = "https://raw.githubusercontent.com/getcovo/covo-binaries/main/manifest/manifest.json"
+	DefaultManifestURL = "https://raw.githubusercontent.com/benbowdev/benbow-binaries/main/manifest/manifest.json"
 	// EnvManifestURL replaces DefaultManifestURL (tests).
-	EnvManifestURL = "COVO_MANIFEST_URL"
+	EnvManifestURL = "BENBOW_MANIFEST_URL"
 	// EnvManifestReleaseURL replaces ReleaseManifestURL (tests).
-	EnvManifestReleaseURL = "COVO_MANIFEST_RELEASE_URL"
+	EnvManifestReleaseURL = "BENBOW_MANIFEST_RELEASE_URL"
 	// EnvManifestTestKey adds a trusted public key (base64). Only honored
-	// together with COVO_HOME, i.e. in an isolated test installation.
-	EnvManifestTestKey = "COVO_MANIFEST_TEST_KEY"
+	// together with BENBOW_HOME, i.e. in an isolated test installation.
+	EnvManifestTestKey = "BENBOW_MANIFEST_TEST_KEY"
 
 	settingUpdatesChecked = "updates_checked_at"
 	settingUpdatesError   = "updates_error"
@@ -52,7 +52,7 @@ const (
 	maxManifestSize = 4 << 20
 )
 
-// ComponentUpdate is a newer version Covo can switch to.
+// ComponentUpdate is a newer version Benbow can switch to.
 type ComponentUpdate struct {
 	// Component is caddy, mysql, mailpit, adminer, wpcli or php-<minor>.
 	Component string `json:"component"`
@@ -62,7 +62,7 @@ type ComponentUpdate struct {
 	Blocked string `json:"blocked,omitempty"`
 }
 
-// UpdatesStatus is what covo update reports.
+// UpdatesStatus is what benbow update reports.
 type UpdatesStatus struct {
 	CheckedAt *time.Time `json:"checked_at,omitempty"`
 	// Auto is true when the daemon checks once a day by itself.
@@ -72,7 +72,7 @@ type UpdatesStatus struct {
 	Updates []ComponentUpdate `json:"updates"`
 	// Applied lists what an update or rollback changed.
 	Applied []ComponentUpdate `json:"applied,omitempty"`
-	// Live is false when Covo is stopped: changes apply on start.
+	// Live is false when Benbow is stopped: changes apply on start.
 	Live bool `json:"live,omitempty"`
 }
 
@@ -80,7 +80,7 @@ func (c *Core) manifestDir() string { return filepath.Join(c.Layout.Data, "manif
 
 func trustedKeys() ([]ed25519.PublicKey, error) {
 	encoded := slices.Clone(components.TrustedKeys)
-	if k := os.Getenv(EnvManifestTestKey); allowManifestTestKey && k != "" && os.Getenv("COVO_HOME") != "" {
+	if k := os.Getenv(EnvManifestTestKey); allowManifestTestKey && k != "" && os.Getenv("BENBOW_HOME") != "" {
 		encoded = append(encoded, k)
 	}
 	return components.ParseKeys(encoded)
@@ -136,7 +136,7 @@ func fetch(ctx context.Context, url string) ([]byte, error) {
 	return body, nil
 }
 
-// CheckUpdates downloads the published manifest from covo-binaries' main
+// CheckUpdates downloads the published manifest from benbow-binaries' main
 // branch, verifies its signature and expiry, keeps it if it is newer, and
 // reports the updates now available. Nothing is installed. This is the
 // manual check: it never touches the release asset that counts daily
@@ -218,8 +218,8 @@ func (c *Core) autoUpdates(ctx context.Context) (bool, error) {
 	return v != "off", err
 }
 
-// SetAutoUpdates turns the daemon's daily check on or off. Off, Covo makes
-// no update request by itself; `covo update check` still works.
+// SetAutoUpdates turns the daemon's daily check on or off. Off, Benbow makes
+// no update request by itself; `benbow update check` still works.
 func (c *Core) SetAutoUpdates(ctx context.Context, on bool) (UpdatesStatus, error) {
 	var err error
 	if on {
@@ -241,7 +241,7 @@ func (c *Core) checkUpdates(ctx context.Context, urls []string) error {
 		return err
 	}
 	if len(keys) == 0 {
-		return errcode.Errorf(errcode.Unsupported, "this build of Covo has no manifest key: updates come with a newer Covo")
+		return errcode.Errorf(errcode.Unsupported, "this build of Benbow has no manifest key: updates come with a newer Benbow")
 	}
 	m, body, sig, err := firstVerified(ctx, urls, keys)
 	if err != nil {
@@ -306,7 +306,7 @@ func updateSeries(component, version string) string {
 	return major
 }
 
-// Updates reports the updates available in the manifest Covo has (it does
+// Updates reports the updates available in the manifest Benbow has (it does
 // not go online: see CheckUpdates).
 func (c *Core) Updates(ctx context.Context) (UpdatesStatus, error) {
 	st := UpdatesStatus{Serial: c.Manifest.Serial, Updates: []ComponentUpdate{}}

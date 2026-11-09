@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/getcovo/covo/internal/errcode"
+	"github.com/benbowdev/benbow/internal/errcode"
 )
 
 // AgentSession is the time an AI agent works on a site: it starts with a

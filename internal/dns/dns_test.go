@@ -43,7 +43,7 @@ func TestLookup(t *testing.T) {
 	addr := startServer(t)
 	for _, network := range []string{"udp", "tcp"} {
 		r := resolver(addr, network)
-		for _, name := range []string{"demo.test", "demo.covo.test", "DEMO.Covo.Test", "a.b.c.d.test"} {
+		for _, name := range []string{"demo.test", "demo.benbow.test", "DEMO.Benbow.Test", "a.b.c.d.test"} {
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			ips, err := r.LookupHost(ctx, name)
 			cancel()

@@ -44,7 +44,7 @@ if (isset($_GET['other'])) {
 func (h *harness) siteDB(args ...string) siteDB {
 	h.t.Helper()
 	var d siteDB
-	if err := json.Unmarshal(h.mustCovo(append([]string{"db"}, args...)...), &d); err != nil {
+	if err := json.Unmarshal(h.mustBenbow(append([]string{"db"}, args...)...), &d); err != nil {
 		h.t.Fatal(err)
 	}
 	return d
@@ -54,7 +54,7 @@ func (h *harness) keychainAccount(account string) bool {
 	return h.keychainAccountIn(".mysql", account)
 }
 
-// keychainAccountIn reports whether Covo's keychain service with suffix
+// keychainAccountIn reports whether Benbow's keychain service with suffix
 // (".mysql", ".postgres") has an item for account.
 func (h *harness) keychainAccountIn(suffix, account string) bool {
 	return exec.Command("/usr/bin/security", "find-generic-password", "-a", account, "-s", h.prefix()+suffix).Run() == nil
@@ -71,18 +71,18 @@ func TestSiteDatabase(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	h.mustCovo("site", "add", "my-shop", "--php", "8.4", "--path", shop)
-	h.mustCovo("site", "add", "blog", "--php", "8.4", "--path", blog)
+	h.mustBenbow("site", "add", "my-shop", "--php", "8.4", "--path", shop)
+	h.mustBenbow("site", "add", "blog", "--php", "8.4", "--path", blog)
 
 	// MySQL off, then stopped: clear errors.
-	if env := h.covo("db", "create", "my-shop"); env.OK || env.Error.Code != "unsupported" {
+	if env := h.benbow("db", "create", "my-shop"); env.OK || env.Error.Code != "unsupported" {
 		t.Fatalf("create with MySQL off = %+v", env)
 	}
-	h.mustCovo("mysql", "enable")
-	if env := h.covo("db", "create", "my-shop"); env.OK || env.Error.Code != "conflict" {
-		t.Fatalf("create with Covo stopped = %+v", env)
+	h.mustBenbow("mysql", "enable")
+	if env := h.benbow("db", "create", "my-shop"); env.OK || env.Error.Code != "conflict" {
+		t.Fatalf("create with Benbow stopped = %+v", env)
 	}
-	h.mustCovo("start")
+	h.mustBenbow("start")
 
 	d := h.siteDB("create", "my-shop")
 	if d.Database != "my_shop" || d.User != "my_shop" || !d.Dedicated || len(d.Password) != 24 {
@@ -91,13 +91,13 @@ func TestSiteDatabase(t *testing.T) {
 	if !h.keychainAccount("my_shop") {
 		t.Fatal("site password not in the keychain")
 	}
-	if env := h.covo("db", "create", "my-shop"); env.OK || env.Error.Code != "conflict" {
+	if env := h.benbow("db", "create", "my-shop"); env.OK || env.Error.Code != "conflict" {
 		t.Fatalf("second create = %+v", env)
 	}
-	if env := h.covo("db", "create", "blog", "--name", "my_shop"); env.OK || env.Error.Code != "conflict" {
+	if env := h.benbow("db", "create", "blog", "--name", "my_shop"); env.OK || env.Error.Code != "conflict" {
 		t.Fatalf("create over an existing database = %+v", env)
 	}
-	if env := h.covo("db", "create", "blog", "--name", "mysql"); env.OK || env.Error.Code != "invalid_input" {
+	if env := h.benbow("db", "create", "blog", "--name", "mysql"); env.OK || env.Error.Code != "invalid_input" {
 		t.Fatalf("create a system database = %+v", env)
 	}
 	writeCreds(t, shop, d)
@@ -106,13 +106,13 @@ func TestSiteDatabase(t *testing.T) {
 	var adm struct {
 		AdminerURL string `json:"adminer_url"`
 	}
-	if err := json.Unmarshal(h.mustCovo("status"), &adm); err != nil || adm.AdminerURL != "https://adminer.localhost:"+strconv.Itoa(st.HTTPSPort)+"/" {
+	if err := json.Unmarshal(h.mustBenbow("status"), &adm); err != nil || adm.AdminerURL != "https://adminer.localhost:"+strconv.Itoa(st.HTTPSPort)+"/" {
 		t.Fatalf("adminer_url = %q, %v", adm.AdminerURL, err)
 	}
 	if body := h.get(adm.AdminerURL, st.CA.CertPath); !strings.Contains(body, "Adminer") || !strings.Contains(body, "Login") {
 		t.Fatalf("Adminer page: %.300q", body)
 	}
-	if env := h.covo("site", "add", "adminer", "--path", shop); env.OK || env.Error.Code != "conflict" {
+	if env := h.benbow("site", "add", "adminer", "--path", shop); env.OK || env.Error.Code != "conflict" {
 		t.Fatalf("site named adminer = %+v", env)
 	}
 	url := func(site string) string { return "https://" + site + ".localhost:" + strconv.Itoa(st.HTTPSPort) }
@@ -131,7 +131,7 @@ func TestSiteDatabase(t *testing.T) {
 	}
 
 	var dbs []string
-	if err := json.Unmarshal(h.mustCovo("db", "list"), &dbs); err != nil || !slices.Equal(dbs, []string{"blog", "my_shop"}) {
+	if err := json.Unmarshal(h.mustBenbow("db", "list"), &dbs); err != nil || !slices.Equal(dbs, []string{"blog", "my_shop"}) {
 		t.Fatalf("db list = %v, %v", dbs, err)
 	}
 
@@ -146,12 +146,12 @@ func TestSiteDatabase(t *testing.T) {
 	if got := h.get(url("blog"), st.CA.CertPath); got != "2" {
 		t.Fatalf("blog data after unlink+link = %q", got)
 	}
-	if env := h.covo("db", "link", "blog", "nope"); env.OK || env.Error.Code != "conflict" {
+	if env := h.benbow("db", "link", "blog", "nope"); env.OK || env.Error.Code != "conflict" {
 		t.Fatalf("link while linked = %+v", env)
 	}
 
 	// Drop needs confirmation, then deletes the database, user and password.
-	if env := h.covo("db", "unlink", "my-shop", "--drop"); env.OK || env.Error.Code != "confirmation_required" {
+	if env := h.benbow("db", "unlink", "my-shop", "--drop"); env.OK || env.Error.Code != "confirmation_required" {
 		t.Fatalf("drop without --yes = %+v", env)
 	}
 	if u := h.siteDB("unlink", "my-shop", "--drop", "--yes"); !u.Dropped {
@@ -160,18 +160,18 @@ func TestSiteDatabase(t *testing.T) {
 	if h.keychainAccount("my_shop") {
 		t.Fatal("site password left after drop")
 	}
-	if err := json.Unmarshal(h.mustCovo("db", "list"), &dbs); err != nil || !slices.Equal(dbs, []string{"blog"}) {
+	if err := json.Unmarshal(h.mustBenbow("db", "list"), &dbs); err != nil || !slices.Equal(dbs, []string{"blog"}) {
 		t.Fatalf("db list after drop = %v, %v", dbs, err)
 	}
 	// The user is gone too: creating it again works.
 	h.siteDB("create", "my-shop")
 
 	// Removing a site with its database.
-	if env := h.covo("site", "remove", "my-shop", "--drop-database"); env.OK || env.Error.Code != "confirmation_required" {
+	if env := h.benbow("site", "remove", "my-shop", "--drop-database"); env.OK || env.Error.Code != "confirmation_required" {
 		t.Fatalf("remove --drop-database without --yes = %+v", env)
 	}
-	h.mustCovo("site", "remove", "my-shop", "--drop-database", "--yes")
-	if err := json.Unmarshal(h.mustCovo("db", "list"), &dbs); err != nil || !slices.Equal(dbs, []string{"blog"}) {
+	h.mustBenbow("site", "remove", "my-shop", "--drop-database", "--yes")
+	if err := json.Unmarshal(h.mustBenbow("db", "list"), &dbs); err != nil || !slices.Equal(dbs, []string{"blog"}) {
 		t.Fatalf("db list after remove --drop-database = %v, %v", dbs, err)
 	}
 	if h.keychainAccount("my_shop") {
@@ -181,7 +181,7 @@ func TestSiteDatabase(t *testing.T) {
 		t.Fatalf("site folder touched: %v", err)
 	}
 
-	h.mustCovo("uninstall", "--yes")
+	h.mustBenbow("uninstall", "--yes")
 	if h.keychainAccount("my_shop") || h.keychainItem() {
 		t.Fatal("keychain items left after uninstall")
 	}

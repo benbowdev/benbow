@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 Andrea Casali
 
-// Package hostshelper is Covo's privileged helper, and its client. It
+// Package hostshelper is Benbow's privileged helper, and its client. It
 // serves .local domains (MAMP compatibility mode) and the standard ports
 // (443 and 80 without a port in addresses).
 //
-// The helper runs as root, as the LaunchDaemon dev.getcovo.hostshelper. It
+// The helper runs as root, as the LaunchDaemon dev.benbow.hostshelper. It
 // does exactly five things:
 //
-//   - status: report its version, the names in Covo's hosts block and the
+//   - status: report its version, the names in Benbow's hosts block and the
 //     active port forwards (read only);
-//   - sync: make Covo's block in the hosts file (package hosts) hold exactly
+//   - sync: make Benbow's block in the hosts file (package hosts) hold exactly
 //     the given .local names;
 //   - clear: remove the block;
-//   - ports: make Covo's pf anchor forward exactly the given loopback ports
+//   - ports: make Benbow's pf anchor forward exactly the given loopback ports
 //     (e.g. 443 → 8443), or nothing;
 //   - uninstall: remove the block and the forwards, then its own binary and
 //     plist, then unload itself.
@@ -25,7 +25,7 @@
 // loopback interface. It only accepts connections from the user who
 // installed it (checked with LOCAL_PEERCRED), one small JSON request per
 // connection. It never runs a shell; the only programs it starts are
-// dscacheutil and killall (to flush the DNS cache), pfctl (on Covo's anchor
+// dscacheutil and killall (to flush the DNS cache), pfctl (on Benbow's anchor
 // only) and launchctl (to unload itself), with fixed arguments.
 package hostshelper
 
@@ -50,7 +50,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/getcovo/covo/internal/hosts"
+	"github.com/benbowdev/benbow/internal/hosts"
 )
 
 // Version is the helper protocol version. A different version is reinstalled.
@@ -58,12 +58,12 @@ const Version = "2"
 
 // Fixed locations of the installed helper.
 const (
-	Label      = "dev.getcovo.hostshelper"
+	Label      = "dev.benbow.hostshelper"
 	BinaryPath = "/Library/PrivilegedHelperTools/" + Label
 	PlistPath  = "/Library/LaunchDaemons/" + Label + ".plist"
 	SocketPath = "/var/run/" + Label + ".sock"
 	HostsPath  = "/etc/hosts"
-	// Anchor is Covo's pf anchor, inside the com.apple anchor point that
+	// Anchor is Benbow's pf anchor, inside the com.apple anchor point that
 	// macOS's /etc/pf.conf already evaluates: pf.conf is never changed.
 	Anchor = "com.apple/" + Label
 	PFCtl  = "/sbin/pfctl"
@@ -144,7 +144,7 @@ type Server struct {
 	Config
 	mu       sync.Mutex
 	forwards []Forward
-	// token is pfctl -E's reference: pf stays enabled while Covo holds it.
+	// token is pfctl -E's reference: pf stays enabled while Benbow holds it.
 	token string
 }
 
@@ -189,7 +189,7 @@ func (s *Server) handle(conn *net.UnixConn) (uninstalled bool) {
 	}
 	uid, err := peerUID(conn)
 	if err != nil || uid != s.AllowedUID {
-		reply(Response{Error: "forbidden: only the user who installed Covo's helper may use it"})
+		reply(Response{Error: "forbidden: only the user who installed Benbow's helper may use it"})
 		return false
 	}
 	var req Request
@@ -289,7 +289,7 @@ func (s *Server) sync(names []string) (bool, error) {
 }
 
 // CheckForwards validates forwards: at most one per source port, from 80
-// or 443 (the only ports Covo forwards: anything else would let a process
+// or 443 (the only ports Benbow forwards: anything else would let a process
 // of the user take over another system service's port) to an unprivileged
 // one.
 func CheckForwards(fw []Forward) error {
@@ -325,7 +325,7 @@ func Rules(fw []Forward) string {
 
 var tokenRe = regexp.MustCompile(`Token : (\d+)`)
 
-// setForwards loads exactly fw into Covo's anchor (an empty fw flushes it)
+// setForwards loads exactly fw into Benbow's anchor (an empty fw flushes it)
 // and keeps pf enabled while there is something to forward.
 func (s *Server) setForwards(fw []Forward) (bool, error) {
 	if err := CheckForwards(fw); err != nil {
@@ -407,7 +407,7 @@ func readHosts(path string) (string, os.FileInfo, error) {
 func writeAtomic(path string, body []byte, orig os.FileInfo) error {
 	suffix := make([]byte, 6)
 	_, _ = rand.Read(suffix)
-	tmp := filepath.Join(filepath.Dir(path), "."+filepath.Base(path)+".covo-"+hex.EncodeToString(suffix))
+	tmp := filepath.Join(filepath.Dir(path), "."+filepath.Base(path)+".benbow-"+hex.EncodeToString(suffix))
 	f, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, orig.Mode().Perm())
 	if err != nil {
 		return fmt.Errorf("create %s: %w", tmp, err)
@@ -497,21 +497,21 @@ func (c Client) Do(ctx context.Context, req Request) (Response, error) {
 	defer cancel()
 	conn, err := (&net.Dialer{}).DialContext(ctx, "unix", c.Socket)
 	if err != nil {
-		return Response{}, fmt.Errorf("connect to Covo's helper: %w", err)
+		return Response{}, fmt.Errorf("connect to Benbow's helper: %w", err)
 	}
 	defer conn.Close()
 	if dl, ok := ctx.Deadline(); ok {
 		_ = conn.SetDeadline(dl)
 	}
 	if err := json.NewEncoder(conn).Encode(req); err != nil {
-		return Response{}, fmt.Errorf("send to Covo's helper: %w", err)
+		return Response{}, fmt.Errorf("send to Benbow's helper: %w", err)
 	}
 	var res Response
 	if err := json.NewDecoder(io.LimitReader(conn, maxRequest)).Decode(&res); err != nil {
-		return Response{}, fmt.Errorf("read from Covo's helper: %w", err)
+		return Response{}, fmt.Errorf("read from Benbow's helper: %w", err)
 	}
 	if !res.OK {
-		return res, fmt.Errorf("covo's helper: %s", res.Error)
+		return res, fmt.Errorf("benbow's helper: %s", res.Error)
 	}
 	return res, nil
 }

@@ -13,16 +13,16 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/launchd"
-	"github.com/getcovo/covo/internal/mysql"
-	"github.com/getcovo/covo/internal/ports"
-	"github.com/getcovo/covo/internal/postgres"
-	"github.com/getcovo/covo/internal/store"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/launchd"
+	"github.com/benbowdev/benbow/internal/mysql"
+	"github.com/benbowdev/benbow/internal/ports"
+	"github.com/benbowdev/benbow/internal/postgres"
+	"github.com/benbowdev/benbow/internal/store"
 )
 
 // PostgreSQL works like MySQL: optional, off by default, data under the
-// Covo folder, 127.0.0.1 only, superuser password in the login keychain.
+// Benbow folder, 127.0.0.1 only, superuser password in the login keychain.
 // Major versions never change on their own (their data directories are
 // not compatible).
 
@@ -34,7 +34,7 @@ const (
 	postgresInitStageDir = "postgres.init"
 )
 
-// PostgresStatus describes Covo's PostgreSQL server.
+// PostgresStatus describes Benbow's PostgreSQL server.
 type PostgresStatus struct {
 	Enabled        bool   `json:"enabled"`
 	Version        string `json:"version,omitempty"`
@@ -73,7 +73,7 @@ func (c *Core) postgresInitialized() (bool, error) {
 		return true, nil
 	}
 	if _, err := os.Lstat(dir); err == nil {
-		return false, errcode.Errorf(errcode.Conflict, dir+" exists but holds no PostgreSQL data directory; move it away and run `covo postgres enable` again")
+		return false, errcode.Errorf(errcode.Conflict, dir+" exists but holds no PostgreSQL data directory; move it away and run `benbow postgres enable` again")
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return false, fmt.Errorf("stat %s: %w", dir, err)
 	}
@@ -125,7 +125,7 @@ func (c *Core) setStoredPort(ctx context.Context, setting, what string, port int
 func (c *Core) ensurePostgres(ctx context.Context) (dir, version string, err error) {
 	art, err := c.pinned(ctx, "postgres", postgresSeries)
 	if errcode.Code(err) == errcode.NotFound {
-		return "", "", errcode.Errorf(errcode.Unsupported, "PostgreSQL is not available yet: run `covo update check` to fetch the newest manifest")
+		return "", "", errcode.Errorf(errcode.Unsupported, "PostgreSQL is not available yet: run `benbow update check` to fetch the newest manifest")
 	}
 	if err != nil {
 		return "", "", err
@@ -225,7 +225,7 @@ func (c *Core) postgresAgents(ctx context.Context, loaded map[string]launchd.Sta
 	}
 	if !loaded[agent.Label].Running && !ports.Free(port) {
 		return nil, 0, errcode.Newf(errcode.PortInUse,
-			"PostgreSQL port %d is in use by %s; stop it or run `covo postgres enable --port <free port>`",
+			"PostgreSQL port %d is in use by %s; stop it or run `benbow postgres enable --port <free port>`",
 			port, ports.Describe(ports.Owners(ctx, port)))
 
 	}
@@ -263,10 +263,10 @@ func (c *Core) postgresStatus(ctx context.Context) (PostgresStatus, error) {
 	return st, nil
 }
 
-// Postgres reports the state of Covo's PostgreSQL server.
+// Postgres reports the state of Benbow's PostgreSQL server.
 func (c *Core) Postgres(ctx context.Context) (PostgresStatus, error) { return c.postgresStatus(ctx) }
 
-// EnablePostgres installs and initializes PostgreSQL and starts it if Covo
+// EnablePostgres installs and initializes PostgreSQL and starts it if Benbow
 // is running. port, if non-zero, changes the port first.
 func (c *Core) EnablePostgres(ctx context.Context, port int) (PostgresResult, error) {
 	var res PostgresResult
@@ -324,7 +324,7 @@ func (c *Core) PostgresCredentials(ctx context.Context) (MySQLCredentials, error
 		return MySQLCredentials{}, err
 	}
 	if !st.Enabled {
-		return MySQLCredentials{}, errcode.Errorf(errcode.NotFound, "PostgreSQL is not enabled: run `covo postgres enable`")
+		return MySQLCredentials{}, errcode.Errorf(errcode.NotFound, "PostgreSQL is not enabled: run `benbow postgres enable`")
 	}
 	kc, err := postgresKeychain(c.launchctl.Prefix)
 	if err != nil {
@@ -348,10 +348,10 @@ func (c *Core) postgresRoot(ctx context.Context) (psql string, port int, passwor
 		return "", 0, "", err
 	}
 	if !st.Enabled {
-		return "", 0, "", errcode.Errorf(errcode.Unsupported, "PostgreSQL is off: turn it on first (covo postgres enable)")
+		return "", 0, "", errcode.Errorf(errcode.Unsupported, "PostgreSQL is off: turn it on first (benbow postgres enable)")
 	}
 	if !st.Running {
-		return "", 0, "", errcode.Errorf(errcode.Conflict, "PostgreSQL is not running: start Covo first (covo start)")
+		return "", 0, "", errcode.Errorf(errcode.Conflict, "PostgreSQL is not running: start Benbow first (benbow start)")
 	}
 	dir, _, err := c.ensurePostgres(ctx)
 	if err != nil {
@@ -386,7 +386,7 @@ func (c *Core) pgQuery(ctx context.Context, db, sql string) ([]string, error) {
 	return rows, nil
 }
 
-// PostgresDatabases lists the user databases on Covo's PostgreSQL.
+// PostgresDatabases lists the user databases on Benbow's PostgreSQL.
 func (c *Core) PostgresDatabases(ctx context.Context) ([]string, error) {
 	rows, err := c.pgQuery(ctx, "postgres", "SELECT datname FROM pg_database WHERE NOT datistemplate AND datname <> 'postgres' ORDER BY 1;")
 	if err != nil {

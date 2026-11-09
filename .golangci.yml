@@ -15,7 +15,7 @@ linters:
   settings:
     wrapcheck:
       ignore-package-globs:
-        - github.com/getcovo/covo/*
+        - github.com/benbowdev/benbow/*
   exclusions:
     presets:
       - std-error-handling

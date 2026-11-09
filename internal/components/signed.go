@@ -12,12 +12,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/getcovo/covo/internal/errcode"
+	"github.com/benbowdev/benbow/internal/errcode"
 )
 
-// TrustedKeys are the public keys (base64, ed25519) whose signatures Covo
+// TrustedKeys are the public keys (base64, ed25519) whose signatures Benbow
 // accepts on a published manifest. The private key only exists as a secret
-// of getcovo/covo-binaries' GitHub Actions.
+// of benbowdev/benbow-binaries' GitHub Actions.
 var TrustedKeys = []string{
 	"o9ILY4BHSpZIeAppoLZPL9zXQ+uabEHfPbeqfqz03EI=", // 2026-11-03
 }
@@ -78,9 +78,9 @@ func VerifySigned(body, sig []byte, keys []ed25519.PublicKey) (Manifest, error) 
 }
 
 // CheckFresh refuses a published manifest without an expiry or past it.
-// covo-binaries signs the manifest again every week even when nothing is
+// benbow-binaries signs the manifest again every week even when nothing is
 // new, so an expired one means the update server is stuck or someone keeps
-// serving an old copy: Covo would otherwise never learn about newer
+// serving an old copy: Benbow would otherwise never learn about newer
 // versions (security fixes included). The versions in use stay as they are.
 func (m Manifest) CheckFresh(now time.Time) error {
 	if m.Expires == nil {
@@ -88,7 +88,7 @@ func (m Manifest) CheckFresh(now time.Time) error {
 	}
 	if now.After(*m.Expires) {
 		return errcode.Newf(errcode.Checksum,
-			"the published manifest expired on %s: the update server may be stuck, or this Mac's clock is wrong. Covo keeps the versions it has",
+			"the published manifest expired on %s: the update server may be stuck, or this Mac's clock is wrong. Benbow keeps the versions it has",
 			m.Expires.UTC().Format("2006-01-02"))
 	}
 	return nil
@@ -101,7 +101,7 @@ func artifactKey(a Artifact) string {
 // Merge returns m with the artifacts of newer that m lacks, and newer's
 // serial. Artifacts are never replaced: an entry with the same component,
 // version, architecture and target but different content is an error, so
-// a published manifest can add versions but never swap a binary Covo
+// a published manifest can add versions but never swap a binary Benbow
 // already trusts.
 func (m Manifest) Merge(newer Manifest) (Manifest, error) {
 	out := Manifest{Serial: max(m.Serial, newer.Serial), Artifacts: append([]Artifact(nil), m.Artifacts...)}

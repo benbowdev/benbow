@@ -9,7 +9,7 @@ Format: **decision** (date) — why. *Not chosen:* alternatives.
 
 ## Product
 
-- **Covo is a simple, modern MAMP PRO alternative for people who build PHP
+- **Benbow is a simple, modern MAMP PRO alternative for people who build PHP
   and WordPress sites for clients** (2026-10-29) — that audience wants the
   MAMP mental model (one window, sites on the left, detail on the right)
   without its age and lock-in. *Not chosen:* a generic runtime manager like
@@ -22,10 +22,10 @@ Format: **decision** (date) — why. *Not chosen:* alternatives.
 - **No Node, Python or other generic runtimes** (2026-11-03) — they belong
   to their own tools; adding them is the road to FlyEnv. Refined on
   2026-11-06 by the next entry.
-- **Apps: Covo runs your dev server, it does not manage runtimes**
+- **Apps: Benbow runs your dev server, it does not manage runtimes**
   (2026-11-06) — a site can be a dev server in any language (Next.js, Vite,
-  Django…) behind a Covo domain with trusted HTTPS, started from the user's
-  own command or only proxied (`docs/apps.md`). Covo never installs or
+  Django…) behind a Benbow domain with trusted HTTPS, started from the user's
+  own command or only proxied (`docs/apps.md`). Benbow never installs or
   chooses Node, Python or packages: the command runs with the user's own
   version managers. It answers the common case of a PHP site with a
   frontend next to it without becoming a runtime manager. The website,
@@ -33,14 +33,14 @@ Format: **decision** (date) — why. *Not chosen:* alternatives.
   Python versions (FlyEnv's road), Docker, production builds.
 - **Apps run through the login shell, are never restarted, stop as a
   whole tree** (2026-11-09) — each start runs `$SHELL -l -i -c` so every
-  version manager works as in a terminal without Covo knowing about any of
+  version manager works as in a terminal without Benbow knowing about any of
   them; a crashed dev server stays down with a clear message, because
   restarting a broken command in a loop hides the error and fills the log;
   stopping follows the process group, descendants and an environment
   marker, because dev servers leave workers behind. *Not chosen:* reading
   the PATH once and running the command directly (breaks per-folder
   versions), launchd `KeepAlive`, killing only the main process.
-- **Vite next to Laravel gets a leaf certificate from Covo's CA**
+- **Vite next to Laravel gets a leaf certificate from Benbow's CA**
   (2026-11-09) — a companion of a Laravel site with laravel-vite-plugin
   gets a 90-day certificate for the site's names, signed with the
   intermediate Caddy already uses, so `@vite` scripts load over trusted
@@ -48,59 +48,69 @@ Format: **decision** (date) — why. *Not chosen:* alternatives.
   change (the leaf can only name `.localhost`, `.test`, `.local`). *Not
   chosen:* proxying Vite through Caddy (a second public port per site and
   `server.hmr` settings in the project), plain HTTP Vite (mixed content),
-  editing `vite.config.js` (no Covo files in clients' projects).
+  editing `vite.config.js` (no Benbow files in clients' projects).
 - **Pre-beta block** (2026-11-03): Laravel, PostgreSQL/Redis, Open on
   phone, importers with assisted migration, snapshots, SSH/FTP sync, MCP
   agent safety, blueprints — moved before the beta because they are what
   clients' work needs every week (Laravel, staging/production sync) and
-  what makes Covo safer than MAMP (snapshots, agent safety).
-- **Covo is the safe workbench for AI agents, not an agent** (2026-11-04)
+  what makes Benbow safer than MAMP (snapshots, agent safety).
+- **Benbow is the safe workbench for AI agents, not an agent** (2026-11-04)
   — the user brings their agent (Claude Code, Codex, Gemini CLI, Cursor,
-  Copilot CLI) and account; Covo protects files and database together,
-  which git alone does not. No chat, no API keys, no model calls in Covo.
+  Copilot CLI) and account; Benbow protects files and database together,
+  which git alone does not. No chat, no API keys, no model calls in Benbow.
   See "AI agents" below.
 
 ## Golden rules
 
 - **Never run or modify Homebrew** (2026-10-29) — many users' Homebrew is
   fragile and shared with other work; a dev tool that breaks it breaks the
-  Mac. Covo only reads Homebrew's MySQL when importing from Valet.
-- **Nothing outside `~/Library/Application Support/covo/` without an
+  Mac. Benbow only reads Homebrew's MySQL when importing from Valet.
+- **Nothing outside `~/Library/Application Support/benbow/` without an
   explicit, user-approved step** (2026-10-29) — uninstall must leave the
   Mac exactly as before (verified by an inventory before and after the e2e
   suite and on the real Mac). The listed exceptions: CA in the login
-  keychain, `/etc/resolver/test`, Covo's marked block in `/etc/hosts`, the
-  helper's LaunchDaemon, pf rules in Covo's own anchor.
-- **Never touch services Covo did not start** (MAMP, Valet, Herd,
-  Postgres.app, other Redis/MySQL) (2026-10-29) — Covo must coexist; users
+  keychain, `/etc/resolver/test`, Benbow's marked block in `/etc/hosts`, the
+  helper's LaunchDaemon, pf rules in Benbow's own anchor.
+- **Never touch services Benbow did not start** (MAMP, Valet, Herd,
+  Postgres.app, other Redis/MySQL) (2026-10-29) — Benbow must coexist; users
   migrate gradually. Importers read other tools' data only.
 - **Check every port before binding** (2026-10-29) — MAMP holds 80, 3306,
   8888 on typical Macs; default ports were chosen around them (8443, 3307,
   5433, 6380).
 - **Every downloaded binary is verified against a pinned SHA-256**
-  (2026-10-29) — Covo runs third-party binaries as the user; nothing is
+  (2026-10-29) — Benbow runs third-party binaries as the user; nothing is
   extracted or executed before the hash matches.
 - **Secrets only in the login keychain** (2026-10-29) — never in files,
   command lines, URLs or the clipboard (MySQL root, site DB users,
   PostgreSQL superuser, remote passwords, GitHub token).
-  - *Exception (2026-11-09): an app's environment.* An app Covo starts
+  - *Exception (2026-11-09): an app's environment.* An app Benbow starts
     gets `DATABASE_URL` with its password, and the user's own variables,
     in its process environment: that is how Node, Python and Ruby
-    frameworks read them, and the alternative (a `.env` file Covo writes
+    frameworks read them, and the alternative (a `.env` file Benbow writes
     in the project) would put secrets in the client's repository. Values
     are read from the keychain at each start and go only to that process:
-    never a plist, the app log, the API, `--json` (except `covo site env
+    never a plist, the app log, the API, `--json` (except `benbow site env
     --show`) or an agent. *Not chosen:* a `.env` file; a URL without the
     password (frameworks cannot connect); asking the user to copy it.
 
 ## Identity and licence
 
 - **Name Covo, domain getcovo.dev, org `getcovo`, bundle `dev.getcovo.*`**
-  (2026-10-29).
+  (2026-10-29). Replaced by Benbow, below.
+- **Renamed to Benbow: domain benbow.dev, org `benbowdev`, CLI `benbow`,
+  bundle `dev.benbow.*`** (2026-11-09) — another product called getcovo
+  appeared days before the announcement. The `getcovo` organization is kept
+  empty, so GitHub keeps redirecting the old repository and release links;
+  getcovo.dev redirects to benbow.dev for a year. The few installed copies
+  (the author's and one tester's) move with `benbow migrate covo` instead
+  of a bridge release: Sparkle cannot update an app whose name and bundle
+  ID both change. *Not chosen:* renaming the organization (its old name
+  would be free for anyone), keeping `covo` as a command alias, keeping the
+  old bundle ID.
 - **GPL-3.0-only, Copyright Andrea Casali** (2026-10-29) — keeps forks open;
   trademark rules in TRADEMARKS.md protect the name.
-- **`getcovo/covo` private until the beta; binaries Covo builds published
-  from the public `getcovo/covo-binaries`** (2026-10-29) — Covo must
+- **`benbowdev/benbow` private until the beta; binaries Benbow builds published
+  from the public `benbowdev/benbow-binaries`** (2026-10-29) — Benbow must
   download them without a token. Releases are never replaced: a rebuild
   gets a new tag. *Not chosen:* making the main repo public early.
 
@@ -114,24 +124,24 @@ Format: **decision** (date) — why. *Not chosen:* alternatives.
   clients** (2026-10-29) — one behaviour everywhere, tested once, no logic
   in the GUI.
 - **Local API: JSON over a Unix socket (0600 + peer UID check), daemon
-  `dev.getcovo.core` started by the app** (2026-11-02) — no TCP port to
+  `dev.benbow.core` started by the app** (2026-11-02) — no TCP port to
   protect, only the user can talk to it. The CLI stays in-process (works
   without the daemon); the spike had no daemon at all.
 - **The core never runs as root** (2026-10-29) — privileged work (hosts
   file, pf) goes through a minimal helper with a fixed set of operations.
-- **launchd user agents `dev.getcovo.*`, plists in the Covo home,
-  bootstrapped by Covo, not at login** (2026-10-29) — nothing runs unless
-  the user starts Covo; opt-in "open at login" through SMAppService.
+- **launchd user agents `dev.benbow.*`, plists in the Benbow home,
+  bootstrapped by Benbow, not at login** (2026-10-29) — nothing runs unless
+  the user starts Benbow; opt-in "open at login" through SMAppService.
 - **SQLite state with a pure-Go driver (modernc), numbered migrations**
   (2026-10-29) — no CGO, one file, easy to back up.
-- **An older covo refuses a database migrated by a newer one** (2026-11-04)
+- **An older benbow refuses a database migrated by a newer one** (2026-11-04)
   — an older copy on PATH, or going back to an older app, would otherwise
   write rows without knowing what the newer columns mean; it answers
   `unsupported` and says to update. A test migrates a schema-0007 database
   with data to the current schema.
 - **Every CLI command has `--json` with a stable envelope and error codes**
   (2026-10-29) — scripts and agents can rely on it.
-- **Concurrent writers serialized by `flock` on `covo.lock`** (2026-10-29).
+- **Concurrent writers serialized by `flock` on `benbow.lock`** (2026-10-29).
 - **Exported core methods that change things take the lock; unexported
   ones assume it is held** (2026-11-04) — the flock is not reentrant (a new
   file descriptor waits for the one already held), so a test reads the
@@ -145,10 +155,10 @@ Format: **decision** (date) — why. *Not chosen:* alternatives.
 - **User secrets go to the keychain hex-encoded** (2026-11-04) — remote
   passwords and the GitHub token are the user's, so any character must
   work; `security -i` takes them as `-X <hex>` on stdin and `-g` reads
-  them back (`internal/keychain`). Passwords Covo generates keep their
+  them back (`internal/keychain`). Passwords Benbow generates keep their
   quote-free alphabet, since they also go into option files and SQL.
   *Not chosen:* quoting for `security -i` (its escaping rules are not
-  documented), the Security framework through cgo (Covo builds without
+  documented), the Security framework through cgo (Benbow builds without
   cgo).
 
 ## Web server and PHP
@@ -167,7 +177,7 @@ Format: **decision** (date) — why. *Not chosen:* alternatives.
   FPM pool per site (more processes, more memory).
 - **PHP 7.4 MAMP sites mapped to 8.1 with a warning** (2026-10-29), later
   **legacy PHP 5.6–7.4 offered from shivammathur builds bundled in
-  covo-binaries** (2026-11-03) — real client sites still run old PHP;
+  benbow-binaries** (2026-11-03) — real client sites still run old PHP;
   the support status and EOL warnings come from php.net.
 - **Xdebug built in CI per exact PHP version** (2026-10-29) — static builds
   do not ship it; the toggle is per site in Advanced.
@@ -182,25 +192,25 @@ Format: **decision** (date) — why. *Not chosen:* alternatives.
 
 - **`<site>.localhost` on a high HTTPS port (8443) by default**
   (2026-10-29) — resolves without any setup or privilege on macOS.
-- **`.test` opt-in: `/etc/resolver/test` + Covo's DNS on 127.0.0.1:53535**
+- **`.test` opt-in: `/etc/resolver/test` + Benbow's DNS on 127.0.0.1:53535**
   (2026-10-29) — one admin dialog, reserved TLD.
 - **`.local` only as "MAMP compatibility mode" through `/etc/hosts`**
   (2026-10-29) — `.local` is mDNS; it works only via hosts and costs ~1 ms
   per lookup, so it is never the default. Always both 127.0.0.1 and ::1.
-- **No non-reserved TLDs (`.covo`) and no public domains** (2026-10-29) —
+- **No non-reserved TLDs (`.benbow`) and no public domains** (2026-10-29) —
   they can collide with real names.
 - **Own CA with Name Constraints (`.localhost`, `.test`, `.local` only, no
   IPs), constraints on root and intermediate, root key discarded after
-  signing** (2026-10-29) — trusting a CA is powerful; Covo's can only vouch
+  signing** (2026-10-29) — trusting a CA is powerful; Benbow's can only vouch
   for local names, and nobody can mint another intermediate. Never weakened
   without the user's explicit consent. *Not chosen:* Caddy's own
   unconstrained CA (used in the spike, migrated away).
 - **Provisional privileged helper as a LaunchDaemon (one admin
   authorization)** (2026-10-29) — SMAppService needs a Developer ID-signed
-  app, which comes with the beta; the helper only edits Covo's marked
-  block in `/etc/hosts` and Covo's pf anchor.
-- **Ports 443/80 through pf `rdr` rules in Covo's own anchor, only while
-  Covo runs** (2026-11-03) — Caddy stays unprivileged; `pf.conf` is never
+  app, which comes with the beta; the helper only edits Benbow's marked
+  block in `/etc/hosts` and Benbow's pf anchor.
+- **Ports 443/80 through pf `rdr` rules in Benbow's own anchor, only while
+  Benbow runs** (2026-11-03) — Caddy stays unprivileged; `pf.conf` is never
   edited; refused if another program has the port.
 
 ## Databases
@@ -214,7 +224,7 @@ Format: **decision** (date) — why. *Not chosen:* alternatives.
 - **Adminer behind `adminer.localhost`, opened already logged in through
   one-time 60 s tokens** (2026-11-02) — no password in URL, clipboard or
   file.
-- **PostgreSQL 18 and Redis 8 built by Covo in covo-binaries, off by
+- **PostgreSQL 18 and Redis 8 built by Benbow in benbow-binaries, off by
   default, ports 5433/6380** (2026-11-03) — no official self-contained
   macOS builds; 5432/6379 are often taken. Redis 8 (AGPLv3 option) over
   Valkey by the user's choice.
@@ -223,25 +233,25 @@ Format: **decision** (date) — why. *Not chosen:* alternatives.
 
 ## Updates
 
-- **Signed manifest (ed25519) from covo-binaries, merged with the embedded
+- **Signed manifest (ed25519) from benbow-binaries, merged with the embedded
   one; higher serial only; entries only added, never changed** (2026-11-02)
   — one trust root for every component; a stolen server cannot swap a
   known artifact or replay an old manifest. Private key only as a GitHub
   Actions secret.
 - **The published manifest expires after 14 days** (2026-11-05) — the
   serial stops replays of older manifests, but not a server that keeps
-  serving the last one (a freeze): Covo would never hear of security
+  serving the last one (a freeze): Benbow would never hear of security
   fixes. Renewed weekly by the workflow. *Not chosen:* a short expiry (a
   day: one failed run would raise errors everywhere), no expiry.
 - **Active users from the release download count, not telemetry**
   (2026-11-05) — the automatic update check downloads the signed manifest
   from a GitHub release asset at most once every 24 hours per Mac; the
-  daily download count (public CSV in covo-binaries) is the number of
+  daily download count (public CSV in benbow-binaries) is the number of
   active Macs. No identifier, no new service, nothing beyond the request
   GitHub already serves. Manual checks use the raw copy so they do not
   count; the raw copy is also the fallback. *Not chosen:* our own
   telemetry endpoint (a server, personal data, a privacy policy to
-  defend), a counter on getcovo.dev or Plausible (the app never visits
+  defend), a counter on benbow.dev or Plausible (the app never visits
   the site), the CSV in a private repository (a token in a public
   workflow; the live count is public through the API anyway).
 - **Updates are a badge and a click, never automatic; versions pinned per
@@ -278,12 +288,12 @@ Format: **decision** (date) — why. *Not chosen:* alternatives.
 - **Importers read other tools' data only, from temporary copies**
   (2026-10-29) — MAMP and the others keep working untouched.
 - **Assisted migration: database copied (source only read), wp-config.php
-  or .env backed up in the Covo home then changed (only the four DB
+  or .env backed up in the Benbow home then changed (only the four DB
   defines), URLs replaced with `wp search-replace`, undo per site**
   (2026-11-03) — moving a real site by hand was the slow and risky part.
   The project folder stays shared with the old tool: that is explained
   before migrating.
-- **Migration also points `WP_HOME`/`WP_SITEURL` at Covo when
+- **Migration also points `WP_HOME`/`WP_SITEURL` at Benbow when
   wp-config.php sets them as plain strings** (2026-11-05) — they win over
   the database, so after a migration the site kept redirecting to the old
   `.local` address. `WP_SITEURL` keeps its path under the old home. Defines
@@ -307,7 +317,7 @@ Format: **decision** (date) — why. *Not chosen:* alternatives.
 - **Hosts without SSH: FTPS/FTP or SFTP for files, a temporary PHP bridge
   for the database (random name, 256-bit token, 10 min expiry, always
   removed)** (2026-11-03) — shared hosting is common among the users.
-- **SSH passwords in the keychain, given to ssh through `covo askpass`**
+- **SSH passwords in the keychain, given to ssh through `benbow askpass`**
   (2026-11-03).
 
 ## Phone
@@ -315,7 +325,7 @@ Format: **decision** (date) — why. *Not chosen:* alternatives.
 - **Open on phone: one site, private IPv4 only, `<site>-<mac>.local` via
   dns-sd, auto-off, CA install page** (2026-11-03) — the CA's constraints
   already cover `.local`, so the CA does not change. URLs fixed through a
-  Covo-owned `auto_prepend_file` only for the phone's requests: no database
+  Benbow-owned `auto_prepend_file` only for the phone's requests: no database
   or project change.
 - **The phone opens a plain-HTTP address first** (2026-11-04) — installing
   a profile and turning on full trust on iPhone takes six taps in Settings
@@ -341,7 +351,7 @@ Format: **decision** (date) — why. *Not chosen:* alternatives.
 
 - **MCP server over stdio with the official Go SDK; no delete tools, no
   push** (2026-11-03) — destructive and outward actions stay with the user.
-- **Agents are read-only by default; writes need `covo mcp allow <site|*>`;
+- **Agents are read-only by default; writes need `benbow mcp allow <site|*>`;
   dry_run on every change; every call logged** (2026-11-03).
 - **Agent sessions replace "a snapshot per call"** (2026-11-04) — with keep
   10 an agent making more than ten changes lost the starting state, full
@@ -369,7 +379,7 @@ Format: **decision** (date) — why. *Not chosen:* alternatives.
   databases use root, and validation alone is not a guarantee.
 - **`fetch_page` correlates PHP errors to one request through a probe
   header that sends that request's error log to its own file** (2026-11-04)
-  — zero cost when unused; only Covo sites, no external URLs.
+  — zero cost when unused; only Benbow sites, no external URLs.
 - **"Work with an agent": MCP config passed per run where the agent allows
   it, otherwise a global entry with confirmation and backup; never files in
   client repositories; context through a system-prompt file outside the
@@ -377,7 +387,7 @@ Format: **decision** (date) — why. *Not chosen:* alternatives.
 - **Supported agents: Claude Code, Codex, Gemini CLI, Cursor (app and CLI),
   GitHub Copilot CLI** (2026-11-04).
 - **Claude Code plugin in the repo + an AGENTS.md snippet for the others**
-  (2026-11-04) — the snippet is for the user to paste: Covo never writes
+  (2026-11-04) — the snippet is for the user to paste: Benbow never writes
   into client repositories.
 - **Folder check on the agent's first request, not on `initialized`**
   (2026-11-04) — the 2026-07-28 MCP protocol replaced the initialize
@@ -390,33 +400,33 @@ Format: **decision** (date) — why. *Not chosen:* alternatives.
 - **Performance schema sized to ~30 MB** (2026-11-04) — the defaults cost
   ~400 MB; zero thread instances lose the table counters, so threads stay
   (300) and every other table is sized to zero.
-- **fetch_page sends only GET/HEAD and follows redirects only to Covo
+- **fetch_page sends only GET/HEAD and follows redirects only to Benbow
   hosts** (2026-11-04) — checking must not change the site or reach the
   internet.
 
 ## Releases
 
 - **Preliminary betas: Developer ID, notarized DMG sent by hand**
-  (2026-11-04) — a collaborator tries Covo before the public beta; a
+  (2026-11-04) — a collaborator tries Benbow before the public beta; a
   notarized app opens with a double click and keeps one identity across
   builds (keychain items, login item). Versions `0.1.0-beta.N`; Sparkle and
   a public download come with the public beta. *Not chosen:* ad-hoc
   signing ("Open Anyway" in Settings, keychain prompts after every build),
   a GitHub release (the repository stays private).
 
-- **App updates: Sparkle 2, feed on getcovo.dev, DMG on GitHub releases**
+- **App updates: Sparkle 2, feed on benbow.dev, DMG on GitHub releases**
   (2026-11-05) — the standard for apps outside the App Store; EdDSA
   signature on top of Developer ID and notarization. Feed on the domain
   so moving off GitHub later needs no app update. Scheduled checks only
   show a toolbar badge (gentle reminders): Sparkle's window opens only on
-  a click, like component updates. XPC services removed (Covo is not
+  a click, like component updates. XPC services removed (Benbow is not
   sandboxed). Development builds have no feed. *Not chosen:* the feed as
   a GitHub release asset (ties every installed copy to GitHub), a
   self-written updater.
 - **Public history rewritten before going public** (2026-11-05) — client
   site names and notes about the author's Mac replaced in all commits;
-  the original history stays in the private `getcovo/covo-archive`, the
-  rewritten one is a new `getcovo/covo` (a force push would leave old
+  the original history stays in the private `benbowdev/benbow-archive`, the
+  rewritten one is a new `benbowdev/benbow` (a force push would leave old
   commits reachable by hash).
 
 ## Later (v2+), decided not now

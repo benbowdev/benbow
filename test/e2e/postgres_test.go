@@ -27,8 +27,8 @@ $pdo->exec('INSERT INTO t VALUES (1)');
 $n = $pdo->query('SELECT count(*) FROM t')->fetchColumn();
 $r = new Redis();
 $r->connect('127.0.0.1', (int) $c['redis_port']);
-$r->set('covo', 'ok');
-echo $n, '|', $r->get('covo');
+$r->set('benbow', 'ok');
+echo $n, '|', $r->get('benbow');
 `
 
 // TestPostgresRedis runs PostgreSQL and Redis, gives a site its own
@@ -40,13 +40,13 @@ func TestPostgresRedis(t *testing.T) {
 		Port    int  `json:"port"`
 		Running bool `json:"running"`
 	}
-	if err := json.Unmarshal(h.mustCovo("postgres", "enable"), &pg); err != nil || !pg.Enabled {
+	if err := json.Unmarshal(h.mustBenbow("postgres", "enable"), &pg); err != nil || !pg.Enabled {
 		t.Fatalf("postgres enable = %+v, %v", pg, err)
 	}
-	if err := json.Unmarshal(h.mustCovo("redis", "enable"), &rd); err != nil || !rd.Enabled {
+	if err := json.Unmarshal(h.mustBenbow("redis", "enable"), &rd); err != nil || !rd.Enabled {
 		t.Fatalf("redis enable = %+v, %v", rd, err)
 	}
-	h.mustCovo("start")
+	h.mustBenbow("start")
 
 	dir := newSite(t)
 	if err := os.WriteFile(filepath.Join(dir, "index.php"), []byte(pgPage), 0o644); err != nil {
@@ -57,15 +57,15 @@ func TestPostgresRedis(t *testing.T) {
 		Database string `json:"database"`
 		Engine   string `json:"database_engine"`
 	}
-	data := h.mustCovo("site", "add", "pgshop", "--php", "8.4", "--path", dir, "--database", "new", "--engine", "pgsql")
+	data := h.mustBenbow("site", "add", "pgshop", "--php", "8.4", "--path", dir, "--database", "new", "--engine", "pgsql")
 	if err := json.Unmarshal(data, &site); err != nil || site.Database != "pgshop" || site.Engine != "pgsql" {
 		t.Fatalf("site add = %s, %v", data, err)
 	}
 	var db map[string]any
-	if err := json.Unmarshal(h.mustCovo("db", "show", "pgshop"), &db); err != nil || db["engine"] != "pgsql" || db["user"] != "pgshop" {
+	if err := json.Unmarshal(h.mustBenbow("db", "show", "pgshop"), &db); err != nil || db["engine"] != "pgsql" || db["user"] != "pgshop" {
 		t.Fatalf("db show = %v, %v", db, err)
 	}
-	if err := json.Unmarshal(h.mustCovo("redis"), &rd); err != nil {
+	if err := json.Unmarshal(h.mustBenbow("redis"), &rd); err != nil {
 		t.Fatal(err)
 	}
 	db["redis_port"] = rd.Port
@@ -79,7 +79,7 @@ func TestPostgresRedis(t *testing.T) {
 	}
 
 	// An agent session sees the row a request adds (PostgreSQL counters).
-	h.mustCovo("agent", "session", "open", "pgshop")
+	h.mustBenbow("agent", "session", "open", "pgshop")
 	if body := h.get(site.URL, st.CA.CertPath); body != "2|ok" {
 		t.Fatalf("request in the session = %q", body)
 	}
@@ -93,7 +93,7 @@ func TestPostgresRedis(t *testing.T) {
 		} `json:"database"`
 	}
 	for deadline := time.Now().Add(10 * time.Second); ; time.Sleep(500 * time.Millisecond) {
-		_ = json.Unmarshal(h.mustCovo("agent", "diff", "pgshop"), &diff)
+		_ = json.Unmarshal(h.mustBenbow("agent", "diff", "pgshop"), &diff)
 		if diff.Database != nil && len(diff.Database.Tables) == 1 && diff.Database.Tables[0].Inserted == 1 {
 			break
 		}
@@ -102,35 +102,35 @@ func TestPostgresRedis(t *testing.T) {
 		}
 	}
 	// Undone: back to one row, which the snapshot steps below rely on.
-	h.mustCovo("agent", "session", "revert", "pgshop", "--yes")
+	h.mustBenbow("agent", "session", "revert", "pgshop", "--yes")
 
 	// A snapshot restores the PostgreSQL database too (each request adds a row).
 	var snap struct {
 		ID string `json:"id"`
 	}
-	if err := json.Unmarshal(h.mustCovo("snapshot", "create", "pgshop"), &snap); err != nil {
+	if err := json.Unmarshal(h.mustBenbow("snapshot", "create", "pgshop"), &snap); err != nil {
 		t.Fatal(err)
 	}
 	if body := h.get(site.URL, st.CA.CertPath); body != "2|ok" {
 		t.Fatalf("second request = %q", body)
 	}
-	h.mustCovo("snapshot", "restore", "pgshop", snap.ID, "--yes")
+	h.mustBenbow("snapshot", "restore", "pgshop", snap.ID, "--yes")
 	if body := h.get(site.URL, st.CA.CertPath); body != "2|ok" {
 		t.Fatalf("after restore = %q (want the snapshot's 1 row plus this one)", body)
 	}
 
 	var dbs []string
-	if err := json.Unmarshal(h.mustCovo("db", "list", "--engine", "pgsql"), &dbs); err != nil || strings.Join(dbs, ",") != "pgshop" {
+	if err := json.Unmarshal(h.mustBenbow("db", "list", "--engine", "pgsql"), &dbs); err != nil || strings.Join(dbs, ",") != "pgshop" {
 		t.Fatalf("db list = %v, %v", dbs, err)
 	}
-	if env := h.covo("db", "create", "pgshop", "--engine", "pgsql"); env.OK || env.Error.Code != "conflict" {
+	if env := h.benbow("db", "create", "pgshop", "--engine", "pgsql"); env.OK || env.Error.Code != "conflict" {
 		t.Fatalf("second create = %+v", env)
 	}
 	if !h.keychainAccountIn(".postgres", "pgshop") {
 		t.Fatal("site password not in the keychain")
 	}
-	h.mustCovo("db", "unlink", "pgshop", "--drop", "--yes")
-	if err := json.Unmarshal(h.mustCovo("db", "list", "--engine", "pgsql"), &dbs); err != nil || len(dbs) != 0 {
+	h.mustBenbow("db", "unlink", "pgshop", "--drop", "--yes")
+	if err := json.Unmarshal(h.mustBenbow("db", "list", "--engine", "pgsql"), &dbs); err != nil || len(dbs) != 0 {
 		t.Fatalf("db list after drop = %v, %v", dbs, err)
 	}
 
@@ -140,7 +140,7 @@ func TestPostgresRedis(t *testing.T) {
 		URL      string `json:"url"`
 		Database string `json:"database"`
 	}
-	if err := json.Unmarshal(h.mustCovo("laravel", "api", "--path", app, "--engine", "pgsql"), &lv); err != nil || lv.Database != "api" {
+	if err := json.Unmarshal(h.mustBenbow("laravel", "api", "--path", app, "--engine", "pgsql"), &lv); err != nil || lv.Database != "api" {
 		t.Fatalf("laravel = %+v, %v", lv, err)
 	}
 	env, err := os.ReadFile(filepath.Join(app, ".env"))

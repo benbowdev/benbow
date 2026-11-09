@@ -15,14 +15,14 @@ import (
 // TestAliases serves a site under extra names and keeps every name unique.
 func TestAliases(t *testing.T) {
 	h := newHarness(t)
-	h.mustCovo("site", "add", "demo", "--php", "8.4", "--path", newSite(t))
-	h.mustCovo("site", "add", "other", "--php", "8.4", "--path", newSite(t))
-	h.mustCovo("start")
+	h.mustBenbow("site", "add", "demo", "--php", "8.4", "--path", newSite(t))
+	h.mustBenbow("site", "add", "other", "--php", "8.4", "--path", newSite(t))
+	h.mustBenbow("start")
 
 	var res struct {
 		Aliases []string `json:"aliases"`
 	}
-	data := h.mustCovo("site", "set", "demo", "--aliases", "www.demo.localhost,Shop.localhost, www.demo.localhost")
+	data := h.mustBenbow("site", "set", "demo", "--aliases", "www.demo.localhost,Shop.localhost, www.demo.localhost")
 	if err := json.Unmarshal(data, &res); err != nil || strings.Join(res.Aliases, ",") != "shop.localhost,www.demo.localhost" {
 		t.Fatalf("aliases = %v, %v", res.Aliases, err)
 	}
@@ -46,15 +46,15 @@ func TestAliases(t *testing.T) {
 		{[]string{"site", "set", "demo", "--aliases", "demo.example.com"}, "invalid_input"},
 		{[]string{"site", "set", "demo", "--aliases", "demo.test"}, "unsupported"},
 	} {
-		if env := h.covo(tt.args...); env.OK || env.Error.Code != tt.code {
+		if env := h.benbow(tt.args...); env.OK || env.Error.Code != tt.code {
 			t.Errorf("%v = %+v, want %s", tt.args, env, tt.code)
 		}
 	}
 
-	data = h.mustCovo("site", "set", "demo", "--aliases", "")
+	data = h.mustBenbow("site", "set", "demo", "--aliases", "")
 	if err := json.Unmarshal(data, &res); err != nil || len(res.Aliases) != 0 {
 		t.Fatalf("aliases after clearing = %v, %v", res.Aliases, err)
 	}
 	// The freed name can now be used elsewhere.
-	h.mustCovo("site", "set", "other", "--aliases", "shop.localhost")
+	h.mustBenbow("site", "set", "other", "--aliases", "shop.localhost")
 }

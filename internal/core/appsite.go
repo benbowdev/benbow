@@ -8,19 +8,19 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/ports"
-	"github.com/getcovo/covo/internal/store"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/ports"
+	"github.com/benbowdev/benbow/internal/store"
 )
 
 // Sites of kind app (docs/apps.md): a dev server in any language behind
-// the site's HTTPS domain. Covo either starts the user's command (AppRun)
-// or only proxies to a port where the user runs it (AppProxy). Covo never
+// the site's HTTPS domain. Benbow either starts the user's command (AppRun)
+// or only proxies to a port where the user runs it (AppProxy). Benbow never
 // installs or picks a runtime: the command runs with the user's own tools.
 
-// appPortFrom is where Covo looks for a free port for an app: away from the
+// appPortFrom is where Benbow looks for a free port for an app: away from the
 // ports dev servers use by default (3000, 4321, 5173, 8000, 8080…), so a
-// server started by hand never collides with one Covo started.
+// server started by hand never collides with one Benbow started.
 const (
 	appPortFrom = 41000
 	appPortSpan = 2000
@@ -78,7 +78,7 @@ func usedAppPorts(sites []store.Site, except string) map[int]bool {
 	return used
 }
 
-// freeAppPort picks a port for an app Covo starts: free now and not given
+// freeAppPort picks a port for an app Benbow starts: free now and not given
 // to another site. Callers hold the lock.
 func (c *Core) freeAppPort(ctx context.Context, except string) (int, error) {
 	sites, err := c.Store.ListSites(ctx)
@@ -101,7 +101,7 @@ func (c *Core) checkAppPortTaken(ctx context.Context, port int, self string) err
 		return err
 	}
 	if usedAppPorts(sites, self)[port] {
-		return errcode.Newf(errcode.Conflict, "port %d is already used by another Covo site", port)
+		return errcode.Newf(errcode.Conflict, "port %d is already used by another Benbow site", port)
 	}
 	return nil
 }
@@ -121,11 +121,11 @@ func (r AddSiteRequest) isApp() bool { return r.Command != "" || r.ProxyPort != 
 func (r AddSiteRequest) checkApp() error {
 	switch {
 	case r.Command != "" && r.ProxyPort != 0:
-		return errcode.Errorf(errcode.InvalidInput, "choose a command for Covo to start or a port to proxy to, not both")
+		return errcode.Errorf(errcode.InvalidInput, "choose a command for Benbow to start or a port to proxy to, not both")
 	case r.ProxyPort != 0 && r.Port != 0:
-		return errcode.Errorf(errcode.InvalidInput, "--port is for apps Covo starts; a proxied app uses --proxy-port")
+		return errcode.Errorf(errcode.InvalidInput, "--port is for apps Benbow starts; a proxied app uses --proxy-port")
 	case r.CreateFolder:
-		return errcode.Errorf(errcode.InvalidInput, "an app needs its project folder: Covo does not create projects for other languages")
+		return errcode.Errorf(errcode.InvalidInput, "an app needs its project folder: Benbow does not create projects for other languages")
 	}
 	if r.Command != "" {
 		if err := checkCommand(r.Command); err != nil {
@@ -189,9 +189,9 @@ func (c *Core) updateAppFields(ctx context.Context, req UpdateSiteRequest, site 
 	}
 	switch {
 	case req.Command != "" && req.ProxyPort != 0:
-		return errcode.Errorf(errcode.InvalidInput, "choose a command for Covo to start or a port to proxy to, not both")
+		return errcode.Errorf(errcode.InvalidInput, "choose a command for Benbow to start or a port to proxy to, not both")
 	case req.ProxyPort != 0 && req.Port != 0:
-		return errcode.Errorf(errcode.InvalidInput, "--port is for apps Covo starts; a proxied app uses --proxy-port")
+		return errcode.Errorf(errcode.InvalidInput, "--port is for apps Benbow starts; a proxied app uses --proxy-port")
 	}
 	if req.AppHost != nil {
 		if err := checkAppHost(*req.AppHost); err != nil {
@@ -218,7 +218,7 @@ func (c *Core) updateAppFields(ctx context.Context, req UpdateSiteRequest, site 
 		}
 		site.Command = strings.TrimSpace(req.Command)
 	} else if site.AppMode != store.AppRun && req.Port != 0 {
-		return errcode.Errorf(errcode.InvalidInput, "--port is for apps Covo starts: give the command with --command too")
+		return errcode.Errorf(errcode.InvalidInput, "--port is for apps Benbow starts: give the command with --command too")
 	}
 	switch {
 	case req.Port != 0 && req.Port != site.AppPort:

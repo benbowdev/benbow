@@ -11,12 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/getcovo/covo/internal/errcode"
+	"github.com/benbowdev/benbow/internal/errcode"
 )
 
 func openTest(t *testing.T) (*Store, string) {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "Covo Home", "covo.db")
+	path := filepath.Join(t.TempDir(), "Benbow Home", "benbow.db")
 	if err := mkdirAll(filepath.Dir(path)); err != nil {
 		t.Fatal(err)
 	}
@@ -113,7 +113,7 @@ func TestSites(t *testing.T) {
 		t.Fatal(err)
 	}
 	moved := demo
-	moved.Path, moved.PHPMinor, moved.Domain, moved.Enabled = "/Users/a/new", "8.2", "demo.covo.test", false
+	moved.Path, moved.PHPMinor, moved.Domain, moved.Enabled = "/Users/a/new", "8.2", "demo.benbow.test", false
 	moved.Database, moved.DBUser = "demo_db", "demo"
 	moved.PHPSettings = map[string]string{"memory_limit": "1G"}
 	moved.Archived = true
@@ -181,10 +181,10 @@ func TestCompareVersions(t *testing.T) {
 
 func mkdirAll(dir string) error { return os.MkdirAll(dir, 0o755) }
 
-// Several covo processes may open a new database at once (the daemon, the
+// Several benbow processes may open a new database at once (the daemon, the
 // CLI, an agent's MCP server): migrations must take turns.
 func TestOpenConcurrently(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "covo.db")
+	path := filepath.Join(t.TempDir(), "benbow.db")
 	errs := make(chan error, 8)
 	for range 8 {
 		go func() {
@@ -203,7 +203,7 @@ func TestOpenConcurrently(t *testing.T) {
 }
 
 // openAt opens a database migrated only up to version limit, as an older
-// covo left it.
+// benbow left it.
 func openAt(t *testing.T, path string, limit int) *Store {
 	t.Helper()
 	db, err := sql.Open("sqlite", "file:"+path+"?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)")
@@ -218,12 +218,12 @@ func openAt(t *testing.T, path string, limit int) *Store {
 	return s
 }
 
-// A database with data from an older Covo (schema 0007: sites, aliases,
+// A database with data from an older Benbow (schema 0007: sites, aliases,
 // groups) migrates to the current schema without losing anything, and the
 // newer columns get their defaults.
 func TestMigrateOldDatabaseWithData(t *testing.T) {
 	ctx := context.Background()
-	path := filepath.Join(t.TempDir(), "covo.db")
+	path := filepath.Join(t.TempDir(), "benbow.db")
 	old := openAt(t, path, 7)
 	for _, q := range []string{
 		`INSERT INTO site_groups (id, name, parent_id, created_at) VALUES (1, 'Clients', NULL, '2026-10-30T10:00:00Z')`,
@@ -264,7 +264,7 @@ func TestMigrateOldDatabaseWithData(t *testing.T) {
 	}
 }
 
-// An older covo (on PATH, or after going back to an older app) refuses a
+// An older benbow (on PATH, or after going back to an older app) refuses a
 // database a newer one has migrated, instead of writing to it.
 func TestOpenRefusesNewerSchema(t *testing.T) {
 	ctx := context.Background()

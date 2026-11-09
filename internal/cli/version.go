@@ -8,14 +8,14 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/getcovo/covo/internal/version"
+	"github.com/benbowdev/benbow/internal/version"
 	"github.com/spf13/cobra"
 )
 
 type versionResult version.Info
 
 func (v versionResult) Text(w io.Writer) {
-	fmt.Fprintf(w, "covo %s", v.Version)
+	fmt.Fprintf(w, "benbow %s", v.Version)
 	if v.Commit != "" {
 		fmt.Fprintf(w, " (%.12s", v.Commit)
 		if v.Dirty {
@@ -32,7 +32,7 @@ func (v versionResult) Text(w io.Writer) {
 func (a *app) versionCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",
-		Short: "Print the Covo version",
+		Short: "Print the Benbow version",
 		Args:  cobra.NoArgs,
 		RunE: a.run(func(context.Context, []string) (Result, error) {
 			return versionResult(version.Get()), nil

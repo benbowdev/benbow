@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 Andrea Casali
 
-// Package trust adds Covo's local root CA to, and removes it from, the
+// Package trust adds Benbow's local root CA to, and removes it from, the
 // user's login keychain with `security`. No sudo is involved: macOS shows one
 // authorization dialog to change the user's trust settings.
 package trust
@@ -22,7 +22,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/getcovo/covo/internal/errcode"
+	"github.com/benbowdev/benbow/internal/errcode"
 )
 
 // Cert is a parsed root certificate.
@@ -234,7 +234,7 @@ func (k *Keychain) Remove(ctx context.Context, cn string, onDisk *Cert) ([]Cert,
 }
 
 func writeTemp(c Cert) (string, error) {
-	f, err := os.CreateTemp("", "covo-ca-*.pem")
+	f, err := os.CreateTemp("", "benbow-ca-*.pem")
 	if err != nil {
 		return "", fmt.Errorf("write temp certificate: %w", err)
 	}

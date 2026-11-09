@@ -8,14 +8,14 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/getcovo/covo/internal/errcode"
+	"github.com/benbowdev/benbow/internal/errcode"
 )
 
 func TestCheckSiteDir(t *testing.T) {
 	home := filepath.Join(t.TempDir(), "home")
-	covo := filepath.Join(home, "Library", "Application Support", "covo")
+	benbow := filepath.Join(home, "Library", "Application Support", "benbow")
 	sites := filepath.Join(home, "Sites")
-	mustMkdir(t, filepath.Join(sites, "demo"), covo, filepath.Join(home, "Library", "Logs"))
+	mustMkdir(t, filepath.Join(sites, "demo"), benbow, filepath.Join(home, "Library", "Logs"))
 	link := filepath.Join(t.TempDir(), "link-to-home")
 	if err := os.Symlink(home, link); err != nil {
 		t.Fatal(err)
@@ -42,7 +42,7 @@ func TestCheckSiteDir(t *testing.T) {
 		{"Applications", "/Applications", errcode.ForbiddenFolder},
 		{"tmp root", "/tmp", errcode.ForbiddenFolder},
 		{"user Library", filepath.Join(home, "Library", "Logs"), errcode.ForbiddenFolder},
-		{"Covo home", covo, errcode.ForbiddenFolder},
+		{"Benbow home", benbow, errcode.ForbiddenFolder},
 		{"temp dir is fine", t.TempDir(), ""},
 		{"missing", filepath.Join(sites, "nope"), errcode.NotFound},
 		{"file", file, errcode.InvalidInput},
@@ -50,7 +50,7 @@ func TestCheckSiteDir(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := checkSiteDir(tt.path, home, covo)
+			err := checkSiteDir(tt.path, home, benbow)
 			if tt.want == "" {
 				if err != nil {
 					t.Fatalf("unexpected error: %v", err)
@@ -64,12 +64,12 @@ func TestCheckSiteDir(t *testing.T) {
 	}
 }
 
-func TestCheckSiteDirContainingCovoHome(t *testing.T) {
+func TestCheckSiteDirContainingBenbowHome(t *testing.T) {
 	base := t.TempDir()
-	covo := filepath.Join(base, "work", "covo")
-	mustMkdir(t, covo)
-	if err := checkSiteDir(filepath.Join(base, "work"), filepath.Join(base, "home"), covo); errcode.Code(err) != errcode.ForbiddenFolder {
-		t.Fatalf("parent of the Covo home: err = %v", err)
+	benbow := filepath.Join(base, "work", "benbow")
+	mustMkdir(t, benbow)
+	if err := checkSiteDir(filepath.Join(base, "work"), filepath.Join(base, "home"), benbow); errcode.Code(err) != errcode.ForbiddenFolder {
+		t.Fatalf("parent of the Benbow home: err = %v", err)
 	}
 }
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 Andrea Casali
 
-// Package cli implements the covo command line interface. It is a thin client:
+// Package cli implements the benbow command line interface. It is a thin client:
 // commands parse flags, call the core and render the result.
 package cli
 
@@ -15,8 +15,8 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/getcovo/covo/internal/core"
-	"github.com/getcovo/covo/internal/errcode"
+	"github.com/benbowdev/benbow/internal/core"
+	"github.com/benbowdev/benbow/internal/errcode"
 	"github.com/spf13/cobra"
 )
 
@@ -28,7 +28,7 @@ type app struct {
 	json   bool
 	// ran is set once a command's RunE starts; errors before that are usage errors.
 	ran bool
-	// exit overrides a successful exit code (covo wp passes wp-cli's on).
+	// exit overrides a successful exit code (benbow wp passes wp-cli's on).
 	exit int
 }
 
@@ -64,7 +64,7 @@ func execute(ctx context.Context, args []string, stdin io.Reader, stdout, stderr
 
 func (a *app) rootCmd() *cobra.Command {
 	root := &cobra.Command{
-		Use:           "covo",
+		Use:           "benbow",
 		Short:         "Local PHP / WordPress development environment",
 		SilenceUsage:  true,
 		SilenceErrors: true,
@@ -110,7 +110,7 @@ func (a *app) withCore(fn func(ctx context.Context, c *core.Core, args []string)
 	})
 }
 
-// Main is the entrypoint used by cmd/covo.
+// Main is the entrypoint used by cmd/benbow.
 func Main() {
 	os.Exit(execute(context.Background(), os.Args[1:], terminalStdin(), os.Stdout, os.Stderr))
 }

@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/getcovo/covo/internal/errcode"
+	"github.com/benbowdev/benbow/internal/errcode"
 )
 
 // Reading the mail PHP sent (Mailpit's API on loopback), so an agent can
@@ -87,7 +87,7 @@ func (c *Core) mailpitGet(ctx context.Context, path string, v any) error {
 		return err
 	}
 	if !on {
-		return errcode.Errorf(errcode.NotFound, "Mail is off: the user can turn it on in Covo (Settings → Mail) or with `covo mail enable`")
+		return errcode.Errorf(errcode.NotFound, "Mail is off: the user can turn it on in Benbow (Settings → Mail) or with `benbow mail enable`")
 	}
 	_, ui, err := c.mailPorts(ctx)
 	if err != nil {
@@ -101,7 +101,7 @@ func (c *Core) mailpitGet(ctx context.Context, path string, v any) error {
 	}
 	resp, err := (&http.Client{}).Do(req)
 	if err != nil {
-		return errcode.New(errcode.Service, fmt.Errorf("mail catcher (Mailpit) does not answer, is Covo started? %w", err))
+		return errcode.New(errcode.Service, fmt.Errorf("mail catcher (Mailpit) does not answer, is Benbow started? %w", err))
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusNotFound {

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 Andrea Casali
 
-// Package fsutil holds small file helpers shared across Covo packages.
+// Package fsutil holds small file helpers shared across Benbow packages.
 package fsutil
 
 import (

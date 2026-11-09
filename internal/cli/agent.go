@@ -10,9 +10,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/getcovo/covo/internal/agents"
-	"github.com/getcovo/covo/internal/core"
-	"github.com/getcovo/covo/internal/errcode"
+	"github.com/benbowdev/benbow/internal/agents"
+	"github.com/benbowdev/benbow/internal/core"
+	"github.com/benbowdev/benbow/internal/errcode"
 	"github.com/spf13/cobra"
 )
 
@@ -20,7 +20,7 @@ func (a *app) agentCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "agent",
 		Short: "AI agents working on your sites: sessions, keep or undo",
-		Long: "While an AI agent works on a site, Covo keeps the site's starting state (files and\n" +
+		Long: "While an AI agent works on a site, Benbow keeps the site's starting state (files and\n" +
 			"database) in an agent session, until you keep the changes or undo them all.",
 	}
 	cmd.AddCommand(a.agentSessionCmd(), a.agentIdleCmd(), a.agentDiffCmd(), a.agentToolsCmd(), a.agentConnectCmd(), a.agentStartCmd(), a.agentEndedCmd())
@@ -65,7 +65,7 @@ func (r sessionResult) Text(w io.Writer) {
 	for _, cp := range r.Checkpoints {
 		fmt.Fprintf(w, "  checkpoint %s  %s\n", cp.ID, cp.Note)
 	}
-	fmt.Fprintf(w, "Keep the changes: covo agent session keep %s   Undo everything: covo agent session revert %s\n", r.Site, r.Site)
+	fmt.Fprintf(w, "Keep the changes: benbow agent session keep %s   Undo everything: benbow agent session revert %s\n", r.Site, r.Site)
 }
 
 type closeResult core.CloseResult
@@ -100,7 +100,7 @@ func (a *app) agentSessionCmd() *cobra.Command {
 		Use:   "revert <site>",
 		Short: "Undo everything since the session started (files and database; .git untouched)",
 		Long: "Puts the site's files and database back to the session's starting snapshot. This also undoes\n" +
-			"changes you made yourself during the session: Covo does not know who changed what. .git and\n" +
+			"changes you made yourself during the session: Benbow does not know who changed what. .git and\n" +
 			"node_modules (and generated folders like .venv, .next) are never touched, and the current state is saved first (a pre-restore snapshot).",
 		Args: cobra.ExactArgs(1),
 		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
@@ -114,7 +114,7 @@ func (a *app) agentSessionCmd() *cobra.Command {
 	revert.Flags().BoolVar(&yes, "yes", false, "do not ask")
 	saveDB := &cobra.Command{
 		Use:    "save-db <id>",
-		Short:  "Save a session's starting database (run by Covo in the background)",
+		Short:  "Save a session's starting database (run by Benbow in the background)",
 		Hidden: true,
 		Args:   cobra.ExactArgs(1),
 		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
@@ -256,11 +256,11 @@ func (r toolsResult) Text(w io.Writer) {
 			state = "installed"
 			switch {
 			case t.Connected:
-				state += ", Covo connected"
+				state += ", Benbow connected"
 			case t.PerRun:
-				state += ", Covo connects itself when started from Covo"
+				state += ", Benbow connects itself when started from Benbow"
 			case t.CanConnect:
-				state += ", not connected (covo agent connect " + t.ID + ")"
+				state += ", not connected (benbow agent connect " + t.ID + ")"
 			}
 		}
 		last := ""
@@ -274,7 +274,7 @@ func (r toolsResult) Text(w io.Writer) {
 func (a *app) agentToolsCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "tools",
-		Short: "AI agents on this Mac and whether Covo is connected to them",
+		Short: "AI agents on this Mac and whether Benbow is connected to them",
 		Args:  cobra.NoArgs,
 		RunE: a.withCore(func(ctx context.Context, c *core.Core, _ []string) (Result, error) {
 			r, err := c.ListAgentTools(ctx)
@@ -288,18 +288,18 @@ type connectResult struct{ agents.ConnectResult }
 func (r connectResult) Text(w io.Writer) {
 	switch {
 	case r.Already:
-		fmt.Fprintf(w, "Covo is already in %s.\n", r.ConfigPath)
+		fmt.Fprintf(w, "Benbow is already in %s.\n", r.ConfigPath)
 		return
 	case r.Command != "":
 		fmt.Fprintf(w, "Ran: %s\n", r.Command)
 	default:
-		fmt.Fprintf(w, "Added Covo to %s.\n", r.ConfigPath)
+		fmt.Fprintf(w, "Added Benbow to %s.\n", r.ConfigPath)
 	}
 	if r.Backup != "" {
 		fmt.Fprintf(w, "Backup of the previous file: %s\n", r.Backup)
 	}
 	if r.Restart {
-		fmt.Fprintln(w, "Restart the app to see Covo.")
+		fmt.Fprintln(w, "Restart the app to see Benbow.")
 	}
 }
 
@@ -307,10 +307,10 @@ func (a *app) agentConnectCmd() *cobra.Command {
 	var yes bool
 	cmd := &cobra.Command{
 		Use:   "connect <agent>",
-		Short: "Add Covo's MCP server to an agent's own settings in your home (after a backup)",
+		Short: "Add Benbow's MCP server to an agent's own settings in your home (after a backup)",
 		Args:  cobra.ExactArgs(1),
 		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
-			if !yes && !a.confirm("Add Covo to "+args[0]+"'s settings in your home folder? The file is backed up first.") {
+			if !yes && !a.confirm("Add Benbow to "+args[0]+"'s settings in your home folder? The file is backed up first.") {
 				return nil, errcode.Errorf(errcode.ConfirmationRequired, "connecting needs --yes")
 			}
 			r, err := c.ConnectAgent(ctx, args[0])
@@ -330,7 +330,7 @@ func (r agentStartResult) Text(w io.Writer) {
 	}
 	fmt.Fprintf(w, "%s %s. Agent session open since %s (starting snapshot %s); the agent may change %s until it closes.\n",
 		r.Agent.Name, where, r.Session.OpenedAt.Local().Format("15:04"), r.Session.BaseSnapshot, r.Session.Site)
-	fmt.Fprintf(w, "When done: covo agent diff %s, then covo agent session keep|revert %s\n", r.Session.Site, r.Session.Site)
+	fmt.Fprintf(w, "When done: benbow agent diff %s, then benbow agent session keep|revert %s\n", r.Session.Site, r.Session.Site)
 }
 
 func (a *app) agentStartCmd() *cobra.Command {
@@ -341,7 +341,7 @@ func (a *app) agentStartCmd() *cobra.Command {
 		Short: "Start your AI agent in a site's folder, inside an agent session",
 		Long: "Opens an agent session (starting snapshot of files and database), lets agents change\n" +
 			"this site until the session closes, and starts the agent in a new terminal window with\n" +
-			"Covo connected for that run (Cursor: opens the folder). Agents: " + strings.Join([]string{"claude", "codex", "gemini", "cursor-agent", "cursor", "copilot"}, ", ") + ".",
+			"Benbow connected for that run (Cursor: opens the folder). Agents: " + strings.Join([]string{"claude", "codex", "gemini", "cursor-agent", "cursor", "copilot"}, ", ") + ".",
 		Args: cobra.ExactArgs(1),
 		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
 			req.Site = args[0]
@@ -356,7 +356,7 @@ func (a *app) agentStartCmd() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&req.Tool, "tool", "", "claude, codex, gemini, cursor-agent, cursor or copilot (default: the last one)")
 	cmd.Flags().StringVar(&req.Terminal, "terminal", "", "Terminal, iTerm or Ghostty (default: the last one, or Terminal)")
-	cmd.Flags().BoolVar(&req.Connect, "connect", false, "add Covo to the agent's own settings if it needs it (Gemini, Cursor)")
+	cmd.Flags().BoolVar(&req.Connect, "connect", false, "add Benbow to the agent's own settings if it needs it (Gemini, Cursor)")
 	cmd.Flags().BoolVar(&yes, "yes", false, "same as --connect")
 	return cmd
 }
@@ -364,7 +364,7 @@ func (a *app) agentStartCmd() *cobra.Command {
 func (a *app) agentEndedCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:    "ended <session>",
-		Short:  "Record that the agent Covo started has exited (run by its window)",
+		Short:  "Record that the agent Benbow started has exited (run by its window)",
 		Hidden: true,
 		Args:   cobra.ExactArgs(1),
 		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {

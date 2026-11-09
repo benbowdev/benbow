@@ -9,9 +9,9 @@ import (
 	"io"
 	"os"
 
-	"github.com/getcovo/covo/internal/core"
-	"github.com/getcovo/covo/internal/daemon"
-	"github.com/getcovo/covo/internal/errcode"
+	"github.com/benbowdev/benbow/internal/core"
+	"github.com/benbowdev/benbow/internal/daemon"
+	"github.com/benbowdev/benbow/internal/errcode"
 	"github.com/spf13/cobra"
 )
 
@@ -20,11 +20,11 @@ type daemonStatusResult daemon.Status
 func (s daemonStatusResult) Text(w io.Writer) {
 	switch {
 	case s.Answering:
-		fmt.Fprintf(w, "Covo daemon running (pid %d), API on %s\n", s.PID, s.Socket)
+		fmt.Fprintf(w, "Benbow daemon running (pid %d), API on %s\n", s.PID, s.Socket)
 	case s.Loaded:
-		fmt.Fprintf(w, "Covo daemon loaded but not answering on %s\n", s.Socket)
+		fmt.Fprintf(w, "Benbow daemon loaded but not answering on %s\n", s.Socket)
 	default:
-		fmt.Fprintln(w, "Covo daemon not running (the app starts it, or: covo daemon start)")
+		fmt.Fprintln(w, "Benbow daemon not running (the app starts it, or: benbow daemon start)")
 	}
 }
 
@@ -37,10 +37,10 @@ func (r daemonResult) Text(w io.Writer) {
 func (a *app) daemonCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "daemon",
-		Short: "Show, start or stop the daemon serving Covo's local API",
-		Long: `The daemon serves Covo's local API (JSON over a Unix socket only you can
-open) for the Covo app. It runs as a launchd agent from the Covo home and does
-not start at login; covo start and covo stop do not touch it.`,
+		Short: "Show, start or stop the daemon serving Benbow's local API",
+		Long: `The daemon serves Benbow's local API (JSON over a Unix socket only you can
+open) for the Benbow app. It runs as a launchd agent from the Benbow home and does
+not start at login; benbow start and benbow stop do not touch it.`,
 		Args: cobra.NoArgs,
 		RunE: a.withCore(func(ctx context.Context, c *core.Core, _ []string) (Result, error) {
 			res, err := daemon.Inspect(ctx, c)
@@ -49,12 +49,12 @@ not start at login; covo start and covo stop do not touch it.`,
 	}
 	cmd.AddCommand(&cobra.Command{
 		Use:   "start",
-		Short: "Start the daemon (restarts it if the covo binary changed)",
+		Short: "Start the daemon (restarts it if the benbow binary changed)",
 		Args:  cobra.NoArgs,
 		RunE: a.withCore(func(ctx context.Context, c *core.Core, _ []string) (Result, error) {
 			exe, err := os.Executable()
 			if err != nil {
-				return nil, errcode.New(errcode.Internal, fmt.Errorf("locate covo binary: %w", err))
+				return nil, errcode.New(errcode.Internal, fmt.Errorf("locate benbow binary: %w", err))
 			}
 			res, err := daemon.Start(ctx, c, exe)
 			return daemonResult(res), err

@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/paths"
-	"github.com/getcovo/covo/internal/store"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/paths"
+	"github.com/benbowdev/benbow/internal/store"
 )
 
 func TestRiskyAgentCall(t *testing.T) {
@@ -55,12 +55,12 @@ func TestRiskyAgentCall(t *testing.T) {
 func sessionCore(t *testing.T) (*Core, string) {
 	t.Helper()
 	dir := t.TempDir()
-	st, err := store.Open(context.Background(), filepath.Join(dir, "covo.db"))
+	st, err := store.Open(context.Background(), filepath.Join(dir, "benbow.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = st.Close() })
-	c := &Core{Store: st, Layout: paths.Layout{Lock: filepath.Join(dir, "covo.lock"), Data: filepath.Join(dir, "data"), Tmp: filepath.Join(dir, "tmp")}}
+	c := &Core{Store: st, Layout: paths.Layout{Lock: filepath.Join(dir, "benbow.lock"), Data: filepath.Join(dir, "data"), Tmp: filepath.Join(dir, "tmp")}}
 	site := filepath.Join(dir, "site")
 	for _, d := range []string{site, filepath.Join(site, ".git")} {
 		if err := os.MkdirAll(d, 0o755); err != nil {
@@ -108,7 +108,7 @@ func TestAgentSession(t *testing.T) {
 		t.Fatalf("info = base %v, %d checkpoints, %v", info.Base, len(info.Checkpoints), err)
 	}
 
-	// An edit made outside Covo, then undo everything.
+	// An edit made outside Benbow, then undo everything.
 	_ = os.WriteFile(filepath.Join(site, "index.php"), []byte("changed by the agent"), 0o644)
 	_ = os.WriteFile(filepath.Join(site, "new.php"), []byte("x"), 0o644)
 	_ = os.WriteFile(filepath.Join(site, ".git", "HEAD"), []byte("feature"), 0o644)

@@ -16,14 +16,14 @@ import (
 
 // Launch is one agent start in a site's folder.
 type Launch struct {
-	Dir     string // the site's project folder
-	CovoBin string // covo, for the MCP server and `covo agent ended`
-	Session string // the agent session id
+	Dir       string // the site's project folder
+	BenbowBin string // benbow, for the MCP server and `benbow agent ended`
+	Session   string // the agent session id
 	// Context is the long text for the agent (site, session, recommended
 	// workflow); Prompt is the one-line first message.
 	Context string
 	Prompt  string
-	// WorkDir is a folder of Covo's (never the project) for the files the
+	// WorkDir is a folder of Benbow's (never the project) for the files the
 	// start needs: the context, a one-run MCP configuration, the script.
 	WorkDir string
 	// Terminal is the terminal app's name (Terminal, iTerm, Ghostty, …).
@@ -36,7 +36,7 @@ type Started struct {
 	Terminal string   `json:"terminal,omitempty"`
 	Script   string   `json:"script,omitempty"`
 	Command  []string `json:"command"`
-	// NeedsGlobal is set when the agent only sees Covo through its global
+	// NeedsGlobal is set when the agent only sees Benbow through its global
 	// configuration (Gemini, Cursor), which is not there.
 	NeedsGlobal bool `json:"needs_global,omitempty"`
 }
@@ -60,7 +60,7 @@ func Command(a Agent, l Launch) ([]string, error) {
 		return nil, fmt.Errorf("create %s: %w", l.WorkDir, err)
 	}
 	mcpJSON := func() (string, error) {
-		cfg := map[string]any{"mcpServers": map[string]any{ServerName: map[string]any{"command": l.CovoBin, "args": []string{"mcp"}}}}
+		cfg := map[string]any{"mcpServers": map[string]any{ServerName: map[string]any{"command": l.BenbowBin, "args": []string{"mcp"}}}}
 		b, _ := json.MarshalIndent(cfg, "", "  ")
 		p := filepath.Join(l.WorkDir, "mcp.json")
 		if err := os.WriteFile(p, b, 0o600); err != nil {
@@ -82,7 +82,7 @@ func Command(a Agent, l Launch) ([]string, error) {
 		return []string{a.Path, "--mcp-config", p, "--append-system-prompt", l.Context, l.Prompt}, nil
 	case Codex:
 		return []string{a.Path, "-C", l.Dir,
-			"-c", "mcp_servers." + ServerName + ".command=" + tomlString(l.CovoBin),
+			"-c", "mcp_servers." + ServerName + ".command=" + tomlString(l.BenbowBin),
 			"-c", "mcp_servers." + ServerName + `.args=["mcp"]`,
 			"-c", "developer_instructions=" + tomlString(l.Context),
 			l.Prompt}, nil
@@ -102,9 +102,9 @@ func Command(a Agent, l Launch) ([]string, error) {
 	return nil, fmt.Errorf("%s cannot be started in a folder", a.Name)
 }
 
-// openCommand is /usr/bin/open (COVO_AGENTS_OPEN replaces it in tests).
+// openCommand is /usr/bin/open (BENBOW_AGENTS_OPEN replaces it in tests).
 func openCommand() string {
-	if p := os.Getenv("COVO_AGENTS_OPEN"); p != "" {
+	if p := os.Getenv("BENBOW_AGENTS_OPEN"); p != "" {
 		return p
 	}
 	return "/usr/bin/open"
@@ -133,12 +133,12 @@ func Start(ctx context.Context, a Agent, l Launch) (Started, error) {
 		quoted[i] = shellQuote(s)
 	}
 	script := "#!/bin/zsh -l\n" +
-		"# Started by Covo for an agent session; deleted when the session closes.\n" +
-		// Tell Covo when the agent is gone, also if the window is closed.
-		"trap " + shellQuote(shellQuote(l.CovoBin)+" agent ended "+shellQuote(l.Session)+" >/dev/null 2>&1") + " EXIT HUP INT TERM\n" +
+		"# Started by Benbow for an agent session; deleted when the session closes.\n" +
+		// Tell Benbow when the agent is gone, also if the window is closed.
+		"trap " + shellQuote(shellQuote(l.BenbowBin)+" agent ended "+shellQuote(l.Session)+" >/dev/null 2>&1") + " EXIT HUP INT TERM\n" +
 		"cd " + shellQuote(l.Dir) + " || exit 1\n" +
 		"clear\n" +
-		"printf '%s\\n\\n' " + shellQuote("Covo: "+a.Name+" in "+l.Dir+". Covo keeps the starting state: keep or undo the changes in Covo when you are done.") + "\n" +
+		"printf '%s\\n\\n' " + shellQuote("Benbow: "+a.Name+" in "+l.Dir+". Benbow keeps the starting state: keep or undo the changes in Benbow when you are done.") + "\n" +
 		strings.Join(quoted, " ") + "\n"
 	st.Script = filepath.Join(l.WorkDir, "start.command")
 	if err := os.WriteFile(st.Script, []byte(script), 0o700); err != nil {

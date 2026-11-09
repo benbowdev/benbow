@@ -10,10 +10,10 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"github.com/getcovo/covo/internal/caddy"
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/launchd"
-	"github.com/getcovo/covo/internal/ports"
+	"github.com/benbowdev/benbow/internal/caddy"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/launchd"
+	"github.com/benbowdev/benbow/internal/ports"
 )
 
 const (
@@ -134,7 +134,7 @@ func (c *Core) mailAgents(ctx context.Context, loaded map[string]launchd.Status)
 		for _, p := range []int{smtp, ui} {
 			if !ports.Free(p) {
 				return nil, 0, 0, errcode.Newf(errcode.PortInUse,
-					"Mailpit port %d is in use by %s; stop it or run `covo mail disable`", p, ports.Describe(ports.Owners(ctx, p)))
+					"Mailpit port %d is in use by %s; stop it or run `benbow mail disable`", p, ports.Describe(ports.Owners(ctx, p)))
 
 			}
 		}

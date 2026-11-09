@@ -15,7 +15,7 @@ import (
 )
 
 // TestAgentStart starts a (fake) agent on a site the way "Work with an
-// agent" does: session first, temporary permission, Covo connected for the
+// agent" does: session first, temporary permission, Benbow connected for the
 // run only, the agent in the site's folder; then keep.
 func TestAgentStart(t *testing.T) {
 	h := newHarness(t)
@@ -32,10 +32,10 @@ func TestAgentStart(t *testing.T) {
 	// The terminal: runs the script it is given (the last argument).
 	open := filepath.Join(home, "open")
 	_ = os.WriteFile(open, []byte("#!/bin/sh\necho \"open $*\" >> '"+calls+"'\nfor a; do last=$a; done\n/bin/sh \"$last\"\n"), 0o755)
-	h.env = append(h.env, "COVO_AGENTS_HOME="+home, "COVO_AGENTS_PATH="+bin, "COVO_AGENTS_OPEN="+open)
+	h.env = append(h.env, "BENBOW_AGENTS_HOME="+home, "BENBOW_AGENTS_PATH="+bin, "BENBOW_AGENTS_OPEN="+open)
 
 	dir := newSite(t)
-	h.mustCovo("site", "add", "shop", "--path", dir, "--php", "8.4")
+	h.mustBenbow("site", "add", "shop", "--path", dir, "--php", "8.4")
 
 	var tools struct {
 		Agents []struct {
@@ -43,7 +43,7 @@ func TestAgentStart(t *testing.T) {
 			Installed bool   `json:"installed"`
 		} `json:"agents"`
 	}
-	_ = json.Unmarshal(h.mustCovo("agent", "tools"), &tools)
+	_ = json.Unmarshal(h.mustBenbow("agent", "tools"), &tools)
 	installed := 0
 	for _, a := range tools.Agents {
 		if a.Installed {
@@ -54,7 +54,7 @@ func TestAgentStart(t *testing.T) {
 		t.Fatalf("tools = %+v", tools)
 	}
 
-	// Claude Code: Covo for this run only; nothing written in the folder.
+	// Claude Code: Benbow for this run only; nothing written in the folder.
 	var started struct {
 		Session struct {
 			Site       string `json:"site"`
@@ -66,7 +66,7 @@ func TestAgentStart(t *testing.T) {
 			Script   string `json:"script"`
 		} `json:"started"`
 	}
-	if err := json.Unmarshal(h.mustCovo("agent", "start", "shop", "--tool", "claude"), &started); err != nil {
+	if err := json.Unmarshal(h.mustBenbow("agent", "start", "shop", "--tool", "claude"), &started); err != nil {
 		t.Fatal(err)
 	}
 	if started.Session.Source != "launch" || !started.Session.WriteGrant || started.Started.Terminal != "Terminal" {
@@ -81,23 +81,23 @@ func TestAgentStart(t *testing.T) {
 	entries, _ := os.ReadDir(dir)
 	for _, e := range entries {
 		if e.Name() != "index.php" {
-			t.Fatalf("Covo wrote %s into the project", e.Name())
+			t.Fatalf("Benbow wrote %s into the project", e.Name())
 		}
 	}
 	var perms struct {
 		Temporary []string `json:"temporary"`
 	}
-	_ = json.Unmarshal(h.mustCovo("mcp", "status"), &perms)
+	_ = json.Unmarshal(h.mustBenbow("mcp", "status"), &perms)
 	if len(perms.Temporary) != 1 || perms.Temporary[0] != "shop" {
 		t.Fatalf("temporary permission = %+v", perms)
 	}
-	// The script told Covo the agent ended (the fake one exits at once).
+	// The script told Benbow the agent ended (the fake one exits at once).
 	var list []struct {
 		AgentRunning bool   `json:"agent_running"`
 		LaunchedTool string `json:"launched_tool"`
 	}
 	for deadline := time.Now().Add(10 * time.Second); ; time.Sleep(200 * time.Millisecond) {
-		_ = json.Unmarshal(h.mustCovo("agent", "session", "list"), &list)
+		_ = json.Unmarshal(h.mustBenbow("agent", "session", "list"), &list)
 		if len(list) == 1 && !list[0].AgentRunning && list[0].LaunchedTool == "claude" {
 			break
 		}
@@ -105,8 +105,8 @@ func TestAgentStart(t *testing.T) {
 			t.Fatalf("sessions = %+v", list)
 		}
 	}
-	h.mustCovo("agent", "session", "keep", "shop")
-	_ = json.Unmarshal(h.mustCovo("mcp", "status"), &perms)
+	h.mustBenbow("agent", "session", "keep", "shop")
+	_ = json.Unmarshal(h.mustBenbow("mcp", "status"), &perms)
 	if len(perms.Temporary) != 0 {
 		t.Fatalf("permission left after the session: %+v", perms)
 	}
@@ -114,20 +114,20 @@ func TestAgentStart(t *testing.T) {
 		t.Fatal("the start script outlived the session")
 	}
 
-	// Gemini only sees Covo through its own settings: asked first, then
+	// Gemini only sees Benbow through its own settings: asked first, then
 	// added with a backup.
 	settings := filepath.Join(home, ".gemini", "settings.json")
 	_ = os.MkdirAll(filepath.Dir(settings), 0o755)
 	_ = os.WriteFile(settings, []byte(`{"theme":"dark"}`), 0o600)
-	if env := h.covo("agent", "start", "shop", "--tool", "gemini"); env.OK || env.Error.Code != "confirmation_required" {
+	if env := h.benbow("agent", "start", "shop", "--tool", "gemini"); env.OK || env.Error.Code != "confirmation_required" {
 		t.Fatalf("gemini without --connect = %+v", env)
 	}
-	h.mustCovo("agent", "start", "shop", "--tool", "gemini", "--connect")
-	if b, _ := os.ReadFile(settings); !strings.Contains(string(b), `"covo"`) || !strings.Contains(string(b), `"theme": "dark"`) {
+	h.mustBenbow("agent", "start", "shop", "--tool", "gemini", "--connect")
+	if b, _ := os.ReadFile(settings); !strings.Contains(string(b), `"benbow"`) || !strings.Contains(string(b), `"theme": "dark"`) {
 		t.Fatalf("gemini settings = %s", b)
 	}
 	if b, _ := os.ReadDir(filepath.Join(h.home(), "data", "backups", "agents")); len(b) != 1 {
 		t.Fatalf("backups = %v", b)
 	}
-	h.mustCovo("agent", "session", "keep", "shop")
+	h.mustBenbow("agent", "session", "keep", "shop")
 }

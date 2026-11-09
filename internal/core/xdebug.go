@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/store"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/store"
 )
 
 func settingXdebug(minor string) string { return "xdebug_" + minor }
@@ -19,7 +19,7 @@ type XdebugStatus struct {
 	PHP        string `json:"php"`         // minor, e.g. 8.4
 	PHPVersion string `json:"php_version"` // exact, e.g. 8.4.23
 	Enabled    bool   `json:"enabled"`
-	// Available is true when Covo has an xdebug.so built for PHPVersion.
+	// Available is true when Benbow has an xdebug.so built for PHPVersion.
 	Available bool   `json:"available"`
 	Version   string `json:"version,omitempty"`
 	Path      string `json:"path,omitempty"`
@@ -29,7 +29,7 @@ type XdebugStatus struct {
 type XdebugResult struct {
 	XdebugStatus
 	Changed bool `json:"changed"`
-	// Applied is false when Covo is stopped: PHP-FPM picks it up on start.
+	// Applied is false when Benbow is stopped: PHP-FPM picks it up on start.
 	Applied bool `json:"applied"`
 }
 
@@ -44,7 +44,7 @@ func (c *Core) ensureXdebug(ctx context.Context, v store.PHPVersion) (string, st
 	art, err := c.Manifest.ResolveFor("xdebug", v.Version)
 	if errcode.Code(err) == errcode.NotFound {
 		return "", "", errcode.Newf(errcode.Unsupported,
-			"Covo has no Xdebug build for PHP %s on %s", v.Version, runtime.GOARCH)
+			"Benbow has no Xdebug build for PHP %s on %s", v.Version, runtime.GOARCH)
 
 	}
 	if err != nil {
@@ -109,7 +109,7 @@ func (c *Core) Xdebug(ctx context.Context) ([]XdebugStatus, error) {
 }
 
 // SetXdebug turns Xdebug on or off for a PHP minor version (installing that
-// PHP version if needed) and restarts its PHP-FPM if Covo is running.
+// PHP version if needed) and restarts its PHP-FPM if Benbow is running.
 func (c *Core) SetXdebug(ctx context.Context, minor string, on bool) (XdebugResult, error) {
 	var res XdebugResult
 	if err := validMinor(minor); err != nil {

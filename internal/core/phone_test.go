@@ -33,7 +33,7 @@ func TestMobileconfig(t *testing.T) {
 	if err := xml.Unmarshal([]byte(out), &v); err != nil || v.XMLName.Local != "plist" {
 		t.Fatalf("not a plist: %v", err)
 	}
-	for _, want := range []string{"com.apple.security.root", "<data>AQID</data>", "Covo Local CA"} {
+	for _, want := range []string{"com.apple.security.root", "<data>AQID</data>", "Benbow Local CA"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("profile lacks %q", want)
 		}

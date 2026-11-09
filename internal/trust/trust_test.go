@@ -112,8 +112,8 @@ func TestTrustLifecycle(t *testing.T) {
 	ctx := context.Background()
 	f := newFake()
 	k := &Keychain{Path: "/tmp/login.keychain-db", Run: f.run}
-	root := makeCert(t, "Covo Local CA")
-	other := makeCert(t, "Covo Local CA Intermediate") // substring match must be ignored
+	root := makeCert(t, "Benbow Local CA")
+	other := makeCert(t, "Benbow Local CA Intermediate") // substring match must be ignored
 	f.items[other.SHA1] = other
 
 	if ok, err := k.Trusted(ctx, root); err != nil || ok {
@@ -128,7 +128,7 @@ func TestTrustLifecycle(t *testing.T) {
 
 	// Remove by CN alone (certificate file lost), twice: idempotent.
 	for i := range 2 {
-		removed, err := k.Remove(ctx, "Covo Local CA", nil)
+		removed, err := k.Remove(ctx, "Benbow Local CA", nil)
 		if err != nil {
 			t.Fatalf("Remove #%d: %v", i+1, err)
 		}
@@ -147,11 +147,11 @@ func TestTrustLifecycle(t *testing.T) {
 func TestRemoveBySHA1WhenNotInKeychain(t *testing.T) {
 	f := newFake()
 	k := &Keychain{Path: "/tmp/login.keychain-db", Run: f.run}
-	root := makeCert(t, "Covo Local CA")
+	root := makeCert(t, "Benbow Local CA")
 	// Trust settings exist but the keychain item was deleted by hand.
 	f.trusted[root.SHA1] = root.CommonName
 
-	if _, err := k.Remove(context.Background(), "Covo Local CA", &root); err != nil {
+	if _, err := k.Remove(context.Background(), "Benbow Local CA", &root); err != nil {
 		t.Fatal(err)
 	}
 	if _, ok := f.trusted[root.SHA1]; ok {
@@ -163,14 +163,14 @@ func TestRemoveByCertLeavesOtherCAs(t *testing.T) {
 	ctx := context.Background()
 	f := newFake()
 	k := &Keychain{Path: "/tmp/login.keychain-db", Run: f.run}
-	mine := makeCert(t, "Covo Local CA")
-	theirs := makeCert(t, "Covo Local CA") // e.g. another Covo home
+	mine := makeCert(t, "Benbow Local CA")
+	theirs := makeCert(t, "Benbow Local CA") // e.g. another Benbow home
 	for _, c := range []Cert{mine, theirs} {
 		if err := k.Add(ctx, c); err != nil {
 			t.Fatal(err)
 		}
 	}
-	removed, err := k.Remove(ctx, "Covo Local CA", &mine)
+	removed, err := k.Remove(ctx, "Benbow Local CA", &mine)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -185,8 +185,8 @@ func TestRemoveByCertLeavesOtherCAs(t *testing.T) {
 func TestRemoveNothingRunsNoChange(t *testing.T) {
 	f := newFake()
 	k := &Keychain{Path: "/tmp/login.keychain-db", Run: f.run}
-	root := makeCert(t, "Covo Local CA")
-	removed, err := k.Remove(context.Background(), "Covo Local CA", &root)
+	root := makeCert(t, "Benbow Local CA")
+	removed, err := k.Remove(context.Background(), "Benbow Local CA", &root)
 	if err != nil || len(removed) != 0 {
 		t.Fatalf("removed=%v err=%v", removed, err)
 	}
@@ -198,14 +198,14 @@ func TestRemoveNothingRunsNoChange(t *testing.T) {
 }
 
 func TestHasTrustEntry(t *testing.T) {
-	out := "Number of trusted certs = 2\nCert 0: MAMP_PRO_Root_CA\n   Number of trust settings : 1\nCert 1: Covo Local CA\n"
+	out := "Number of trusted certs = 2\nCert 0: MAMP_PRO_Root_CA\n   Number of trust settings : 1\nCert 1: Benbow Local CA\n"
 	tests := []struct {
 		cn   string
 		want bool
 	}{
-		{"Covo Local CA", true},
+		{"Benbow Local CA", true},
 		{"MAMP_PRO_Root_CA", true},
-		{"Covo Local", false},
+		{"Benbow Local", false},
 	}
 	for _, tt := range tests {
 		if got := hasTrustEntry(out, tt.cn); got != tt.want {

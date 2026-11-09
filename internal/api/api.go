@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Andrea Casali
 
 // Package api serves the core over a local Unix socket: JSON over HTTP, the
-// same envelope and error codes as `covo --json`. It is how the app (and
+// same envelope and error codes as `benbow --json`. It is how the app (and
 // later the MCP server) talk to the core; there is no TCP port.
 //
 // Only the user running the daemon may connect: the socket is 0600 in a 0700
@@ -24,12 +24,12 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/getcovo/covo/internal/agents"
-	"github.com/getcovo/covo/internal/core"
-	"github.com/getcovo/covo/internal/envelope"
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/store"
-	"github.com/getcovo/covo/internal/version"
+	"github.com/benbowdev/benbow/internal/agents"
+	"github.com/benbowdev/benbow/internal/core"
+	"github.com/benbowdev/benbow/internal/envelope"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/store"
+	"github.com/benbowdev/benbow/internal/version"
 )
 
 // SocketName is the API socket's file name in the run directory.
@@ -248,7 +248,7 @@ func Handler(b Backend) http.Handler {
 			Companion: req.Companion, CompanionPort: req.CompanionPort,
 		})
 	})
-	// The command Covo proposes for an app's folder (it changes nothing).
+	// The command Benbow proposes for an app's folder (it changes nothing).
 	mux.HandleFunc("GET /v1/detect", func(w http.ResponseWriter, r *http.Request) {
 		v, err := core.DetectApp(r.URL.Query().Get("path"))
 		reply(w, v, err)
@@ -370,7 +370,7 @@ func Handler(b Backend) http.Handler {
 		}
 		return b.NewAdminerLogin(r.Context(), req.Site, req.Engine)
 	})
-	// Called by Covo's Adminer front file over this same socket.
+	// Called by Benbow's Adminer front file over this same socket.
 	post("POST", "/v1/adminer/redeem", func(_ *http.Request, body []byte) (any, error) {
 		var req struct {
 			Token string `json:"token"`
@@ -826,7 +826,7 @@ func Handler(b Backend) http.Handler {
 		return struct{}{}, b.StopPhone(r.Context())
 	})
 	get("/v1/ports", func(ctx context.Context) (any, error) { return b.GetPorts(ctx) })
-	// 443 and 80 install Covo's helper: macOS shows an administrator dialog.
+	// 443 and 80 install Benbow's helper: macOS shows an administrator dialog.
 	post("PUT", "/v1/ports", func(r *http.Request, body []byte) (any, error) {
 		var req struct {
 			HTTPSPort int `json:"https_port"`
@@ -973,7 +973,7 @@ func httpStatus(code string) int {
 func Listen(path string) (net.Listener, error) {
 	if c, err := net.DialTimeout("unix", path, time.Second); err == nil {
 		_ = c.Close()
-		return nil, errcode.Errorf(errcode.Conflict, "another Covo daemon is already listening on "+path)
+		return nil, errcode.Errorf(errcode.Conflict, "another Benbow daemon is already listening on "+path)
 	}
 	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return nil, fmt.Errorf("remove stale socket: %w", err)

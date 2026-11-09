@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/remote"
-	"github.com/getcovo/covo/internal/store"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/remote"
+	"github.com/benbowdev/benbow/internal/store"
 )
 
 // A host or user starting with "-" would reach ssh as an option

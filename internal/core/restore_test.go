@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/getcovo/covo/internal/paths"
+	"github.com/benbowdev/benbow/internal/paths"
 )
 
 func restoreCore(t *testing.T) *Core {
@@ -44,7 +44,7 @@ func TestRecoverRestoreInterruptedMidClone(t *testing.T) {
 	ctx := context.Background()
 	c := restoreCore(t)
 	root := filepath.Join(t.TempDir(), "my shop")
-	aside := root + ".covo-restore-101010"
+	aside := root + ".benbow-restore-101010"
 	writeFile(t, filepath.Join(aside, "index.php"), "original")
 	writeFile(t, filepath.Join(aside, ".git", "HEAD"), "ref")
 	writeFile(t, filepath.Join(root, "index.php"), "half")
@@ -80,7 +80,7 @@ func TestRecoverRestoreNothingMoved(t *testing.T) {
 	c := restoreCore(t)
 	root := filepath.Join(t.TempDir(), "shop")
 	writeFile(t, filepath.Join(root, "index.php"), "current")
-	if err := c.writeRestoreJournal(restoreJournal{Site: "shop", Root: root, Aside: root + ".covo-restore-1"}); err != nil {
+	if err := c.writeRestoreJournal(restoreJournal{Site: "shop", Root: root, Aside: root + ".benbow-restore-1"}); err != nil {
 		t.Fatal(err)
 	}
 	sites, err := c.RecoverRestores(context.Background())
@@ -141,7 +141,7 @@ func TestCloneTreeAndMoveSkipped(t *testing.T) {
 
 	// The site changes, then the snapshot is restored.
 	writeFile(t, filepath.Join(src, "index.php"), "v2")
-	aside := src + ".covo-restore-1"
+	aside := src + ".benbow-restore-1"
 	if err := os.Rename(src, aside); err != nil {
 		t.Fatal(err)
 	}

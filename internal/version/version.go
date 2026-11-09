@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 Andrea Casali
 
-// Package version reports the build version of Covo.
+// Package version reports the build version of Benbow.
 package version
 
 import "runtime/debug"
 
-// Version is set at release time via -ldflags "-X github.com/getcovo/covo/internal/version.Version=v0.1.0".
+// Version is set at release time via -ldflags "-X github.com/benbowdev/benbow/internal/version.Version=v0.1.0".
 var Version = "dev"
 
-// License is the SPDX identifier of Covo's license.
+// License is the SPDX identifier of Benbow's license.
 const License = "GPL-3.0-only"
 
 // Info describes the running build.

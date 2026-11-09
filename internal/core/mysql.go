@@ -15,12 +15,12 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/fsutil"
-	"github.com/getcovo/covo/internal/keychain"
-	"github.com/getcovo/covo/internal/launchd"
-	"github.com/getcovo/covo/internal/mysql"
-	"github.com/getcovo/covo/internal/ports"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/fsutil"
+	"github.com/benbowdev/benbow/internal/keychain"
+	"github.com/benbowdev/benbow/internal/launchd"
+	"github.com/benbowdev/benbow/internal/mysql"
+	"github.com/benbowdev/benbow/internal/ports"
 )
 
 const (
@@ -33,7 +33,7 @@ const (
 	mysqlInitStageDir = "mysql.init"
 )
 
-// MySQLStatus describes Covo's MySQL server.
+// MySQLStatus describes Benbow's MySQL server.
 type MySQLStatus struct {
 	Enabled bool   `json:"enabled"`
 	Version string `json:"version,omitempty"`
@@ -54,7 +54,7 @@ type MySQLStatus struct {
 type MySQLResult struct {
 	MySQLStatus
 	Changed bool `json:"changed"`
-	// Applied is false when Covo is stopped: the server starts with `covo start`.
+	// Applied is false when Benbow is stopped: the server starts with `benbow start`.
 	Applied bool `json:"applied"`
 }
 
@@ -93,7 +93,7 @@ func (c *Core) mysqlInitialized() (bool, error) {
 		return true, nil
 	}
 	if _, err := os.Lstat(dir); err == nil {
-		return false, errcode.Errorf(errcode.Conflict, dir+" exists but holds no MySQL data directory; move it away and run `covo mysql enable` again")
+		return false, errcode.Errorf(errcode.Conflict, dir+" exists but holds no MySQL data directory; move it away and run `benbow mysql enable` again")
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return false, fmt.Errorf("stat %s: %w", dir, err)
 	}
@@ -237,7 +237,7 @@ func (c *Core) prepareMySQL(ctx context.Context) (agent launchd.Agent, port int,
 		Program: filepath.Join(baseDir, "bin", "mysqld"),
 		Args:    []string{"--defaults-file=" + c.mysqlCnfPath()},
 		// Not read by mysqld: a changed config restarts the agent.
-		Env:         map[string]string{"COVO_CONFIG_HASH": hash},
+		Env:         map[string]string{"BENBOW_CONFIG_HASH": hash},
 		WorkDir:     c.Layout.Root,
 		StdoutLog:   out,
 		StderrLog:   errLog,
@@ -246,7 +246,7 @@ func (c *Core) prepareMySQL(ctx context.Context) (agent launchd.Agent, port int,
 }
 
 // mysqlAgents returns the MySQL agent when MySQL is enabled, after checking
-// that its port is free (or already Covo's).
+// that its port is free (or already Benbow's).
 func (c *Core) mysqlAgents(ctx context.Context, loaded map[string]launchd.Status) ([]launchd.Agent, int, error) {
 	enabled, err := c.mysqlEnabled(ctx)
 	if err != nil || !enabled {
@@ -258,7 +258,7 @@ func (c *Core) mysqlAgents(ctx context.Context, loaded map[string]launchd.Status
 	}
 	if !loaded[agent.Label].Running && !ports.Free(port) {
 		return nil, 0, errcode.Newf(errcode.PortInUse,
-			"MySQL port %d is in use by %s; stop it or run `covo mysql enable --port <free port>`",
+			"MySQL port %d is in use by %s; stop it or run `benbow mysql enable --port <free port>`",
 			port, ports.Describe(ports.Owners(ctx, port)))
 
 	}
@@ -313,12 +313,12 @@ func (c *Core) mysqlStatus(ctx context.Context) (MySQLStatus, error) {
 	return st, nil
 }
 
-// MySQL reports the state of Covo's MySQL server.
+// MySQL reports the state of Benbow's MySQL server.
 func (c *Core) MySQL(ctx context.Context) (MySQLStatus, error) {
 	return c.mysqlStatus(ctx)
 }
 
-// EnableMySQL installs and initializes MySQL and starts it if Covo is
+// EnableMySQL installs and initializes MySQL and starts it if Benbow is
 // running. port, if non-zero, changes the port first; it must be free.
 func (c *Core) EnableMySQL(ctx context.Context, port int) (MySQLResult, error) {
 	var res MySQLResult
@@ -333,7 +333,7 @@ func (c *Core) EnableMySQL(ctx context.Context, port int) (MySQLResult, error) {
 			return err
 		}
 		// Install and initialize now, so that enable reports problems
-		// (download, unsupported Mac) even while Covo is stopped.
+		// (download, unsupported Mac) even while Benbow is stopped.
 		if _, _, err := c.prepareMySQL(ctx); err != nil {
 			return err
 		}
@@ -397,7 +397,7 @@ func (c *Core) MySQLCredentials(ctx context.Context) (MySQLCredentials, error) {
 		return MySQLCredentials{}, err
 	}
 	if !st.Enabled {
-		return MySQLCredentials{}, errcode.Errorf(errcode.NotFound, "MySQL is not enabled: run `covo mysql enable`")
+		return MySQLCredentials{}, errcode.Errorf(errcode.NotFound, "MySQL is not enabled: run `benbow mysql enable`")
 	}
 	kc, err := mysqlKeychain(c.launchctl.Prefix)
 	if err != nil {

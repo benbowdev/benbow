@@ -22,22 +22,22 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/fsutil"
-	"github.com/getcovo/covo/internal/launchd"
-	"github.com/getcovo/covo/internal/paths"
-	"github.com/getcovo/covo/internal/ports"
-	"github.com/getcovo/covo/internal/proctree"
-	"github.com/getcovo/covo/internal/store"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/fsutil"
+	"github.com/benbowdev/benbow/internal/launchd"
+	"github.com/benbowdev/benbow/internal/paths"
+	"github.com/benbowdev/benbow/internal/ports"
+	"github.com/benbowdev/benbow/internal/proctree"
+	"github.com/benbowdev/benbow/internal/store"
 )
 
-// Apps Covo starts (docs/apps.md) run as a launchd agent per site whose
-// program is the hidden `covo app run <site>`: it starts the user's command
+// Apps Benbow starts (docs/apps.md) run as a launchd agent per site whose
+// program is the hidden `benbow app run <site>`: it starts the user's command
 // through their login shell, follows every process it starts and stops them
 // all when the agent is unloaded. launchd never restarts it: a dev server
 // that crashed stays down, with a clear message, until the user restarts it.
 
-// Logs of the processes Covo runs: an app's output, a PHP site's
+// Logs of the processes Benbow runs: an app's output, a PHP site's
 // companion's output (stdout and stderr of the command).
 const (
 	LogApp       = "app"
@@ -63,7 +63,7 @@ const (
 	AppRunning  = "running"  // the port answers
 	AppExited   = "exited"   // the command ended by itself with status 0
 	AppError    = "error"    // the command failed, or never opened its port
-	AppStopped  = "stopped"  // not started: Covo or the site is off
+	AppStopped  = "stopped"  // not started: Benbow or the site is off
 	AppWaiting  = "waiting"  // a proxied app: nothing listens on its port
 )
 
@@ -71,7 +71,7 @@ const (
 type AppStatus struct {
 	State string `json:"state"`
 	Port  int    `json:"port"`
-	// PID is the wrapper's process (Covo's `app run`), while it runs.
+	// PID is the wrapper's process (Benbow's `app run`), while it runs.
 	PID int `json:"pid,omitempty"`
 	// ExitCode is the command's exit status once it has ended.
 	ExitCode *int `json:"exit_code,omitempty"`
@@ -91,12 +91,12 @@ type appRunState struct {
 	Started  time.Time `json:"started"`
 	Ended    time.Time `json:"ended,omitzero"`
 	ExitCode *int      `json:"exit_code,omitempty"`
-	// Stopped is set when Covo stopped the app (not a crash).
+	// Stopped is set when Benbow stopped the app (not a crash).
 	Stopped bool   `json:"stopped,omitempty"`
 	Message string `json:"message,omitempty"`
 }
 
-// devProc is a dev server Covo runs for a site: an app's command, or the
+// devProc is a dev server Benbow runs for a site: an app's command, or the
 // companion of a PHP site (e.g. Vite next to Laravel).
 type devProc struct {
 	Site      store.Site
@@ -141,7 +141,7 @@ func (p devProc) what() string {
 	return "app"
 }
 
-// sitePrcs are the processes Covo runs for a site now.
+// sitePrcs are the processes Benbow runs for a site now.
 func siteProcs(s store.Site) []devProc {
 	switch {
 	case !s.Enabled:
@@ -187,10 +187,10 @@ func (c *Core) writeAppState(p devProc, st appRunState) {
 	}
 }
 
-// covoExecutable is the covo binary apps' agents run (the one running now).
-func covoExecutable() string {
+// benbowExecutable is the benbow binary apps' agents run (the one running now).
+func benbowExecutable() string {
 	exe, err := os.Executable()
-	if err != nil || filepath.Base(exe) != "covo" {
+	if err != nil || filepath.Base(exe) != "benbow" {
 		return ""
 	}
 	if resolved, err := filepath.EvalSymlinks(exe); err == nil {
@@ -199,7 +199,7 @@ func covoExecutable() string {
 	return exe
 }
 
-// appAgents returns the launchd agents of the apps and companions Covo
+// appAgents returns the launchd agents of the apps and companions Benbow
 // starts.
 func (c *Core) appAgents(ctx context.Context, sites []store.Site) ([]launchd.Agent, error) {
 	var agents []launchd.Agent
@@ -207,7 +207,7 @@ func (c *Core) appAgents(ctx context.Context, sites []store.Site) ([]launchd.Age
 	for _, s := range sites {
 		for _, p := range siteProcs(s) {
 			if c.Executable == "" {
-				return nil, errcode.Errorf(errcode.Service, "cannot start apps: this program is not the covo binary")
+				return nil, errcode.Errorf(errcode.Service, "cannot start apps: this program is not the benbow binary")
 			}
 			if services == "" {
 				services = c.appServicesHash(ctx) + ";"
@@ -218,7 +218,7 @@ func (c *Core) appAgents(ctx context.Context, sites []store.Site) ([]launchd.Age
 	return agents, nil
 }
 
-// appAgent is the agent of one process. services fingerprints the Covo
+// appAgent is the agent of one process. services fingerprints the Benbow
 // services its environment comes from (appServicesHash).
 func (c *Core) appAgent(p devProc, services string) launchd.Agent {
 	s := p.Site
@@ -227,8 +227,8 @@ func (c *Core) appAgent(p devProc, services string) launchd.Agent {
 	// which restarts the process. It holds no secret.
 	sum := sha256.Sum256([]byte(strings.Join([]string{p.dir(), p.command(), strconv.Itoa(p.port()),
 		s.Database, s.DBUser, s.DBEngine, s.Domain, strings.Join(s.Aliases, ","), s.Framework, services}, "\x00")))
-	env := map[string]string{"COVO_CONFIG_HASH": hex.EncodeToString(sum[:8])}
-	// The wrapper must find the same Covo home and keychain items.
+	env := map[string]string{"BENBOW_CONFIG_HASH": hex.EncodeToString(sum[:8])}
+	// The wrapper must find the same Benbow home and keychain items.
 	for _, k := range []string{paths.EnvHome, launchd.EnvLabelPrefix} {
 		if v := os.Getenv(k); v != "" {
 			env[k] = v
@@ -299,7 +299,7 @@ func (c *Core) RestartApp(ctx context.Context, name string) (AppStatus, error) {
 		if on, _, err := c.Store.Setting(ctx, settingRunning); err != nil {
 			return err
 		} else if on != "1" {
-			return errcode.Errorf(errcode.InvalidInput, "Covo is stopped: start it to run the "+p.what())
+			return errcode.Errorf(errcode.InvalidInput, "Benbow is stopped: start it to run the "+p.what())
 		}
 		if err := c.launchctl.Bootout(ctx, c.procLabel(p)); err != nil {
 			return err
@@ -341,7 +341,7 @@ func (c *Core) companionStatus(s store.Site, loaded map[string]launchd.Status) *
 	return c.procStatus(devProc{Site: s, Companion: true}, loaded)
 }
 
-// procStatus is the state of a process Covo runs.
+// procStatus is the state of a process Benbow runs.
 func (c *Core) procStatus(p devProc, loaded map[string]launchd.Status) *AppStatus {
 	st := &AppStatus{Port: p.port(), Log: c.siteLogPath(p.Site.Name, p.logKind())}
 	ls, loadedNow := loaded[c.procLabel(p)]
@@ -432,11 +432,11 @@ func diagnoseApp(code int, tail []string, port int, recorded string) string {
 			} else {
 				msg += " Install it"
 			}
-			return msg + " and check that your shell profile (.zprofile, .zshrc) puts it on PATH. Covo runs the command as a terminal would and does not install runtimes."
+			return msg + " and check that your shell profile (.zprofile, .zshrc) puts it on PATH. Benbow runs the command as a terminal would and does not install runtimes."
 		}
 	}
 	if reInUse.MatchString(text) {
-		return fmt.Sprintf("The port is already in use. Covo gave the command port %d: if the dev server picks its own port, make it use $PORT or put {port} in the command.", port)
+		return fmt.Sprintf("The port is already in use. Benbow gave the command port %d: if the dev server picks its own port, make it use $PORT or put {port} in the command.", port)
 	}
 	switch {
 	case code == 0:
@@ -465,7 +465,7 @@ func portAnswers(port int) bool {
 // appStartMarker starts the lines the wrapper writes in the app log; the
 // one before each run has appStartWord.
 const (
-	appStartMarker = "[covo] "
+	appStartMarker = "[benbow] "
 	appStartWord   = " starting "
 )
 
@@ -501,19 +501,19 @@ func isExecutable(p string) bool {
 // and runs the command with {port} replaced.
 func appCommand(shell string, p devProc) []string {
 	cmd := strings.ReplaceAll(p.command(), "{port}", strconv.Itoa(p.port()))
-	script := `cd "$COVO_APP_DIR" || exit 1` + "\n" + cmd
+	script := `cd "$BENBOW_APP_DIR" || exit 1` + "\n" + cmd
 	return []string{shell, "-l", "-i", "-c", script}
 }
 
 // appEnv is the environment of the command: the wrapper's own, without
-// Covo's variables, plus the port and Covo's CA for HTTPS calls to other
-// Covo sites.
+// Benbow's variables, plus the port and Benbow's CA for HTTPS calls to other
+// Benbow sites.
 func (c *Core) appEnv(p devProc, shell string) []string {
 	var env []string
 	for _, kv := range os.Environ() {
 		k, _, _ := strings.Cut(kv, "=")
 		switch {
-		case strings.HasPrefix(k, "COVO_"), k == "TERM", k == "SHELL", k == "PORT":
+		case strings.HasPrefix(k, "BENBOW_"), k == "TERM", k == "SHELL", k == "PORT":
 			continue
 		}
 		env = append(env, kv)
@@ -527,7 +527,7 @@ func (c *Core) appEnv(p devProc, shell string) []string {
 		"BROWSER=none",       // dev servers that open a browser tab on start
 		"PYTHONUNBUFFERED=1", // Python's output reaches the log at once
 		"PORT="+strconv.Itoa(p.port()),
-		"COVO_APP_DIR="+p.dir(),
+		"BENBOW_APP_DIR="+p.dir(),
 		"NODE_EXTRA_CA_CERTS="+c.CACertPath(),
 	)
 	if _, err := os.Stat(c.caBundlePath()); err == nil {
@@ -561,7 +561,7 @@ func (c *Core) RunApp(ctx context.Context, name string, companion bool) int {
 	case companion && (s.IsApp() || s.CompanionCommand == ""):
 		return fail(name + " has no companion command.")
 	case !companion && (!s.IsApp() || s.AppMode != store.AppRun):
-		return fail(name + " is not an app Covo starts.")
+		return fail(name + " is not an app Benbow starts.")
 	}
 	shell := loginShell(ctx)
 	say(strings.TrimSpace(appStartWord)+" %q in %s with %s, port %d", p.command(), p.dir(), shell, p.port())
@@ -573,7 +573,7 @@ func (c *Core) RunApp(ctx context.Context, name string, companion bool) int {
 		if companion {
 			flag = "--companion-port"
 		}
-		return fail(fmt.Sprintf("Port %d is in use by %s: stop it, or give the %s another port (covo site set %s %s N).",
+		return fail(fmt.Sprintf("Port %d is in use by %s: stop it, or give the %s another port (benbow site set %s %s N).",
 			p.port(), ports.Describe(ports.Owners(ctx, p.port())), p.what(), name, flag))
 	}
 	var extra, names, warnings []string
@@ -593,7 +593,7 @@ func (c *Core) RunApp(ctx context.Context, name string, companion bool) int {
 	home, _ := os.UserHomeDir()
 	// Every process the command starts inherits the tag, which finds the
 	// ones that leave the process tree too fast to be seen in it.
-	tag := "COVO_APP_RUN=" + name + "-" + p.what() + "-" + strconv.FormatInt(run.Started.UnixNano(), 36)
+	tag := "BENBOW_APP_RUN=" + name + "-" + p.what() + "-" + strconv.FormatInt(run.Started.UnixNano(), 36)
 	cmd.Dir, cmd.Env = home, append(append(c.appEnv(p, shell), extra...), tag)
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}

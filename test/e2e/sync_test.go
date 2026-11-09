@@ -15,13 +15,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/getcovo/covo/internal/wpconfig"
+	"github.com/benbowdev/benbow/internal/wpconfig"
 )
 
 // fakeSSH stands in for /usr/bin/ssh: it runs the remote command (or the
 // sftp subsystem) on this Mac, so "the server" is a local folder.
 const fakeSSH = `#!/bin/sh
-export PATH="$COVO_TEST_REMOTE_PATH:$PATH"
+export PATH="$BENBOW_TEST_REMOTE_PATH:$PATH"
 sub=0
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -39,29 +39,29 @@ exec /bin/sh -c "$*"
 
 // TestSync pulls a WordPress site from "production" and pushes to it as
 // staging, over SSH (rsync, mysqldump) and over SFTP with the PHP bridge.
-// The remote is another site of the same Covo, in its own folder and
+// The remote is another site of the same Benbow, in its own folder and
 // database.
 func TestSync(t *testing.T) {
 	if runtime.GOARCH != "arm64" {
 		t.Skip("MySQL 8.4 is pinned for Apple Silicon only")
 	}
 	h := newHarness(t)
-	h.mustCovo("mysql", "enable")
-	h.mustCovo("start")
+	h.mustBenbow("mysql", "enable")
+	h.mustBenbow("start")
 	base := t.TempDir()
 	local, prod := filepath.Join(base, "shop"), filepath.Join(base, "prod")
-	h.mustCovo("wordpress", "shop", "--path", local)
+	h.mustBenbow("wordpress", "shop", "--path", local)
 
 	// Production: a copy of the site with its own database and address.
 	if out, err := exec.Command("/bin/cp", "-R", local, prod).CombinedOutput(); err != nil {
 		t.Fatalf("cp: %v %s", err, out)
 	}
-	h.mustCovo("site", "add", "prod", "--path", prod, "--php", "8.4", "--database", "new")
+	h.mustBenbow("site", "add", "prod", "--path", prod, "--php", "8.4", "--database", "new")
 	var db struct {
 		Database, User, Password string
 		Port                     int
 	}
-	if err := json.Unmarshal(h.mustCovo("db", "show", "prod"), &db); err != nil {
+	if err := json.Unmarshal(h.mustBenbow("db", "show", "prod"), &db); err != nil {
 		t.Fatal(err)
 	}
 	cfgPath := filepath.Join(prod, "wp-config.php")
@@ -77,7 +77,7 @@ func TestSync(t *testing.T) {
 	var sites []struct {
 		Name, URL string
 	}
-	if err := json.Unmarshal(h.mustCovo("site", "list"), &sites); err != nil {
+	if err := json.Unmarshal(h.mustBenbow("site", "list"), &sites); err != nil {
 		t.Fatal(err)
 	}
 	urls := map[string]string{}
@@ -115,9 +115,9 @@ func TestSync(t *testing.T) {
 	if len(mysqlBins) == 0 {
 		t.Fatal("no MySQL tools")
 	}
-	h.env = append(h.env, "COVO_SSH="+fake, "COVO_TEST_REMOTE_PATH="+mysqlBins[0], "COVO_BRIDGE_CA="+st.CA.CertPath)
+	h.env = append(h.env, "BENBOW_SSH="+fake, "BENBOW_TEST_REMOTE_PATH="+mysqlBins[0], "BENBOW_BRIDGE_CA="+st.CA.CertPath)
 
-	h.mustCovo("remote", "set", "shop", "--kind", "staging", "--name", "stage", "--host", "fakehost", "--user", "deploy",
+	h.mustBenbow("remote", "set", "shop", "--kind", "staging", "--name", "stage", "--host", "fakehost", "--user", "deploy",
 		"--path", prod, "--url", urls["prod"])
 
 	type result struct {
@@ -127,7 +127,7 @@ func TestSync(t *testing.T) {
 		Snapshot string   `json:"snapshot"`
 	}
 	var dry result
-	if err := json.Unmarshal(h.mustCovo("pull", "shop", "stage", "--dry-run"), &dry); err != nil || len(dry.Files) != 1 || dry.Snapshot != "" {
+	if err := json.Unmarshal(h.mustBenbow("pull", "shop", "stage", "--dry-run"), &dry); err != nil || len(dry.Files) != 1 || dry.Snapshot != "" {
 		t.Fatalf("dry pull = %+v, %v", dry, err)
 	}
 	if _, err := os.Stat(filepath.Join(local, "wp-content", "uploads", "prod.txt")); !os.IsNotExist(err) {
@@ -136,7 +136,7 @@ func TestSync(t *testing.T) {
 
 	// Pull over SSH.
 	var pulled result
-	data := h.mustCovo("pull", "shop", "stage")
+	data := h.mustBenbow("pull", "shop", "stage")
 	if err := json.Unmarshal(data, &pulled); err != nil || pulled.Snapshot == "" || pulled.URLFrom != urls["prod"] {
 		t.Fatalf("pull = %s, %v", data, err)
 	}
@@ -155,7 +155,7 @@ func TestSync(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(local, "wp-content", "uploads", "local.txt"), []byte("from local"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	h.mustCovo("push", "shop", "stage", "--yes")
+	h.mustBenbow("push", "shop", "stage", "--yes")
 	if got := wp("prod", "option", "get", "blogname"); got != "Local Change" {
 		t.Fatalf("staging blogname after push = %q", got)
 	}
@@ -170,32 +170,32 @@ func TestSync(t *testing.T) {
 	}
 
 	// Production is never pushed to.
-	h.mustCovo("remote", "set", "shop", "--kind", "production", "--host", "fakehost", "--user", "deploy", "--path", prod, "--url", urls["prod"])
-	if env := h.covo("push", "shop", "production", "--yes"); env.OK || env.Error.Code != "unsupported" {
+	h.mustBenbow("remote", "set", "shop", "--kind", "production", "--host", "fakehost", "--user", "deploy", "--path", prod, "--url", urls["prod"])
+	if env := h.benbow("push", "shop", "production", "--yes"); env.OK || env.Error.Code != "unsupported" {
 		t.Fatalf("push to production = %+v", env)
 	}
 
 	// Pull over SFTP: the database comes through the PHP bridge.
 	wp("prod", "option", "update", "blogname", "Through The Bridge")
-	h.mustCovo("remote", "set", "shop", "--kind", "staging", "--name", "files", "--transport", "sftp", "--host", "fakehost",
+	h.mustBenbow("remote", "set", "shop", "--kind", "staging", "--name", "files", "--transport", "sftp", "--host", "fakehost",
 		"--user", "deploy", "--path", prod, "--url", urls["prod"])
-	h.mustCovo("pull", "shop", "files")
+	h.mustBenbow("pull", "shop", "files")
 	if got := wp("shop", "option", "get", "blogname"); got != "Through The Bridge" {
 		t.Fatalf("blogname after the bridge pull = %q", got)
 	}
 	if got := wp("shop", "option", "get", "home"); got != urls["shop"] {
 		t.Fatalf("home after the bridge pull = %q", got)
 	}
-	if left, _ := filepath.Glob(filepath.Join(prod, "covo-bridge-*.php")); len(left) != 0 {
+	if left, _ := filepath.Glob(filepath.Join(prod, "benbow-bridge-*.php")); len(left) != 0 {
 		t.Fatalf("bridge left on the server: %v", left)
 	}
 	// Push through the bridge too.
 	wp("shop", "option", "update", "blogname", "Bridge Push")
-	h.mustCovo("push", "shop", "files", "--yes", "--no-files")
+	h.mustBenbow("push", "shop", "files", "--yes", "--no-files")
 	if got := wp("prod", "option", "get", "blogname"); got != "Bridge Push" {
 		t.Fatalf("staging blogname after the bridge push = %q", got)
 	}
-	if left, _ := filepath.Glob(filepath.Join(prod, "covo-bridge-*.php")); len(left) != 0 {
+	if left, _ := filepath.Glob(filepath.Join(prod, "benbow-bridge-*.php")); len(left) != 0 {
 		t.Fatalf("bridge left on the server: %v", left)
 	}
 }

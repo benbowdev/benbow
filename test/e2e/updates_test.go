@@ -38,7 +38,7 @@ type updates struct {
 func (h *harness) updates(args ...string) updates {
 	h.t.Helper()
 	var u updates
-	if err := json.Unmarshal(h.mustCovo(append([]string{"update"}, args...)...), &u); err != nil {
+	if err := json.Unmarshal(h.mustBenbow(append([]string{"update"}, args...)...), &u); err != nil {
 		h.t.Fatal(err)
 	}
 	return u
@@ -118,12 +118,12 @@ func TestUpdates(t *testing.T) {
 	defer ts.Close()
 
 	h := newHarness(t)
-	h.env = append(h.env, "COVO_MANIFEST_URL="+ts.URL+"/manifest.json",
-		"COVO_MANIFEST_RELEASE_URL="+ts.URL+"/release/manifest.json",
-		"COVO_MANIFEST_TEST_KEY="+base64.StdEncoding.EncodeToString(pub))
-	h.mustCovo("site", "add", "demo", "--php", "8.4", "--path", newSite(t))
-	h.mustCovo("mail", "enable")
-	h.mustCovo("start")
+	h.env = append(h.env, "BENBOW_MANIFEST_URL="+ts.URL+"/manifest.json",
+		"BENBOW_MANIFEST_RELEASE_URL="+ts.URL+"/release/manifest.json",
+		"BENBOW_MANIFEST_TEST_KEY="+base64.StdEncoding.EncodeToString(pub))
+	h.mustBenbow("site", "add", "demo", "--php", "8.4", "--path", newSite(t))
+	h.mustBenbow("mail", "enable")
+	h.mustBenbow("start")
 
 	// The embedded manifest, plus two versions that do not exist upstream.
 	raw, err := os.ReadFile("../../internal/components/manifest.json")
@@ -148,11 +148,11 @@ func TestUpdates(t *testing.T) {
 			b["version"] = "1.33.99"
 			extra = append(extra, b)
 		case a["component"] == "caddy" && a["version"] == "2.11.7":
-			b := clone(a) // caddy still says v2.11.7: Covo must refuse it
+			b := clone(a) // caddy still says v2.11.7: Benbow must refuse it
 			b["version"] = "2.11.99"
 			extra = append(extra, b)
 		case a["component"] == "php" && a["version"] == "8.4.23":
-			b := clone(a) // php-fpm still says 8.4.23: Covo must refuse it
+			b := clone(a) // php-fpm still says 8.4.23: Benbow must refuse it
 			b["version"] = "8.4.99"
 			extra = append(extra, b)
 		}
@@ -166,7 +166,7 @@ func TestUpdates(t *testing.T) {
 	// Signed by another key: refused, nothing offered.
 	_, other, _ := ed25519.GenerateKey(rand.Reader)
 	publish(embedded.Serial+1, other)
-	if env := h.covo("update", "check"); env.OK || env.Error.Code != "checksum_mismatch" {
+	if env := h.benbow("update", "check"); env.OK || env.Error.Code != "checksum_mismatch" {
 		t.Fatalf("check with a foreign signature = %+v", env)
 	}
 	if u := h.updates(); len(u.Updates) != 0 {
@@ -176,7 +176,7 @@ func TestUpdates(t *testing.T) {
 	// Properly signed but expired: refused (a stuck or replayed server).
 	expires = time.Now().Add(-time.Hour).UTC().Format(time.RFC3339)
 	publish(embedded.Serial+1, priv)
-	if env := h.covo("update", "check"); env.OK || env.Error.Code != "checksum_mismatch" || !strings.Contains(env.Error.Message, "expired") {
+	if env := h.benbow("update", "check"); env.OK || env.Error.Code != "checksum_mismatch" || !strings.Contains(env.Error.Message, "expired") {
 		t.Fatalf("check with an expired manifest = %+v", env)
 	}
 	expires = time.Now().Add(14 * 24 * time.Hour).UTC().Format(time.RFC3339)
@@ -201,7 +201,7 @@ func TestUpdates(t *testing.T) {
 	}
 	srv.setRelease(true)
 	before := srv.hits()
-	if env := h.covo("update", "check", "--auto"); !env.OK {
+	if env := h.benbow("update", "check", "--auto"); !env.OK {
 		t.Fatalf("automatic check from the release = %+v", env)
 	}
 	if got := srv.hits() - before; got != 2 {
@@ -230,14 +230,14 @@ func TestUpdates(t *testing.T) {
 
 	// Binaries that do not report the version they claim are refused, and
 	// nothing changes.
-	if env := h.covo("update", "apply", "caddy"); env.OK || env.Error.Code != "checksum_mismatch" {
+	if env := h.benbow("update", "apply", "caddy"); env.OK || env.Error.Code != "checksum_mismatch" {
 		t.Fatalf("apply broken caddy = %+v", env)
 	}
 	st := h.status()
 
 	// A PHP binary that does not report the version it claims: refused,
 	// and the site keeps its PHP.
-	if env := h.covo("update", "apply", "php-8.4"); env.OK || env.Error.Code != "checksum_mismatch" {
+	if env := h.benbow("update", "apply", "php-8.4"); env.OK || env.Error.Code != "checksum_mismatch" {
 		t.Fatalf("apply broken php = %+v", env)
 	}
 	if body := h.get(st.Sites[0].URL, st.CA.CertPath); body != "8.4.23" {

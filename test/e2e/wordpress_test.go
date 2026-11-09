@@ -17,7 +17,7 @@ import (
 	"testing"
 )
 
-// wp runs `covo wp` and returns its raw output and exit code.
+// wp runs `benbow wp` and returns its raw output and exit code.
 func (h *harness) wp(args ...string) (string, int) {
 	h.t.Helper()
 	cmd := exec.Command(h.bin, append([]string{"wp"}, args...)...)
@@ -44,14 +44,14 @@ func TestWordPress(t *testing.T) {
 
 	// MySQL off: refused before anything is created.
 	dir := filepath.Join(root, "My Blog")
-	if env := h.covo("wordpress", "blog", "--path", dir); env.OK || env.Error.Code != "unsupported" {
+	if env := h.benbow("wordpress", "blog", "--path", dir); env.OK || env.Error.Code != "unsupported" {
 		t.Fatalf("without MySQL = %+v", env)
 	}
 	if _, err := os.Stat(dir); !os.IsNotExist(err) {
 		t.Fatalf("folder created by a refused request: %v", err)
 	}
-	h.mustCovo("mysql", "enable")
-	h.mustCovo("start")
+	h.mustBenbow("mysql", "enable")
+	h.mustBenbow("start")
 
 	// A folder with files is refused and left alone.
 	busy := filepath.Join(root, "busy")
@@ -61,7 +61,7 @@ func TestWordPress(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(busy, "keep.txt"), []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if env := h.covo("wordpress", "busy", "--path", busy); env.OK || env.Error.Code != "conflict" {
+	if env := h.benbow("wordpress", "busy", "--path", busy); env.OK || env.Error.Code != "conflict" {
 		t.Fatalf("non-empty folder = %+v", env)
 	}
 	if _, err := os.Stat(filepath.Join(busy, "keep.txt")); err != nil {
@@ -78,7 +78,7 @@ func TestWordPress(t *testing.T) {
 		AdminUser     string `json:"admin_user"`
 		AdminPassword string `json:"admin_password"`
 	}
-	data := h.mustCovo("wordpress", "blog", "--path", dir, "--title", "Covo Test Blog", "--php", "8.2")
+	data := h.mustBenbow("wordpress", "blog", "--path", dir, "--title", "Benbow Test Blog", "--php", "8.2")
 	if err := json.Unmarshal(data, &res); err != nil {
 		t.Fatal(err)
 	}
@@ -87,7 +87,7 @@ func TestWordPress(t *testing.T) {
 		t.Fatalf("result = %+v", res)
 	}
 	st := h.status()
-	if body := h.get(res.URL, st.CA.CertPath); !strings.Contains(body, "Covo Test Blog") {
+	if body := h.get(res.URL, st.CA.CertPath); !strings.Contains(body, "Benbow Test Blog") {
 		t.Fatalf("home page: %.300q", body)
 	}
 	if body := h.get(res.URL+"/wp-login.php", st.CA.CertPath); !strings.Contains(body, "user_login") {
@@ -108,18 +108,18 @@ func TestWordPress(t *testing.T) {
 	if out, code := h.wp("blog", "user", "check-password", "admin", res.AdminPassword); code != 0 {
 		t.Fatalf("admin password rejected: %q (exit %d)", out, code)
 	}
-	if _, code := h.wp("blog", "option", "get", "covo_missing_option"); code == 0 {
+	if _, code := h.wp("blog", "option", "get", "benbow_missing_option"); code == 0 {
 		t.Fatal("wp-cli exit code not passed through")
 	}
 	if _, code := h.wp("nope", "option", "get", "siteurl"); code == 0 {
 		t.Fatal("wp for a missing site succeeded")
 	}
-	// wp-cli keeps its cache inside the Covo folder.
+	// wp-cli keeps its cache inside the Benbow folder.
 	if _, err := os.Stat(filepath.Join(homeOf(t, h), "data", "wp-cli")); err != nil && !os.IsNotExist(err) {
 		t.Fatal(err)
 	}
 
-	if env := h.covo("wordpress", "blog", "--path", filepath.Join(root, "again")); env.OK || env.Error.Code != "conflict" {
+	if env := h.benbow("wordpress", "blog", "--path", filepath.Join(root, "again")); env.OK || env.Error.Code != "conflict" {
 		t.Fatalf("second blog = %+v", env)
 	}
 	if _, err := os.Stat(filepath.Join(root, "again")); !os.IsNotExist(err) {

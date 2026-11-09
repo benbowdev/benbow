@@ -3,12 +3,12 @@
 
 //go:build integration
 
-// Package e2e drives the real covo binary end to end: it downloads binaries,
+// Package e2e drives the real benbow binary end to end: it downloads binaries,
 // starts launchd agents and serves HTTPS. Run with:
 //
 //	go test -tags integration ./test/e2e/
 //
-// Everything is isolated from a real installation: a temporary COVO_HOME, a
+// Everything is isolated from a real installation: a temporary BENBOW_HOME, a
 // test-only launchd label prefix and a free HTTPS port.
 package e2e
 
@@ -61,18 +61,18 @@ type harness struct {
 func newHarness(t *testing.T) *harness {
 	t.Helper()
 	tmp := t.TempDir()
-	bin := filepath.Join(tmp, "covo")
-	build := exec.Command("go", "build", "-tags", "covotest", "-o", bin, "github.com/getcovo/covo/cmd/covo")
+	bin := filepath.Join(tmp, "benbow")
+	build := exec.Command("go", "build", "-tags", "benbowtest", "-o", bin, "github.com/benbowdev/benbow/cmd/benbow")
 	if out, err := build.CombinedOutput(); err != nil {
-		t.Fatalf("build covo: %v\n%s", err, out)
+		t.Fatalf("build benbow: %v\n%s", err, out)
 	}
-	helper := filepath.Join(tmp, "covo-hostshelper")
-	build = exec.Command("go", "build", "-o", helper, "github.com/getcovo/covo/cmd/covo-hostshelper")
+	helper := filepath.Join(tmp, "benbow-hostshelper")
+	build = exec.Command("go", "build", "-o", helper, "github.com/benbowdev/benbow/cmd/benbow-hostshelper")
 	if out, err := build.CombinedOutput(); err != nil {
-		t.Fatalf("build covo-hostshelper: %v\n%s", err, out)
+		t.Fatalf("build benbow-hostshelper: %v\n%s", err, out)
 	}
 	// A space in the path on purpose: the real home is "Application Support".
-	home := filepath.Join(tmp, "Covo Home")
+	home := filepath.Join(tmp, "Benbow Home")
 	suffix := make([]byte, 4)
 	_, _ = rand.Read(suffix)
 	h := &harness{
@@ -81,20 +81,20 @@ func newHarness(t *testing.T) *harness {
 		port: freePort(t),
 	}
 	h.env = append(os.Environ(),
-		"COVO_HOME="+home,
-		"COVO_LABEL_PREFIX=dev.getcovo.test-"+hex.EncodeToString(suffix),
-		// Never let a test find, or remove, the real "Covo Local CA".
-		"COVO_CA_NAME=Covo Test CA "+hex.EncodeToString(suffix),
-		"COVO_HTTPS_PORT="+strconv.Itoa(h.port),
+		"BENBOW_HOME="+home,
+		"BENBOW_LABEL_PREFIX=dev.benbow.test-"+hex.EncodeToString(suffix),
+		// Never let a test find, or remove, the real "Benbow Local CA".
+		"BENBOW_CA_NAME=Benbow Test CA "+hex.EncodeToString(suffix),
+		"BENBOW_HTTPS_PORT="+strconv.Itoa(h.port),
 		// Never touch /etc/resolver, never ask for an administrator password.
-		"COVO_RESOLVER_DIR="+filepath.Join(tmp, "resolver"),
+		"BENBOW_RESOLVER_DIR="+filepath.Join(tmp, "resolver"),
 	)
 	h.resolverDir = filepath.Join(tmp, "resolver")
-	h.env = append(h.env, "COVO_HOSTS_HELPER_SOCKET="+h.startHelper(helper))
+	h.env = append(h.env, "BENBOW_HOSTS_HELPER_SOCKET="+h.startHelper(helper))
 	t.Cleanup(func() {
-		h.covo("stop")
-		h.covo("uninstall", "--yes")
-		// Safety net: never leave a test agent loaded, whatever covo did.
+		h.benbow("stop")
+		h.benbow("uninstall", "--yes")
+		// Safety net: never leave a test agent loaded, whatever benbow did.
 		for _, label := range h.loadedLabels() {
 			_ = exec.Command("/bin/launchctl", "bootout", "gui/"+strconv.Itoa(os.Getuid())+"/"+label).Run()
 		}
@@ -178,8 +178,8 @@ func freePort(t *testing.T) int {
 	return l.Addr().(*net.TCPAddr).Port
 }
 
-// covo runs the binary with --json and returns the decoded envelope.
-func (h *harness) covo(args ...string) envelope {
+// benbow runs the binary with --json and returns the decoded envelope.
+func (h *harness) benbow(args ...string) envelope {
 	h.t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
@@ -190,22 +190,22 @@ func (h *harness) covo(args ...string) envelope {
 	_ = cmd.Run()
 	var env envelope
 	if err := json.Unmarshal(stdout.Bytes(), &env); err != nil {
-		h.t.Fatalf("covo %s: invalid JSON (%v)\nstdout: %s\nstderr: %s",
+		h.t.Fatalf("benbow %s: invalid JSON (%v)\nstdout: %s\nstderr: %s",
 			strings.Join(args, " "), err, stdout.String(), stderr.String())
 	}
 	return env
 }
 
-func (h *harness) mustCovo(args ...string) json.RawMessage {
+func (h *harness) mustBenbow(args ...string) json.RawMessage {
 	h.t.Helper()
-	env := h.covo(args...)
+	env := h.benbow(args...)
 	if !env.OK {
-		h.t.Fatalf("covo %s failed: %+v", strings.Join(args, " "), env.Error)
+		h.t.Fatalf("benbow %s failed: %+v", strings.Join(args, " "), env.Error)
 	}
 	return env.Data
 }
 
-// get fetches url trusting only Covo's local CA.
+// get fetches url trusting only Benbow's local CA.
 func (h *harness) get(url, caPath string) string {
 	h.t.Helper()
 	pem, err := os.ReadFile(caPath)
@@ -264,7 +264,7 @@ func TestSiteAddServesHTTPS(t *testing.T) {
 	var added struct {
 		URL string `json:"url"`
 	}
-	data := h.mustCovo("site", "add", "demo", "--php", "8.4", "--path", newSite(t))
+	data := h.mustBenbow("site", "add", "demo", "--php", "8.4", "--path", newSite(t))
 	if err := json.Unmarshal(data, &added); err != nil {
 		t.Fatal(err)
 	}
@@ -273,14 +273,14 @@ func TestSiteAddServesHTTPS(t *testing.T) {
 		t.Fatalf("url = %q, want %q", added.URL, wantURL)
 	}
 
-	h.mustCovo("start")
+	h.mustBenbow("start")
 
 	var status struct {
 		CA struct {
 			CertPath string `json:"cert_path"`
 		} `json:"ca"`
 	}
-	if err := json.Unmarshal(h.mustCovo("status"), &status); err != nil {
+	if err := json.Unmarshal(h.mustBenbow("status"), &status); err != nil {
 		t.Fatal(err)
 	}
 

@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/getcovo/covo/internal/core"
+	"github.com/benbowdev/benbow/internal/core"
 	"github.com/spf13/cobra"
 )
 
@@ -19,10 +19,10 @@ func (r updatesResult) Text(w io.Writer) {
 		fmt.Fprintf(w, "%-10s %s → %s\n", u.Component, u.Current, u.Available)
 	}
 	if len(r.Applied) > 0 && !r.Live {
-		fmt.Fprintln(w, "Covo is stopped: the new versions run with `covo start`.")
+		fmt.Fprintln(w, "Benbow is stopped: the new versions run with `benbow start`.")
 	}
 	if !r.Auto {
-		fmt.Fprintln(w, "The daily automatic check is off (`covo update auto on`).")
+		fmt.Fprintln(w, "The daily automatic check is off (`benbow update auto on`).")
 	}
 	if r.Error != "" {
 		fmt.Fprintf(w, "Last check failed: %s\n", r.Error)
@@ -41,7 +41,7 @@ func (r updatesResult) Text(w io.Writer) {
 		}
 		fmt.Fprintf(w, "  %-10s %s → %s%s\n", u.Component, u.Current, u.Available, note)
 	}
-	fmt.Fprintln(w, "Install with `covo update apply [component...]`.")
+	fmt.Fprintln(w, "Install with `benbow update apply [component...]`.")
 }
 
 func (a *app) updateCmd() *cobra.Command {
@@ -73,7 +73,7 @@ func (a *app) updateCmd() *cobra.Command {
 	_ = check.Flags().MarkHidden("auto")
 	cmd.AddCommand(check, &cobra.Command{
 		Use:       "auto on|off",
-		Short:     "Turn the daily automatic check on or off (off: Covo makes no update request by itself)",
+		Short:     "Turn the daily automatic check on or off (off: Benbow makes no update request by itself)",
 		Args:      cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
 		ValidArgs: []string{"on", "off"},
 		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {

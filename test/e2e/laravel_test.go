@@ -16,7 +16,7 @@ import (
 	"testing"
 )
 
-// raw runs covo without --json (tools pass their output through).
+// raw runs benbow without --json (tools pass their output through).
 func (h *harness) raw(args ...string) (string, int) {
 	h.t.Helper()
 	cmd := exec.Command(h.bin, args...)
@@ -26,22 +26,22 @@ func (h *harness) raw(args ...string) (string, int) {
 	if err != nil {
 		var exit *exec.ExitError
 		if !errors.As(err, &exit) {
-			h.t.Fatalf("covo %v: %v", args, err)
+			h.t.Fatalf("benbow %v: %v", args, err)
 		}
 		code = exit.ExitCode()
 	}
 	return string(out), code
 }
 
-// TestLaravel creates a Laravel project on Covo's MySQL, serves it from
+// TestLaravel creates a Laravel project on Benbow's MySQL, serves it from
 // public/, runs artisan and composer, and recognises an existing project.
 func TestLaravel(t *testing.T) {
 	if runtime.GOARCH != "arm64" {
 		t.Skip("MySQL 8.4 is pinned for Apple Silicon only")
 	}
 	h := newHarness(t)
-	h.mustCovo("mysql", "enable")
-	h.mustCovo("start")
+	h.mustBenbow("mysql", "enable")
+	h.mustBenbow("start")
 
 	dir := filepath.Join(t.TempDir(), "blog")
 	var res struct {
@@ -52,7 +52,7 @@ func TestLaravel(t *testing.T) {
 		Database  string `json:"database"`
 		Laravel   string `json:"laravel"`
 	}
-	data := h.mustCovo("laravel", "blog", "--path", dir, "--php", "8.4")
+	data := h.mustBenbow("laravel", "blog", "--path", dir, "--php", "8.4")
 	if err := json.Unmarshal(data, &res); err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +91,7 @@ func TestLaravel(t *testing.T) {
 		AppRoot   string `json:"app_root"`
 		Framework string `json:"framework"`
 	}
-	if err := json.Unmarshal(h.mustCovo("site", "add", "blog2", "--path", dir), &added); err != nil {
+	if err := json.Unmarshal(h.mustBenbow("site", "add", "blog2", "--path", dir), &added); err != nil {
 		t.Fatal(err)
 	}
 	if added.Framework != "laravel" || added.Path != filepath.Join(dir, "public") || added.AppRoot != dir {
@@ -100,7 +100,7 @@ func TestLaravel(t *testing.T) {
 	if out, code := h.raw("artisan", "nope", "list"); code == 0 || !strings.Contains(out, "not found") {
 		t.Fatalf("artisan on a missing site (%d): %s", code, out)
 	}
-	if env := h.covo("laravel", "old", "--php", "8.1", "--path", filepath.Join(t.TempDir(), "old")); env.OK || env.Error.Code != "invalid_input" {
+	if env := h.benbow("laravel", "old", "--php", "8.1", "--path", filepath.Join(t.TempDir(), "old")); env.OK || env.Error.Code != "invalid_input" {
 		t.Fatalf("laravel on PHP 8.1 = %+v", env)
 	}
 }

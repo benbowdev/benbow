@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 Andrea Casali
 
-// Package ca creates Covo's local certificate authority: a root and an
-// intermediate, both name-constrained to the reserved suffixes Covo serves
+// Package ca creates Benbow's local certificate authority: a root and an
+// intermediate, both name-constrained to the reserved suffixes Benbow serves
 // (.localhost, .test, .local) and barred from every IP address. Even if a
 // verifier ignores constraints on a trust anchor, the intermediate carries
 // them too.
@@ -31,16 +31,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/fsutil"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/fsutil"
 )
 
-// DefaultName is the name of Covo's CA, as shown in Keychain Access.
+// DefaultName is the name of Benbow's CA, as shown in Keychain Access.
 // untrust uses it to find the CA when its file is gone.
-const DefaultName = "Covo Local CA"
+const DefaultName = "Benbow Local CA"
 
 // EnvName overrides the CA name, so that tests never touch the real CA.
-const EnvName = "COVO_CA_NAME"
+const EnvName = "BENBOW_CA_NAME"
 
 // Name returns the CA name in effect.
 func Name() string {
@@ -131,7 +131,7 @@ func template(cn string, notBefore, notAfter time.Time) *x509.Certificate {
 	_, all6, _ := net.ParseCIDR("::/0")
 	return &x509.Certificate{
 		SerialNumber:                serial(),
-		Subject:                     pkix.Name{CommonName: cn, Organization: []string{"Covo"}},
+		Subject:                     pkix.Name{CommonName: cn, Organization: []string{"Benbow"}},
 		NotBefore:                   notBefore,
 		NotAfter:                    notAfter,
 		IsCA:                        true,
@@ -151,7 +151,7 @@ func serial() *big.Int {
 	return n
 }
 
-// Constrained reports whether c carries exactly Covo's name constraints.
+// Constrained reports whether c carries exactly Benbow's name constraints.
 func Constrained(c *x509.Certificate) bool {
 	if !c.PermittedDNSDomainsCritical || len(c.ExcludedIPRanges) != 2 {
 		return false
@@ -171,7 +171,7 @@ func Constrained(c *x509.Certificate) bool {
 	return len(c.PermittedIPRanges) == 0 && len(c.PermittedEmailAddresses) == 0 && len(c.PermittedURIDomains) == 0
 }
 
-// Check verifies that m is a usable Covo CA named name at time now: both
+// Check verifies that m is a usable Benbow CA named name at time now: both
 // certificates constrained, the intermediate signed by the root and matching
 // its key, and not about to expire.
 func Check(m Material, name string, now time.Time) error {
@@ -189,7 +189,7 @@ func Check(m Material, name string, now time.Time) error {
 	case !root.IsCA || !inter.IsCA:
 		return errors.New("not a CA certificate")
 	case !Constrained(root) || !Constrained(inter):
-		return errors.New("missing Covo's name constraints")
+		return errors.New("missing Benbow's name constraints")
 	case now.Add(renewBefore).After(inter.NotAfter):
 		return fmt.Errorf("intermediate expires on %s", inter.NotAfter.Format(time.DateOnly))
 	}
@@ -288,12 +288,12 @@ func secure(d Dir) error {
 func Bundle(mozilla, rootPEM []byte, name string) []byte {
 	var b bytes.Buffer
 	b.Write(bytes.TrimRight(mozilla, "\n"))
-	fmt.Fprintf(&b, "\n\n%s (added by Covo)\n", name)
+	fmt.Fprintf(&b, "\n\n%s (added by Benbow)\n", name)
 	b.Write(rootPEM)
 	return b.Bytes()
 }
 
-// LeafValidity is how long a certificate from Leaf lasts; Covo makes a new
+// LeafValidity is how long a certificate from Leaf lasts; Benbow makes a new
 // one well before (LeafRenewBefore).
 const (
 	LeafValidity    = 90 * 24 * time.Hour
@@ -301,7 +301,7 @@ const (
 )
 
 // Leaf signs a server certificate for names with the intermediate in d, for
-// a dev server Covo runs that serves HTTPS itself (Vite next to Laravel).
+// a dev server Benbow runs that serves HTTPS itself (Vite next to Laravel).
 // The CA and its name constraints are unchanged: names must be under the
 // suffixes the CA may sign for. It returns the certificate followed by the
 // intermediate, and the new private key, in PEM.
@@ -311,7 +311,7 @@ func Leaf(d Dir, names []string, now time.Time) (chain, key []byte, err error) {
 	}
 	for _, n := range names {
 		if !underSuffixes(n) {
-			return nil, nil, errcode.Newf(errcode.InvalidInput, "%s is outside the names Covo's CA signs for (.localhost, .test, .local)", n)
+			return nil, nil, errcode.Newf(errcode.InvalidInput, "%s is outside the names Benbow's CA signs for (.localhost, .test, .local)", n)
 		}
 	}
 	m, err := Load(d)
@@ -340,7 +340,7 @@ func Leaf(d Dir, names []string, now time.Time) (chain, key []byte, err error) {
 	}
 	tmpl := &x509.Certificate{
 		SerialNumber: serial(),
-		Subject:      pkix.Name{CommonName: names[0], Organization: []string{"Covo"}},
+		Subject:      pkix.Name{CommonName: names[0], Organization: []string{"Benbow"}},
 		NotBefore:    now.Add(-time.Hour).UTC(),
 		NotAfter:     notAfter.UTC(),
 		KeyUsage:     x509.KeyUsageDigitalSignature,

@@ -111,7 +111,7 @@
       "for": "8.4.23",
       "arch": "arm64",
       "format": "file",
-      "url": "https://github.com/getcovo/covo-binaries/releases/download/xdebug-3.5.3-20261029/xdebug-3.5.3-php-8.4.23-macos-arm64.so",
+      "url": "https://github.com/benbowdev/benbow-binaries/releases/download/xdebug-3.5.3-20261029/xdebug-3.5.3-php-8.4.23-macos-arm64.so",
       "sha256": "195e3427c3f352cfcaff60c2420f7b2fd0f0ff6973e65c1d017a11183d545e9b",
       "files": [
         "xdebug.so"
@@ -123,7 +123,7 @@
       "for": "8.2.32",
       "arch": "arm64",
       "format": "file",
-      "url": "https://github.com/getcovo/covo-binaries/releases/download/xdebug-3.5.3-20261029/xdebug-3.5.3-php-8.2.32-macos-arm64.so",
+      "url": "https://github.com/benbowdev/benbow-binaries/releases/download/xdebug-3.5.3-20261029/xdebug-3.5.3-php-8.2.32-macos-arm64.so",
       "sha256": "00a9f41883c99f3cb287e62c3fb5e4433cf5975c173a3f448b9577cd3881c13b",
       "files": [
         "xdebug.so"
@@ -503,7 +503,7 @@
       "component": "redis",
       "version": "8.10.3",
       "arch": "arm64",
-      "url": "https://github.com/getcovo/covo-binaries/releases/download/redis-8.10.3-20261103-3/redis-8.10.3-macos-arm64.tar.gz",
+      "url": "https://github.com/benbowdev/benbow-binaries/releases/download/redis-8.10.3-20261103-3/redis-8.10.3-macos-arm64.tar.gz",
       "sha256": "13b3b2c0333346a003fa0e607b54e82a51f5a15d50b843c6eac358a5a50aed71",
       "files": [
         "redis-server",
@@ -514,7 +514,7 @@
       "component": "redis",
       "version": "8.10.3",
       "arch": "amd64",
-      "url": "https://github.com/getcovo/covo-binaries/releases/download/redis-8.10.3-20261103-3/redis-8.10.3-macos-x86_64.tar.gz",
+      "url": "https://github.com/benbowdev/benbow-binaries/releases/download/redis-8.10.3-20261103-3/redis-8.10.3-macos-x86_64.tar.gz",
       "sha256": "0a19c0ae83752e4761ed7bdd8a7bec03faed6a41ec79939f4b5791caa203b04b",
       "files": [
         "redis-server",
@@ -525,7 +525,7 @@
       "component": "php-cli",
       "version": "5.6.40",
       "arch": "arm64",
-      "url": "https://github.com/getcovo/covo-binaries/releases/download/legacy-php-20261103-5/php-5.6.40-cli-macos-aarch64.tar.gz",
+      "url": "https://github.com/benbowdev/benbow-binaries/releases/download/legacy-php-20261103-5/php-5.6.40-cli-macos-aarch64.tar.gz",
       "sha256": "e8642781d5342373d57157c7ed93c1bb09524f114ec4bdc18dc1934e2e46399a",
       "min_macos": "15.0",
       "files": [
@@ -539,7 +539,7 @@
       "component": "php",
       "version": "5.6.40",
       "arch": "arm64",
-      "url": "https://github.com/getcovo/covo-binaries/releases/download/legacy-php-20261103-5/php-5.6.40-fpm-macos-aarch64.tar.gz",
+      "url": "https://github.com/benbowdev/benbow-binaries/releases/download/legacy-php-20261103-5/php-5.6.40-fpm-macos-aarch64.tar.gz",
       "sha256": "eb69ac7289e39b18b20b54592f0d3e05c752c1fd65bee764c5d498c17d946f57",
       "min_macos": "15.0",
       "files": [
@@ -552,7 +552,7 @@
       "component": "php-cli",
       "version": "7.0.33",
       "arch": "arm64",
-      "url": "https://github.com/getcovo/covo-binaries/releases/download/legacy-php-20261103-5/php-7.0.33-cli-macos-aarch64.tar.gz",
+      "url": "https://github.com/benbowdev/benbow-binaries/releases/download/legacy-php-20261103-5/php-7.0.33-cli-macos-aarch64.tar.gz",
       "sha256": "bd22b04ac9b853f1495620ff1140516a0ec1488d1cc8519be122bdb67256cdf3",
       "min_macos": "15.0",
       "files": [
@@ -566,7 +566,7 @@
       "component": "php",
       "version": "7.0.33",
       "arch": "arm64",
-      "url": "https://github.com/getcovo/covo-binaries/releases/download/legacy-php-20261103-5/php-7.0.33-fpm-macos-aarch64.tar.gz",
+      "url": "https://github.com/benbowdev/benbow-binaries/releases/download/legacy-php-20261103-5/php-7.0.33-fpm-macos-aarch64.tar.gz",
       "sha256": "11aef25ecd70085b40341d72b7930e6c8675a3edab764649ef822cd68fecc230",
       "min_macos": "15.0",
       "files": [
@@ -579,7 +579,7 @@
       "component": "php-cli",
       "version": "7.1.33",
       "arch": "arm64",
-      "url": "https://github.com/getcovo/covo-binaries/releases/download/legacy-php-20261103-5/php-7.1.33-cli-macos-aarch64.tar.gz",
+      "url": "https://github.com/benbowdev/benbow-binaries/releases/download/legacy-php-20261103-5/php-7.1.33-cli-macos-aarch64.tar.gz",
       "sha256": "1fc45a6923d124901602cd04d047f99d1c88c6036d94c766d6d51d15fd23d476",
       "min_macos": "15.0",
       "files": [
@@ -593,7 +593,7 @@
       "component": "php",
       "version": "7.1.33",
       "arch": "arm64",
-      "url": "https://github.com/getcovo/covo-binaries/releases/download/legacy-php-20261103-5/php-7.1.33-fpm-macos-aarch64.tar.gz",
+      "url": "https://github.com/benbowdev/benbow-binaries/releases/download/legacy-php-20261103-5/php-7.1.33-fpm-macos-aarch64.tar.gz",
       "sha256": "915c429907e8947b7010afc81d7f09c5da57c4f732ddb6fcf42729add2d24a8f",
       "min_macos": "15.0",
       "files": [
@@ -606,7 +606,7 @@
       "component": "php-cli",
       "version": "7.2.34",
       "arch": "arm64",
-      "url": "https://github.com/getcovo/covo-binaries/releases/download/legacy-php-20261103-5/php-7.2.34-cli-macos-aarch64.tar.gz",
+      "url": "https://github.com/benbowdev/benbow-binaries/releases/download/legacy-php-20261103-5/php-7.2.34-cli-macos-aarch64.tar.gz",
       "sha256": "d349e9f37149e82797bcde0ced5067b3fc0cb969ed9765362bee6e84c78293cf",
       "min_macos": "15.0",
       "files": [
@@ -620,7 +620,7 @@
       "component": "php",
       "version": "7.2.34",
       "arch": "arm64",
-      "url": "https://github.com/getcovo/covo-binaries/releases/download/legacy-php-20261103-5/php-7.2.34-fpm-macos-aarch64.tar.gz",
+      "url": "https://github.com/benbowdev/benbow-binaries/releases/download/legacy-php-20261103-5/php-7.2.34-fpm-macos-aarch64.tar.gz",
       "sha256": "03fbacbaa401f3ebc280dd112b2a2012dbaa173bc1fcf7d34495e5eae923bfdd",
       "min_macos": "15.0",
       "files": [
@@ -633,7 +633,7 @@
       "component": "php-cli",
       "version": "7.3.33",
       "arch": "arm64",
-      "url": "https://github.com/getcovo/covo-binaries/releases/download/legacy-php-20261103-5/php-7.3.33-cli-macos-aarch64.tar.gz",
+      "url": "https://github.com/benbowdev/benbow-binaries/releases/download/legacy-php-20261103-5/php-7.3.33-cli-macos-aarch64.tar.gz",
       "sha256": "9276239ce02631927882d7e5597f8d6ad0e205123c46b89eeacf235084f1954e",
       "min_macos": "15.0",
       "files": [
@@ -647,7 +647,7 @@
       "component": "php",
       "version": "7.3.33",
       "arch": "arm64",
-      "url": "https://github.com/getcovo/covo-binaries/releases/download/legacy-php-20261103-5/php-7.3.33-fpm-macos-aarch64.tar.gz",
+      "url": "https://github.com/benbowdev/benbow-binaries/releases/download/legacy-php-20261103-5/php-7.3.33-fpm-macos-aarch64.tar.gz",
       "sha256": "83c345b03a5bee124635b83d9eb2676bb9268b3160a2a3c1e4d524cad3fbb07c",
       "min_macos": "15.0",
       "files": [
@@ -660,7 +660,7 @@
       "component": "php-cli",
       "version": "7.4.33",
       "arch": "arm64",
-      "url": "https://github.com/getcovo/covo-binaries/releases/download/legacy-php-20261103-5/php-7.4.33-cli-macos-aarch64.tar.gz",
+      "url": "https://github.com/benbowdev/benbow-binaries/releases/download/legacy-php-20261103-5/php-7.4.33-cli-macos-aarch64.tar.gz",
       "sha256": "e22d7f2e80503d9b13a761713b2847aff9ddf3b6557e964253cdc6db16101ba1",
       "min_macos": "15.0",
       "files": [
@@ -674,7 +674,7 @@
       "component": "php",
       "version": "7.4.33",
       "arch": "arm64",
-      "url": "https://github.com/getcovo/covo-binaries/releases/download/legacy-php-20261103-5/php-7.4.33-fpm-macos-aarch64.tar.gz",
+      "url": "https://github.com/benbowdev/benbow-binaries/releases/download/legacy-php-20261103-5/php-7.4.33-fpm-macos-aarch64.tar.gz",
       "sha256": "6d59b3204bd8e33a6eb6f5bff469c25c3c86292de324dd5e6709c1bcbbe34b93",
       "min_macos": "15.0",
       "files": [
@@ -687,7 +687,7 @@
       "component": "postgres",
       "version": "18.6",
       "arch": "arm64",
-      "url": "https://github.com/getcovo/covo-binaries/releases/download/postgres-18.6-20261103-4/postgresql-18.6-macos-arm64.tar.gz",
+      "url": "https://github.com/benbowdev/benbow-binaries/releases/download/postgres-18.6-20261103-4/postgresql-18.6-macos-arm64.tar.gz",
       "sha256": "e281f9714939d33482b6744f7eb22883c9f2c2402b4a00bbd34e33355fb4de0f",
       "files": [
         "bin/",
@@ -699,7 +699,7 @@
       "component": "postgres",
       "version": "18.6",
       "arch": "amd64",
-      "url": "https://github.com/getcovo/covo-binaries/releases/download/postgres-18.6-20261103-4/postgresql-18.6-macos-x86_64.tar.gz",
+      "url": "https://github.com/benbowdev/benbow-binaries/releases/download/postgres-18.6-20261103-4/postgresql-18.6-macos-x86_64.tar.gz",
       "sha256": "8ad7ebadcb2d60e07042d74221a8cb0670d34fd72b7d53f393afd7dc655652b8",
       "files": [
         "bin/",

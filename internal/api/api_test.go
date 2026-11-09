@@ -17,8 +17,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/getcovo/covo/internal/core"
-	"github.com/getcovo/covo/internal/errcode"
+	"github.com/benbowdev/benbow/internal/core"
+	"github.com/benbowdev/benbow/internal/errcode"
 )
 
 // fake records calls; methods not set up fail with not_found.
@@ -188,7 +188,7 @@ type response struct {
 // serve starts the API on a real socket and returns a client for it.
 func serve(t *testing.T, b Backend) *http.Client {
 	t.Helper()
-	dir, err := os.MkdirTemp("", "covo-api-") // short: socket paths are limited
+	dir, err := os.MkdirTemp("", "benbow-api-") // short: socket paths are limited
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -215,7 +215,7 @@ func serve(t *testing.T, b Backend) *http.Client {
 
 func call(t *testing.T, c *http.Client, method, path, body string) (int, response) {
 	t.Helper()
-	req, err := http.NewRequestWithContext(context.Background(), method, "http://covo"+path, strings.NewReader(body))
+	req, err := http.NewRequestWithContext(context.Background(), method, "http://benbow"+path, strings.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -351,7 +351,7 @@ func TestErrorCodes(t *testing.T) {
 }
 
 func TestListenRefusesLiveSocket(t *testing.T) {
-	dir, err := os.MkdirTemp("", "covo-api-")
+	dir, err := os.MkdirTemp("", "benbow-api-")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -378,7 +378,7 @@ func TestListenRefusesLiveSocket(t *testing.T) {
 }
 
 func TestOtherUserIsDropped(t *testing.T) {
-	dir, err := os.MkdirTemp("", "covo-api-")
+	dir, err := os.MkdirTemp("", "benbow-api-")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -401,7 +401,7 @@ func TestOtherUserIsDropped(t *testing.T) {
 		}
 	}()
 
-	req, _ := http.NewRequestWithContext(context.Background(), "GET", "http://covo/v1/version", nil)
+	req, _ := http.NewRequestWithContext(context.Background(), "GET", "http://benbow/v1/version", nil)
 	resp, err := Client(sock).Do(req)
 	if err == nil {
 		resp.Body.Close()
@@ -413,7 +413,7 @@ func TestClientDisconnectDoesNotCancel(t *testing.T) {
 	b := &slowAdd{started: make(chan struct{}), finished: make(chan error, 1)}
 	c := serve(t, b)
 	ctx, cancel := context.WithCancel(context.Background())
-	req, _ := http.NewRequestWithContext(ctx, "POST", "http://covo/v1/sites", bytes.NewReader([]byte(`{"name":"x"}`)))
+	req, _ := http.NewRequestWithContext(ctx, "POST", "http://benbow/v1/sites", bytes.NewReader([]byte(`{"name":"x"}`)))
 	go func() {
 		<-b.started
 		cancel()

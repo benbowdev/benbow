@@ -18,14 +18,14 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/fsutil"
-	"github.com/getcovo/covo/internal/mysql"
-	"github.com/getcovo/covo/internal/postgres"
-	"github.com/getcovo/covo/internal/store"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/fsutil"
+	"github.com/benbowdev/benbow/internal/mysql"
+	"github.com/benbowdev/benbow/internal/postgres"
+	"github.com/benbowdev/benbow/internal/store"
 )
 
-// Snapshots save a site's project folder and database under the Covo
+// Snapshots save a site's project folder and database under the Benbow
 // folder. Files are cloned with APFS clonefile(2): a snapshot takes no
 // space until the files change. .git, node_modules and generated folders
 // are left out (snapshotSkip): a restore never rewinds git history or
@@ -271,7 +271,7 @@ func (c *Core) restoreSnapshot(ctx context.Context, name, id string) (RestoreRes
 	// Files: the current folder moves aside, the snapshot is cloned in, and
 	// the folders snapshots leave out (snapshotSkip) move back.
 	root := sn.Root
-	aside := root + ".covo-restore-" + time.Now().Format("150405")
+	aside := root + ".benbow-restore-" + time.Now().Format("150405")
 	// The journal lets a restore cut short (crash, kill, reboot) be put
 	// back by the next restore or daemon start; every return below leaves
 	// a whole state behind, so it goes when this function returns.

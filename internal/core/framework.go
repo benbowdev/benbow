@@ -9,10 +9,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/getcovo/covo/internal/store"
+	"github.com/benbowdev/benbow/internal/store"
 )
 
-// Frameworks Covo recognises in a site's folder.
+// Frameworks Benbow recognises in a site's folder.
 const (
 	FrameworkWordPress = "wordpress"
 	FrameworkLaravel   = "laravel"
@@ -66,8 +66,8 @@ func projectRoot(s store.Site) string {
 	return s.Path
 }
 
-// backfillFrameworks recognises the framework of sites added before Covo
-// knew about frameworks (or whose folder changed outside Covo). Only sites
+// backfillFrameworks recognises the framework of sites added before Benbow
+// knew about frameworks (or whose folder changed outside Benbow). Only sites
 // without one are looked at; their document root never changes here.
 func (c *Core) backfillFrameworks(ctx context.Context) {
 	sites, err := c.Store.ListSites(ctx)

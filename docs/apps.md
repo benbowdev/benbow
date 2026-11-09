@@ -2,47 +2,47 @@
 
 An app is a site whose pages come from a dev server instead of PHP: Next.js,
 Vite, Astro, Nuxt, SvelteKit, Django, FastAPI, Flask, Rails or anything
-else that listens on a port. Covo gives it a domain with trusted HTTPS
+else that listens on a port. Benbow gives it a domain with trusted HTTPS
 (`https://<name>.localhost:8443`), aliases, a group, a database, logs and
 on/off, like a PHP site.
 
-Covo does not manage runtimes. It never installs or picks a version of Node,
+Benbow does not manage runtimes. It never installs or picks a version of Node,
 Python, Ruby or their packages: the command runs with the tools you already
-have (nvm, fnm, mise, volta, asdf, uv, pyenv, or the system's). Covo stays
+have (nvm, fnm, mise, volta, asdf, uv, pyenv, or the system's). Benbow stays
 PHP-first; apps are for the dev server next to your PHP work.
 
 ```sh
-covo site detect ~/Code/shop                       # proposes the command
-covo site add shop --path ~/Code/shop --command "npm run dev -- --port {port} --strictPort"
-covo site add api --path ~/Code/api --proxy-port 3000   # you run the server yourself
-covo site set shop --command "pnpm dev"            # also --port, --proxy-port
-covo site set api --host-header localhost          # "" for the site's domain
-covo site restart shop                             # stop every process, start again
-covo site logs shop --app                          # what the command printed
-covo site env shop set STRIPE_KEY=sk_test_…        # your variables, in the keychain
+benbow site detect ~/Code/shop                       # proposes the command
+benbow site add shop --path ~/Code/shop --command "npm run dev -- --port {port} --strictPort"
+benbow site add api --path ~/Code/api --proxy-port 3000   # you run the server yourself
+benbow site set shop --command "pnpm dev"            # also --port, --proxy-port
+benbow site set api --host-header localhost          # "" for the site's domain
+benbow site restart shop                             # stop every process, start again
+benbow site logs shop --app                          # what the command printed
+benbow site env shop set STRIPE_KEY=sk_test_…        # your variables, in the keychain
 ```
 
 ## Two modes
 
-- **Covo starts the command** (`--command`). Covo gives the app a free port
+- **Benbow starts the command** (`--command`). Benbow gives the app a free port
   from 41000 (or `--port`), away from the ports dev servers use by default,
   so a server you start by hand never collides with it. The port is set as
   `PORT` and replaces `{port}` in the command, for tools that ignore `PORT`
   (Vite, Astro, Nuxt…). It stays the same for the site.
-- **Covo only proxies** (`--proxy-port`): you run the dev server in your
-  terminal on that port, Covo puts the domain and HTTPS in front of it.
+- **Benbow only proxies** (`--proxy-port`): you run the dev server in your
+  terminal on that port, Benbow puts the domain and HTTPS in front of it.
 
 A started app's port must be free when it is chosen; a proxied app's port
-is normally taken (by your server). Two Covo sites never share a port.
+is normally taken (by your server). Two Benbow sites never share a port.
 
-## How Covo runs the command
+## How Benbow runs the command
 
-Each started app is a launchd agent (`dev.getcovo.app-<name>`) whose program
-is Covo itself (`covo app run <name>`, hidden). It runs the command the way
+Each started app is a launchd agent (`dev.benbow.app-<name>`) whose program
+is Benbow itself (`benbow app run <name>`, hidden). It runs the command the way
 a new Terminal window would:
 
 ```sh
-$SHELL -l -i -c 'cd "$COVO_APP_DIR" || exit 1
+$SHELL -l -i -c 'cd "$BENBOW_APP_DIR" || exit 1
 <your command>'
 ```
 
@@ -52,18 +52,18 @@ $SHELL -l -i -c 'cd "$COVO_APP_DIR" || exit 1
   your terminal. The `cd` happens after your profile, so tools that switch
   versions on entering a folder (fnm `--use-on-cd`, mise, direnv) see the
   project's `.nvmrc`, `.node-version`, `.tool-versions` or `.envrc`.
-- The environment adds `PORT`, `COVO_APP_DIR` (the folder),
-  `NODE_EXTRA_CA_CERTS` (Covo's CA, so Node trusts `https://*.localhost`
+- The environment adds `PORT`, `BENBOW_APP_DIR` (the folder),
+  `NODE_EXTRA_CA_CERTS` (Benbow's CA, so Node trusts `https://*.localhost`
   sites), `SSL_CERT_FILE` and `REQUESTS_CA_BUNDLE` (Mozilla's roots plus
-  Covo's, for Python), `NO_COLOR=1`, `TERM=dumb`, `BROWSER=none` (no browser
-  tab opened on start), `PYTHONUNBUFFERED=1` and `COVO_APP_RUN` (a marker
-  Covo uses to find the command's processes). Covo's own variables are
+  Benbow's, for Python), `NO_COLOR=1`, `TERM=dumb`, `BROWSER=none` (no browser
+  tab opened on start), `PYTHONUNBUFFERED=1` and `BENBOW_APP_RUN` (a marker
+  Benbow uses to find the command's processes). Benbow's own variables are
   removed.
 - stdin is empty: a command that asks a question gets no answer.
-- The output goes to `logs/sites/<name>/app.log` (`covo site logs <name>
+- The output goes to `logs/sites/<name>/app.log` (`benbow site logs <name>
   --app`, the Logs window), copied to `app.log.1` and emptied past 10 MB.
 
-Before starting, Covo checks the folder exists and the port is still free.
+Before starting, Benbow checks the folder exists and the port is still free.
 The address the server listens on is the server's choice, as in your
 terminal: most listen on localhost only, some (Node's `listen(port)`) on
 every interface.
@@ -71,9 +71,9 @@ every interface.
 ### Stopping
 
 Stopping the app (Stop, turning the site off, removing it, changing its
-command, port or folder, `covo site restart`) stops every process the
+command, port or folder, `benbow site restart`) stops every process the
 command started: its process group, the processes started under it (seen
-every 2 seconds) and any process carrying its `COVO_APP_RUN` marker, which
+every 2 seconds) and any process carrying its `BENBOW_APP_RUN` marker, which
 finds workers that left the group with `setsid`. They get SIGTERM, then
 SIGKILL after 5 seconds.
 
@@ -81,13 +81,13 @@ SIGKILL after 5 seconds.
 
 launchd never restarts an app. When the command ends, the processes it left
 behind are stopped and the site shows the state below until you restart it
-(`covo site restart`, Restart in the app) or press Start, which starts every
+(`benbow site restart`, Restart in the app) or press Start, which starts every
 app that has ended. Other changes (a new site, a PHP setting) do not start
 an app that has ended.
 
 ### State
 
-`covo status`, `covo site list` and the API give each app an `app` object:
+`benbow status`, `benbow site list` and the API give each app an `app` object:
 
 | `state` | Meaning |
 |---|---|
@@ -95,28 +95,28 @@ an app that has ended.
 | `running` | the port answers |
 | `error` | the command ended with an error, or ran 90 s without opening its port |
 | `exited` | the command ended with status 0 (a dev server should not) |
-| `stopped` | Covo or the site is off |
+| `stopped` | Benbow or the site is off |
 | `waiting` | a proxied app: nothing listens on its port |
 
 With `error` and `exited` come `exit_code`, `message` and `log_tail` (the
 last 20 lines printed since the start). The message names a missing program
 (`node was not found by your login shell. Install it with your version
-manager (nvm, fnm, mise, volta…)`), a port in use, or a signal. Covo never
+manager (nvm, fnm, mise, volta…)`), a port in use, or a signal. Benbow never
 installs runtimes or packages.
 
 ## What the app is told
 
-Every start, the app's environment gets what Covo knows about the site:
+Every start, the app's environment gets what Benbow knows about the site:
 
 | Variable | When |
 |---|---|
 | `APP_URL` | always: the site's address, e.g. `https://shop.localhost:8443` |
 | `DATABASE_URL` | the site has a database: `mysql://user:password@127.0.0.1:3307/shop` or `postgresql://…@127.0.0.1:5433/shop` |
 | `REDIS_URL` | Redis is on: `redis://127.0.0.1:6380` |
-| `SMTP_HOST`, `SMTP_PORT`, `MAIL_HOST`, `MAIL_PORT`, `SMTP_URL` | Mailpit is on: mail sent there lands in Covo's inbox |
+| `SMTP_HOST`, `SMTP_PORT`, `MAIL_HOST`, `MAIL_PORT`, `SMTP_URL` | Mailpit is on: mail sent there lands in Benbow's inbox |
 
 Process variables usually beat a project's `.env` (Next.js, Vite, Nuxt,
-`dotenv`): when the site has a Covo database, `DATABASE_URL` points there.
+`dotenv`): when the site has a Benbow database, `DATABASE_URL` points there.
 The password is read from the login keychain at each start and only
 reaches the app's process (see the exception in `decisions.md`). Linking a
 database, or turning Redis or Mailpit on or off, restarts the app.
@@ -124,27 +124,27 @@ database, or turning Redis or Mailpit on or off, restarts the app.
 ### Your own variables
 
 ```sh
-covo site env shop                         # names (Covo's and yours)
-covo site env shop set API_KEY=abc DEBUG=1
-covo site env shop set API_KEY             # value read from stdin, not kept in shell history
-covo site env shop unset DEBUG
-covo site env shop --show                  # with values
+benbow site env shop                         # names (Benbow's and yours)
+benbow site env shop set API_KEY=abc DEBUG=1
+benbow site env shop set API_KEY             # value read from stdin, not kept in shell history
+benbow site env shop unset DEBUG
+benbow site env shop --show                  # with values
 ```
 
 They live in one login keychain item per app (service
-`dev.getcovo.appenv`, account the site's name) and win over Covo's
-(`DATABASE_URL` included). `PORT`, `HOME`, `SHELL` and `COVO_*` are Covo's.
+`dev.benbow.appenv`, account the site's name) and win over Benbow's
+(`DATABASE_URL` included). `PORT`, `HOME`, `SHELL` and `BENBOW_*` are Benbow's.
 A change restarts the app if it runs. The API and agents only ever see the
-names; removing the app or `covo uninstall` deletes the item.
+names; removing the app or `benbow uninstall` deletes the item.
 
-## Frameworks behind Covo
+## Frameworks behind Benbow
 
-Checked on 2026-11-09 with Covo starting each project through a login shell
+Checked on 2026-11-09 with Benbow starting each project through a login shell
 (Node 22 from nvm, Python 3.10 from pyenv), the page loaded over
-`https://<name>.localhost` and hot reload checked over Covo's HTTPS (a
+`https://<name>.localhost` and hot reload checked over Benbow's HTTPS (a
 changed file reaches the page's WebSocket):
 
-| Framework | Command Covo proposes | Works as is | Notes |
+| Framework | Command Benbow proposes | Works as is | Notes |
 |---|---|---|---|
 | Vite 7 + React | `npm run dev -- --port {port} --strictPort` | yes | HMR on `wss://<domain>` |
 | SvelteKit 2 | `npm run dev -- --port {port} --strictPort` | yes | |
@@ -162,24 +162,24 @@ With `.test` or `.local` domains, Vite and Next need the domain allowed
 
 Two sites: the WordPress one (PHP) and the front end as an app. The front
 end calls `https://wp.localhost:8443/wp-json/…` and trusts it, because
-`NODE_EXTRA_CA_CERTS` points at Covo's CA.
+`NODE_EXTRA_CA_CERTS` points at Benbow's CA.
 
 ## A companion next to a PHP site
 
-A PHP site can have one companion: a dev server Covo starts and stops with
+A PHP site can have one companion: a dev server Benbow starts and stops with
 the site, without a domain of its own. The usual one is Vite next to
 Laravel:
 
 ```sh
-covo site set shop --companion "npm run dev -- --port {port} --strictPort"
-covo site set shop --companion-port 5173      # a fixed port
-covo site logs shop --companion
-covo site restart shop                        # restarts the companion
-covo site set shop --companion ""             # no companion
+benbow site set shop --companion "npm run dev -- --port {port} --strictPort"
+benbow site set shop --companion-port 5173      # a fixed port
+benbow site logs shop --companion
+benbow site restart shop                        # restarts the companion
+benbow site set shop --companion ""             # no companion
 ```
 
 It runs like an app's command (login shell, `PORT` and `{port}` from 41000,
-no automatic restart, the whole process tree stopped, state in `covo
+no automatic restart, the whole process tree stopped, state in `benbow
 status` as `companion`), in the project folder (Laravel's, not `public/`).
 It gets none of the app variables (`DATABASE_URL`, your own).
 
@@ -187,11 +187,11 @@ It gets none of the app variables (`DATABASE_URL`, your own).
 
 A page on `https://shop.localhost:8443` cannot load scripts from
 `http://localhost:5173`: browsers block it as mixed content. So when the
-site is Laravel and `package.json` has `laravel-vite-plugin`, Covo also
+site is Laravel and `package.json` has `laravel-vite-plugin`, Benbow also
 gives the companion:
 
 - `VITE_DEV_SERVER_CERT`, `VITE_DEV_SERVER_KEY`: a certificate for the
-  site's domain and aliases, signed by Covo's CA (the intermediate Caddy
+  site's domain and aliases, signed by Benbow's CA (the intermediate Caddy
   uses; the CA and its name constraints are unchanged). It lives in
   `data/certs/<site>.crt` and `.key` (0600), lasts 90 days and is made
   again at a start when less than 30 days are left, or when the domain or
@@ -209,7 +209,7 @@ laravel-vite-plugin 3.2 and Vite 8.
 
 ## Detecting the command
 
-`covo site detect [folder]` (and New Site in the app) reads the project and
+`benbow site detect [folder]` (and New Site in the app) reads the project and
 proposes a command. You always confirm or edit it.
 
 | Project | Proposed command |

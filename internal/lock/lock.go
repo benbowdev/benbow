@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 Andrea Casali
 
-// Package lock serialises state-changing Covo commands with an advisory
+// Package lock serialises state-changing Benbow commands with an advisory
 // flock on a file, so two CLI invocations never rewrite configs concurrently.
 package lock
 
@@ -13,7 +13,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/getcovo/covo/internal/errcode"
+	"github.com/benbowdev/benbow/internal/errcode"
 )
 
 const pollInterval = 100 * time.Millisecond
@@ -41,7 +41,7 @@ func Acquire(ctx context.Context, path string) (*Lock, error) {
 		select {
 		case <-ctx.Done():
 			_ = f.Close()
-			return nil, errcode.Errorf(errcode.Locked, "another covo command is running")
+			return nil, errcode.Errorf(errcode.Locked, "another benbow command is running")
 		case <-time.After(pollInterval):
 		}
 	}

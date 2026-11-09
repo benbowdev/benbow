@@ -1,6 +1,6 @@
 .DS_Store
-/covo
-/covo-hostshelper
+/benbow
+/benbow-hostshelper
 /dist/
 # Agent instructions, kept private (not in the public repository)
 /CLAUDE.md

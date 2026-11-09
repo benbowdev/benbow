@@ -1,4 +1,4 @@
--- Sites of kind "app": a dev server (any language) that Covo starts with the
+-- Sites of kind "app": a dev server (any language) that Benbow starts with the
 -- user's own command, or only proxies to, behind the site's HTTPS domain.
 -- PHP sites keep kind 'php' and ignore the other columns, except the
 -- companion: a command started and stopped together with a PHP site.

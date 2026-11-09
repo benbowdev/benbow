@@ -1,36 +1,36 @@
-# Covo
+# Benbow
 
 **Local PHP development on your Mac, without breaking it.**
 
-Covo is a free, open source Mac app that runs WordPress, Laravel, Symfony,
+Benbow is a free, open source Mac app that runs WordPress, Laravel, Symfony,
 Drupal or plain PHP, each site on its own PHP version from 5.6 to 8.5, all
 at once, with trusted HTTPS, MySQL or PostgreSQL, Redis and a mail catcher
-on board. Bring your AI agent too: Covo saves the site's files and database
+on board. Bring your AI agent too: Benbow saves the site's files and database
 first, and you keep or undo whatever it did.
 
 It never touches Homebrew, installs nothing system-wide and runs next to
 MAMP, Valet, Herd or anything else you already have. Everything lives in
-`~/Library/Application Support/covo/`, and `covo uninstall` puts your Mac
+`~/Library/Application Support/benbow/`, and `benbow uninstall` puts your Mac
 back the way it was. A modern alternative to MAMP PRO, Local and Herd.
 
-**Website:** [getcovo.dev](https://getcovo.dev) · **Status:** public beta.
-Expect rough edges and [tell us about them](https://github.com/getcovo/covo/issues).
+**Website:** [benbow.dev](https://benbow.dev) · **Status:** public beta.
+Expect rough edges and [tell us about them](https://github.com/benbowdev/benbow/issues).
 
 ## Install
 
-Download the latest DMG from [getcovo.dev/download](https://getcovo.dev/download)
-or [Releases](https://github.com/getcovo/covo/releases), open it and drag
-Covo into Applications. It is signed and notarized by Apple and updates
+Download the latest DMG from [benbow.dev/download](https://benbow.dev/download)
+or [Releases](https://github.com/benbowdev/benbow/releases), open it and drag
+Benbow into Applications. It is signed and notarized by Apple and updates
 itself.
 
-Requirements: a Mac with Apple Silicon and macOS 14 Sonoma or later. Covo
+Requirements: a Mac with Apple Silicon and macOS 14 Sonoma or later. Benbow
 downloads PHP, Caddy, MySQL and the rest on first use, each checked against
 a pinned SHA-256. More in [docs/beta.md](docs/beta.md).
 
 ## A safe workbench for your AI agent
 
-Git guards your code; Covo guards the code and the database together. Click
-**Work with an Agent** on a site and Covo saves its files and database,
+Git guards your code; Benbow guards the code and the database together. Click
+**Work with an Agent** on a site and Benbow saves its files and database,
 opens your terminal with the agent already connected, and steps back. When
 it is done you see which files and tables changed, then keep it all or undo
 it all ([docs/agents.md](docs/agents.md)).
@@ -42,12 +42,12 @@ it all ([docs/agents.md](docs/agents.md)).
   search-replace
 - Read only by default; deleting, pushing to servers and the final keep or
   undo stay with you
-- Covo is not an agent: it never runs a model and never asks for an API key
+- Benbow is not an agent: it never runs a model and never asks for an API key
 
-For Claude Code, the Covo plugin connects Covo and teaches the workflow:
+For Claude Code, the Benbow plugin connects Benbow and teaches the workflow:
 
 ```
-/plugin install covo --marketplace getcovo/covo
+/plugin install benbow --marketplace benbowdev/benbow
 ```
 
 ## What it does
@@ -75,9 +75,9 @@ For Claude Code, the Covo plugin connects Covo and teaches the workflow:
 
 - Its own local CA, limited by Name Constraints to `.localhost`, `.test` and
   `.local`: it cannot vouch for a real website ([docs/ca.md](docs/ca.md))
-- Services run as your user, as launchd agents named `dev.getcovo.*`. They
+- Services run as your user, as launchd agents named `dev.benbow.*`. They
   listen on loopback only (Open on Phone, when you turn it on, adds your
-  local network for one site) and Covo checks a port is free first.
+  local network for one site) and Benbow checks a port is free first.
   Nothing runs as root, except an optional helper for `.local` names and
   ports 80/443, installed only after you approve it
   ([docs/domains.md](docs/domains.md), [docs/ports.md](docs/ports.md))
@@ -92,13 +92,13 @@ The reasons behind each choice are in [docs/decisions.md](docs/decisions.md).
 Requires Go (from go.dev) and Xcode's command line tools.
 
 ```sh
-go build -o covo ./cmd/covo && go build -o covo-hostshelper ./cmd/covo-hostshelper
-./covo site add demo --php 8.4 --path ~/Sites/demo
-./covo start
-./covo trust          # one macOS confirmation, no sudo
+go build -o benbow ./cmd/benbow && go build -o benbow-hostshelper ./cmd/benbow-hostshelper
+./benbow site add demo --php 8.4 --path ~/Sites/demo
+./benbow start
+./benbow trust          # one macOS confirmation, no sudo
 open https://demo.localhost:8443
 
-app/build.sh          # the app, as "app/build/Covo Dev.app"
+app/build.sh          # the app, as "app/build/Benbow Dev.app"
 ```
 
 Tests:
@@ -114,15 +114,15 @@ app/build.sh test
 
 Copyright (C) 2026 Andrea Casali.
 
-Covo is free software: you can redistribute it and/or modify it under the
+Benbow is free software: you can redistribute it and/or modify it under the
 terms of the GNU General Public License, version 3 only
 (`SPDX-License-Identifier: GPL-3.0-only`). See [LICENSE](LICENSE).
 
-Covo is distributed in the hope that it will be useful, but WITHOUT ANY
+Benbow is distributed in the hope that it will be useful, but WITHOUT ANY
 WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
 A PARTICULAR PURPOSE.
 
-The Covo name and logo are not covered by the license: see
+The Benbow name and logo are not covered by the license: see
 [TRADEMARKS.md](TRADEMARKS.md). Contributions: see
 [CONTRIBUTING.md](CONTRIBUTING.md) and the
 [Code of Conduct](CODE_OF_CONDUCT.md). Security reports: see

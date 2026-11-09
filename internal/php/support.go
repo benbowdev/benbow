@@ -40,7 +40,7 @@ var supportDates = map[string][2]string{
 }
 
 // SupportOf returns the support status of minor at now. Unknown versions
-// (newer than this build of Covo) count as active.
+// (newer than this build of Benbow) count as active.
 func SupportOf(minor string, now time.Time) Support {
 	d, ok := supportDates[minor]
 	if !ok {

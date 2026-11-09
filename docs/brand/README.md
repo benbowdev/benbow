@@ -1,4 +1,4 @@
-# Covo — brand assets (icon "Round 1")
+# Benbow — brand assets (icon "Round 1")
 
 Pixel-art "C" in the style of 90s arcade fighting-game titles: yellow → orange → red gradient, dark outline, speed lines on a deep purple background. Designed on a 16×16 grid.
 
@@ -7,11 +7,11 @@ Pixel-art "C" in the style of 90s arcade fighting-game titles: yellow → orange
 | Path | Use |
 |---|---|
 | `AppIcon.appiconset/` | Xcode asset catalog for the macOS app (16–512 pt, @1x and @2x), pre-masked with rounded corners and shadow |
-| `source/covo-icon-1024.png` | Master 1024×1024, pre-masked (same as the asset catalog) |
-| `source/covo-icon-fullbleed-1024.png` | Full-bleed square artwork, no mask: use as the layer in Icon Composer for macOS 26 layered icons |
-| `source/covo-icon.svg` | Vector master (16×16 grid, rounded clip) — source of truth for the web |
-| `source/covo-icon-grid.json` | The pixel grid and palette as data, to regenerate any size |
-| `menubar/covo-menubar-template*.png/.svg` | Menu bar icon: black C on transparent, to be used as a template image (`isTemplate = true`) so macOS tints it for light/dark menu bars |
+| `source/benbow-icon-1024.png` | Master 1024×1024, pre-masked (same as the asset catalog) |
+| `source/benbow-icon-fullbleed-1024.png` | Full-bleed square artwork, no mask: use as the layer in Icon Composer for macOS 26 layered icons |
+| `source/benbow-icon.svg` | Vector master (16×16 grid, rounded clip) — source of truth for the web |
+| `source/benbow-icon-grid.json` | The pixel grid and palette as data, to regenerate any size |
+| `menubar/benbow-menubar-template*.png/.svg` | Menu bar icon: black C on transparent, to be used as a template image (`isTemplate = true`) so macOS tints it for light/dark menu bars |
 | `web/` | `favicon.svg`, `favicon.ico`, `favicon-32.png`, `apple-touch-icon.png` (180), `icon-512.png` |
 
 ## Palette

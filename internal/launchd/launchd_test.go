@@ -16,9 +16,9 @@ import (
 var update = flag.Bool("update", false, "rewrite golden files")
 
 func TestPlistGolden(t *testing.T) {
-	const home = "/Users/test/Library/Application Support/covo"
+	const home = "/Users/test/Library/Application Support/benbow"
 	got, err := Plist(Agent{
-		Label:     "dev.getcovo.caddy",
+		Label:     "dev.benbow.caddy",
 		Program:   home + "/bin/caddy/2.11.7/caddy",
 		Args:      []string{"run", "--config", home + "/etc/caddy/Caddyfile", "--adapter", "caddyfile"},
 		Env:       map[string]string{"XDG_DATA_HOME": home + "/data", "A_<&>": "x&y"},
@@ -68,18 +68,18 @@ func TestPlistGolden(t *testing.T) {
 }
 
 func TestParseList(t *testing.T) {
-	l := &Launchctl{Prefix: "dev.getcovo"}
+	l := &Launchctl{Prefix: "dev.benbow"}
 	out := "PID\tStatus\tLabel\n" +
 		"954\t0\tapplication.de.appsolute.mamppro.1\n" +
-		"123\t0\tdev.getcovo.caddy\n" +
-		"-\t78\tdev.getcovo.php84\n" +
-		"-\t0\tdev.getcovoother.x\n" +
-		"-\t0\tdev.getcovo.test-ab.caddy\n"
+		"123\t0\tdev.benbow.caddy\n" +
+		"-\t78\tdev.benbow.php84\n" +
+		"-\t0\tdev.benbowother.x\n" +
+		"-\t0\tdev.benbow.test-ab.caddy\n"
 	got := l.parseList(out)
 	want := map[string]Status{
-		"dev.getcovo.caddy":         {Label: "dev.getcovo.caddy", PID: 123, Running: true},
-		"dev.getcovo.php84":         {Label: "dev.getcovo.php84", LastExit: 78},
-		"dev.getcovo.test-ab.caddy": {Label: "dev.getcovo.test-ab.caddy"},
+		"dev.benbow.caddy": {Label: "dev.benbow.caddy", PID: 123, Running: true},
+		"dev.benbow.php84": {Label: "dev.benbow.php84", LastExit: 78},
+		// Another instance's (a test's) labels are not this one's.
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("parseList = %+v\nwant %+v", got, want)
@@ -121,18 +121,18 @@ func (f *fakeLaunchctl) run(_ context.Context, args ...string) (string, error) {
 
 func TestApplyIsIdempotentAndScoped(t *testing.T) {
 	dir := t.TempDir()
-	f := &fakeLaunchctl{loaded: map[string]bool{"dev.getcovo.php81": true}}
-	l := &Launchctl{Prefix: "dev.getcovo", Run: f.run}
+	f := &fakeLaunchctl{loaded: map[string]bool{"dev.benbow.php81": true}}
+	l := &Launchctl{Prefix: "dev.benbow", Run: f.run}
 	agents := []Agent{
-		{Label: "dev.getcovo.caddy", Program: "/c"},
-		{Label: "dev.getcovo.php84", Program: "/p"},
+		{Label: "dev.benbow.caddy", Program: "/c"},
+		{Label: "dev.benbow.php84", Program: "/p"},
 	}
 
 	changes, err := l.Apply(context.Background(), dir, agents)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []Change{{"dev.getcovo.caddy", "started"}, {"dev.getcovo.php84", "started"}, {"dev.getcovo.php81", "stopped"}}
+	want := []Change{{"dev.benbow.caddy", "started"}, {"dev.benbow.php84", "started"}, {"dev.benbow.php81", "stopped"}}
 	if !reflect.DeepEqual(changes, want) {
 		t.Fatalf("first Apply = %v, want %v", changes, want)
 	}
@@ -141,7 +141,7 @@ func TestApplyIsIdempotentAndScoped(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want = []Change{{"dev.getcovo.caddy", "unchanged"}, {"dev.getcovo.php84", "unchanged"}}
+	want = []Change{{"dev.benbow.caddy", "unchanged"}, {"dev.benbow.php84", "unchanged"}}
 	if !reflect.DeepEqual(changes, want) {
 		t.Fatalf("second Apply = %v, want %v", changes, want)
 	}
@@ -162,9 +162,25 @@ func TestApplyIsIdempotentAndScoped(t *testing.T) {
 	}
 }
 
+func TestOwnsOnlyItsOwnLevel(t *testing.T) {
+	l := &Launchctl{Prefix: "dev.benbow"}
+	for label, want := range map[string]bool{
+		"dev.benbow.caddy": true, "dev.benbow.app-shop": true, "dev.benbow.php84": true,
+		"dev.benbow.test-1a2b.caddy": false, "dev.benbowx.caddy": false, "dev.benbow.": false, "com.other": false,
+	} {
+		if got := l.Owns(label); got != want {
+			t.Errorf("Owns(%q) = %v, want %v", label, got, want)
+		}
+	}
+	test := &Launchctl{Prefix: "dev.benbow.test-1a2b"}
+	if !test.Owns("dev.benbow.test-1a2b.caddy") {
+		t.Error("a test prefix does not own its own labels")
+	}
+}
+
 func TestRefusesForeignLabels(t *testing.T) {
 	f := &fakeLaunchctl{loaded: map[string]bool{}}
-	l := &Launchctl{Prefix: "dev.getcovo", Run: f.run}
+	l := &Launchctl{Prefix: "dev.benbow", Run: f.run}
 	if _, err := l.Apply(context.Background(), t.TempDir(), []Agent{{Label: "com.other.service"}}); err == nil {
 		t.Fatal("Apply accepted a foreign label")
 	}
@@ -174,8 +190,8 @@ func TestRefusesForeignLabels(t *testing.T) {
 }
 
 func TestStopAll(t *testing.T) {
-	f := &fakeLaunchctl{loaded: map[string]bool{"dev.getcovo.caddy": true, "dev.getcovo.php84": true}}
-	l := &Launchctl{Prefix: "dev.getcovo", Run: f.run}
+	f := &fakeLaunchctl{loaded: map[string]bool{"dev.benbow.caddy": true, "dev.benbow.php84": true}}
+	l := &Launchctl{Prefix: "dev.benbow", Run: f.run}
 	for range 2 { // idempotent
 		if _, err := l.StopAll(context.Background()); err != nil {
 			t.Fatal(err)
@@ -188,35 +204,35 @@ func TestStopAll(t *testing.T) {
 
 func TestKeepSurvivesApplyAndStopAll(t *testing.T) {
 	dir := t.TempDir()
-	f := &fakeLaunchctl{loaded: map[string]bool{"dev.getcovo.core": true, "dev.getcovo.php81": true}}
-	l := &Launchctl{Prefix: "dev.getcovo", Run: f.run, Keep: []string{"dev.getcovo.core"}}
-	if _, err := l.Apply(context.Background(), dir, []Agent{{Label: "dev.getcovo.caddy", Program: "/c"}}); err != nil {
+	f := &fakeLaunchctl{loaded: map[string]bool{"dev.benbow.core": true, "dev.benbow.php81": true}}
+	l := &Launchctl{Prefix: "dev.benbow", Run: f.run, Keep: []string{"dev.benbow.core"}}
+	if _, err := l.Apply(context.Background(), dir, []Agent{{Label: "dev.benbow.caddy", Program: "/c"}}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := l.StopAll(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if want := map[string]bool{"dev.getcovo.core": true}; !reflect.DeepEqual(f.loaded, want) {
+	if want := map[string]bool{"dev.benbow.core": true}; !reflect.DeepEqual(f.loaded, want) {
 		t.Fatalf("loaded = %v, want %v", f.loaded, want)
 	}
 }
 
 func TestEnsure(t *testing.T) {
 	dir := t.TempDir()
-	f := &fakeLaunchctl{loaded: map[string]bool{"dev.getcovo.php81": true}}
-	l := &Launchctl{Prefix: "dev.getcovo", Run: f.run}
-	a := Agent{Label: "dev.getcovo.core", Program: "/covo", Args: []string{"daemon", "run"}}
+	f := &fakeLaunchctl{loaded: map[string]bool{"dev.benbow.php81": true}}
+	l := &Launchctl{Prefix: "dev.benbow", Run: f.run}
+	a := Agent{Label: "dev.benbow.core", Program: "/benbow", Args: []string{"daemon", "run"}}
 	for i, want := range []string{"started", "unchanged"} {
 		ch, err := l.Ensure(context.Background(), dir, a)
 		if err != nil || ch.Action != want {
 			t.Fatalf("Ensure #%d = %v %v, want %s", i, ch, err, want)
 		}
 	}
-	a.Env = map[string]string{"COVO_BINARY_HASH": "x"}
+	a.Env = map[string]string{"BENBOW_BINARY_HASH": "x"}
 	if ch, err := l.Ensure(context.Background(), dir, a); err != nil || ch.Action != "restarted" {
 		t.Fatalf("changed plist: %v %v", ch, err)
 	}
-	if !f.loaded["dev.getcovo.php81"] {
+	if !f.loaded["dev.benbow.php81"] {
 		t.Fatal("Ensure stopped another agent")
 	}
 }
@@ -224,20 +240,20 @@ func TestEnsure(t *testing.T) {
 func TestApplyLeavesAnExitedNoKeepAliveAgentAlone(t *testing.T) {
 	dir := t.TempDir()
 	f := &fakeLaunchctl{loaded: map[string]bool{}, exited: map[string]bool{}}
-	l := &Launchctl{Prefix: "dev.getcovo", Run: f.run}
+	l := &Launchctl{Prefix: "dev.benbow", Run: f.run}
 	agents := []Agent{
-		{Label: "dev.getcovo.caddy", Program: "/c"},
-		{Label: "dev.getcovo.app-shop", Program: "/covo", NoKeepAlive: true},
+		{Label: "dev.benbow.caddy", Program: "/c"},
+		{Label: "dev.benbow.app-shop", Program: "/benbow", NoKeepAlive: true},
 	}
 	if _, err := l.Apply(context.Background(), dir, agents); err != nil {
 		t.Fatal(err)
 	}
-	f.exited["dev.getcovo.caddy"], f.exited["dev.getcovo.app-shop"] = true, true
+	f.exited["dev.benbow.caddy"], f.exited["dev.benbow.app-shop"] = true, true
 	changes, err := l.Apply(context.Background(), dir, agents)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []Change{{"dev.getcovo.caddy", "restarted"}, {"dev.getcovo.app-shop", "unchanged"}}
+	want := []Change{{"dev.benbow.caddy", "restarted"}, {"dev.benbow.app-shop", "unchanged"}}
 	if !reflect.DeepEqual(changes, want) {
 		t.Fatalf("Apply = %v, want %v", changes, want)
 	}

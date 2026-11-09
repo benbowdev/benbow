@@ -10,7 +10,7 @@ import (
 )
 
 // A wp-config.php that sets WP_HOME and WP_SITEURL wins over the database:
-// the migration points them at Covo's address too, or says what to check.
+// the migration points them at Benbow's address too, or says what to check.
 func TestWPAddressDefines(t *testing.T) {
 	const url = "https://acme.localhost:8443"
 	tests := []struct {

@@ -25,7 +25,7 @@ const (
 	Service      = "service_failed"
 	Unsupported  = "unsupported"
 	// ForbiddenFolder: a site folder that must never be served (home, disk
-	// root, system folders, the Covo home).
+	// root, system folders, the Benbow home).
 	ForbiddenFolder = "forbidden_folder"
 	// ConfirmationRequired: the action needs explicit confirmation (--force).
 	ConfirmationRequired = "confirmation_required"

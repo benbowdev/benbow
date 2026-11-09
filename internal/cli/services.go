@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/getcovo/covo/internal/core"
+	"github.com/benbowdev/benbow/internal/core"
 	"github.com/spf13/cobra"
 )
 
@@ -19,7 +19,7 @@ func (s statusResult) Text(w io.Writer) {
 	if s.Running {
 		state = "running"
 	}
-	fmt.Fprintf(w, "Covo is %s", state)
+	fmt.Fprintf(w, "Benbow is %s", state)
 	if s.HTTPSPort != 0 {
 		fmt.Fprintf(w, " (HTTPS port %d)", s.HTTPSPort)
 	}
@@ -32,10 +32,10 @@ func (s statusResult) Text(w io.Writer) {
 		fmt.Fprintf(w, "  %-10s %-8s %s\n", svc.Name, running(svc.Running), pid)
 	}
 	for _, o := range s.Orphans {
-		fmt.Fprintf(w, "  orphan agent %s (run covo start or covo stop)\n", o)
+		fmt.Fprintf(w, "  orphan agent %s (run benbow start or benbow stop)\n", o)
 	}
 	if len(s.Sites) == 0 {
-		fmt.Fprintln(w, "No sites. Add one with: covo site add <name> --php 8.4")
+		fmt.Fprintln(w, "No sites. Add one with: benbow site add <name> --php 8.4")
 	}
 	for _, site := range s.Sites {
 		state := ""
@@ -108,7 +108,7 @@ func (a *app) startCmd() *cobra.Command {
 func (a *app) stopCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "stop",
-		Short: "Stop all Covo services",
+		Short: "Stop all Benbow services",
 		Args:  cobra.NoArgs,
 		RunE: a.withCore(func(ctx context.Context, c *core.Core, _ []string) (Result, error) {
 			res, err := c.Stop(ctx)

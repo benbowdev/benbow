@@ -37,7 +37,7 @@ type importPlan struct {
 }
 
 // mampFixture writes the synthetic MAMP PRO settings with its folders under
-// a temporary root and points Covo at it.
+// a temporary root and points Benbow at it.
 func mampFixture(t *testing.T, h *harness) string {
 	t.Helper()
 	root := filepath.Join(t.TempDir(), "Sites")
@@ -57,7 +57,7 @@ func mampFixture(t *testing.T, h *harness) string {
 	if err := os.WriteFile(path, []byte(strings.ReplaceAll(string(body), "/Users/test/Sites", root)), 0o444); err != nil {
 		t.Fatal(err)
 	}
-	h.env = append(h.env, "COVO_MAMP_SETTINGS="+path)
+	h.env = append(h.env, "BENBOW_MAMP_SETTINGS="+path)
 	return path
 }
 
@@ -73,7 +73,7 @@ func fileSum(t *testing.T, path string) [32]byte {
 func (h *harness) importMAMP(args ...string) importPlan {
 	h.t.Helper()
 	var plan importPlan
-	if err := json.Unmarshal(h.mustCovo(append([]string{"import", "mamp"}, args...)...), &plan); err != nil {
+	if err := json.Unmarshal(h.mustBenbow(append([]string{"import", "mamp"}, args...)...), &plan); err != nil {
 		h.t.Fatal(err)
 	}
 	return plan
@@ -82,7 +82,7 @@ func (h *harness) importMAMP(args ...string) importPlan {
 func (h *harness) siteCount() int {
 	h.t.Helper()
 	var sites []json.RawMessage
-	if err := json.Unmarshal(h.mustCovo("site", "list"), &sites); err != nil {
+	if err := json.Unmarshal(h.mustBenbow("site", "list"), &sites); err != nil {
 		h.t.Fatal(err)
 	}
 	return len(sites)
@@ -98,7 +98,7 @@ func TestImportMAMP(t *testing.T) {
 	if !plan.DryRun || plan.Create != 3 || plan.Skip != 3 || !plan.NeedsLocal {
 		t.Fatalf("dry run = %+v", plan)
 	}
-	// PHP 7.4 exists on Apple Silicon (covo-binaries' legacy builds);
+	// PHP 7.4 exists on Apple Silicon (benbow-binaries' legacy builds);
 	// elsewhere it maps to 8.1 with a warning.
 	legacy := "8.1"
 	if runtime.GOARCH == "arm64" {
@@ -132,7 +132,7 @@ func TestImportMAMP(t *testing.T) {
 	}
 
 	// .local names without the compatibility mode: refused, nothing created.
-	if env := h.covo("import", "mamp"); env.OK || env.Error.Code != "confirmation_required" {
+	if env := h.benbow("import", "mamp"); env.OK || env.Error.Code != "confirmation_required" {
 		t.Fatalf("import without .local: %+v", env)
 	}
 	if n := h.siteCount(); n != 0 {
@@ -140,7 +140,7 @@ func TestImportMAMP(t *testing.T) {
 	}
 
 	// --localhost: created and served.
-	h.mustCovo("start")
+	h.mustBenbow("start")
 	plan = h.importMAMP("--localhost")
 	if plan.Create != 3 || !plan.Applied {
 		t.Fatalf("import = %+v", plan)
@@ -155,7 +155,7 @@ func TestImportMAMP(t *testing.T) {
 			Aliases []string `json:"aliases"`
 		} `json:"sites"`
 	}
-	if err := json.Unmarshal(h.mustCovo("status"), &status); err != nil {
+	if err := json.Unmarshal(h.mustBenbow("status"), &status); err != nil {
 		t.Fatal(err)
 	}
 	if len(status.Sites) != 3 {
@@ -184,7 +184,7 @@ func TestImportMAMP(t *testing.T) {
 func TestImportMAMPKeepsLocalNames(t *testing.T) {
 	h := newHarness(t)
 	mampFixture(t, h)
-	h.mustCovo("domains", "enable", "local")
+	h.mustBenbow("domains", "enable", "local")
 	plan := h.importMAMP()
 	if plan.Create != 3 || plan.NeedsLocal {
 		t.Fatalf("import = %+v", plan)
@@ -196,25 +196,25 @@ func TestImportMAMPKeepsLocalNames(t *testing.T) {
 		}
 	}
 	if !strings.HasPrefix(hosts, h.hostsOriginal) {
-		t.Error("lines outside Covo's block changed")
+		t.Error("lines outside Benbow's block changed")
 	}
 }
 
 // TestImportMAMPLinksDatabases links a site to its MAMP database when that
-// database was already copied to Covo's MySQL.
+// database was already copied to Benbow's MySQL.
 func TestImportMAMPLinksDatabases(t *testing.T) {
 	if runtime.GOARCH != "arm64" {
 		t.Skip("MySQL 8.4 is pinned for Apple Silicon only")
 	}
 	h := newHarness(t)
 	mampFixture(t, h)
-	h.mustCovo("mysql", "enable")
-	h.mustCovo("start")
-	// A database "shop" on Covo's MySQL, as after a mysqldump copy.
-	h.mustCovo("site", "add", "tmp", "--path", newSite(t))
-	h.mustCovo("db", "create", "tmp", "--name", "shop")
-	h.mustCovo("db", "unlink", "tmp")
-	h.mustCovo("site", "remove", "tmp")
+	h.mustBenbow("mysql", "enable")
+	h.mustBenbow("start")
+	// A database "shop" on Benbow's MySQL, as after a mysqldump copy.
+	h.mustBenbow("site", "add", "tmp", "--path", newSite(t))
+	h.mustBenbow("db", "create", "tmp", "--name", "shop")
+	h.mustBenbow("db", "unlink", "tmp")
+	h.mustBenbow("site", "remove", "tmp")
 
 	var plan struct {
 		Items []struct {
@@ -222,7 +222,7 @@ func TestImportMAMPLinksDatabases(t *testing.T) {
 			Database string `json:"database"`
 		} `json:"items"`
 	}
-	if err := json.Unmarshal(h.mustCovo("import", "mamp", "--localhost"), &plan); err != nil {
+	if err := json.Unmarshal(h.mustBenbow("import", "mamp", "--localhost"), &plan); err != nil {
 		t.Fatal(err)
 	}
 	linked := map[string]string{}
@@ -232,13 +232,13 @@ func TestImportMAMPLinksDatabases(t *testing.T) {
 		}
 	}
 	if len(linked) != 1 || linked["shop"] != "shop" {
-		t.Fatalf("linked = %v (blog has two MAMP databases and none on Covo)", linked)
+		t.Fatalf("linked = %v (blog has two MAMP databases and none on Benbow)", linked)
 	}
 	var db struct {
 		Database string `json:"database"`
 		User     string `json:"user"`
 	}
-	if err := json.Unmarshal(h.mustCovo("db", "show", "shop"), &db); err != nil || db.Database != "shop" || db.User != "root" {
+	if err := json.Unmarshal(h.mustBenbow("db", "show", "shop"), &db); err != nil || db.Database != "shop" || db.User != "root" {
 		t.Fatalf("db show shop = %+v, %v", db, err)
 	}
 }

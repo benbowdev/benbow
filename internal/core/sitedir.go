@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/paths"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/paths"
 )
 
 // systemTrees are folders whose whole subtree must never be served.
@@ -28,8 +28,8 @@ var systemRoots = []string{
 }
 
 // checkSiteDir validates a site document root. home is the user's home and
-// covoRoot the Covo home; both are resolved through symlinks like p.
-func checkSiteDir(p, home, covoRoot string) error {
+// benbowRoot the Benbow home; both are resolved through symlinks like p.
+func checkSiteDir(p, home, benbowRoot string) error {
 	if err := paths.CheckSafe(p); err != nil {
 		return err
 	}
@@ -46,7 +46,7 @@ func checkSiteDir(p, home, covoRoot string) error {
 
 	resolved := resolve(p)
 	home = resolve(home)
-	covoRoot = resolve(covoRoot)
+	benbowRoot = resolve(benbowRoot)
 	forbidden := func(why string) error {
 		return errcode.Newf(errcode.ForbiddenFolder, "refusing to serve %s: %s", p, why)
 	}
@@ -66,8 +66,8 @@ func checkSiteDir(p, home, covoRoot string) error {
 			return forbidden("it is inside a system folder")
 		}
 	}
-	if within(resolved, covoRoot) || within(covoRoot, resolved) {
-		return forbidden("it overlaps the Covo data folder")
+	if within(resolved, benbowRoot) || within(benbowRoot, resolved) {
+		return forbidden("it overlaps the Benbow data folder")
 	}
 	return nil
 }

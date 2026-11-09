@@ -12,16 +12,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/getcovo/covo/internal/ca"
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/launchd"
-	"github.com/getcovo/covo/internal/store"
+	"github.com/benbowdev/benbow/internal/ca"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/launchd"
+	"github.com/benbowdev/benbow/internal/store"
 )
 
 func TestCompanion(t *testing.T) {
 	ctx := context.Background()
 	c := runCore(t)
-	c.Executable = "/usr/local/bin/covo"
+	c.Executable = "/usr/local/bin/benbow"
 	project := t.TempDir()
 	writeFiles(t, project, map[string]string{
 		"artisan": "", "composer.json": `{"require":{"laravel/framework":"^12.0"}}`, "public/index.php": "<?php",
@@ -49,7 +49,7 @@ func TestCompanion(t *testing.T) {
 		t.Fatalf("procs = %+v", procs)
 	}
 	a := c.appAgent(procs[0], "")
-	if a.Label != "dev.getcovo.companion-shop" || strings.Join(a.Args, " ") != "app run shop --companion" || !strings.HasSuffix(a.StdoutLog, "/shop/companion.log") {
+	if a.Label != "dev.benbow.companion-shop" || strings.Join(a.Args, " ") != "app run shop --companion" || !strings.HasSuffix(a.StdoutLog, "/shop/companion.log") {
 		t.Errorf("agent = %+v", a)
 	}
 	if got := strings.Join(appCommand("/bin/zsh", procs[0]), " "); !strings.Contains(got, "--port "+strconv.Itoa(port)) {
@@ -94,7 +94,7 @@ func TestCompanion(t *testing.T) {
 	}
 
 	// Status, restart rules and removal.
-	c.launchctl = &launchd.Launchctl{Prefix: "dev.getcovo", Run: func(context.Context, ...string) (string, error) {
+	c.launchctl = &launchd.Launchctl{Prefix: "dev.benbow", Run: func(context.Context, ...string) (string, error) {
 		return "PID\tStatus\tLabel\n", nil
 	}}
 	if st := c.companionStatus(res.Site, nil); st == nil || st.State != AppStopped || st.Port != port {

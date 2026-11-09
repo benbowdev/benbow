@@ -12,49 +12,49 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/getcovo/covo/internal/agents"
-	"github.com/getcovo/covo/internal/ca"
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/hostshelper"
-	"github.com/getcovo/covo/internal/launchd"
-	"github.com/getcovo/covo/internal/mysql"
-	"github.com/getcovo/covo/internal/paths"
-	"github.com/getcovo/covo/internal/resolver"
-	"github.com/getcovo/covo/internal/trust"
+	"github.com/benbowdev/benbow/internal/agents"
+	"github.com/benbowdev/benbow/internal/ca"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/hostshelper"
+	"github.com/benbowdev/benbow/internal/launchd"
+	"github.com/benbowdev/benbow/internal/mysql"
+	"github.com/benbowdev/benbow/internal/paths"
+	"github.com/benbowdev/benbow/internal/resolver"
+	"github.com/benbowdev/benbow/internal/trust"
 )
 
-// knownEntries are the only names Covo creates at the top of its home. A
-// folder holding anything else is not deleted: COVO_HOME may point somewhere
+// knownEntries are the only names Benbow creates at the top of its home. A
+// folder holding anything else is not deleted: BENBOW_HOME may point somewhere
 // it should not.
 var knownEntries = []string{
 	"bin", "etc", "launchd", "data", "logs", "tmp", "run",
-	"covo.db", "covo.db-wal", "covo.db-shm", "covo.db-journal", "covo.lock", ".DS_Store",
+	"benbow.db", "benbow.db-wal", "benbow.db-shm", "benbow.db-journal", "benbow.lock", ".DS_Store",
 }
 
 // UninstallPlan lists what uninstall removes. Site folders are never touched.
 type UninstallPlan struct {
 	Agents []string     `json:"agents"`
 	CA     []trust.Cert `json:"ca"`
-	// Resolver lists Covo's files in /etc/resolver: removing them takes an
+	// Resolver lists Benbow's files in /etc/resolver: removing them takes an
 	// administrator authorization.
 	Resolver []string `json:"resolver"`
 	// HostsHelper lists the privileged helper's files; removing them (and
-	// Covo's /etc/hosts lines) needs no password.
+	// Benbow's /etc/hosts lines) needs no password.
 	HostsHelper []string `json:"hosts_helper"`
-	// Keychain lists Covo's items in the login keychain (database, server
+	// Keychain lists Benbow's items in the login keychain (database, server
 	// and GitHub secrets).
 	Keychain []string `json:"keychain"`
 	Paths    []string `json:"paths"`
 	Unknown  []string `json:"unknown,omitempty"`
-	// AgentConfigs are the AI agents whose global configuration has Covo's
+	// AgentConfigs are the AI agents whose global configuration has Benbow's
 	// MCP server; uninstall removes that entry only.
 	AgentConfigs []AgentConfig `json:"agent_configs,omitempty"`
 	// MigrationBackups are the folders holding the wp-config.php and .env
-	// files saved before migrations: they go with the Covo folder.
+	// files saved before migrations: they go with the Benbow folder.
 	MigrationBackups []string `json:"migration_backups,omitempty"`
 }
 
-// AgentConfig is an agent's configuration file with Covo's MCP server.
+// AgentConfig is an agent's configuration file with Benbow's MCP server.
 type AgentConfig struct {
 	Agent string `json:"agent"`
 	Name  string `json:"name"`
@@ -69,7 +69,7 @@ type UninstallResult struct {
 	Warnings []string `json:"warnings,omitempty"`
 }
 
-// Uninstaller works without opening the Covo home, so it also cleans up a
+// Uninstaller works without opening the Benbow home, so it also cleans up a
 // partial, interrupted or corrupted installation.
 type Uninstaller struct {
 	Layout    paths.Layout
@@ -96,7 +96,7 @@ func NewUninstaller() (*Uninstaller, error) {
 		Layout: layout, Launchctl: launchd.New(), Keychain: kc, CAName: ca.Name(),
 		Resolver: newResolverManager(layout.Root, layout.Tmp),
 	}
-	if u.Launchctl.Prefix == launchd.DefaultPrefix || os.Getenv("COVO_AGENTS_HOME") != "" {
+	if u.Launchctl.Prefix == launchd.DefaultPrefix || os.Getenv("BENBOW_AGENTS_HOME") != "" {
 		env := agents.DefaultEnv()
 		u.Agents = &env
 	}
@@ -123,10 +123,10 @@ func (u *Uninstaller) Plan(ctx context.Context) (UninstallPlan, error) {
 
 	if _, external := helperClient(); !external {
 		if _, err := os.Stat(helperMarker(u.Layout)); err == nil {
-			plan.HostsHelper = append(plan.HostsHelper, "Covo's lines in "+hostshelper.HostsPath, hostshelper.BinaryPath, hostshelper.PlistPath)
+			plan.HostsHelper = append(plan.HostsHelper, "Benbow's lines in "+hostshelper.HostsPath, hostshelper.BinaryPath, hostshelper.PlistPath)
 		}
 	}
-	kcs, err := covoKeychains(u.Launchctl.Prefix)
+	kcs, err := benbowKeychains(u.Launchctl.Prefix)
 	if err != nil {
 		return plan, err
 	}
@@ -177,8 +177,8 @@ func (u *Uninstaller) Plan(ctx context.Context) (UninstallPlan, error) {
 	return plan, nil
 }
 
-// Uninstall stops every Covo agent, removes the CA from the keychain and
-// deletes the Covo home. It is idempotent.
+// Uninstall stops every Benbow agent, removes the CA from the keychain and
+// deletes the Benbow home. It is idempotent.
 func (u *Uninstaller) Uninstall(ctx context.Context) (UninstallResult, error) {
 	plan, err := u.Plan(ctx)
 	if err != nil {
@@ -187,7 +187,7 @@ func (u *Uninstaller) Uninstall(ctx context.Context) (UninstallResult, error) {
 	res := UninstallResult{UninstallPlan: plan}
 	if len(plan.Unknown) > 0 {
 		return res, errcode.Newf(errcode.Conflict,
-			"%s contains files Covo did not create (%s); refusing to delete it",
+			"%s contains files Benbow did not create (%s); refusing to delete it",
 			u.Layout.Root, strings.Join(plan.Unknown, ", "))
 
 	}
@@ -210,7 +210,7 @@ func (u *Uninstaller) Uninstall(ctx context.Context) (UninstallResult, error) {
 		return res, err
 	}
 	// After the agents stopped: MySQL is no longer running.
-	kcs, err := covoKeychains(u.Launchctl.Prefix)
+	kcs, err := benbowKeychains(u.Launchctl.Prefix)
 	if err != nil {
 		return res, err
 	}
@@ -221,7 +221,7 @@ func (u *Uninstaller) Uninstall(ctx context.Context) (UninstallResult, error) {
 	}
 	for _, a := range plan.AgentConfigs {
 		if err := agents.Disconnect(ctx, *u.Agents, a.Agent); err != nil {
-			res.Warnings = append(res.Warnings, fmt.Sprintf("Covo's MCP server is still in %s: %v", a.Path, err))
+			res.Warnings = append(res.Warnings, fmt.Sprintf("Benbow's MCP server is still in %s: %v", a.Path, err))
 		}
 	}
 	for _, p := range plan.Paths {
@@ -243,8 +243,8 @@ func checkRemovable(root string) error {
 	return nil
 }
 
-// covoKeychains are every login keychain service Covo stores secrets under.
-func covoKeychains(prefix string) ([]struct {
+// benbowKeychains are every login keychain service Benbow stores secrets under.
+func benbowKeychains(prefix string) ([]struct {
 	what string
 	kc   mysql.Keychain
 }, error) {

@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/getcovo/covo/internal/envelope"
+	"github.com/benbowdev/benbow/internal/envelope"
 )
 
 // Result is what a command returns: it is serialised as the envelope's data

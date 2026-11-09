@@ -20,12 +20,12 @@ func TestTwoPHPVersionsInParallel(t *testing.T) {
 		var added struct {
 			URL string `json:"url"`
 		}
-		if err := json.Unmarshal(h.mustCovo("site", "add", s.name, "--php", s.php, "--path", newSite(t)), &added); err != nil {
+		if err := json.Unmarshal(h.mustBenbow("site", "add", s.name, "--php", s.php, "--path", newSite(t)), &added); err != nil {
 			t.Fatal(err)
 		}
 		urls[s.php] = added.URL
 	}
-	h.mustCovo("start")
+	h.mustBenbow("start")
 
 	st := h.status()
 	var names []string
@@ -46,7 +46,7 @@ func TestTwoPHPVersionsInParallel(t *testing.T) {
 	}
 
 	// Switching demo to PHP 8.2 takes effect at once and retires php-8.4.
-	h.mustCovo("site", "set", "demo", "--php", "8.2")
+	h.mustBenbow("site", "set", "demo", "--php", "8.2")
 	st = h.status()
 	names = nil
 	for _, svc := range st.Services {
@@ -58,20 +58,20 @@ func TestTwoPHPVersionsInParallel(t *testing.T) {
 	if body := h.get(urls["8.4"], st.CA.CertPath); !strings.HasPrefix(body, "8.2.") {
 		t.Errorf("demo served %q after set, want PHP 8.2.x", body)
 	}
-	if env := h.covo("site", "set", "demo", "--path", t.TempDir()); env.OK || env.Error.Code != "confirmation_required" {
+	if env := h.benbow("site", "set", "demo", "--path", t.TempDir()); env.OK || env.Error.Code != "confirmation_required" {
 		t.Fatalf("set to an empty folder = %+v, want confirmation_required", env)
 	}
-	if env := h.covo("site", "set", "nope", "--php", "8.2"); env.OK || env.Error.Code != "not_found" {
+	if env := h.benbow("site", "set", "nope", "--php", "8.2"); env.OK || env.Error.Code != "not_found" {
 		t.Fatalf("set missing site = %+v, want not_found", env)
 	}
 
 	// Disabled sites are not served and need no PHP.
-	h.mustCovo("site", "disable", "demo")
-	h.mustCovo("site", "disable", "legacy")
+	h.mustBenbow("site", "disable", "demo")
+	h.mustBenbow("site", "disable", "legacy")
 	if got := serviceNames(h.status()); got != "caddy" {
 		t.Fatalf("services with every site disabled = %s, want caddy", got)
 	}
-	h.mustCovo("site", "enable", "demo")
+	h.mustBenbow("site", "enable", "demo")
 	st = h.status()
 	if got := serviceNames(st); got != "caddy,php-8.2" {
 		t.Fatalf("services after enable = %s, want caddy,php-8.2", got)
@@ -81,18 +81,18 @@ func TestTwoPHPVersionsInParallel(t *testing.T) {
 	}
 
 	// Archived: off and kept apart; it cannot be turned on until unarchived.
-	h.mustCovo("site", "archive", "demo")
+	h.mustBenbow("site", "archive", "demo")
 	if got := serviceNames(h.status()); got != "caddy" {
 		t.Fatalf("services with demo archived = %s, want caddy", got)
 	}
-	if env := h.covo("site", "enable", "demo"); env.OK || env.Error.Code != "conflict" {
+	if env := h.benbow("site", "enable", "demo"); env.OK || env.Error.Code != "conflict" {
 		t.Fatalf("enable an archived site = %+v", env)
 	}
 	var back struct {
 		Enabled  bool `json:"enabled"`
 		Archived bool `json:"archived"`
 	}
-	if err := json.Unmarshal(h.mustCovo("site", "unarchive", "demo"), &back); err != nil || !back.Enabled || back.Archived {
+	if err := json.Unmarshal(h.mustBenbow("site", "unarchive", "demo"), &back); err != nil || !back.Enabled || back.Archived {
 		t.Fatalf("unarchive = %+v, %v", back, err)
 	}
 	if body := h.get(urls["8.4"], st.CA.CertPath); !strings.HasPrefix(body, "8.2.") {

@@ -19,7 +19,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// TestAgentSession starts `covo mcp` inside a WordPress site's folder, like
+// TestAgentSession starts `benbow mcp` inside a WordPress site's folder, like
 // an agent started there: the session opens at connection (database saved
 // by a background process), many changes keep the starting point, a risky
 // one gets a checkpoint, and undo puts files and database back.
@@ -28,12 +28,12 @@ func TestAgentSession(t *testing.T) {
 		t.Skip("MySQL 8.4 is pinned for Apple Silicon only")
 	}
 	h := newHarness(t)
-	h.mustCovo("mysql", "enable")
-	h.mustCovo("start")
+	h.mustBenbow("mysql", "enable")
+	h.mustBenbow("start")
 	root := filepath.Join(t.TempDir(), "shop")
-	h.mustCovo("wordpress", "shop", "--path", root)
-	h.mustCovo("mcp", "allow", "shop")
-	h.mustCovo("snapshot", "keep", "3")
+	h.mustBenbow("wordpress", "shop", "--path", root)
+	h.mustBenbow("mcp", "allow", "shop")
+	h.mustBenbow("snapshot", "keep", "3")
 	blogname := func() string {
 		out, code := h.wp("shop", "option", "get", "blogname")
 		if code != 0 {
@@ -68,7 +68,7 @@ func TestAgentSession(t *testing.T) {
 	var s info
 	for deadline := time.Now().Add(2 * time.Minute); ; {
 		var list []info
-		_ = json.Unmarshal(h.mustCovo("agent", "session", "list"), &list)
+		_ = json.Unmarshal(h.mustBenbow("agent", "session", "list"), &list)
 		if len(list) == 1 && list[0].DBSaved {
 			s = list[0]
 			break
@@ -105,11 +105,11 @@ func TestAgentSession(t *testing.T) {
 		}
 	}
 	for range 4 {
-		h.mustCovo("snapshot", "create", "shop")
+		h.mustBenbow("snapshot", "create", "shop")
 	}
 	// A risky one: a plugin from a zip.
-	zip := filepath.Join(t.TempDir(), "covo-e2e.zip")
-	if err := os.WriteFile(zip, zipOf(t, map[string]string{"covo-e2e/covo-e2e.php": "<?php\n/*\nPlugin Name: Covo E2E\n*/\n"}), 0o644); err != nil {
+	zip := filepath.Join(t.TempDir(), "benbow-e2e.zip")
+	if err := os.WriteFile(zip, zipOf(t, map[string]string{"benbow-e2e/benbow-e2e.php": "<?php\n/*\nPlugin Name: Benbow E2E\n*/\n"}), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	out := call("wp", map[string]any{"site": "shop", "args": []string{"plugin", "install", zip, "--activate"}})
@@ -123,7 +123,7 @@ func TestAgentSession(t *testing.T) {
 		ID   string `json:"id"`
 		Kind string `json:"kind"`
 	}
-	_ = json.Unmarshal(h.mustCovo("snapshot", "list", "shop"), &snaps)
+	_ = json.Unmarshal(h.mustBenbow("snapshot", "list", "shop"), &snaps)
 	found := false
 	for _, sn := range snaps {
 		found = found || sn.ID == s.BaseSnapshot
@@ -156,7 +156,7 @@ func TestAgentSession(t *testing.T) {
 	for _, f := range diff.Files.Changes {
 		paths[f.Path] = f.Change
 	}
-	if paths["agent-notes.php"] != "added" || paths["wp-content/plugins/covo-e2e/covo-e2e.php"] != "added" {
+	if paths["agent-notes.php"] != "added" || paths["wp-content/plugins/benbow-e2e/benbow-e2e.php"] != "added" {
 		t.Fatalf("file changes = %v", paths)
 	}
 	updated := int64(0)
@@ -172,29 +172,29 @@ func TestAgentSession(t *testing.T) {
 		t.Fatalf("wp-config.php should be unchanged: %s", out)
 	}
 	// After a MySQL restart the counters are gone: approximate.
-	h.mustCovo("stop")
-	h.mustCovo("start")
-	_ = json.Unmarshal(h.mustCovo("agent", "diff", "shop"), &diff)
+	h.mustBenbow("stop")
+	h.mustBenbow("start")
+	_ = json.Unmarshal(h.mustBenbow("agent", "diff", "shop"), &diff)
 	if diff.Database == nil || !diff.Database.Approximate {
 		t.Fatalf("after a restart = %+v", diff.Database)
 	}
 
 	// Undo everything.
-	if env := h.covo("agent", "session", "revert", "shop"); env.OK || env.Error.Code != "confirmation_required" {
+	if env := h.benbow("agent", "session", "revert", "shop"); env.OK || env.Error.Code != "confirmation_required" {
 		t.Fatalf("revert without --yes = %+v", env)
 	}
-	h.mustCovo("agent", "session", "revert", "shop", "--yes")
+	h.mustBenbow("agent", "session", "revert", "shop", "--yes")
 	if got := blogname(); got != before {
 		t.Fatalf("blogname after undo = %q, want %q", got, before)
 	}
 	if _, err := os.Stat(filepath.Join(root, "agent-notes.php")); !os.IsNotExist(err) {
 		t.Fatal("the agent's own file survived the undo")
 	}
-	if _, err := os.Stat(filepath.Join(root, "wp-content", "plugins", "covo-e2e")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(root, "wp-content", "plugins", "benbow-e2e")); !os.IsNotExist(err) {
 		t.Fatal("the plugin survived the undo")
 	}
 	var open []info
-	_ = json.Unmarshal(h.mustCovo("agent", "session", "list"), &open)
+	_ = json.Unmarshal(h.mustBenbow("agent", "session", "list"), &open)
 	if len(open) != 0 {
 		t.Fatalf("session still open: %+v", open)
 	}

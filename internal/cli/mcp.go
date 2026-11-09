@@ -9,10 +9,10 @@ import (
 	"io"
 	"strings"
 
-	"github.com/getcovo/covo/internal/core"
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/mcpserver"
-	"github.com/getcovo/covo/internal/store"
+	"github.com/benbowdev/benbow/internal/core"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/mcpserver"
+	"github.com/benbowdev/benbow/internal/store"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/cobra"
 )
@@ -26,7 +26,7 @@ func (r mcpPermResult) Text(w io.Writer) {
 	case len(r.Sites) > 0:
 		fmt.Fprintf(w, "AI agents may change: %s. Everything else is read-only.\n", strings.Join(r.Sites, ", "))
 	default:
-		fmt.Fprintln(w, "AI agents are read-only. Allow changes with: covo mcp allow <site>  (or * for everything)")
+		fmt.Fprintln(w, "AI agents are read-only. Allow changes with: benbow mcp allow <site>  (or * for everything)")
 	}
 }
 
@@ -95,17 +95,17 @@ func (a *app) mcpCmd() *cobra.Command {
 func (a *app) mcpServeCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "mcp",
-		Short: "Run Covo's MCP server on stdin/stdout, for AI agents",
+		Short: "Run Benbow's MCP server on stdin/stdout, for AI agents",
 		Long: "Serves the Model Context Protocol over stdin/stdout: sites, PHP versions, logs,\n" +
 			"databases, the PHP compatibility check and wp-cli. Add it to an agent, e.g.:\n\n" +
-			"  claude mcp add covo -- covo mcp\n\n" +
-			"Agents are read-only until you allow changes: covo mcp allow <site> (or *).\n" +
-			"Before changing a site Covo takes a snapshot; covo mcp log shows what they did.",
+			"  claude mcp add benbow -- benbow mcp\n\n" +
+			"Agents are read-only until you allow changes: benbow mcp allow <site> (or *).\n" +
+			"Before changing a site Benbow takes a snapshot; benbow mcp log shows what they did.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			a.ran = true
 			if a.json {
-				return errcode.Errorf(errcode.InvalidInput, "covo mcp speaks MCP on stdout: --json does not apply")
+				return errcode.Errorf(errcode.InvalidInput, "benbow mcp speaks MCP on stdout: --json does not apply")
 			}
 			if err := mcpserver.New(core.Open).Run(cmd.Context(), &mcp.StdioTransport{}); err != nil {
 				return fmt.Errorf("mcp server: %w", err)

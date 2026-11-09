@@ -11,10 +11,10 @@ import (
 )
 
 func TestUserAgent(t *testing.T) {
-	if got := userAgent("0.1.0-beta.4", "26.2", "arm64"); got != "Covo/0.1.0-beta.4 (macOS 26.2; arm64)" {
+	if got := userAgent("0.1.0-beta.4", "26.2", "arm64"); got != "Benbow/0.1.0-beta.4 (macOS 26.2; arm64)" {
 		t.Errorf("userAgent = %q", got)
 	}
-	if got := UserAgent(); !regexp.MustCompile(`^Covo/\S+ \(macOS ([0-9.]+|unknown); (arm64|amd64)\)$`).MatchString(got) {
+	if got := UserAgent(); !regexp.MustCompile(`^Benbow/\S+ \(macOS ([0-9.]+|unknown); (arm64|amd64)\)$`).MatchString(got) {
 		t.Errorf("UserAgent() = %q", got)
 	}
 }

@@ -11,16 +11,16 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/hostshelper"
-	"github.com/getcovo/covo/internal/ports"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/hostshelper"
+	"github.com/benbowdev/benbow/internal/ports"
 )
 
 // Ports: the HTTPS port (and the optional HTTP port, which only redirects
 // to HTTPS) are the ones in site addresses. Caddy never runs as root, so it
 // cannot listen on 443 or 80 itself: for those it listens on a high port
-// and Covo's helper forwards loopback connections to it with a pf rule,
-// only while Covo is running.
+// and Benbow's helper forwards loopback connections to it with a pf rule,
+// only while Benbow is running.
 
 const (
 	settingHTTPPort        = "http_port"
@@ -31,7 +31,7 @@ const (
 	standardHTTP           = 80
 )
 
-// Ports are Covo's web ports.
+// Ports are Benbow's web ports.
 type Ports struct {
 	// HTTPS is the port in site addresses (443: no port in addresses).
 	HTTPS int `json:"https_port"`
@@ -57,7 +57,7 @@ func (p Ports) forwards() []hostshelper.Forward {
 // PortsStatus is the ports and the state of their forwards.
 type PortsStatus struct {
 	Ports
-	// Forwarded is true when 443 or 80 need Covo's helper.
+	// Forwarded is true when 443 or 80 need Benbow's helper.
 	Forwarded bool `json:"forwarded"`
 	// Active are the forwards the helper has in place right now.
 	Active []hostshelper.Forward `json:"active"`
@@ -137,7 +137,7 @@ func (c *Core) GetPorts(ctx context.Context) (PortsStatus, error) {
 }
 
 // SetPorts changes the HTTPS port and the HTTP redirect port (0: off). 443
-// and 80 install Covo's helper first (one administrator authorization);
+// and 80 install Benbow's helper first (one administrator authorization);
 // beforePrompt is called right before the macOS dialog. Every new port
 // must be free.
 func (c *Core) SetPorts(ctx context.Context, https, http int, beforePrompt func()) (PortsStatus, error) {
@@ -232,7 +232,7 @@ func (c *Core) syncForwards(ctx context.Context, p Ports) error {
 	res, err := client.Do(ctx, hostshelper.Request{Op: hostshelper.OpStatus})
 	if err != nil {
 		return errcode.Newf(errcode.Service,
-			"ports %s need Covo's helper, which does not answer (%v); set the ports again in Settings or with `covo ports`",
+			"ports %s need Benbow's helper, which does not answer (%v); set the ports again in Settings or with `benbow ports`",
 			describeForwards(want), err)
 
 	}
@@ -242,7 +242,7 @@ func (c *Core) syncForwards(ctx context.Context, p Ports) error {
 		}
 		if !ports.FreeAnywhere(f.From) {
 			return errcode.Newf(errcode.PortInUse,
-				"port %d is now in use by %s; Covo leaves it alone: stop that program or choose another port",
+				"port %d is now in use by %s; Benbow leaves it alone: stop that program or choose another port",
 				f.From, ports.Describe(ports.Owners(ctx, f.From)))
 
 		}

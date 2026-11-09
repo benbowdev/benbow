@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 Andrea Casali
 
-// Package postgres initializes Covo's PostgreSQL server and runs SQL on it.
+// Package postgres initializes Benbow's PostgreSQL server and runs SQL on it.
 // The superuser password never appears on a command line or in an
 // environment variable: initdb reads it from a 0600 file and psql from a
 // 0600 password file, both removed right after.
@@ -17,7 +17,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/getcovo/covo/internal/errcode"
+	"github.com/benbowdev/benbow/internal/errcode"
 )
 
 // DefaultPort avoids 5432, used by Postgres.app, Homebrew and others.
@@ -72,7 +72,7 @@ func Initialize(ctx context.Context, binDir, dataDir, password, tmpDir string) e
 }
 
 // cleanEnv drops PG* variables of the user's shell, which would redirect
-// Covo's tools to another server.
+// Benbow's tools to another server.
 func cleanEnv() []string {
 	var env []string
 	for _, kv := range os.Environ() {
@@ -115,7 +115,7 @@ func Ident(s string) string { return `"` + strings.ReplaceAll(s, `"`, `""`) + `"
 func Literal(s string) string { return `'` + strings.ReplaceAll(s, `'`, `''`) + `'` }
 
 // pgpassEnv writes a password file for the superuser on 127.0.0.1:port and
-// returns the environment for Covo's PostgreSQL tools and a cleanup.
+// returns the environment for Benbow's PostgreSQL tools and a cleanup.
 func pgpassEnv(port int, password, tmpDir string) ([]string, func(), error) {
 	pass, remove, err := secretFile(tmpDir, "127.0.0.1:"+strconv.Itoa(port)+":*:"+Superuser+":"+passEscape(password)+"\n")
 	if err != nil {

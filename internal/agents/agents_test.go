@@ -59,7 +59,7 @@ func TestConnect(t *testing.T) {
 	_ = os.MkdirAll(filepath.Dir(settings), 0o755)
 	_ = os.WriteFile(settings, []byte(`{"theme":"dark","mcpServers":{"other":{"command":"x"}}}`), 0o600)
 
-	res, err := Connect(ctx, env, Gemini, "/Apps/Covo.app/bin/covo", backups)
+	res, err := Connect(ctx, env, Gemini, "/Apps/Benbow.app/bin/benbow", backups)
 	if err != nil || res.Backup == "" {
 		t.Fatalf("connect gemini = %+v, %v", res, err)
 	}
@@ -67,7 +67,7 @@ func TestConnect(t *testing.T) {
 	b, _ := os.ReadFile(settings)
 	_ = json.Unmarshal(b, &cfg)
 	servers := cfg["mcpServers"].(map[string]any)
-	if cfg["theme"] != "dark" || servers["other"] == nil || servers["covo"].(map[string]any)["command"] != "/Apps/Covo.app/bin/covo" {
+	if cfg["theme"] != "dark" || servers["other"] == nil || servers["benbow"].(map[string]any)["command"] != "/Apps/Benbow.app/bin/benbow" {
 		t.Fatalf("settings = %s", b)
 	}
 	if fi, _ := os.Stat(settings); fi.Mode().Perm() != 0o600 {
@@ -81,30 +81,30 @@ func TestConnect(t *testing.T) {
 	}
 
 	// Cursor: a new file. Claude Code and Codex: their own command.
-	if _, err := Connect(ctx, env, Cursor, "/covo", backups); err != nil {
+	if _, err := Connect(ctx, env, Cursor, "/benbow", backups); err != nil {
 		t.Fatal(err)
 	}
 	if a, _ := Find(ctx, env, Cursor); !a.Connected {
 		t.Error("cursor not connected")
 	}
-	if _, err := Connect(ctx, env, Claude, "/covo", backups); err != nil {
+	if _, err := Connect(ctx, env, Claude, "/benbow", backups); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Connect(ctx, env, Codex, "/covo", backups); err != nil {
+	if _, err := Connect(ctx, env, Codex, "/benbow", backups); err != nil {
 		t.Fatal(err)
 	}
 	calls, _ := os.ReadFile(log)
-	if !strings.Contains(string(calls), "claude mcp add -s user covo -- /covo mcp") || !strings.Contains(string(calls), "codex mcp add covo -- /covo mcp") {
+	if !strings.Contains(string(calls), "claude mcp add -s user benbow -- /benbow mcp") || !strings.Contains(string(calls), "codex mcp add benbow -- /benbow mcp") {
 		t.Fatalf("calls = %s", calls)
 	}
-	if _, err := Connect(ctx, env, Copilot, "/covo", backups); err == nil {
+	if _, err := Connect(ctx, env, Copilot, "/benbow", backups); err == nil {
 		t.Error("copilot is not installed")
 	}
 
 	// A configuration that is not JSON is left alone.
 	_ = os.Remove(settings)
 	_ = os.WriteFile(settings, []byte("{oops"), 0o600)
-	if _, err := Connect(ctx, env, Gemini, "/covo", backups); err == nil {
+	if _, err := Connect(ctx, env, Gemini, "/benbow", backups); err == nil {
 		t.Error("broken JSON overwritten")
 	}
 	if b, _ := os.ReadFile(settings); string(b) != "{oops" {
@@ -115,14 +115,14 @@ func TestConnect(t *testing.T) {
 func TestCommand(t *testing.T) {
 	ctx := context.Background()
 	env, _ := fakeEnv(t)
-	work := filepath.Join(env.Home, "covo-tmp")
-	l := Launch{Dir: "/Sites/shop", CovoBin: "/covo", Session: "s1", Context: "Site shop.\nWork in the session.", Prompt: "Call covo_status.", WorkDir: work}
+	work := filepath.Join(env.Home, "benbow-tmp")
+	l := Launch{Dir: "/Sites/shop", BenbowBin: "/benbow", Session: "s1", Context: "Site shop.\nWork in the session.", Prompt: "Call benbow_status.", WorkDir: work}
 	for _, tt := range []struct {
 		id   string
 		want []string
 	}{
-		{Claude, []string{"--mcp-config", "--append-system-prompt", "Call covo_status."}},
-		{Codex, []string{"-C", "/Sites/shop", `mcp_servers.covo.command="/covo"`, `mcp_servers.covo.args=["mcp"]`, `developer_instructions="Site shop.\nWork in the session."`}},
+		{Claude, []string{"--mcp-config", "--append-system-prompt", "Call benbow_status."}},
+		{Codex, []string{"-C", "/Sites/shop", `mcp_servers.benbow.command="/benbow"`, `mcp_servers.benbow.args=["mcp"]`, `developer_instructions="Site shop.\nWork in the session."`}},
 		{Gemini, []string{"-i"}},
 		{Cursor, []string{"/usr/bin/open", "-a", "/Sites/shop"}},
 	} {
@@ -138,7 +138,7 @@ func TestCommand(t *testing.T) {
 			}
 		}
 	}
-	if b, _ := os.ReadFile(filepath.Join(work, "mcp.json")); !strings.Contains(string(b), `"/covo"`) {
+	if b, _ := os.ReadFile(filepath.Join(work, "mcp.json")); !strings.Contains(string(b), `"/benbow"`) {
 		t.Errorf("mcp.json = %s", b)
 	}
 	a, _ := Find(ctx, env, Copilot)
@@ -150,10 +150,10 @@ func TestCommand(t *testing.T) {
 func TestStart(t *testing.T) {
 	ctx := context.Background()
 	env, log := fakeEnv(t)
-	t.Setenv("COVO_AGENTS_OPEN", filepath.Join(env.Home, "bin", "claude")) // records its arguments
+	t.Setenv("BENBOW_AGENTS_OPEN", filepath.Join(env.Home, "bin", "claude")) // records its arguments
 	a, _ := Find(ctx, env, Gemini)
-	work := filepath.Join(env.Home, "covo-tmp")
-	st, err := Start(ctx, a, Launch{Dir: "/Sites/it's", CovoBin: "/covo", Session: "s1", Context: "c", Prompt: "p", WorkDir: work, Terminal: "Warp"})
+	work := filepath.Join(env.Home, "benbow-tmp")
+	st, err := Start(ctx, a, Launch{Dir: "/Sites/it's", BenbowBin: "/benbow", Session: "s1", Context: "c", Prompt: "p", WorkDir: work, Terminal: "Warp"})
 	if err != nil || st.Terminal != "Terminal" {
 		t.Fatalf("start = %+v, %v", st, err)
 	}
@@ -177,9 +177,9 @@ func TestDisconnect(t *testing.T) {
 		}
 		return p
 	}
-	gemini := write(".gemini/settings.json", `{"theme":"dark","mcpServers":{"other":{"command":"x"},"covo":{"command":"/covo"}}}`)
-	write(".claude.json", `{"mcpServers":{"covo":{"command":"/covo"}}}`)
-	write(".codex/config.toml", "[mcp_servers.covo]\ncommand = \"/covo\"\n")
+	gemini := write(".gemini/settings.json", `{"theme":"dark","mcpServers":{"other":{"command":"x"},"benbow":{"command":"/benbow"}}}`)
+	write(".claude.json", `{"mcpServers":{"benbow":{"command":"/benbow"}}}`)
+	write(".codex/config.toml", "[mcp_servers.benbow]\ncommand = \"/benbow\"\n")
 
 	for _, id := range []string{Gemini, Claude, Codex, Cursor} {
 		if err := Disconnect(ctx, env, id); err != nil {
@@ -190,14 +190,14 @@ func TestDisconnect(t *testing.T) {
 	var cfg map[string]any
 	_ = json.Unmarshal(b, &cfg)
 	servers := cfg["mcpServers"].(map[string]any)
-	if cfg["theme"] != "dark" || servers["other"] == nil || servers["covo"] != nil {
+	if cfg["theme"] != "dark" || servers["other"] == nil || servers["benbow"] != nil {
 		t.Fatalf("gemini settings = %s", b)
 	}
 	if fi, _ := os.Stat(gemini); fi.Mode().Perm() != 0o600 {
 		t.Errorf("mode changed to %v", fi.Mode().Perm())
 	}
 	calls, _ := os.ReadFile(log)
-	if !strings.Contains(string(calls), "claude mcp remove -s user covo") || !strings.Contains(string(calls), "codex mcp remove covo") {
+	if !strings.Contains(string(calls), "claude mcp remove -s user benbow") || !strings.Contains(string(calls), "codex mcp remove benbow") {
 		t.Fatalf("calls = %s", calls)
 	}
 	// Cursor had no entry: nothing written.

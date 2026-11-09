@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/getcovo/covo/internal/core"
-	"github.com/getcovo/covo/internal/errcode"
+	"github.com/benbowdev/benbow/internal/core"
+	"github.com/benbowdev/benbow/internal/errcode"
 	"github.com/spf13/cobra"
 )
 
@@ -30,7 +30,7 @@ type groupListResult []core.GroupInfo
 
 func (r groupListResult) Text(w io.Writer) {
 	if len(r) == 0 {
-		fmt.Fprintln(w, "No groups. Create one with: covo group add Clients/Acme")
+		fmt.Fprintln(w, "No groups. Create one with: benbow group add Clients/Acme")
 	}
 	for _, g := range r {
 		depth := strings.Count(g.Path, "/")
@@ -114,7 +114,7 @@ func (a *app) groupOrderCmd() *cobra.Command {
 		Short: `Order the groups and sites inside a group ("/" for the top level)`,
 		Long: "Items are site:<name> or group:<path>, in the order wanted; groups and sites mix freely.\n" +
 			"Items from elsewhere move inside <path>; the others of that level follow in their current order.\n" +
-			"Example: covo group order Clients site:shop group:Clients/Acme site:blog",
+			"Example: benbow group order Clients site:shop group:Clients/Acme site:blog",
 		Args: cobra.MinimumNArgs(2),
 		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
 			var o core.ListOrder

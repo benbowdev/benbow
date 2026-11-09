@@ -18,18 +18,18 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/getcovo/covo/internal/caddy"
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/fsutil"
-	"github.com/getcovo/covo/internal/launchd"
-	"github.com/getcovo/covo/internal/php"
-	"github.com/getcovo/covo/internal/ports"
-	"github.com/getcovo/covo/internal/store"
+	"github.com/benbowdev/benbow/internal/caddy"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/fsutil"
+	"github.com/benbowdev/benbow/internal/launchd"
+	"github.com/benbowdev/benbow/internal/php"
+	"github.com/benbowdev/benbow/internal/ports"
+	"github.com/benbowdev/benbow/internal/store"
 )
 
 const (
 	// EnvHTTPSPort sets the first HTTPS port tried when none is stored yet.
-	EnvHTTPSPort     = "COVO_HTTPS_PORT"
+	EnvHTTPSPort     = "BENBOW_HTTPS_PORT"
 	defaultHTTPSPort = 8443
 	portSearchSpan   = 100
 
@@ -53,7 +53,7 @@ func (c *Core) labelFor(service string) string {
 func socketName(minor string) string { return "php" + strings.ReplaceAll(minor, ".", "") + ".sock" }
 
 // httpsPort returns the stored HTTPS port, assigning one on first use: the
-// first free port from 8443 (or $COVO_HTTPS_PORT) upward. Once stored it never
+// first free port from 8443 (or $BENBOW_HTTPS_PORT) upward. Once stored it never
 // changes on its own, so site URLs stay stable.
 func (c *Core) httpsPort(ctx context.Context) (port int, assigned bool, err error) {
 	v, ok, err := c.Store.Setting(ctx, settingHTTPSPort)
@@ -83,7 +83,7 @@ func (c *Core) httpsPort(ctx context.Context) (port int, assigned bool, err erro
 	return port, true, nil
 }
 
-// checkPort fails if port is taken by anything but Covo's own Caddy.
+// checkPort fails if port is taken by anything but Benbow's own Caddy.
 func (c *Core) checkPort(ctx context.Context, port int) error {
 	if ports.Free(port) {
 		return nil
@@ -102,7 +102,7 @@ func (c *Core) checkPort(ctx context.Context, port int) error {
 	}
 	msg := fmt.Sprintf("port %d is in use by %s", port, ports.Describe(owners))
 	if alt, err := ports.FirstFree(port+1, portSearchSpan); err == nil {
-		msg += fmt.Sprintf("; run `covo start --https-port %d` to use a free port", alt)
+		msg += fmt.Sprintf("; run `benbow start --https-port %d` to use a free port", alt)
 	}
 	return errcode.Errorf(errcode.PortInUse, msg)
 }
@@ -111,7 +111,7 @@ func (c *Core) checkPort(ctx context.Context, port int) error {
 func (c *Core) setHTTPSPort(ctx context.Context, port int) error {
 	if port < 1024 || port > 65535 {
 		return errcode.Newf(errcode.InvalidInput,
-			"HTTPS port must be between 1024 and 65535, got %d; for 443 use `covo ports --https 443`", port)
+			"HTTPS port must be between 1024 and 65535, got %d; for 443 use `benbow ports --https 443`", port)
 
 	}
 	cur, _, err := c.httpsPort(ctx)
@@ -328,8 +328,8 @@ func (c *Core) phpAgent(v store.PHPVersion, configHash string) launchd.Agent {
 		// Not read by FPM: a changed value changes the plist, which makes
 		// launchd.Apply restart the agent after a config change.
 		// No scan directory: a build compiled with one (e.g. under
-		// /opt/homebrew) must never load .ini files from outside Covo.
-		Env:       map[string]string{"COVO_CONFIG_HASH": configHash, "PHP_INI_SCAN_DIR": ""},
+		// /opt/homebrew) must never load .ini files from outside Benbow.
+		Env:       map[string]string{"BENBOW_CONFIG_HASH": configHash, "PHP_INI_SCAN_DIR": ""},
 		WorkDir:   c.Layout.Root,
 		StdoutLog: out,
 		StderrLog: errLog,
@@ -372,7 +372,7 @@ func (c *Core) Start(ctx context.Context, httpsPort int) (StartResult, error) {
 	return res, err
 }
 
-// enabledSites drops the sites that are turned off: Covo does not serve them
+// enabledSites drops the sites that are turned off: Benbow does not serve them
 // and does not run PHP for them.
 func enabledSites(sites []store.Site) []store.Site {
 	return slices.DeleteFunc(slices.Clone(sites), func(s store.Site) bool { return !s.Enabled })
@@ -576,7 +576,7 @@ type StopResult struct {
 	Changes []launchd.Change `json:"changes"`
 }
 
-// Stop boots out every Covo agent. Running it again is a no-op.
+// Stop boots out every Benbow agent. Running it again is a no-op.
 func (c *Core) Stop(ctx context.Context) (StopResult, error) {
 	var res StopResult
 	err := c.locked(ctx, func() error {
@@ -588,7 +588,7 @@ func (c *Core) Stop(ctx context.Context) (StopResult, error) {
 		if err != nil {
 			return err
 		}
-		// 443 and 80 go back to whoever wants them while Covo is off.
+		// 443 and 80 go back to whoever wants them while Benbow is off.
 		return c.clearForwards(ctx)
 	})
 	return res, err
@@ -606,7 +606,7 @@ type ServiceStatus struct {
 type SiteStatus struct {
 	store.Site
 	URL string `json:"url"`
-	// Migration is set when Covo migrated the site from another tool (it
+	// Migration is set when Benbow migrated the site from another tool (it
 	// can be undone).
 	Migration *store.Migration `json:"migration,omitempty"`
 	// App is the state of an app's dev server (apps only).
@@ -622,7 +622,7 @@ type CAStatus struct {
 	Trusted  bool   `json:"trusted"`
 }
 
-// Status is the overall state of Covo.
+// Status is the overall state of Benbow.
 type Status struct {
 	Running   bool `json:"running"`
 	HTTPSPort int  `json:"https_port,omitempty"`
@@ -643,7 +643,7 @@ type Status struct {
 	Phone *PhoneStatus `json:"phone,omitempty"`
 	// Groups organize the site list (see Site.GroupID).
 	Groups []GroupInfo `json:"groups"`
-	// Orphans are loaded Covo agents that no site needs any more.
+	// Orphans are loaded Benbow agents that no site needs any more.
 	Orphans []string `json:"orphans,omitempty"`
 }
 

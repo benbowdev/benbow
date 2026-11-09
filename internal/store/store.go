@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 Andrea Casali
 
-// Package store persists Covo state in SQLite (pure-Go driver, no CGO).
+// Package store persists Benbow state in SQLite (pure-Go driver, no CGO).
 package store
 
 import (
@@ -17,14 +17,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/getcovo/covo/internal/errcode"
+	"github.com/benbowdev/benbow/internal/errcode"
 	_ "modernc.org/sqlite" // registers the "sqlite" driver
 )
 
 //go:embed migrations/*.sql
 var migrations embed.FS
 
-// Store is the Covo state database.
+// Store is the Benbow state database.
 type Store struct {
 	db *sql.DB
 }
@@ -54,7 +54,7 @@ func (s *Store) Close() error {
 	return nil
 }
 
-// migrate applies the missing migrations. Several covo processes may open
+// migrate applies the missing migrations. Several benbow processes may open
 // a new or older database at once (the daemon, the CLI, an agent's MCP
 // server): the whole check-and-apply runs in one IMMEDIATE transaction, so
 // they take turns, and a busy database is retried.
@@ -115,11 +115,11 @@ func (s *Store) migrateOnce(ctx context.Context, limit int) (err error) {
 			return fmt.Errorf("bad migration name %s: %w", name, err)
 		}
 	}
-	// A newer covo has changed the database in ways this one does not know:
+	// A newer benbow has changed the database in ways this one does not know:
 	// writing to it could break what that version relies on.
 	if known := versions[len(versions)-1]; current > known {
 		return errcode.Newf(errcode.Unsupported,
-			"Covo's database is from a newer version of Covo (schema %d; this covo knows up to %d): update covo, or check which covo is first on your PATH", current, known)
+			"Benbow's database is from a newer version of Benbow (schema %d; this benbow knows up to %d): update benbow, or check which benbow is first on your PATH", current, known)
 
 	}
 	for i, name := range files {
@@ -282,7 +282,7 @@ type Site struct {
 	// Kind is KindPHP (served by PHP-FPM) or KindApp (a dev server behind
 	// Caddy's reverse proxy, docs/apps.md).
 	Kind string `json:"kind"`
-	// AppMode (apps only) is AppRun (Covo starts Command) or AppProxy (the
+	// AppMode (apps only) is AppRun (Benbow starts Command) or AppProxy (the
 	// user runs the server on AppPort).
 	AppMode string `json:"app_mode,omitempty"`
 	// Command is the app's command, run in the user's login shell from the

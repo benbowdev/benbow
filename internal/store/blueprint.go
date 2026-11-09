@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/getcovo/covo/internal/errcode"
+	"github.com/benbowdev/benbow/internal/errcode"
 )
 
 // Blueprint is a saved site template; Data is its JSON.
@@ -21,7 +21,7 @@ type Blueprint struct {
 	Updated time.Time `json:"updated"`
 }
 
-// BlueprintSource is the SHA-256 Covo saw the first time it downloaded a
+// BlueprintSource is the SHA-256 Benbow saw the first time it downloaded a
 // theme or plugin from URL.
 type BlueprintSource struct {
 	URL       string    `json:"url"`
@@ -94,7 +94,7 @@ func (s *Store) DeleteBlueprint(ctx context.Context, name string) error {
 	return nil
 }
 
-// BlueprintSourceFor returns what Covo recorded for url; ok is false the
+// BlueprintSourceFor returns what Benbow recorded for url; ok is false the
 // first time.
 func (s *Store) BlueprintSourceFor(ctx context.Context, url string) (src BlueprintSource, ok bool, err error) {
 	var first, last string

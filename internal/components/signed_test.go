@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/getcovo/covo/internal/errcode"
+	"github.com/benbowdev/benbow/internal/errcode"
 )
 
 func sign(t *testing.T, priv ed25519.PrivateKey, m Manifest) ([]byte, []byte) {
@@ -72,7 +72,7 @@ func TestVerifySigned(t *testing.T) {
 	}
 }
 
-// Every artifact Covo ships passes the same name check.
+// Every artifact Benbow ships passes the same name check.
 func TestEmbeddedNamesAreFolderNames(t *testing.T) {
 	m, err := Embedded()
 	if err != nil {

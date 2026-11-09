@@ -9,9 +9,9 @@ import (
 	"io"
 	"strings"
 
-	"github.com/getcovo/covo/internal/core"
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/store"
+	"github.com/benbowdev/benbow/internal/core"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/store"
 	"github.com/spf13/cobra"
 )
 
@@ -19,7 +19,7 @@ type remotesResult []store.Remote
 
 func (r remotesResult) Text(w io.Writer) {
 	if len(r) == 0 {
-		fmt.Fprintln(w, "No remotes. Add one with: covo remote set <site> --kind production --host … --user … --path … --url …")
+		fmt.Fprintln(w, "No remotes. Add one with: benbow remote set <site> --kind production --host … --user … --path … --url …")
 	}
 	for _, x := range r {
 		port := ""
@@ -53,7 +53,7 @@ func (r syncResult) Text(w io.Writer) {
 func (a *app) remoteCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "remote",
-		Short: "Production and staging copies of a site (for covo pull and push)",
+		Short: "Production and staging copies of a site (for benbow pull and push)",
 	}
 	var r store.Remote
 	var paths, excludes []string

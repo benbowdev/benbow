@@ -18,8 +18,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/php"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/php"
 )
 
 // The PHP compatibility check runs PHP_CodeSniffer with PHPCompatibility on
@@ -144,7 +144,7 @@ func (c *Core) CheckPHP(ctx context.Context, name, target string, all bool) (PHP
 	return res, nil
 }
 
-// recommendedPHP is the newest PHP version Covo offers that php.net still
+// recommendedPHP is the newest PHP version Benbow offers that php.net still
 // fully supports.
 func (c *Core) recommendedPHP() string {
 	var best string

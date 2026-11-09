@@ -15,7 +15,7 @@ import (
 	"testing"
 )
 
-// TestMain takes an inventory of everything outside the test homes that Covo
+// TestMain takes an inventory of everything outside the test homes that Benbow
 // could touch, and fails the run if the tests leave any of it changed.
 func TestMain(m *testing.M) {
 	before, err := inventory()
@@ -51,18 +51,18 @@ func inventory() (map[string]string, error) {
 		inv["trust-settings "+domain] = string(out)
 	}
 
-	// Covo's lines in /etc/hosts: the marked block and any line naming Covo.
+	// Benbow's lines in /etc/hosts: the marked block and any line naming Benbow.
 	hosts, err := os.ReadFile("/etc/hosts")
 	if err != nil {
 		return nil, err
 	}
-	var covo []string
+	var benbow []string
 	for line := range strings.SplitSeq(string(hosts), "\n") {
-		if strings.Contains(strings.ToLower(line), "covo") {
-			covo = append(covo, line)
+		if strings.Contains(strings.ToLower(line), "benbow") {
+			benbow = append(benbow, line)
 		}
 	}
-	inv["/etc/hosts covo lines"] = strings.Join(covo, "\n")
+	inv["/etc/hosts benbow lines"] = strings.Join(benbow, "\n")
 
 	// Resolver files, with their contents.
 	if err := addDir(inv, "/etc/resolver"); err != nil {
@@ -78,12 +78,12 @@ func inventory() (map[string]string, error) {
 		"/Library/LaunchDaemons", "/Library/PrivilegedHelperTools", "/Library/LaunchAgents",
 		filepath.Join(home, "Library", "LaunchAgents"),
 	} {
-		matches, _ := filepath.Glob(filepath.Join(dir, "dev.getcovo*"))
-		inv[dir+" covo"] = strings.Join(matches, "\n")
+		matches, _ := filepath.Glob(filepath.Join(dir, "dev.benbow*"))
+		inv[dir+" benbow"] = strings.Join(matches, "\n")
 	}
 
-	// Keychain items Covo creates (MySQL password) and certificates named
-	// Covo, by attribute only: no secret is read. Also the keychain search
+	// Keychain items Benbow creates (MySQL password) and certificates named
+	// Benbow, by attribute only: no secret is read. Also the keychain search
 	// list.
 	kc := filepath.Join(home, "Library", "Keychains", "login.keychain-db")
 	out, err := exec.Command("/usr/bin/security", "dump-keychain", kc).Output()
@@ -92,12 +92,12 @@ func inventory() (map[string]string, error) {
 	}
 	var items []string
 	for line := range strings.SplitSeq(string(out), "\n") {
-		if l := strings.ToLower(line); strings.Contains(l, "dev.getcovo") || strings.Contains(l, "covo") {
+		if l := strings.ToLower(line); strings.Contains(l, "dev.benbow") || strings.Contains(l, "benbow") {
 			items = append(items, strings.TrimSpace(line))
 		}
 	}
 	slices.Sort(items)
-	inv["login keychain covo items"] = strings.Join(items, "\n")
+	inv["login keychain benbow items"] = strings.Join(items, "\n")
 	out, err = exec.Command("/usr/bin/security", "list-keychains", "-d", "user").Output()
 	if err != nil {
 		return nil, fmt.Errorf("security list-keychains: %w", err)
@@ -112,7 +112,7 @@ func inventory() (map[string]string, error) {
 	var labels []string
 	for line := range strings.SplitSeq(string(out), "\n") {
 		fields := strings.Fields(line)
-		if len(fields) == 3 && strings.HasPrefix(fields[2], "dev.getcovo") {
+		if len(fields) == 3 && strings.HasPrefix(fields[2], "dev.benbow") {
 			labels = append(labels, fields[2])
 		}
 	}

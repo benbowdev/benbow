@@ -13,11 +13,11 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/getcovo/covo/internal/ca"
-	"github.com/getcovo/covo/internal/caddy"
-	"github.com/getcovo/covo/internal/fsutil"
-	"github.com/getcovo/covo/internal/paths"
-	"github.com/getcovo/covo/internal/trust"
+	"github.com/benbowdev/benbow/internal/ca"
+	"github.com/benbowdev/benbow/internal/caddy"
+	"github.com/benbowdev/benbow/internal/fsutil"
+	"github.com/benbowdev/benbow/internal/paths"
+	"github.com/benbowdev/benbow/internal/trust"
 )
 
 func caDir(l paths.Layout) ca.Dir { return ca.Dir(filepath.Join(l.Data, "ca")) }
@@ -30,17 +30,17 @@ func legacyCACertPath(l paths.Layout) string {
 	return filepath.Join(legacyPKIDir(l), "authorities", "local", "root.crt")
 }
 
-// caCertPaths lists every root certificate file Covo may have created.
+// caCertPaths lists every root certificate file Benbow may have created.
 func caCertPaths(l paths.Layout) []string {
 	return []string{caDir(l).RootCert(), legacyCACertPath(l)}
 }
 
-// CACertPath is the root certificate of Covo's CA.
+// CACertPath is the root certificate of Benbow's CA.
 func (c *Core) CACertPath() string { return caDir(c.Layout).RootCert() }
 
 func (c *Core) caBundlePath() string { return filepath.Join(c.Layout.Etc, "ca-bundle.pem") }
 
-// ensureCA makes sure Covo's constrained CA exists. created means a new root,
+// ensureCA makes sure Benbow's constrained CA exists. created means a new root,
 // which is not trusted yet.
 func (c *Core) ensureCA() (created bool, err error) {
 	return ca.Ensure(caDir(c.Layout), ca.Name(), time.Now())
@@ -68,7 +68,7 @@ func (c *Core) caFingerprint() (string, error) {
 }
 
 // ensureCABundle writes the CA bundle PHP verifies TLS with: the pinned
-// Mozilla roots plus Covo's root. It returns a short hash of its content.
+// Mozilla roots plus Benbow's root. It returns a short hash of its content.
 func (c *Core) ensureCABundle(ctx context.Context) (string, error) {
 	art, err := c.Manifest.Resolve("cabundle", "")
 	if err != nil {
@@ -125,7 +125,7 @@ func trustedCAs(ctx context.Context, kc *trust.Keychain, name string, files []st
 	return out, nil
 }
 
-// removeCAs removes Covo's CAs from the keychain: the ones on disk by SHA-1
+// removeCAs removes Benbow's CAs from the keychain: the ones on disk by SHA-1
 // or, if no file is left, every certificate named name.
 func removeCAs(ctx context.Context, kc *trust.Keychain, name string, files []string) ([]trust.Cert, error) {
 	onDisk := readCAs(files)

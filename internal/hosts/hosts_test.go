@@ -33,11 +33,11 @@ const mampHosts = `##
 `
 
 func TestSyncGolden(t *testing.T) {
-	got, err := Sync(mampHosts, []string{"shop.local", "demo.covo.local", "shop.local"})
+	got, err := Sync(mampHosts, []string{"shop.local", "demo.benbow.local", "shop.local"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	path := filepath.Join("testdata", "hosts-with-covo")
+	path := filepath.Join("testdata", "hosts-with-benbow")
 	if *update {
 		if err := os.WriteFile(path, []byte(got), 0o644); err != nil {
 			t.Fatal(err)
@@ -54,7 +54,7 @@ func TestSyncGolden(t *testing.T) {
 		t.Fatal("content before the block changed")
 	}
 	names, err := Names(got)
-	if err != nil || !slices.Equal(names, []string{"demo.covo.local", "shop.local"}) {
+	if err != nil || !slices.Equal(names, []string{"demo.benbow.local", "shop.local"}) {
 		t.Fatalf("Names = %v, %v", names, err)
 	}
 }

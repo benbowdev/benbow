@@ -6,7 +6,7 @@ package core
 // Blueprints are WordPress site templates: WordPress version and language,
 // themes, plugins, options, wp-config constants and must-use plugins.
 // Themes and plugins come from wordpress.org, a zip URL, a GitHub
-// repository or (when the system has it) git. Covo downloads them itself,
+// repository or (when the system has it) git. Benbow downloads them itself,
 // records the SHA-256 the first time and refuses a source whose content
 // changed since, unless the user accepts the change.
 
@@ -36,10 +36,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/keychain"
-	"github.com/getcovo/covo/internal/store"
-	"github.com/getcovo/covo/internal/version"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/keychain"
+	"github.com/benbowdev/benbow/internal/store"
+	"github.com/benbowdev/benbow/internal/version"
 )
 
 // SnapshotPreBlueprint is taken before a blueprint is applied to an
@@ -48,7 +48,7 @@ const SnapshotPreBlueprint = "pre-blueprint"
 
 // BlueprintNotice is shown before a blueprint installs anything.
 const BlueprintNotice = "Blueprints install third-party code (themes and plugins) into your site. " +
-	"Use only sources you trust. Covo records each download's SHA-256 the first time and stops if it changes."
+	"Use only sources you trust. Benbow records each download's SHA-256 the first time and stops if it changes."
 
 // Where blueprint sources come from; variables so tests can point them at
 // a local server.
@@ -71,7 +71,7 @@ type Blueprint struct {
 	MUPlugins   []BlueprintMUPlugin `json:"mu_plugins,omitempty"`
 }
 
-// BlueprintWordPress picks the WordPress version ("": Covo's) and language
+// BlueprintWordPress picks the WordPress version ("": Benbow's) and language
 // ("": English).
 type BlueprintWordPress struct {
 	Version string `json:"version,omitempty"`
@@ -350,7 +350,7 @@ func (c *Core) DeleteBlueprint(ctx context.Context, name string) error {
 	return c.Store.DeleteBlueprint(ctx, name)
 }
 
-// BlueprintSources lists every download Covo recorded.
+// BlueprintSources lists every download Benbow recorded.
 func (c *Core) BlueprintSources(ctx context.Context) ([]store.BlueprintSource, error) {
 	return c.Store.BlueprintSources(ctx)
 }
@@ -359,7 +359,7 @@ func (c *Core) BlueprintSources(ctx context.Context) ([]store.BlueprintSource, e
 
 func (c *Core) githubKeychain() (keychain.Item, error) {
 	kc, err := keychain.Login(c.launchctl.Prefix+".github", "github")
-	kc.Label = "Covo GitHub token"
+	kc.Label = "Benbow GitHub token"
 	return kc, err
 }
 
@@ -405,7 +405,7 @@ func (c *Core) githubToken(ctx context.Context) string {
 // ApplyOptions tune ApplyBlueprint.
 type ApplyOptions struct {
 	// AcceptChanges records a new SHA-256 for sources whose content changed
-	// since Covo first saw them, instead of stopping.
+	// since Benbow first saw them, instead of stopping.
 	AcceptChanges bool
 	DryRun        bool
 }
@@ -451,7 +451,7 @@ func (c *Core) applySavedBlueprint(ctx context.Context, siteName, name string, o
 	res, err := c.applyBlueprint(ctx, site, bp, opts)
 	res.Snapshot = snap.ID
 	if err != nil {
-		return res, fmt.Errorf("%w (snapshot %s has the site as it was: covo snapshot restore %s %s)", err, snap.ID, siteName, snap.ID)
+		return res, fmt.Errorf("%w (snapshot %s has the site as it was: benbow snapshot restore %s %s)", err, snap.ID, siteName, snap.ID)
 	}
 	return res, nil
 }
@@ -704,7 +704,7 @@ func (c *Core) installPackage(ctx context.Context, kind string, p BlueprintPacka
 	}
 	if seen && !strings.EqualFold(rec.SHA256, sum) && !accept {
 		return "", nil, errcode.Newf(errcode.Checksum,
-			"%s %s changed since Covo first used it on %s (SHA-256 was %s, now %s). If you trust the new content, apply again accepting changes",
+			"%s %s changed since Benbow first used it on %s (SHA-256 was %s, now %s). If you trust the new content, apply again accepting changes",
 			kind, p.label(), rec.FirstUsed.Local().Format("2006-01-02"), rec.SHA256, sum)
 
 	}
@@ -752,7 +752,7 @@ func (c *Core) packageURL(ctx context.Context, kind string, p BlueprintPackage) 
 		body, err := c.httpGet(ctx, githubAPI+"/repos/"+p.GitHub+"/commits/"+url.PathEscape(ref), auth, "application/vnd.github.sha", 1<<10)
 		if err != nil {
 			if token == "" {
-				err = fmt.Errorf("%w (for a private repository, store a token: covo blueprint github-token)", err)
+				err = fmt.Errorf("%w (for a private repository, store a token: benbow blueprint github-token)", err)
 			}
 			return "", "", "", err
 		}

@@ -20,14 +20,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/version"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/version"
 )
 
 // The bridge reaches a site's database on hosts without SSH: a small PHP
 // file with a random name, uploaded next to the site, that only answers
 // requests carrying its 256-bit token, stops working after its expiry and
-// deletes itself then. Covo deletes it as soon as it is done, whatever
+// deletes itself then. Benbow deletes it as soon as it is done, whatever
 // happens. It reads the database settings from wp-config.php or .env on
 // the server.
 
@@ -35,7 +35,7 @@ import (
 const BridgeTTL = 10 * time.Minute
 
 // EnvBridgeCA trusts an extra CA for the bridge's HTTPS (tests).
-const EnvBridgeCA = "COVO_BRIDGE_CA"
+const EnvBridgeCA = "BENBOW_BRIDGE_CA"
 
 // Bridge is one uploaded bridge.
 type Bridge struct {
@@ -57,9 +57,9 @@ func NewBridge(siteURL string) (Bridge, string, error) {
 	if _, err := rand.Read(token); err != nil {
 		return Bridge{}, "", fmt.Errorf("random: %w", err)
 	}
-	b := Bridge{File: "covo-bridge-" + hex.EncodeToString(name) + ".php", Token: hex.EncodeToString(token)}
+	b := Bridge{File: "benbow-bridge-" + hex.EncodeToString(name) + ".php", Token: hex.EncodeToString(token)}
 	b.URL = strings.TrimRight(siteURL, "/") + "/" + b.File
-	src := strings.NewReplacer("COVO_TOKEN_VALUE", b.Token, "COVO_EXPIRES_VALUE", strconv.FormatInt(time.Now().Add(BridgeTTL).Unix(), 10)).Replace(bridgePHP)
+	src := strings.NewReplacer("BENBOW_TOKEN_VALUE", b.Token, "BENBOW_EXPIRES_VALUE", strconv.FormatInt(time.Now().Add(BridgeTTL).Unix(), 10)).Replace(bridgePHP)
 	return b, src, nil
 }
 
@@ -82,7 +82,7 @@ func checkBridgeURL(siteURL string) error {
 		return nil
 	}
 	return errcode.Newf(errcode.InvalidInput,
-		"the database bridge needs an https:// address (%s would send the database in clear); set it with covo remote set … --url https://…", siteURL)
+		"the database bridge needs an https:// address (%s would send the database in clear); set it with benbow remote set … --url https://…", siteURL)
 
 }
 
@@ -121,7 +121,7 @@ func (b Bridge) do(ctx context.Context, method, action string, body io.Reader, s
 	if size >= 0 {
 		req.ContentLength = size
 	}
-	req.Header.Set("X-Covo-Token", b.Token)
+	req.Header.Set("X-Benbow-Token", b.Token)
 	resp, err := bridgeClient().Do(req)
 	if err != nil {
 		return nil, errcode.New(errcode.Service, fmt.Errorf("reach the bridge at %s: %w", b.URL, err))
@@ -129,7 +129,7 @@ func (b Bridge) do(ctx context.Context, method, action string, body io.Reader, s
 	if resp.StatusCode >= 300 && resp.StatusCode < 400 {
 		resp.Body.Close()
 		return nil, errcode.Newf(errcode.Service,
-			"the server redirects the bridge to %s; set the remote's address to the final one (covo remote set … --url)", resp.Header.Get("Location"))
+			"the server redirects the bridge to %s; set the remote's address to the final one (benbow remote set … --url)", resp.Header.Get("Location"))
 
 	}
 	if resp.StatusCode != http.StatusOK {
@@ -190,7 +190,7 @@ func (b Bridge) Import(ctx context.Context, gz io.Reader, size int64) error {
 	return nil
 }
 
-// Bye asks the bridge to delete itself (Covo also deletes it by FTP/SFTP).
+// Bye asks the bridge to delete itself (Benbow also deletes it by FTP/SFTP).
 func (b Bridge) Bye(ctx context.Context) {
 	if resp, err := b.request(ctx, http.MethodGet, "bye", nil); err == nil {
 		resp.Body.Close()
@@ -199,19 +199,19 @@ func (b Bridge) Bye(ctx context.Context) {
 
 // bridgePHP needs PHP 5.6+, mysqli and zlib (both standard on hosts).
 const bridgePHP = `<?php
-// Covo bridge: temporary. It deletes itself after use or after expiry.
+// Benbow bridge: temporary. It deletes itself after use or after expiry.
 @set_time_limit(0);
 @ignore_user_abort(true);
-$covo_token = 'COVO_TOKEN_VALUE';
-$covo_expires = COVO_EXPIRES_VALUE;
-if (time() > $covo_expires) { @unlink(__FILE__); http_response_code(410); exit('expired'); }
-$given = isset($_SERVER['HTTP_X_COVO_TOKEN']) ? $_SERVER['HTTP_X_COVO_TOKEN'] : '';
-if (!is_string($given) || !hash_equals($covo_token, $given)) { http_response_code(403); exit('forbidden'); }
+$benbow_token = 'BENBOW_TOKEN_VALUE';
+$benbow_expires = BENBOW_EXPIRES_VALUE;
+if (time() > $benbow_expires) { @unlink(__FILE__); http_response_code(410); exit('expired'); }
+$given = isset($_SERVER['HTTP_X_BENBOW_TOKEN']) ? $_SERVER['HTTP_X_BENBOW_TOKEN'] : '';
+if (!is_string($given) || !hash_equals($benbow_token, $given)) { http_response_code(403); exit('forbidden'); }
 $a = isset($_GET['a']) ? $_GET['a'] : '';
 if ($a === 'bye') { @unlink(__FILE__); exit('bye'); }
 
-function covo_fail($msg) { http_response_code(500); exit($msg); }
-function covo_settings() {
+function benbow_fail($msg) { http_response_code(500); exit($msg); }
+function benbow_settings() {
 	foreach (array(__DIR__, dirname(__DIR__)) as $dir) {
 		$f = $dir . '/wp-config.php';
 		if (is_file($f)) {
@@ -235,15 +235,15 @@ function covo_settings() {
 			return array($host, $v['DB_USERNAME'], $v['DB_PASSWORD'], $v['DB_DATABASE'], '');
 		}
 	}
-	covo_fail('no wp-config.php or .env next to the bridge');
+	benbow_fail('no wp-config.php or .env next to the bridge');
 }
-list($host, $user, $pass, $name, $prefix) = covo_settings();
+list($host, $user, $pass, $name, $prefix) = benbow_settings();
 $port = null; $socket = null;
 if (preg_match('~^(.*):(/.*)$~', $host, $m)) { $host = $m[1]; $socket = $m[2]; }
 elseif (preg_match('~^(.*):(\d+)$~', $host, $m)) { $host = $m[1]; $port = (int) $m[2]; }
 mysqli_report(MYSQLI_REPORT_OFF);
 $db = @new mysqli($host, $user, $pass, $name, $port, $socket);
-if ($db->connect_errno) { covo_fail('database: ' . $db->connect_error); }
+if ($db->connect_errno) { benbow_fail('database: ' . $db->connect_error); }
 $db->set_charset('utf8mb4');
 
 if ($a === 'info') {
@@ -299,7 +299,7 @@ if ($a === 'import' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 		if ($stmt === '' && ($t === '' || strpos($t, '--') === 0)) { return; }
 		$stmt .= $line;
 		if (substr($t, -1) === ';') {
-			if (!$db->query($stmt)) { covo_fail('SQL error: ' . $db->error); }
+			if (!$db->query($stmt)) { benbow_fail('SQL error: ' . $db->error); }
 			$stmt = '';
 		}
 	};
@@ -311,5 +311,5 @@ if ($a === 'import' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 	if ($buf !== '') { $run($buf . "\n"); }
 	exit('ok');
 }
-covo_fail('unknown action');
+benbow_fail('unknown action');
 `

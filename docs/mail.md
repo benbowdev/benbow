@@ -1,14 +1,14 @@
 # Mail
 
 ```sh
-covo mail enable     # catch every mail PHP sends
-covo mail            # status: inbox URL, SMTP port
-covo mail disable    # stop catching (messages are kept)
+benbow mail enable     # catch every mail PHP sends
+benbow mail            # status: inbox URL, SMTP port
+benbow mail disable    # stop catching (messages are kept)
 ```
 
-Covo runs Mailpit 1.33.0 (one static binary from the official GitHub
+Benbow runs Mailpit 1.33.0 (one static binary from the official GitHub
 release, pinned by SHA-256, the same as GitHub's published digest) as the
-launchd agent `dev.getcovo.mailpit`:
+launchd agent `dev.benbow.mailpit`:
 
 | | |
 |---|---|

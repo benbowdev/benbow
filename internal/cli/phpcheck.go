@@ -9,7 +9,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/getcovo/covo/internal/core"
+	"github.com/benbowdev/benbow/internal/core"
 	"github.com/spf13/cobra"
 )
 

@@ -15,20 +15,20 @@ import (
 	"strings"
 	"time"
 
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/fsutil"
-	"github.com/getcovo/covo/internal/hostshelper"
-	"github.com/getcovo/covo/internal/launchd"
-	"github.com/getcovo/covo/internal/paths"
-	"github.com/getcovo/covo/internal/resolver"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/fsutil"
+	"github.com/benbowdev/benbow/internal/hostshelper"
+	"github.com/benbowdev/benbow/internal/launchd"
+	"github.com/benbowdev/benbow/internal/paths"
+	"github.com/benbowdev/benbow/internal/resolver"
 )
 
-// EnvHostsHelperSocket points Covo at a helper it does not install or
+// EnvHostsHelperSocket points Benbow at a helper it does not install or
 // remove itself: tests run one as the user on a temporary hosts file.
-const EnvHostsHelperSocket = "COVO_HOSTS_HELPER_SOCKET"
+const EnvHostsHelperSocket = "BENBOW_HOSTS_HELPER_SOCKET"
 
-// helperBinaryName is the helper's file name next to the covo binary.
-const helperBinaryName = "covo-hostshelper"
+// helperBinaryName is the helper's file name next to the benbow binary.
+const helperBinaryName = "benbow-hostshelper"
 
 // HelperStatus describes the privileged hosts helper.
 type HelperStatus struct {
@@ -39,7 +39,7 @@ type HelperStatus struct {
 	Error     string   `json:"error,omitempty"`
 }
 
-// helperMarker records, in the Covo home, that this home installed the
+// helperMarker records, in the Benbow home, that this home installed the
 // system helper. Uninstall only touches the helper when it is there.
 func helperMarker(l paths.Layout) string { return filepath.Join(l.Data, "hostshelper.installed") }
 
@@ -88,7 +88,7 @@ func (c *Core) localNames(ctx context.Context) ([]string, error) {
 	return names, nil
 }
 
-// syncLocal makes Covo's /etc/hosts block match the .local sites. It is a
+// syncLocal makes Benbow's /etc/hosts block match the .local sites. It is a
 // no-op unless .local domains are enabled.
 func (c *Core) syncLocal(ctx context.Context) error {
 	enabled, err := c.domainEnabled(ctx, suffixLocal)
@@ -101,7 +101,7 @@ func (c *Core) syncLocal(ctx context.Context) error {
 	}
 	client, _ := helperClient()
 	if _, err := client.Do(ctx, hostshelper.Request{Op: hostshelper.OpSync, Names: names}); err != nil {
-		return errcode.New(errcode.Service, fmt.Errorf("%w; run `covo domains enable local` to repair the helper", err))
+		return errcode.New(errcode.Service, fmt.Errorf("%w; run `benbow domains enable local` to repair the helper", err))
 	}
 	return nil
 }
@@ -168,7 +168,7 @@ func (c *Core) installHelper(ctx context.Context, beforePrompt func()) (bool, er
 		beforePrompt()
 	}
 	if err := resolver.Admin(ctx,
-		"Covo wants to install its helper. It only manages Covo's lines in /etc/hosts (.local domains) and forwards ports 443 and 80 to Covo while it runs.", cmd); err != nil {
+		"Benbow wants to install its helper. It only manages Benbow's lines in /etc/hosts (.local domains) and forwards ports 443 and 80 to Benbow while it runs.", cmd); err != nil {
 		return false, err
 	}
 	if _, err := fsutil.WriteAtomic(helperMarker(c.Layout), []byte(time.Now().UTC().Format(time.RFC3339)+"\n"), 0o600); err != nil {
@@ -187,28 +187,28 @@ func (c *Core) installHelper(ctx context.Context, beforePrompt func()) (bool, er
 	}
 }
 
-// helperSource finds covo-hostshelper next to the covo binary and checks it
+// helperSource finds benbow-hostshelper next to the benbow binary and checks it
 // speaks the expected protocol version.
 func helperSource(ctx context.Context) (string, error) {
 	exe, err := os.Executable()
 	if err != nil {
-		return "", fmt.Errorf("locate covo binary: %w", err)
+		return "", fmt.Errorf("locate benbow binary: %w", err)
 	}
 	if exe, err = filepath.EvalSymlinks(exe); err != nil {
-		return "", fmt.Errorf("locate covo binary: %w", err)
+		return "", fmt.Errorf("locate benbow binary: %w", err)
 	}
 	src := filepath.Join(filepath.Dir(exe), helperBinaryName)
 	out, err := exec.CommandContext(ctx, src, "--version").Output()
 	if err != nil {
-		return "", errcode.New(errcode.NotFound, fmt.Errorf("%s not found or not runnable next to covo (build it with `go build ./cmd/covo-hostshelper`): %w", src, err))
+		return "", errcode.New(errcode.NotFound, fmt.Errorf("%s not found or not runnable next to benbow (build it with `go build ./cmd/benbow-hostshelper`): %w", src, err))
 	}
 	if v := strings.TrimSpace(string(out)); v != hostshelper.Version {
-		return "", errcode.Newf(errcode.Conflict, "%s speaks protocol %s, covo needs %s", src, v, hostshelper.Version)
+		return "", errcode.Newf(errcode.Conflict, "%s speaks protocol %s, benbow needs %s", src, v, hostshelper.Version)
 	}
 	return src, nil
 }
 
-// uninstallHelper asks the helper to clear Covo's hosts lines and remove
+// uninstallHelper asks the helper to clear Benbow's hosts lines and remove
 // itself. No password: the helper is already root.
 func (c *Core) uninstallHelper(ctx context.Context) (bool, error) {
 	return removeHelper(ctx, c.Layout)
@@ -222,7 +222,7 @@ func removeHelper(ctx context.Context, l paths.Layout) (bool, error) {
 			return false, nil
 		}
 	} else if _, err := os.Stat(helperMarker(l)); errors.Is(err, os.ErrNotExist) {
-		return false, nil // installed by another Covo home, or not at all
+		return false, nil // installed by another Benbow home, or not at all
 	}
 	if _, err := client.Do(ctx, hostshelper.Request{Op: hostshelper.OpUninstall}); err != nil {
 		if !external {
@@ -231,7 +231,7 @@ func removeHelper(ctx context.Context, l paths.Layout) (bool, error) {
 				return false, nil
 			}
 		}
-		return false, errcode.New(errcode.Service, fmt.Errorf("remove Covo's helper: %w", err))
+		return false, errcode.New(errcode.Service, fmt.Errorf("remove Benbow's helper: %w", err))
 	}
 	if !external {
 		deadline := time.Now().Add(10 * time.Second)

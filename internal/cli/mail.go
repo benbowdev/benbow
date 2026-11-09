@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/getcovo/covo/internal/core"
+	"github.com/benbowdev/benbow/internal/core"
 	"github.com/spf13/cobra"
 )
 
@@ -16,10 +16,10 @@ type mailResult core.MailResult
 
 func (r mailResult) Text(w io.Writer) {
 	if !r.Enabled {
-		fmt.Fprintln(w, "Mail: off (PHP mail() uses the Mac's own mail system). Turn it on with `covo mail enable`.")
+		fmt.Fprintln(w, "Mail: off (PHP mail() uses the Mac's own mail system). Turn it on with `benbow mail enable`.")
 		return
 	}
-	state := "stopped: starts with `covo start`"
+	state := "stopped: starts with `benbow start`"
 	if r.Running {
 		state = "running"
 	}

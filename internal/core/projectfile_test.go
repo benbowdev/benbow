@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/getcovo/covo/internal/dotenv"
+	"github.com/benbowdev/benbow/internal/dotenv"
 )
 
 func TestRewriteProjectFile(t *testing.T) {

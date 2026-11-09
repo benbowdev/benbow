@@ -10,7 +10,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/getcovo/covo/internal/core"
+	"github.com/benbowdev/benbow/internal/core"
 	"github.com/spf13/cobra"
 )
 
@@ -25,7 +25,7 @@ func (r fetchResult) Text(w io.Writer) {
 		fmt.Fprintf(w, "%d → %s\n", rd.Status, rd.URL)
 	}
 	if r.External != "" {
-		fmt.Fprintf(w, "Redirects outside Covo (not followed): %s\n", r.External)
+		fmt.Fprintf(w, "Redirects outside Benbow (not followed): %s\n", r.External)
 	}
 	fmt.Fprintf(w, "%d %s (%d bytes, %d ms)\n", r.Status, r.URL, r.Bytes, r.DurationMS)
 	if r.Title != "" {

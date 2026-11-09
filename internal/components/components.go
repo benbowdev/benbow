@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Andrea Casali
 
 // Package components downloads, verifies and installs the third-party
-// binaries Covo runs (PHP-FPM, Caddy). Every artifact is pinned in an
+// binaries Benbow runs (PHP-FPM, Caddy). Every artifact is pinned in an
 // embedded manifest with its SHA-256; nothing is executed or even extracted
 // before the hash matches.
 package components
@@ -33,8 +33,8 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/store"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/store"
 )
 
 //go:embed manifest.json
@@ -44,7 +44,7 @@ var manifestJSON []byte
 const maxFileSize = 512 << 20
 
 // markerFile records the verified archive hash inside an install directory.
-const markerFile = ".covo-sha256"
+const markerFile = ".benbow-sha256"
 
 // Artifact formats.
 const (
@@ -72,7 +72,7 @@ type Artifact struct {
 	// better (MySQL); it is checked in addition to SHA256.
 	MD5 string `json:"md5,omitempty"`
 	// MinMacOS is the oldest macOS the artifact runs on ("15.0"), if it
-	// needs more than Covo itself.
+	// needs more than Benbow itself.
 	MinMacOS string `json:"min_macos,omitempty"`
 	// Strip is a leading directory removed from every archive entry name.
 	Strip string `json:"strip,omitempty"`
@@ -85,9 +85,9 @@ type Artifact struct {
 // Manifest is the set of pinned artifacts.
 type Manifest struct {
 	// Serial grows with every published manifest (YYYYMMDDnn). A signed
-	// manifest is only accepted if it is newer than what Covo has.
+	// manifest is only accepted if it is newer than what Benbow has.
 	Serial int64 `json:"serial"`
-	// Expires is set on published manifests only (covo-binaries signs them
+	// Expires is set on published manifests only (benbow-binaries signs them
 	// again before it passes): see CheckFresh.
 	Expires   *time.Time `json:"expires,omitempty"`
 	Artifacts []Artifact `json:"artifacts"`

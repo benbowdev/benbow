@@ -1,92 +1,92 @@
 # Working with AI agents
 
-Covo is a safe workbench for the AI agent you already use (Claude Code,
+Benbow is a safe workbench for the AI agent you already use (Claude Code,
 Codex, Gemini CLI, Cursor, GitHub Copilot CLI). Git protects the code;
-Covo protects the code **and the database** together. Covo is not an
-agent and never calls a model: the agent connects to Covo's MCP server
+Benbow protects the code **and the database** together. Benbow is not an
+agent and never calls a model: the agent connects to Benbow's MCP server
 (`mcp.md`).
 
 ## Work with an agent
 
-In the app, a site's detail → **Work with an Agent…** (or `covo agent start
+In the app, a site's detail → **Work with an Agent…** (or `benbow agent start
 <site> [--tool claude|codex|gemini|cursor-agent|cursor|copilot]
 [--terminal Terminal|iTerm|Ghostty] [--connect]`):
 
-1. Covo opens the site's agent session and waits until the starting
+1. Benbow opens the site's agent session and waits until the starting
    snapshot (files and database) is saved.
 2. Agents may change that site **until the session closes** (a temporary
-   permission, shown in Settings → AI Agents; separate from `covo mcp
+   permission, shown in Settings → AI Agents; separate from `benbow mcp
    allow`).
-3. Covo starts the agent in the site's folder, in a new window of your
+3. Benbow starts the agent in the site's folder, in a new window of your
    terminal (Terminal, iTerm or Ghostty; Cursor opens the folder), with
-   Covo's MCP server connected and a short context: the site, its address,
+   Benbow's MCP server connected and a short context: the site, its address,
    PHP and database, the session and the recommended workflow. The app
    shows the agent on the site until you keep or undo the changes.
 
 Nothing is written into the project folder: the context, a one-run MCP
 configuration and the start script live in `tmp/agent/<session>/` in
-Covo's folder and go when the session closes.
+Benbow's folder and go when the session closes.
 
-| Agent | How Covo connects | Context |
+| Agent | How Benbow connects | Context |
 |---|---|---|
 | Claude Code | `--mcp-config` for that run | `--append-system-prompt`, plus a one-line first prompt |
-| Codex (also the one inside the ChatGPT app) | `-c mcp_servers.covo…` for that run | `-c developer_instructions=…` |
+| Codex (also the one inside the ChatGPT app) | `-c mcp_servers.benbow…` for that run | `-c developer_instructions=…` |
 | GitHub Copilot CLI | `--additional-mcp-config` for that run | first prompt |
 | Gemini CLI | its user settings (`~/.gemini/settings.json`), after you agree and a backup | first prompt |
-| Cursor (app and `cursor-agent`) | `~/.cursor/mcp.json`, after you agree and a backup | first prompt; Covo's MCP instructions |
+| Cursor (app and `cursor-agent`) | `~/.cursor/mcp.json`, after you agree and a backup | first prompt; Benbow's MCP instructions |
 
-Covo finds agents on your login shell's PATH and in the usual install
+Benbow finds agents on your login shell's PATH and in the usual install
 folders (`~/.local/bin`, Homebrew, nvm, Volta, Bun, npm) and apps; it never
 installs one. The last agent and terminal are remembered.
 
 ## Connecting an agent for good
 
-Settings → AI Agents → **Connect…** (or `covo agent connect <agent>`) adds
-Covo to an agent's own settings in your home, for use outside Work with an
+Settings → AI Agents → **Connect…** (or `benbow agent connect <agent>`) adds
+Benbow to an agent's own settings in your home, for use outside Work with an
 Agent: Claude Code and Codex with their own `mcp add` command (Claude Code
-user scope), Gemini, Cursor and Claude Desktop by adding `mcpServers.covo`
+user scope), Gemini, Cursor and Claude Desktop by adding `mcpServers.benbow`
 to their JSON file. The file is backed up first in `data/backups/agents/`;
-a file that is not valid JSON is left alone. `covo agent tools` lists the
-agents and whether Covo is connected. `covo uninstall` takes the entry out again
-(`mcp remove` for Claude Code and Codex, only `mcpServers.covo` in the JSON
+a file that is not valid JSON is left alone. `benbow agent tools` lists the
+agents and whether Benbow is connected. `benbow uninstall` takes the entry out again
+(`mcp remove` for Claude Code and Codex, only `mcpServers.benbow` in the JSON
 files); test installations with their own label prefix never touch the real
 agents.
 
 ## Agent sessions
 
-While an agent works on a site, Covo keeps the site's starting state until
+While an agent works on a site, Benbow keeps the site's starting state until
 you decide:
 
 ```sh
-covo agent session open shop       # open one yourself before any agent (MCP or not) works
-covo agent session list            # open sessions (--all: recent closed ones too)
-covo agent session show shop       # when it started, starting snapshot, checkpoints
-covo agent session keep shop       # keep the changes
-covo agent session revert shop     # undo everything since the start (asks; --yes)
-covo agent idle 24                 # idle hours before a session closes by itself (0: never)
+benbow agent session open shop       # open one yourself before any agent (MCP or not) works
+benbow agent session list            # open sessions (--all: recent closed ones too)
+benbow agent session show shop       # when it started, starting snapshot, checkpoints
+benbow agent session keep shop       # keep the changes
+benbow agent session revert shop     # undo everything since the start (asks; --yes)
+benbow agent idle 24                 # idle hours before a session closes by itself (0: never)
 ```
 
 **When a session opens**
 
-- when an agent starts `covo mcp` inside a site's folder (Claude Code and
-  most agents start MCP servers in the project folder; Covo also reads the
+- when an agent starts `benbow mcp` inside a site's folder (Claude Code and
+  most agents start MCP servers in the project folder; Benbow also reads the
   agent's workspace roots). This happens before the agent changes anything,
   so the changes it makes with its own tools are covered too. It also
-  happens for sites agents may not change through Covo;
+  happens for sites agents may not change through Benbow;
 - at the first tool call naming a site the agent may change
-  (`covo mcp allow`);
-- with `covo agent session open <site>`, for agents that do not use Covo's
+  (`benbow mcp allow`);
+- with `benbow agent session open <site>`, for agents that do not use Benbow's
   MCP server.
 
 **What it keeps.** A snapshot of the starting state (`snapshots.md`): the
 files are cloned at once, the database is dumped by a background process
-(agents give an MCP server only seconds to start); changes through Covo
+(agents give an MCP server only seconds to start); changes through Benbow
 wait until the dump is written (`session open` waits too). A change the
 site itself makes in those first seconds may end up in the starting
 state. The starting snapshot is never pruned while
 the session is open.
 
-**Checkpoints.** Inside a session Covo does not snapshot every call: it takes
+**Checkpoints.** Inside a session Benbow does not snapshot every call: it takes
 a checkpoint only before risky changes:
 
 | Tool | Risky |
@@ -98,7 +98,7 @@ a checkpoint only before risky changes:
 
 `restore_snapshot`, `pull` and `apply_blueprint` take their own snapshot.
 A session keeps its newest 20 checkpoints; they do not count in the
-snapshot limit (`covo snapshot keep`).
+snapshot limit (`benbow snapshot keep`).
 
 **Closing.**
 
@@ -106,19 +106,19 @@ snapshot limit (`covo snapshot keep`).
   snapshot stays as an ordinary snapshot (so you can still go back for a
   while; it now counts in the limit).
 - **Undo all** (`revert`) puts the files and the database back to the
-  start. It also undoes changes **you** made during the session (Covo does
+  start. It also undoes changes **you** made during the session (Benbow does
   not know who changed what). `.git`, `node_modules` and generated folders (`snapshots.md`) are never touched,
   and the current state is saved first (a `pre-restore` snapshot: restore
   it to undo the undo).
 - A session idle for 24 hours (no tool call on the site, and no agent
-  started from Covo still running) closes by itself and keeps the changes
-  (Settings → AI Agents, or `covo agent idle`).
+  started from Benbow still running) closes by itself and keeps the changes
+  (Settings → AI Agents, or `benbow agent idle`).
 
 In the app: a ✦ mark on the site in the list, a banner in its detail with
 **What Changed…**, **Keep Changes** and **Undo All…** (which explains what
 it does first), Advanced → AI agent activity, and the menu bar lists the
-open sessions. When the agent is done (the terminal of an agent Covo started has
-ended, or another agent has not called Covo for 15 minutes) the mark and
+open sessions. When the agent is done (the terminal of an agent Benbow started has
+ended, or another agent has not called Benbow for 15 minutes) the mark and
 banner turn orange and say it has finished: the session stays open until
 you keep or undo the changes.
 
@@ -128,8 +128,8 @@ it: that stays with you.
 ## What changed
 
 ```sh
-covo agent diff shop                          # files and tables since the session started
-covo agent diff shop --file wp-config.php     # one file's unified diff
+benbow agent diff shop                          # files and tables since the session started
+benbow agent diff shop --file wp-config.php     # one file's unified diff
 ```
 
 - **Files**: added, modified and deleted against the starting snapshot
@@ -137,9 +137,9 @@ covo agent diff shop --file wp-config.php     # one file's unified diff
   then contents when only the time changed. At most 500 are listed; the
   counts are always complete.
 - **Database tables**: rows inserted, updated and deleted per table, plus
-  tables added, dropped or altered. Covo reads the server's own per-table
+  tables added, dropped or altered. Benbow reads the server's own per-table
   counters at the start and now, so it takes milliseconds on any size:
-  MySQL's performance schema (Covo turns on only the table I/O counters,
+  MySQL's performance schema (Benbow turns on only the table I/O counters,
   a few MB; it was off before, and MySQL restarts once to turn it on) and
   PostgreSQL's `pg_stat_user_tables`. If the server restarted during the
   session the counters are gone: changed tables are then found from row
@@ -161,18 +161,18 @@ API: `GET /v1/agent/tools`, `POST /v1/agent/tools/{id}/connect`,
 Three read-only tools (MCP and CLI) let an agent check what it did:
 
 ```sh
-covo fetch shop /checkout/            # status, redirects, title, text, PHP errors of that request
-covo mail list --to buyer@example.com # the mail PHP sent (Mailpit)
-covo mail show                        # the newest message: text and links
-covo db query shop "SELECT * FROM wp_options WHERE option_name = 'home'"
+benbow fetch shop /checkout/            # status, redirects, title, text, PHP errors of that request
+benbow mail list --to buyer@example.com # the mail PHP sent (Mailpit)
+benbow mail show                        # the newest message: text and links
+benbow db query shop "SELECT * FROM wp_options WHERE option_name = 'home'"
 ```
 
-- **`fetch_page`** requests a page of a Covo site (GET or HEAD; only Covo's
+- **`fetch_page`** requests a page of a Benbow site (GET or HEAD; only Benbow's
   own addresses, redirects followed only within them) and returns the
   status, main headers, redirects, title, readable text and the PHP errors,
-  warnings, notices and deprecations **of that request**. Covo sends an
-  `X-Covo-Probe` header; Caddy gives that request its own PHP error log in
-  `tmp/probes/`, which Covo reads, appends to the site's log and deletes.
+  warnings, notices and deprecations **of that request**. Benbow sends an
+  `X-Benbow-Probe` header; Caddy gives that request its own PHP error log in
+  `tmp/probes/`, which Benbow reads, appends to the site's log and deletes.
   Other requests are untouched (one header check each).
 - **`mail_messages`, `read_mail`** read Mailpit (Settings → Mail): recipient
   and subject filters, the text and the links of a message, attachment
@@ -182,8 +182,8 @@ covo db query shop "SELECT * FROM wp_options WHERE option_name = 'home'"
   functions, no backslash (the psql and mysql clients read `\!`, `\o`,
   `\copy` as their own commands, even inside strings) and no MySQL `/*! */`
   comments; the mysql client also runs with `--skip-system-command`. It runs in a read-only transaction (10 seconds, 500 rows) as
-  a user that can only read: on MySQL Covo makes one per database
-  (`covo_ro_…`, SELECT and SHOW VIEW only, password in the keychain); on
+  a user that can only read: on MySQL Benbow makes one per database
+  (`benbow_ro_…`, SELECT and SHOW VIEW only, password in the keychain); on
   PostgreSQL the site's own role. Changes go through `wp` or `artisan`
   inside the session.
 
@@ -193,34 +193,34 @@ API: `POST /v1/sites/{name}/fetch` (`path`, `method`, `html`),
 
 ## Teaching agents the workflow
 
-Covo's MCP server describes the recommended workflow to every agent that
-connects (`covo_status` and permissions first, work inside the session,
+Benbow's MCP server describes the recommended workflow to every agent that
+connects (`benbow_status` and permissions first, work inside the session,
 check with `fetch_page`, `site_logs` and mail, show `session_diff` before
 finishing).
 
-**Claude Code plugin.** `integrations/claude-code/covo` is a plugin with a
-`covo` skill (the workflow) and the MCP server entry for
-`/Applications/Covo.app`. The repository is a plugin marketplace
+**Claude Code plugin.** `integrations/claude-code/benbow` is a plugin with a
+`benbow` skill (the workflow) and the MCP server entry for
+`/Applications/Benbow.app`. The repository is a plugin marketplace
 (`.claude-plugin/marketplace.json`):
 
 ```
-/plugin install covo --marketplace getcovo/covo      # once the repository is public
-/plugin marketplace add /path/to/covo                # meanwhile, from a checkout
+/plugin install benbow --marketplace benbowdev/benbow      # once the repository is public
+/plugin marketplace add /path/to/benbow                # meanwhile, from a checkout
 ```
 
 **Other agents (AGENTS.md).** Codex, Cursor and Gemini read an `AGENTS.md`
-(Gemini: `GEMINI.md`) in the project. Covo never writes one into a client's
+(Gemini: `GEMINI.md`) in the project. Benbow never writes one into a client's
 repository; if you want it, paste this yourself:
 
 ```markdown
-## Local environment: Covo
+## Local environment: Benbow
 
-This site runs in Covo (local PHP/WordPress/Laravel on this Mac). Use Covo's
-MCP server ("covo"):
-- Start with covo_status and agent_permissions; work inside the site's agent
-  session (session_status): Covo saved files and database, the user keeps or
+This site runs in Benbow (local PHP/WordPress/Laravel on this Mac). Use Benbow's
+MCP server ("benbow"):
+- Start with benbow_status and agent_permissions; work inside the site's agent
+  session (session_status): Benbow saved files and database, the user keeps or
   undoes the changes.
-- Run wp, composer and artisan through Covo (site's PHP and database).
+- Run wp, composer and artisan through Benbow (site's PHP and database).
 - Check with fetch_page (PHP errors of that request), site_logs,
   mail_messages/read_mail, query_database (read-only).
 - Before finishing, show session_diff to the user.

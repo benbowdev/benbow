@@ -16,7 +16,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/getcovo/covo/internal/errcode"
+	"github.com/benbowdev/benbow/internal/errcode"
 )
 
 // Server is how to reach a MySQL server: TCP host and port, or a socket.
@@ -99,7 +99,7 @@ func Dump(ctx context.Context, mysqldump string, src Server, db string, w io.Wri
 	return nil
 }
 
-// Restore runs the SQL from r as root on Covo's server, into db (which
+// Restore runs the SQL from r as root on Benbow's server, into db (which
 // must exist).
 func Restore(ctx context.Context, client string, port int, password, db string, r io.Reader) error {
 	if err := checkPassword(password); err != nil {
@@ -162,7 +162,7 @@ func Clean(r io.Reader, w io.Writer) error {
 	return nil
 }
 
-// Copy dumps db from src and loads it into dstDB on Covo's server,
+// Copy dumps db from src and loads it into dstDB on Benbow's server,
 // streaming (nothing is written to disk) and cleaned (see Clean).
 func Copy(ctx context.Context, mysqldump, client string, src Server, db string, dstPort int, dstPassword, dstDB string) error {
 	pr, pw := io.Pipe()

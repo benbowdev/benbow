@@ -9,8 +9,8 @@ import (
 	"io"
 	"strings"
 
-	"github.com/getcovo/covo/internal/core"
-	"github.com/getcovo/covo/internal/errcode"
+	"github.com/benbowdev/benbow/internal/core"
+	"github.com/benbowdev/benbow/internal/errcode"
 	"github.com/spf13/cobra"
 )
 
@@ -21,7 +21,7 @@ func (r uninstallResult) Text(w io.Writer) {
 		return
 	}
 	if len(r.Agents)+len(r.CA)+len(r.Resolver)+len(r.HostsHelper)+len(r.Keychain)+len(r.Paths) == 0 {
-		fmt.Fprintln(w, "Nothing to remove: Covo is not installed.")
+		fmt.Fprintln(w, "Nothing to remove: Benbow is not installed.")
 		return
 	}
 	writePlan(w, r.UninstallPlan, "Removed")
@@ -48,7 +48,7 @@ func writePlan(w io.Writer, p core.UninstallPlan, verb string) {
 		fmt.Fprintf(w, "%s %s from the login keychain\n", verb, item)
 	}
 	for _, a := range p.AgentConfigs {
-		fmt.Fprintf(w, "%s Covo's MCP server from %s (%s)\n", verb, a.Name, a.Path)
+		fmt.Fprintf(w, "%s Benbow's MCP server from %s (%s)\n", verb, a.Name, a.Path)
 	}
 	for _, path := range p.Paths {
 		fmt.Fprintf(w, "%s %s\n", verb, path)
@@ -65,11 +65,11 @@ func (a *app) uninstallCmd() *cobra.Command {
 	var yes bool
 	cmd := &cobra.Command{
 		Use:   "uninstall",
-		Short: "Stop Covo, remove its CA and delete all its data",
-		Long: `Stops every Covo service, removes Covo's CA and every secret Covo keeps in
+		Short: "Stop Benbow, remove its CA and delete all its data",
+		Long: `Stops every Benbow service, removes Benbow's CA and every secret Benbow keeps in
 the login keychain (MySQL and PostgreSQL passwords, passwords of production
 and staging servers, the GitHub token for blueprints) and deletes
-~/Library/Application Support/covo, databases included. Your site folders
+~/Library/Application Support/benbow, databases included. Your site folders
 are never touched.`,
 		Args: cobra.NoArgs,
 		// Not withCore: opening the core would recreate the folders being removed.

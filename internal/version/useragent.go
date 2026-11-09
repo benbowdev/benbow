@@ -20,15 +20,15 @@ var macOS = sync.OnceValue(func() string {
 	return strings.TrimSpace(v)
 })
 
-// UserAgent is what Covo sends on every request it makes to the network:
-// "Covo/0.1.0 (macOS 26.2; arm64)". Nothing that identifies the Mac or
+// UserAgent is what Benbow sends on every request it makes to the network:
+// "Benbow/0.1.0 (macOS 26.2; arm64)". Nothing that identifies the Mac or
 // the user.
 func UserAgent() string {
 	return userAgent(Version, macOS(), runtime.GOARCH)
 }
 
 func userAgent(version, macos, arch string) string {
-	return "Covo/" + version + " (macOS " + macos + "; " + arch + ")"
+	return "Benbow/" + version + " (macOS " + macos + "; " + arch + ")"
 }
 
 // Transport sets UserAgent on requests that have none, then sends them with

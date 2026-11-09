@@ -18,11 +18,11 @@ import (
 func TestMail(t *testing.T) {
 	h := newHarness(t)
 	dir := newSite(t)
-	page := `<?php echo mail('client@example.com', 'Covo test ' . $_GET['n'], 'Hello from Covo') ? 'sent' : 'failed';`
+	page := `<?php echo mail('client@example.com', 'Benbow test ' . $_GET['n'], 'Hello from Benbow') ? 'sent' : 'failed';`
 	if err := os.WriteFile(filepath.Join(dir, "index.php"), []byte(page), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	h.mustCovo("site", "add", "shop", "--php", "8.4", "--path", dir)
+	h.mustBenbow("site", "add", "shop", "--php", "8.4", "--path", dir)
 
 	var res struct {
 		Enabled  bool   `json:"enabled"`
@@ -32,13 +32,13 @@ func TestMail(t *testing.T) {
 		URL      string `json:"url"`
 		Version  string `json:"version"`
 	}
-	if err := json.Unmarshal(h.mustCovo("mail", "enable"), &res); err != nil {
+	if err := json.Unmarshal(h.mustBenbow("mail", "enable"), &res); err != nil {
 		t.Fatal(err)
 	}
 	if !res.Enabled || res.Running || res.SMTPPort < 1025 || res.UIPort < 8025 || res.Version != "1.33.0" {
 		t.Fatalf("enable while stopped = %+v", res)
 	}
-	h.mustCovo("start")
+	h.mustBenbow("start")
 	st := h.status()
 	if got := h.get(st.Sites[0].URL+"/?n=1", st.CA.CertPath); got != "sent" {
 		t.Fatalf("mail() = %q", got)
@@ -59,15 +59,15 @@ func TestMail(t *testing.T) {
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	if found != "Covo test 1" {
+	if found != "Benbow test 1" {
 		t.Fatalf("Mailpit inbox: %q", found)
 	}
-	if env := h.covo("site", "add", "mail", "--path", dir); env.OK || env.Error.Code != "conflict" {
+	if env := h.benbow("site", "add", "mail", "--path", dir); env.OK || env.Error.Code != "conflict" {
 		t.Fatalf("site named mail = %+v", env)
 	}
 
 	// Off: Mailpit stops and PHP no longer points at it.
-	h.mustCovo("mail", "disable")
+	h.mustBenbow("mail", "disable")
 	for _, svc := range h.status().Services {
 		if svc.Name == "mailpit" {
 			t.Fatal("mailpit still in services after disable")

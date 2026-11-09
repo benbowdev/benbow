@@ -16,8 +16,8 @@ import (
 
 func TestLogRotationReopensFPMLog(t *testing.T) {
 	h := newHarness(t)
-	h.mustCovo("site", "add", "demo", "--php", "8.4", "--path", newSite(t))
-	h.mustCovo("start")
+	h.mustBenbow("site", "add", "demo", "--php", "8.4", "--path", newSite(t))
+	h.mustBenbow("start")
 	fpmPID := func() int {
 		for _, s := range h.status().Services {
 			if s.Name == "php-8.4" {
@@ -39,7 +39,7 @@ func TestLogRotationReopensFPMLog(t *testing.T) {
 	}
 	_ = f.Close()
 
-	h.mustCovo("start")
+	h.mustBenbow("start")
 	if got := fpmPID(); got != pid {
 		t.Fatalf("FPM was restarted (%d -> %d); it should only reopen its log", pid, got)
 	}

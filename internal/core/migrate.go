@@ -15,24 +15,24 @@ import (
 	"strings"
 	"time"
 
-	"github.com/getcovo/covo/internal/dotenv"
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/fsutil"
-	"github.com/getcovo/covo/internal/mamp"
-	"github.com/getcovo/covo/internal/mysql"
-	"github.com/getcovo/covo/internal/store"
-	"github.com/getcovo/covo/internal/wpconfig"
+	"github.com/benbowdev/benbow/internal/dotenv"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/fsutil"
+	"github.com/benbowdev/benbow/internal/mamp"
+	"github.com/benbowdev/benbow/internal/mysql"
+	"github.com/benbowdev/benbow/internal/store"
+	"github.com/benbowdev/benbow/internal/wpconfig"
 )
 
 // Assisted migration: after an import created a site on the same folder as
-// the source tool, Covo copies its database (the source is only read),
-// points wp-config.php or .env at the copy (after a backup in the Covo
+// the source tool, Benbow copies its database (the source is only read),
+// points wp-config.php or .env at the copy (after a backup in the Benbow
 // folder) and replaces the old address in the database. The project's files
 // stay shared with the source tool: once migrated the site works from
-// Covo, and the source tool, reading the same wp-config.php, no longer
+// Benbow, and the source tool, reading the same wp-config.php, no longer
 // reaches its own database.
 
-// What to do when Covo already has a database of the same name.
+// What to do when Benbow already has a database of the same name.
 const (
 	ExistingUse    = "use"
 	ExistingRecopy = "recopy"
@@ -46,16 +46,16 @@ type MigrationPlan struct {
 	Database string `json:"database,omitempty"`
 	// Server is where it is read from (host:port or socket).
 	Server string `json:"server,omitempty"`
-	// Exists is true when Covo already has a database of that name.
+	// Exists is true when Benbow already has a database of that name.
 	Exists bool `json:"exists"`
-	// Config is the file Covo changes (wp-config.php or .env), if any.
+	// Config is the file Benbow changes (wp-config.php or .env), if any.
 	Config string `json:"config,omitempty"`
 	// URLFrom and URLTo: the old address replaced in the database.
 	URLFrom string `json:"url_from,omitempty"`
 	URLTo   string `json:"url_to,omitempty"`
 	// Steps are what will happen, in words.
 	Steps []string `json:"steps"`
-	// Manual are settings to make by hand (sites Covo cannot configure).
+	// Manual are settings to make by hand (sites Benbow cannot configure).
 	Manual map[string]string `json:"manual,omitempty"`
 	// Warnings are things to check by hand after the migration.
 	Warnings []string `json:"warnings,omitempty"`
@@ -119,7 +119,7 @@ func readProjectDB(site store.Site, h mamp.Host) (projectDB, error) {
 		}
 		env := string(b)
 		if conn, _ := dotenv.Get(env, "DB_CONNECTION"); conn != "" && conn != "mysql" && conn != "mariadb" {
-			return p, errcode.Errorf(errcode.Unsupported, "the project uses "+conn+": Covo migrates MySQL databases")
+			return p, errcode.Errorf(errcode.Unsupported, "the project uses "+conn+": Benbow migrates MySQL databases")
 		}
 		host, _ := dotenv.Get(env, "DB_HOST")
 		port, _ := dotenv.Get(env, "DB_PORT")
@@ -190,17 +190,17 @@ func (c *Core) planMigration(ctx context.Context, site store.Site, h mamp.Host, 
 	case opts.DumpFile != "":
 		plan.Steps = append(plan.Steps, "load "+opts.DumpFile+" into a new database "+migrationDBName(site, p))
 	case plan.Exists && (opts.Existing == "" || opts.Existing == ExistingUse):
-		plan.Steps = append(plan.Steps, "use Covo's existing database "+p.db+" (not copied again)")
+		plan.Steps = append(plan.Steps, "use Benbow's existing database "+p.db+" (not copied again)")
 	case plan.Exists && opts.Existing == ExistingRecopy:
-		plan.Steps = append(plan.Steps, "back up Covo's database "+p.db+", then copy it again from "+plan.Server)
+		plan.Steps = append(plan.Steps, "back up Benbow's database "+p.db+", then copy it again from "+plan.Server)
 	case plan.Exists && opts.Existing == ExistingSkip:
-		plan.Problem = "Covo already has database " + p.db + ": skipped as asked"
+		plan.Problem = "Benbow already has database " + p.db + ": skipped as asked"
 		return plan
 	default:
 		plan.Steps = append(plan.Steps, "copy database "+p.db+" from "+plan.Server+" (only read)")
 	}
 	plan.Steps = append(plan.Steps, "give the site its own MySQL user on that database")
-	plan.Steps = append(plan.Steps, "back up "+filepath.Base(p.configPath)+" in Covo's folder, then set its database settings to Covo's")
+	plan.Steps = append(plan.Steps, "back up "+filepath.Base(p.configPath)+" in Benbow's folder, then set its database settings to Benbow's")
 	if p.framework == FrameworkWordPress {
 		plan.Steps = append(plan.Steps, "replace the old address with "+url+" in the database (wp search-replace)")
 		step, warnings := wpAddressPlan(p.wpConfig, url)
@@ -214,7 +214,7 @@ func (c *Core) planMigration(ctx context.Context, site store.Site, h mamp.Host, 
 	return plan
 }
 
-// migrationDBName is the database the migrated site uses on Covo: the
+// migrationDBName is the database the migrated site uses on Benbow: the
 // source's name (valid MySQL names only), else the site's default.
 func migrationDBName(site store.Site, p projectDB) string {
 	if p.db != "" && mysql.ValidName(p.db, 64) {
@@ -286,7 +286,7 @@ func (c *Core) migrateSite(ctx context.Context, source string, site store.Site, 
 	mig.DBUser = db.User
 	undo = append(undo, func() { c.detachSiteUser(bg, site.Name, db.User) })
 
-	// 2. The project's configuration, after a backup in Covo's folder.
+	// 2. The project's configuration, after a backup in Benbow's folder.
 	backup, err := c.backupFile(site.Name, p.configPath)
 	if err != nil {
 		rollback()
@@ -336,7 +336,7 @@ func (c *Core) loadIntoDatabase(ctx context.Context, p projectDB, dbName, dumpFi
 	if dumpFile == "" {
 		err := mysql.Copy(ctx, filepath.Join(dir, "mysqldump"), client, p.server, p.db, port, rootPW, dbName)
 		if err != nil {
-			return errcode.New(errcode.Service, fmt.Errorf("%w (is the source's MySQL running? Covo never starts it)", err))
+			return errcode.New(errcode.Service, fmt.Errorf("%w (is the source's MySQL running? Benbow never starts it)", err))
 		}
 		return nil
 	}
@@ -419,7 +419,7 @@ func (c *Core) detachSiteUser(ctx context.Context, name, user string) {
 	}
 }
 
-// backupDir is where a site's backups go, inside the Covo folder.
+// backupDir is where a site's backups go, inside the Benbow folder.
 func (c *Core) backupDir(site string) string { return filepath.Join(c.Layout.Data, "backups", site) }
 
 // backupFile copies path into the site's backup folder, with a timestamp.
@@ -450,7 +450,7 @@ func copyFile(src, dst string) error {
 	return nil
 }
 
-// backupDatabase dumps one of Covo's databases into the site's backup
+// backupDatabase dumps one of Benbow's databases into the site's backup
 // folder (gzip) and returns the file.
 func (c *Core) backupDatabase(ctx context.Context, site, db string) (string, error) {
 	client, port, pw, err := c.mysqlRoot(ctx)
@@ -493,7 +493,7 @@ func (c *Core) restoreDatabaseBackup(ctx context.Context, db, path string) error
 	return c.loadIntoDatabase(ctx, projectDB{}, db, path, client, port, pw)
 }
 
-// pointConfigAt changes the project's configuration to Covo's database and
+// pointConfigAt changes the project's configuration to Benbow's database and
 // address. dbHome is WordPress's home address in the database. It returns
 // what the user should check by hand.
 func (c *Core) pointConfigAt(p projectDB, db SiteDatabase, host, url, dbHome string) ([]string, error) {
@@ -523,7 +523,7 @@ func (c *Core) pointConfigAt(p projectDB, db SiteDatabase, host, url, dbHome str
 // database and keeps sending visitors to the old one. WP_HOME becomes url;
 // WP_SITEURL keeps its path under the old home (often /wp). dbHome is the
 // home address in the database, "" when not known yet (planning). Defines
-// Covo cannot change safely become warnings.
+// Benbow cannot change safely become warnings.
 func wpAddressDefines(content, dbHome, url string) (map[string]string, []string) {
 	values := map[string]string{}
 	warnings := []string{}
@@ -598,7 +598,7 @@ func rebaseURL(v, oldHome, newHome string) (string, bool) {
 	return strings.TrimRight(newHome, "/") + rest, true
 }
 
-// wpHome reads WordPress's home address from a database on Covo's server.
+// wpHome reads WordPress's home address from a database on Benbow's server.
 func (c *Core) wpHome(ctx context.Context, db, prefix string) (string, error) {
 	if !mysql.ValidName(strings.TrimSuffix(prefix, "_"), 64) && prefix != "" {
 		prefix = "wp_"
@@ -624,7 +624,7 @@ func (c *Core) replaceURL(ctx context.Context, site store.Site, from, to string)
 	// new address: the new address often starts with an old one
 	// (http://site → https://site.localhost:8443), and replacing the
 	// variants one after the other would apply the change twice.
-	placeholder := "covo-url-" + strconv.FormatInt(time.Now().UnixNano(), 36)
+	placeholder := "benbow-url-" + strconv.FormatInt(time.Now().UnixNano(), 36)
 	pairs := make([][2]string, 0, len(froms)+1)
 	for _, f := range froms {
 		pairs = append(pairs, [2]string{f, placeholder})
@@ -643,7 +643,7 @@ func (c *Core) replaceURL(ctx context.Context, site store.Site, from, to string)
 }
 
 // UndoMigration puts a migrated site back as it was before the migration:
-// its configuration file from the backup, and the database Covo copied
+// its configuration file from the backup, and the database Benbow copied
 // (with the site's own user) deleted. The site itself stays.
 func (c *Core) UndoMigration(ctx context.Context, name string) (store.Migration, error) {
 	var m store.Migration

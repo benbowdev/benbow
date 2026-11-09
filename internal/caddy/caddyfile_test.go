@@ -9,15 +9,15 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/getcovo/covo/internal/errcode"
+	"github.com/benbowdev/benbow/internal/errcode"
 )
 
 var update = flag.Bool("update", false, "rewrite golden files")
 
-const home = "/Users/test/Library/Application Support/covo"
+const home = "/Users/test/Library/Application Support/benbow"
 
 var testCA = CA{
-	Name:             "Covo Local CA",
+	Name:             "Benbow Local CA",
 	RootCert:         home + "/data/ca/root.crt",
 	IntermediateCert: home + "/data/ca/intermediate.crt",
 	IntermediateKey:  home + "/data/ca/intermediate.key",
@@ -46,7 +46,7 @@ func TestCaddyfileGolden(t *testing.T) {
 		{"apps", []Site{
 			{Name: "shop", Domain: "shop.localhost", Aliases: []string{"www.shop.localhost"}, Upstream: 41000,
 				AccessLog: home + "/logs/sites/shop/access.log"},
-			{Name: "api", Domain: "api.covo.test", Upstream: 3000, UpstreamLocalHost: true},
+			{Name: "api", Domain: "api.benbow.test", Upstream: 3000, UpstreamLocalHost: true},
 		}, nil, &Phone{Site: "shop", Host: "shop-mac.local", Port: 9443, Binds: []string{"192.168.1.5"},
 			LocalURL: "https://shop.localhost:8443", PhoneURL: "https://shop-mac.local:9443", CAPort: 9444, CADir: home + "/data/phone/ca",
 			Upstream: 41000}},

@@ -15,18 +15,18 @@ import (
 	"testing"
 )
 
-// TestSiteLifecycleWhileRunning adds and removes sites with Covo already
+// TestSiteLifecycleWhileRunning adds and removes sites with Benbow already
 // running: changes must go live without a manual restart.
 func TestSiteLifecycleWhileRunning(t *testing.T) {
 	h := newHarness(t)
-	h.mustCovo("start")
+	h.mustBenbow("start")
 	caddyPID := h.status().Services[0].PID
 
 	var added struct {
 		URL     string `json:"url"`
 		Applied bool   `json:"applied"`
 	}
-	if err := json.Unmarshal(h.mustCovo("site", "add", "live", "--php", "8.4", "--path", newSite(t)), &added); err != nil {
+	if err := json.Unmarshal(h.mustBenbow("site", "add", "live", "--php", "8.4", "--path", newSite(t)), &added); err != nil {
 		t.Fatal(err)
 	}
 	if !added.Applied {
@@ -53,9 +53,9 @@ func TestSiteLifecycleWhileRunning(t *testing.T) {
 		{[]string{"site", "add", "x", "--path", "/does/not/exist"}, "not_found"},
 		{[]string{"site", "remove", "nope"}, "not_found"},
 	} {
-		env := h.covo(tc.args...)
+		env := h.benbow(tc.args...)
 		if env.OK || env.Error == nil || env.Error.Code != tc.code {
-			t.Errorf("covo %v: %+v, want code %s", tc.args, env.Error, tc.code)
+			t.Errorf("benbow %v: %+v, want code %s", tc.args, env.Error, tc.code)
 		}
 	}
 
@@ -65,7 +65,7 @@ func TestSiteLifecycleWhileRunning(t *testing.T) {
 		Title string `json:"title"`
 		URL   string `json:"url"`
 	}
-	if err := json.Unmarshal(h.mustCovo("site", "set", "live", "--title", "  Shop del cliente  "), &titled); err != nil {
+	if err := json.Unmarshal(h.mustBenbow("site", "set", "live", "--title", "  Shop del cliente  "), &titled); err != nil {
 		t.Fatal(err)
 	}
 	if titled.Name != "live" || titled.Title != "Shop del cliente" || titled.URL != added.URL {
@@ -76,17 +76,17 @@ func TestSiteLifecycleWhileRunning(t *testing.T) {
 		Name  string `json:"name"`
 		Title string `json:"title"`
 	}
-	if err := json.Unmarshal(h.mustCovo("site", "list"), &listed); err != nil {
+	if err := json.Unmarshal(h.mustBenbow("site", "list"), &listed); err != nil {
 		t.Fatal(err)
 	}
 	if len(listed) != 1 || listed[0].Title != "Shop del cliente" {
 		t.Fatalf("listed = %+v", listed)
 	}
-	if env := h.covo("site", "set", "live", "--title", "a\nb"); env.OK || env.Error.Code != "invalid_input" {
+	if env := h.benbow("site", "set", "live", "--title", "a\nb"); env.OK || env.Error.Code != "invalid_input" {
 		t.Errorf("two-line title: %+v", env.Error)
 	}
 
-	h.mustCovo("site", "remove", "live")
+	h.mustBenbow("site", "remove", "live")
 	for _, svc := range h.status().Services {
 		if svc.Name != "caddy" {
 			t.Errorf("service %s still listed after its last site was removed", svc.Name)
@@ -136,14 +136,14 @@ func TestSiteAddFolderChecks(t *testing.T) {
 		{[]string{"site", "add", "sys", "--path", "/System/Library"}, "forbidden_folder"},
 		{[]string{"site", "add", "empty", "--path", empty}, "confirmation_required"},
 	} {
-		env := h.covo(tc.args...)
+		env := h.benbow(tc.args...)
 		if env.OK || env.Error == nil || env.Error.Code != tc.code {
-			t.Errorf("covo %v: %+v, want code %s", tc.args, env.Error, tc.code)
+			t.Errorf("benbow %v: %+v, want code %s", tc.args, env.Error, tc.code)
 		}
 	}
-	h.mustCovo("site", "add", "empty", "--path", empty, "--force")
+	h.mustBenbow("site", "add", "empty", "--path", empty, "--force")
 	// --force never bypasses the forbidden folders.
-	if env := h.covo("site", "add", "home", "--path", home, "--force"); env.OK || env.Error.Code != "forbidden_folder" {
+	if env := h.benbow("site", "add", "home", "--path", home, "--force"); env.OK || env.Error.Code != "forbidden_folder" {
 		t.Errorf("--force on home: %+v", env.Error)
 	}
 }

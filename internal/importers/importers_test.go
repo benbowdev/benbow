@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/getcovo/covo/internal/mamp"
+	"github.com/benbowdev/benbow/internal/mamp"
 )
 
 func write(t *testing.T, path, body string) {

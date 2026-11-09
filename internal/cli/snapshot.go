@@ -9,9 +9,9 @@ import (
 	"io"
 	"strconv"
 
-	"github.com/getcovo/covo/internal/core"
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/store"
+	"github.com/benbowdev/benbow/internal/core"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/store"
 	"github.com/spf13/cobra"
 )
 
@@ -41,7 +41,7 @@ type snapshotListResult []store.Snapshot
 
 func (r snapshotListResult) Text(w io.Writer) {
 	if len(r) == 0 {
-		fmt.Fprintln(w, "No snapshots. Take one with: covo snapshot create <site>")
+		fmt.Fprintln(w, "No snapshots. Take one with: benbow snapshot create <site>")
 	}
 	for _, s := range r {
 		fmt.Fprintf(w, "%s  %-11s %-8s %s\n", s.ID, s.Kind, humanBytes(s.Bytes), s.Note)
@@ -60,7 +60,7 @@ type snapshotKeepResult struct {
 }
 
 func (r snapshotKeepResult) Text(w io.Writer) {
-	fmt.Fprintf(w, "Covo keeps the last %d snapshots of each site.\n", r.Keep)
+	fmt.Fprintf(w, "Benbow keeps the last %d snapshots of each site.\n", r.Keep)
 }
 
 func (a *app) snapshotCmd() *cobra.Command {
@@ -68,7 +68,7 @@ func (a *app) snapshotCmd() *cobra.Command {
 		Use:   "snapshot",
 		Short: "Save and restore a site's files and database",
 		Long: "Snapshots save a site's project folder (APFS clones: no space until files\n" +
-			"change; .git, node_modules and generated folders like .venv and .next are left out) and its database, in Covo's folder.",
+			"change; .git, node_modules and generated folders like .venv and .next are left out) and its database, in Benbow's folder.",
 	}
 	var note string
 	create := &cobra.Command{

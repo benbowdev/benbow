@@ -11,9 +11,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/paths"
-	"github.com/getcovo/covo/internal/store"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/paths"
+	"github.com/benbowdev/benbow/internal/store"
 )
 
 func writeFiles(t *testing.T, dir string, files map[string]string) {
@@ -94,12 +94,12 @@ func TestDetectApp(t *testing.T) {
 func appCore(t *testing.T) *Core {
 	t.Helper()
 	dir := t.TempDir()
-	st, err := store.Open(context.Background(), filepath.Join(dir, "covo.db"))
+	st, err := store.Open(context.Background(), filepath.Join(dir, "benbow.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = st.Close() })
-	return &Core{Store: st, Layout: paths.Layout{Root: filepath.Join(dir, "home"), Lock: filepath.Join(dir, "covo.lock")}}
+	return &Core{Store: st, Layout: paths.Layout{Root: filepath.Join(dir, "home"), Lock: filepath.Join(dir, "benbow.lock")}}
 }
 
 func TestAddAppSite(t *testing.T) {
@@ -180,7 +180,7 @@ func TestUpdateAppSite(t *testing.T) {
 	if res, err := c.UpdateSite(ctx, UpdateSiteRequest{Name: "web", AppHost: &lh}); err != nil || res.AppMode != store.AppProxy || res.AppPort != 3000 || res.AppHost != lh {
 		t.Fatalf("host only = %+v, %v", res.Site, err)
 	}
-	// Proxy to started: the user's port is left to them, Covo picks one.
+	// Proxy to started: the user's port is left to them, Benbow picks one.
 	res, err := c.UpdateSite(ctx, UpdateSiteRequest{Name: "web", Command: "pnpm dev"})
 	if err != nil || res.AppMode != store.AppRun || res.AppPort == 3000 || res.Command != "pnpm dev" {
 		t.Fatalf("to run = %+v, %v", res.Site, err)

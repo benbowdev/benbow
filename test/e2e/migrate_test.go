@@ -14,28 +14,28 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/getcovo/covo/internal/wpconfig"
+	"github.com/benbowdev/benbow/internal/wpconfig"
 )
 
 // TestImportMigrate imports a WordPress site from another tool (here a
-// second, separate Covo stands in for MAMP: its own MySQL, its own
+// second, separate Benbow stands in for MAMP: its own MySQL, its own
 // WordPress) through the Valet importer, migrates it (database copied from
-// the other server, wp-config.php pointed at Covo, address replaced), then
+// the other server, wp-config.php pointed at Benbow, address replaced), then
 // undoes the migration.
 func TestImportMigrate(t *testing.T) {
 	if runtime.GOARCH != "arm64" {
 		t.Skip("MySQL 8.4 is pinned for Apple Silicon only")
 	}
 	src := newHarness(t)
-	src.mustCovo("mysql", "enable")
-	src.mustCovo("start")
+	src.mustBenbow("mysql", "enable")
+	src.mustBenbow("start")
 	wp := filepath.Join(t.TempDir(), "legacy")
-	src.mustCovo("wordpress", "legacy", "--path", wp)
+	src.mustBenbow("wordpress", "legacy", "--path", wp)
 	var srcMySQL struct {
 		Port     int    `json:"port"`
 		Password string `json:"password"`
 	}
-	if err := json.Unmarshal(src.mustCovo("mysql", "password"), &srcMySQL); err != nil {
+	if err := json.Unmarshal(src.mustBenbow("mysql", "password"), &srcMySQL); err != nil {
 		t.Fatal(err)
 	}
 	var srcHome struct {
@@ -90,9 +90,9 @@ func TestImportMigrate(t *testing.T) {
 	if err := os.Symlink(wp, filepath.Join(valet, "Sites", "legacy")); err != nil {
 		t.Fatal(err)
 	}
-	h.env = append(h.env, "COVO_IMPORT_HOME="+home)
-	h.mustCovo("mysql", "enable")
-	h.mustCovo("start")
+	h.env = append(h.env, "BENBOW_IMPORT_HOME="+home)
+	h.mustBenbow("mysql", "enable")
+	h.mustBenbow("start")
 
 	type plan struct {
 		Create   int `json:"create"`
@@ -111,18 +111,18 @@ func TestImportMigrate(t *testing.T) {
 		} `json:"items"`
 	}
 	var dry plan
-	if err := json.Unmarshal(h.mustCovo("import", "valet", "--migrate", "--localhost", "--dry-run"), &dry); err != nil {
+	if err := json.Unmarshal(h.mustBenbow("import", "valet", "--migrate", "--localhost", "--dry-run"), &dry); err != nil {
 		t.Fatal(err)
 	}
 	if dry.Create != 1 || dry.Items[0].Migration == nil || dry.Items[0].Migration.Database != "legacy" || len(dry.Items[0].Migration.Steps) < 3 {
-		t.Fatalf("dry run = %s", h.mustCovo("import", "valet", "--migrate", "--localhost", "--dry-run"))
+		t.Fatalf("dry run = %s", h.mustBenbow("import", "valet", "--migrate", "--localhost", "--dry-run"))
 	}
 	if b, _ := os.ReadFile(cfgPath); string(b) != asMAMP {
 		t.Fatal("the dry run changed wp-config.php")
 	}
 
 	var done plan
-	data := h.mustCovo("import", "valet", "--migrate", "--localhost")
+	data := h.mustBenbow("import", "valet", "--migrate", "--localhost")
 	if err := json.Unmarshal(data, &done); err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +133,7 @@ func TestImportMigrate(t *testing.T) {
 	var tgt struct {
 		Port int `json:"port"`
 	}
-	if err := json.Unmarshal(h.mustCovo("mysql"), &tgt); err != nil {
+	if err := json.Unmarshal(h.mustBenbow("mysql"), &tgt); err != nil {
 		t.Fatal(err)
 	}
 	b, _ := os.ReadFile(cfgPath)
@@ -145,7 +145,7 @@ func TestImportMigrate(t *testing.T) {
 		Name string `json:"name"`
 		URL  string `json:"url"`
 	}
-	if err := json.Unmarshal(h.mustCovo("site", "list"), &sites); err != nil || len(sites) != 1 {
+	if err := json.Unmarshal(h.mustBenbow("site", "list"), &sites); err != nil || len(sites) != 1 {
 		t.Fatal(err)
 	}
 	for _, k := range wpconfig.URLKeys {
@@ -168,20 +168,20 @@ func TestImportMigrate(t *testing.T) {
 
 	// The source database was only read: still there, still the old address.
 	var srcDBs []string
-	if err := json.Unmarshal(src.mustCovo("db", "list"), &srcDBs); err != nil || !strings.Contains(strings.Join(srcDBs, ","), "legacy") {
+	if err := json.Unmarshal(src.mustBenbow("db", "list"), &srcDBs); err != nil || !strings.Contains(strings.Join(srcDBs, ","), "legacy") {
 		t.Fatalf("source databases = %v, %v", srcDBs, err)
 	}
 
 	// Undo: wp-config.php back byte for byte, the copied database gone.
-	h.mustCovo("import", "undo", "legacy")
+	h.mustBenbow("import", "undo", "legacy")
 	if b, _ := os.ReadFile(cfgPath); string(b) != asMAMP {
 		t.Fatal("undo did not restore wp-config.php")
 	}
 	var dbs []string
-	if err := json.Unmarshal(h.mustCovo("db", "list"), &dbs); err != nil || len(dbs) != 0 {
+	if err := json.Unmarshal(h.mustBenbow("db", "list"), &dbs); err != nil || len(dbs) != 0 {
 		t.Fatalf("databases after undo = %v, %v", dbs, err)
 	}
-	if env := h.covo("import", "undo", "legacy"); env.OK || env.Error.Code != "not_found" {
+	if env := h.benbow("import", "undo", "legacy"); env.OK || env.Error.Code != "not_found" {
 		t.Fatalf("second undo = %+v", env)
 	}
 }

@@ -24,10 +24,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/getcovo/covo/internal/ca"
+	"github.com/benbowdev/benbow/internal/ca"
 )
 
-// startedSite adds a site with index.php body and starts Covo. It returns
+// startedSite adds a site with index.php body and starts Benbow. It returns
 // the site URL and the CA directory.
 func startedSite(t *testing.T, h *harness, php string) (string, ca.Dir) {
 	t.Helper()
@@ -41,16 +41,16 @@ func startedSite(t *testing.T, h *harness, php string) (string, ca.Dir) {
 	var added struct {
 		URL string `json:"url"`
 	}
-	if err := json.Unmarshal(h.mustCovo("site", "add", "demo", "--php", "8.4", "--path", dir), &added); err != nil {
+	if err := json.Unmarshal(h.mustBenbow("site", "add", "demo", "--php", "8.4", "--path", dir), &added); err != nil {
 		t.Fatal(err)
 	}
-	h.mustCovo("start")
+	h.mustBenbow("start")
 	var status struct {
 		CA struct {
 			CertPath string `json:"cert_path"`
 		} `json:"ca"`
 	}
-	if err := json.Unmarshal(h.mustCovo("status"), &status); err != nil {
+	if err := json.Unmarshal(h.mustBenbow("status"), &status); err != nil {
 		t.Fatal(err)
 	}
 	return added.URL, ca.Dir(filepath.Dir(status.CA.CertPath))
@@ -61,7 +61,7 @@ func TestCAIsConstrained(t *testing.T) {
 	url, dir := startedSite(t, h, "<?php echo 'hi';")
 	h.get(url, dir.RootCert())
 
-	// The chain Caddy serves: leaf + Covo's intermediate.
+	// The chain Caddy serves: leaf + Benbow's intermediate.
 	conn, err := tls.Dial("tcp", "127.0.0.1:"+strconv.Itoa(h.port), &tls.Config{
 		ServerName: "demo.localhost", InsecureSkipVerify: true, //nolint:gosec // inspected below
 	})
@@ -85,14 +85,14 @@ func TestCAIsConstrained(t *testing.T) {
 	if err := ca.Check(m, root.Subject.CommonName, time.Now()); err != nil {
 		t.Fatalf("CA on disk: %v", err)
 	}
-	if !strings.HasPrefix(root.Subject.CommonName, "Covo Test CA ") {
+	if !strings.HasPrefix(root.Subject.CommonName, "Benbow Test CA ") {
 		t.Fatalf("root is named %q: tests must never create the real CA", root.Subject.CommonName)
 	}
 	if !ca.Constrained(chain[1]) {
 		t.Fatal("served intermediate is not name-constrained")
 	}
 	if b, _ := pem.Decode(m.IntermediateCert); b == nil || string(b.Bytes) != string(chain[1].Raw) {
-		t.Fatal("Caddy does not serve Covo's intermediate")
+		t.Fatal("Caddy does not serve Benbow's intermediate")
 	}
 	if _, err := os.Stat(filepath.Join(filepath.Dir(string(dir)), "caddy", "pki")); err == nil {
 		t.Fatal("Caddy created its own PKI")
@@ -101,7 +101,7 @@ func TestCAIsConstrained(t *testing.T) {
 		t.Fatal("the root key must never be stored")
 	}
 
-	// macOS (the verifier Safari uses) with Covo's root as the only anchor,
+	// macOS (the verifier Safari uses) with Benbow's root as the only anchor,
 	// without touching any keychain.
 	tmp := t.TempDir()
 	write := func(name string, der []byte) string {
@@ -125,12 +125,12 @@ func TestCAIsConstrained(t *testing.T) {
 	}
 	for _, name := range []string{"example.com", "localhost.example.com", "127.0.0.1"} {
 		if err := verify(write(name+".pem", signLeaf(t, m, name))); err == nil {
-			t.Errorf("macOS accepts a certificate for %s signed by Covo's intermediate", name)
+			t.Errorf("macOS accepts a certificate for %s signed by Benbow's intermediate", name)
 		}
 	}
 }
 
-// signLeaf issues a certificate for name with Covo's intermediate, as an
+// signLeaf issues a certificate for name with Benbow's intermediate, as an
 // attacker holding the intermediate key could.
 func signLeaf(t *testing.T, m ca.Material, name string) []byte {
 	t.Helper()
@@ -207,6 +207,6 @@ echo json_encode([
 		t.Fatal(err)
 	}
 	if n := strings.Count(string(bundle), "BEGIN CERTIFICATE"); n < 100 {
-		t.Errorf("bundle has %d certificates, want Mozilla's roots plus Covo's", n)
+		t.Errorf("bundle has %d certificates, want Mozilla's roots plus Benbow's", n)
 	}
 }

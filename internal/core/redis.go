@@ -11,14 +11,14 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/launchd"
-	"github.com/getcovo/covo/internal/ports"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/launchd"
+	"github.com/benbowdev/benbow/internal/ports"
 )
 
 // Redis: optional, off by default, one server for every site on
 // 127.0.0.1 (no password: nothing outside this Mac reaches it), data saved
-// under the Covo folder.
+// under the Benbow folder.
 
 const (
 	redisService      = "redis"
@@ -30,7 +30,7 @@ const (
 	redisSaveInterval = "3600 1 300 100"
 )
 
-// RedisStatus describes Covo's Redis server.
+// RedisStatus describes Benbow's Redis server.
 type RedisStatus struct {
 	Enabled bool   `json:"enabled"`
 	Version string `json:"version,omitempty"`
@@ -62,7 +62,7 @@ func (c *Core) redisPort(ctx context.Context) (int, error) {
 func (c *Core) ensureRedis(ctx context.Context) (dir string, err error) {
 	art, err := c.pinned(ctx, "redis", redisSeries)
 	if errcode.Code(err) == errcode.NotFound {
-		return "", errcode.Errorf(errcode.Unsupported, "Redis is not available yet: run `covo update check` to fetch the newest manifest")
+		return "", errcode.Errorf(errcode.Unsupported, "Redis is not available yet: run `benbow update check` to fetch the newest manifest")
 	}
 	if err != nil {
 		return "", err
@@ -121,7 +121,7 @@ func (c *Core) redisAgents(ctx context.Context, loaded map[string]launchd.Status
 	}
 	if !loaded[agent.Label].Running && !ports.Free(port) {
 		return nil, 0, errcode.Newf(errcode.PortInUse,
-			"Redis port %d is in use by %s; stop it or run `covo redis enable --port <free port>`",
+			"Redis port %d is in use by %s; stop it or run `benbow redis enable --port <free port>`",
 			port, ports.Describe(ports.Owners(ctx, port)))
 
 	}
@@ -147,10 +147,10 @@ func (c *Core) redisStatus(ctx context.Context) (RedisStatus, error) {
 	return st, nil
 }
 
-// Redis reports the state of Covo's Redis server.
+// Redis reports the state of Benbow's Redis server.
 func (c *Core) Redis(ctx context.Context) (RedisStatus, error) { return c.redisStatus(ctx) }
 
-// EnableRedis installs Redis and starts it if Covo is running.
+// EnableRedis installs Redis and starts it if Benbow is running.
 func (c *Core) EnableRedis(ctx context.Context, port int) (RedisResult, error) {
 	var res RedisResult
 	err := c.locked(ctx, func() error {

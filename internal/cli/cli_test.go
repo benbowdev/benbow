@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/getcovo/covo/internal/envelope"
+	"github.com/benbowdev/benbow/internal/envelope"
 )
 
 func TestJSONEnvelope(t *testing.T) {

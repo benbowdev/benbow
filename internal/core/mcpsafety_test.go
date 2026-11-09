@@ -8,7 +8,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/getcovo/covo/internal/errcode"
+	"github.com/benbowdev/benbow/internal/errcode"
 )
 
 func TestRunAgentChange(t *testing.T) {

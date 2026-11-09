@@ -15,13 +15,13 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/store"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/store"
 )
 
-// Agent sessions: while an AI agent works on a site, Covo keeps the site's
+// Agent sessions: while an AI agent works on a site, Benbow keeps the site's
 // starting state (files and database) until the user keeps the changes or
-// undoes them all. Inside a session Covo takes a checkpoint only before
+// undoes them all. Inside a session Benbow takes a checkpoint only before
 // risky changes, so the starting point never falls out of the snapshot
 // limit, and changes the agent makes with its own tools are covered too.
 
@@ -29,8 +29,8 @@ import (
 const (
 	SessionFromFolder = "mcp-folder" // the agent runs inside the site's folder
 	SessionFromCall   = "mcp-call"   // first tool call naming a site it may change
-	SessionFromLaunch = "launch"     // "Work with an agent" in Covo
-	SessionFromUser   = "manual"     // covo agent session open, before using any agent
+	SessionFromLaunch = "launch"     // "Work with an agent" in Benbow
+	SessionFromUser   = "manual"     // benbow agent session open, before using any agent
 )
 
 // Session outcomes.
@@ -128,7 +128,7 @@ func (c *Core) EnsureAgentSession(ctx context.Context, req SessionRequest) (s st
 		}
 		// The files are cloned now (fast); a database dump can take long,
 		// and agents give an MCP server seconds to start: it runs in a
-		// detached process when Covo can start one.
+		// detached process when Benbow can start one.
 		later := site.Database != "" && c.Detach != nil
 		who := req.Agent
 		if who == "" {
@@ -371,7 +371,7 @@ func (c *Core) CloseAgentSession(ctx context.Context, site, outcome string) (Clo
 }
 
 // ExpireAgentSessions closes, keeping the changes, the sessions idle for
-// longer than the setting (not while an agent Covo started still runs).
+// longer than the setting (not while an agent Benbow started still runs).
 // It returns the sites closed.
 func (c *Core) ExpireAgentSessions(ctx context.Context) ([]string, error) {
 	h, err := c.SessionIdleHours(ctx)

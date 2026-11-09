@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/lock"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/lock"
 )
 
 // The lock is a flock on a fresh file descriptor, so taking it again in the
@@ -119,7 +119,7 @@ func coreCallees(n ast.Node) map[string]bool {
 }
 
 // The operations that move a site's files or replace its database wait for
-// any other covo command instead of running alongside it.
+// any other benbow command instead of running alongside it.
 func TestDestructiveOperationsTakeTheLock(t *testing.T) {
 	c := groupsCore(t)
 	held, err := lock.Acquire(context.Background(), c.Layout.Lock)

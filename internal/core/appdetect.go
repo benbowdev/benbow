@@ -11,17 +11,17 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/getcovo/covo/internal/errcode"
+	"github.com/benbowdev/benbow/internal/errcode"
 )
 
-// AppDetection is what Covo proposes for an app's folder. The user always
+// AppDetection is what Benbow proposes for an app's folder. The user always
 // confirms (or edits) the command: it is a guess from the project's files.
 type AppDetection struct {
 	Path string `json:"path"`
 	// Framework is e.g. "next", "vite", "django", or "" when unknown.
 	Framework string `json:"framework,omitempty"`
 	// Command is the proposed command ("" when nothing was recognised);
-	// "{port}" stands for the port Covo gives the app.
+	// "{port}" stands for the port Benbow gives the app.
 	Command string `json:"command"`
 	// PackageManager is npm, pnpm, yarn or bun for JavaScript projects.
 	PackageManager string `json:"package_manager,omitempty"`
@@ -29,7 +29,7 @@ type AppDetection struct {
 	Notes []string `json:"notes"`
 }
 
-// App frameworks Covo recognises (stored in Site.Framework).
+// App frameworks Benbow recognises (stored in Site.Framework).
 const (
 	FrameworkNext      = "next"
 	FrameworkNuxt      = "nuxt"
@@ -62,7 +62,7 @@ func DetectApp(dir string) (AppDetection, error) {
 		d.Framework, d.Command = FrameworkRails, "bin/rails server -p {port}"
 	}
 	if d.Command == "" {
-		d.Notes = append(d.Notes, "No dev server recognised: enter the command that starts it, and make it listen on the port Covo gives ($PORT or {port}).")
+		d.Notes = append(d.Notes, "No dev server recognised: enter the command that starts it, and make it listen on the port Benbow gives ($PORT or {port}).")
 	}
 	return d, nil
 }

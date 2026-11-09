@@ -6,10 +6,10 @@ package core
 import (
 	"context"
 
-	"github.com/getcovo/covo/internal/components"
+	"github.com/benbowdev/benbow/internal/components"
 )
 
-// Components whose version stays fixed until the user updates it (covo
+// Components whose version stays fixed until the user updates it (benbow
 // update). PHP is per installed version (see php.go); the CA bundle and
 // WordPress for new sites always use the newest in the manifest.
 var pinnedComponents = []string{"caddy", "mysql", "mailpit", "adminer", "wpcli", "composer", "composer-lts", "adminer-full", "postgres", "redis"}
@@ -17,7 +17,7 @@ var pinnedComponents = []string{"caddy", "mysql", "mailpit", "adminer", "wpcli",
 func settingPin(component string) string      { return "pin_" + component }
 func settingPrevious(component string) string { return "previous_" + component }
 
-// pinned returns the artifact of component that Covo uses: the version
+// pinned returns the artifact of component that Benbow uses: the version
 // fixed for it, or (the first time) the newest matching series, which is
 // then fixed.
 func (c *Core) pinned(ctx context.Context, component, series string) (components.Artifact, error) {

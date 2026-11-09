@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "benbow": {
+      "command": "/Applications/Benbow.app/Contents/Resources/bin/benbow",
+      "args": ["mcp"]
+    }
+  }
+}

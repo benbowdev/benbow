@@ -15,7 +15,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/getcovo/covo/internal/hosts"
+	"github.com/benbowdev/benbow/internal/hosts"
 )
 
 const original = "127.0.0.1\tlocalhost\n::1\tlocalhost\n127.0.0.1\tstudio.local\t# MAMP PRO - Do NOT remove this entry!\n"
@@ -67,7 +67,7 @@ func start(t *testing.T, allowed uint32) *fixture {
 	return f
 }
 
-// pfctl records calls like "-a com.apple/dev.getcovo.hostshelper -f - <rules>".
+// pfctl records calls like "-a com.apple/dev.benbow.hostshelper -f - <rules>".
 func (f *fixture) pfctl(args []string, stdin string) (string, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -169,7 +169,7 @@ func TestSyncStatusClear(t *testing.T) {
 	f := start(t, me())
 	ctx := context.Background()
 
-	res, err := f.client.Do(ctx, Request{Op: OpSync, Names: []string{"shop.local", "demo.covo.local"}})
+	res, err := f.client.Do(ctx, Request{Op: OpSync, Names: []string{"shop.local", "demo.benbow.local"}})
 	if err != nil || !res.Changed || res.Version != Version {
 		t.Fatalf("sync: %+v %v", res, err)
 	}
@@ -183,10 +183,10 @@ func TestSyncStatusClear(t *testing.T) {
 	}
 
 	res, err = f.client.Do(ctx, Request{Op: OpStatus})
-	if err != nil || !slices.Equal(res.Names, []string{"demo.covo.local", "shop.local"}) {
+	if err != nil || !slices.Equal(res.Names, []string{"demo.benbow.local", "shop.local"}) {
 		t.Fatalf("status: %+v %v", res, err)
 	}
-	if res, err := f.client.Do(ctx, Request{Op: OpSync, Names: []string{"demo.covo.local", "shop.local"}}); err != nil || res.Changed {
+	if res, err := f.client.Do(ctx, Request{Op: OpSync, Names: []string{"demo.benbow.local", "shop.local"}}); err != nil || res.Changed {
 		t.Fatalf("same sync must not write: %+v %v", res, err)
 	}
 
@@ -198,7 +198,7 @@ func TestSyncStatusClear(t *testing.T) {
 	}
 	entries, _ := os.ReadDir(filepath.Dir(f.hostsPath))
 	for _, e := range entries {
-		if strings.Contains(e.Name(), ".covo-") {
+		if strings.Contains(e.Name(), ".benbow-") {
 			t.Fatalf("temporary file left: %s", e.Name())
 		}
 	}

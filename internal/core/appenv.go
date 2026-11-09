@@ -15,12 +15,12 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/keychain"
-	"github.com/getcovo/covo/internal/store"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/keychain"
+	"github.com/benbowdev/benbow/internal/store"
 )
 
-// An app's environment (docs/apps.md): what Covo knows about the site
+// An app's environment (docs/apps.md): what Benbow knows about the site
 // (its URL, database, Redis, Mailpit) plus the user's own variables, kept
 // in the login keychain. Values only ever reach the app's process: never a
 // plist, a file, a command line, the API or an agent.
@@ -33,15 +33,15 @@ const (
 
 var reEnvName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]{0,127}$`)
 
-// reservedEnv are names Covo sets itself and the user may not replace.
+// reservedEnv are names Benbow sets itself and the user may not replace.
 var reservedEnv = []string{"PORT", "HOME", "SHELL"}
 
 func checkEnvName(name string) error {
 	if !reEnvName.MatchString(name) {
 		return errcode.Newf(errcode.InvalidInput, "%q is not a variable name (letters, digits and _, not starting with a digit)", name)
 	}
-	if slices.Contains(reservedEnv, name) || strings.HasPrefix(name, "COVO_") {
-		return errcode.Newf(errcode.InvalidInput, "%s is set by Covo and cannot be changed", name)
+	if slices.Contains(reservedEnv, name) || strings.HasPrefix(name, "BENBOW_") {
+		return errcode.Newf(errcode.InvalidInput, "%s is set by Benbow and cannot be changed", name)
 	}
 	return nil
 }
@@ -50,7 +50,7 @@ func (c *Core) appEnvItem(site string) (keychain.Item, error) {
 	p, err := keychain.LoginPath()
 	return keychain.Item{
 		Path: p, Service: c.launchctl.Prefix + "." + appEnvService, Account: site,
-		Label: "Covo app variables (" + site + ")", Run: c.keychainRun,
+		Label: "Benbow app variables (" + site + ")", Run: c.keychainRun,
 	}, err
 }
 
@@ -80,7 +80,7 @@ type AppEnv struct {
 	Site   string            `json:"site"`
 	Names  []string          `json:"names"`
 	Values map[string]string `json:"values,omitempty"`
-	// Provided are the variables Covo sets itself for this site now.
+	// Provided are the variables Benbow sets itself for this site now.
 	Provided []string `json:"provided"`
 	// Restarted is set when a change restarted the running app.
 	Restarted bool `json:"restarted,omitempty"`
@@ -92,7 +92,7 @@ func (c *Core) appEnvSite(ctx context.Context, name string) (store.Site, error) 
 		return s, err
 	}
 	if !s.IsApp() || s.AppMode != store.AppRun {
-		return s, errcode.Newf(errcode.InvalidInput, "%s is not an app Covo starts: variables are for the commands Covo runs", name)
+		return s, errcode.Newf(errcode.InvalidInput, "%s is not an app Benbow starts: variables are for the commands Benbow runs", name)
 	}
 	return s, nil
 }
@@ -198,7 +198,7 @@ func (c *Core) removeAppEnv(ctx context.Context, name string) {
 	}
 }
 
-// providedEnv is what Covo tells an app about its site: its URL and, when
+// providedEnv is what Benbow tells an app about its site: its URL and, when
 // they are on, the database, Redis and Mailpit. A part that cannot be read
 // (MySQL stopped, keychain locked) is left out and reported in warnings.
 func (c *Core) providedEnv(ctx context.Context, s store.Site) (env, warnings []string) {
@@ -268,7 +268,7 @@ func (c *Core) appServicesHash(ctx context.Context) string {
 	return strings.Join(parts, ",")
 }
 
-// appEnvironment is Covo's variables then the user's (theirs win), for the
+// appEnvironment is Benbow's variables then the user's (theirs win), for the
 // wrapper; it also returns the names, for the log.
 func (c *Core) appEnvironment(ctx context.Context, s store.Site) (env, names, warnings []string) {
 	env, warnings = c.providedEnv(ctx, s)

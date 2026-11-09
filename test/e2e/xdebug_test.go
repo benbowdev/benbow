@@ -36,7 +36,7 @@ func TestXdebugToggle(t *testing.T) {
 		Path       string `json:"path"`
 		Applied    bool   `json:"applied"`
 	}
-	if err := json.Unmarshal(h.mustCovo("php", "xdebug", "on", "8.4"), &res); err != nil {
+	if err := json.Unmarshal(h.mustBenbow("php", "xdebug", "on", "8.4"), &res); err != nil {
 		t.Fatal(err)
 	}
 	if !res.Enabled || !res.Available || !res.Applied || res.Version != "3.5.3" || !strings.HasSuffix(res.Path, "/xdebug/3.5.3/"+res.PHPVersion+"/xdebug.so") {
@@ -46,20 +46,20 @@ func TestXdebugToggle(t *testing.T) {
 		t.Fatalf("with xdebug: %q", got)
 	}
 
-	h.mustCovo("php", "xdebug", "off", "8.4")
+	h.mustBenbow("php", "xdebug", "off", "8.4")
 	if got := h.get(url, dir.RootCert()); got != "off" {
 		t.Fatalf("after off: %q", got)
 	}
 
 	// While stopped the setting is kept for the next start.
-	h.mustCovo("stop")
-	if err := json.Unmarshal(h.mustCovo("php", "xdebug", "on", "8.4"), &res); err != nil {
+	h.mustBenbow("stop")
+	if err := json.Unmarshal(h.mustBenbow("php", "xdebug", "on", "8.4"), &res); err != nil {
 		t.Fatal(err)
 	}
 	if res.Applied || !res.Enabled {
 		t.Fatalf("on while stopped = %+v", res)
 	}
-	h.mustCovo("start")
+	h.mustBenbow("start")
 	if got := h.get(url, dir.RootCert()); got != "3.5.3|debug|trigger" {
 		t.Fatalf("after start: %q", got)
 	}
@@ -96,8 +96,8 @@ func TestXdebugToggle(t *testing.T) {
 		}
 	}
 
-	// No build for a PHP version Covo does not pin xdebug for.
-	if env := h.covo("php", "xdebug", "on", "8.1"); env.OK {
+	// No build for a PHP version Benbow does not pin xdebug for.
+	if env := h.benbow("php", "xdebug", "on", "8.1"); env.OK {
 		t.Fatal("xdebug on 8.1 succeeded")
 	}
 }

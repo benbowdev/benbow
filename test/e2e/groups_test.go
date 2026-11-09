@@ -18,13 +18,13 @@ import (
 // and checks a failed add leaves nothing behind.
 func TestNewSiteInGroup(t *testing.T) {
 	h := newHarness(t)
-	h.mustCovo("start")
+	h.mustBenbow("start")
 
 	var g struct {
 		ID   int64  `json:"id"`
 		Path string `json:"path"`
 	}
-	if err := json.Unmarshal(h.mustCovo("group", "add", "Clients/Acme"), &g); err != nil || g.Path != "Clients/Acme" {
+	if err := json.Unmarshal(h.mustBenbow("group", "add", "Clients/Acme"), &g); err != nil || g.Path != "Clients/Acme" {
 		t.Fatalf("group add = %+v, %v", g, err)
 	}
 
@@ -35,7 +35,7 @@ func TestNewSiteInGroup(t *testing.T) {
 		PHPSettings map[string]string `json:"php_settings"`
 		URL         string            `json:"url"`
 	}
-	data := h.mustCovo("site", "add", "shop", "--php", "8.4", "--path", dir, "--create-folder",
+	data := h.mustBenbow("site", "add", "shop", "--php", "8.4", "--path", dir, "--create-folder",
 		"--aliases", "www.shop.localhost", "--group", "clients/acme", "--ini", "memory_limit=1g")
 	if err := json.Unmarshal(data, &site); err != nil || site.GroupID != g.ID ||
 		strings.Join(site.Aliases, ",") != "www.shop.localhost" || site.PHPSettings["memory_limit"] != "1G" {
@@ -57,26 +57,26 @@ func TestNewSiteInGroup(t *testing.T) {
 		{"site", "add", "other", "--path", other, "--create-folder", "--ini", "short_open_tag=On"},
 		{"site", "add", "other", "--path", other, "--create-folder", "--group", "Nope"},
 	} {
-		if env := h.covo(args...); env.OK {
+		if env := h.benbow(args...); env.OK {
 			t.Errorf("%v succeeded", args)
 		}
 		if _, err := os.Stat(other); !os.IsNotExist(err) {
 			t.Fatalf("%v left %s behind: %v", args, other, err)
 		}
 	}
-	if env := h.covo("site", "add", "other", "--path", dir, "--create-folder"); env.OK || env.Error.Code != "conflict" {
+	if env := h.benbow("site", "add", "other", "--path", dir, "--create-folder"); env.OK || env.Error.Code != "conflict" {
 		t.Fatalf("create-folder on a folder with files = %+v", env)
 	}
 
 	// Moving between groups only changes the list.
-	if err := json.Unmarshal(h.mustCovo("site", "set", "shop", "--group", "Clients"), &site); err != nil || site.GroupID == g.ID || site.GroupID == 0 {
+	if err := json.Unmarshal(h.mustBenbow("site", "set", "shop", "--group", "Clients"), &site); err != nil || site.GroupID == g.ID || site.GroupID == 0 {
 		t.Fatalf("move to Clients = %+v, %v", site, err)
 	}
-	h.mustCovo("group", "move", "Clients/Acme", "/")
-	if env := h.covo("group", "move", "Clients", "Clients"); env.OK || env.Error.Code != "invalid_input" {
+	h.mustBenbow("group", "move", "Clients/Acme", "/")
+	if env := h.benbow("group", "move", "Clients", "Clients"); env.OK || env.Error.Code != "invalid_input" {
 		t.Fatalf("move into itself = %+v", env)
 	}
-	h.mustCovo("group", "remove", "Clients")
+	h.mustBenbow("group", "remove", "Clients")
 	var list struct {
 		Sites []struct {
 			Name    string `json:"name"`
@@ -86,7 +86,7 @@ func TestNewSiteInGroup(t *testing.T) {
 			Path string `json:"path"`
 		} `json:"groups"`
 	}
-	if err := json.Unmarshal(h.mustCovo("status"), &list); err != nil {
+	if err := json.Unmarshal(h.mustBenbow("status"), &list); err != nil {
 		t.Fatal(err)
 	}
 	if len(list.Sites) != 1 || list.Sites[0].GroupID != 0 || len(list.Groups) != 1 || list.Groups[0].Path != "Acme" {

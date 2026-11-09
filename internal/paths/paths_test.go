@@ -11,15 +11,15 @@ import (
 )
 
 func TestNew(t *testing.T) {
-	long := "/Users/someone/" + strings.Repeat("very-long-directory-name/", 4) + "covo"
+	long := "/Users/someone/" + strings.Repeat("very-long-directory-name/", 4) + "benbow"
 	tests := []struct {
 		name         string
 		root         string
 		wantErr      bool
 		wantFallback bool
 	}{
-		{"standard home", "/Users/andrea/Library/Application Support/covo", false, false},
-		{"relative path", "covo", true, false},
+		{"standard home", "/Users/andrea/Library/Application Support/benbow", false, false},
+		{"relative path", "benbow", true, false},
 		{"socket path too long", long, false, true},
 	}
 	for _, tt := range tests {
@@ -50,7 +50,7 @@ func TestFallbackIsPerRoot(t *testing.T) {
 
 func TestEnsure(t *testing.T) {
 	isolateTempDir(t)
-	l, err := New(filepath.Join(t.TempDir(), "Covo Home"))
+	l, err := New(filepath.Join(t.TempDir(), "Benbow Home"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +74,7 @@ func TestEnsure(t *testing.T) {
 
 func TestEnsureRejectsOpenRunDir(t *testing.T) {
 	isolateTempDir(t)
-	l, err := New(filepath.Join(t.TempDir(), "covo"))
+	l, err := New(filepath.Join(t.TempDir(), "benbow"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +95,7 @@ func TestCheckSafe(t *testing.T) {
 		path string
 		ok   bool
 	}{
-		{"/Users/a/Library/Application Support/covo", true},
+		{"/Users/a/Library/Application Support/benbow", true},
 		{"/Users/a/Sites/café", true},
 		{"relative/path", false},
 		{`/Users/a/"quoted"`, false},
@@ -115,7 +115,7 @@ func TestCheckSafe(t *testing.T) {
 // socket fallback directory is created there and removed with the test.
 func isolateTempDir(t *testing.T) {
 	t.Helper()
-	dir, err := os.MkdirTemp("/tmp", "covo-test-")
+	dir, err := os.MkdirTemp("/tmp", "benbow-test-")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/getcovo/covo/internal/errcode"
+	"github.com/benbowdev/benbow/internal/errcode"
 )
 
 func TestSettingsSet(t *testing.T) {
@@ -82,11 +82,11 @@ func TestOverridesAndPHPValue(t *testing.T) {
 
 func TestINISendmail(t *testing.T) {
 	ini, err := INI(INIConfig{ErrorLog: "/x/l", SessionDir: "/x/s", Timezone: "UTC", CAFile: "/x/ca.pem",
-		Sendmail: "/Users/a/Library/Application Support/covo/components/mailpit/mailpit", SendmailPort: 1025})
+		Sendmail: "/Users/a/Library/Application Support/benbow/components/mailpit/mailpit", SendmailPort: 1025})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := `sendmail_path = "'/Users/a/Library/Application Support/covo/components/mailpit/mailpit' sendmail -S 127.0.0.1:1025"`; !strings.Contains(ini, want) {
+	if want := `sendmail_path = "'/Users/a/Library/Application Support/benbow/components/mailpit/mailpit' sendmail -S 127.0.0.1:1025"`; !strings.Contains(ini, want) {
 		t.Fatalf("php.ini lacks %s", want)
 	}
 	if _, err := INI(INIConfig{ErrorLog: "/x/l", SessionDir: "/x/s", Timezone: "UTC", CAFile: "/x/ca.pem",

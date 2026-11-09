@@ -10,9 +10,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/mysql"
-	"github.com/getcovo/covo/internal/store"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/mysql"
+	"github.com/benbowdev/benbow/internal/store"
 )
 
 // systemDatabases are MySQL's own: never linked, created or dropped.
@@ -28,7 +28,7 @@ type SiteDatabase struct {
 	Host     string `json:"host"`
 	Port     int    `json:"port"`
 	Socket   string `json:"socket"`
-	// Dedicated is true when Covo created User for this site only.
+	// Dedicated is true when Benbow created User for this site only.
 	Dedicated bool `json:"dedicated"`
 	// Dropped is true when unlink also deleted the database.
 	Dropped bool `json:"dropped,omitempty"`
@@ -43,10 +43,10 @@ func (c *Core) mysqlRoot(ctx context.Context) (client string, port int, password
 		return "", 0, "", err
 	}
 	if !st.Enabled {
-		return "", 0, "", errcode.Errorf(errcode.Unsupported, "MySQL is off: turn it on first (covo mysql enable)")
+		return "", 0, "", errcode.Errorf(errcode.Unsupported, "MySQL is off: turn it on first (benbow mysql enable)")
 	}
 	if !st.Running {
-		return "", 0, "", errcode.Errorf(errcode.Conflict, "MySQL is not running: start Covo first (covo start)")
+		return "", 0, "", errcode.Errorf(errcode.Conflict, "MySQL is not running: start Benbow first (benbow start)")
 	}
 	dir, _, err := c.ensureMySQL(ctx)
 	if err != nil {
@@ -80,7 +80,7 @@ func (c *Core) rootQuery(ctx context.Context, sql string) ([]string, error) {
 	return rows, nil
 }
 
-// Databases lists the user databases on Covo's MySQL.
+// Databases lists the user databases on Benbow's MySQL.
 func (c *Core) Databases(ctx context.Context) ([]string, error) {
 	rows, err := c.rootQuery(ctx, "SHOW DATABASES;")
 	if err != nil {
@@ -95,7 +95,7 @@ func (c *Core) Databases(ctx context.Context) ([]string, error) {
 	return out, nil
 }
 
-// DefaultDatabaseName is the database Covo proposes for a site: its name
+// DefaultDatabaseName is the database Benbow proposes for a site: its name
 // with underscores, e.g. my-shop → my_shop.
 func DefaultDatabaseName(site string) string {
 	return strings.ReplaceAll(site, "-", "_")

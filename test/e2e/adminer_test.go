@@ -46,10 +46,10 @@ func TestAdminerLogin(t *testing.T) {
 		t.Skip("MySQL 8.4 is pinned for Apple Silicon only")
 	}
 	h := newHarness(t)
-	h.mustCovo("mysql", "enable")
-	h.mustCovo("site", "add", "shop", "--php", "8.4", "--path", newSite(t))
-	h.mustCovo("start")
-	h.mustCovo("db", "create", "shop")
+	h.mustBenbow("mysql", "enable")
+	h.mustBenbow("site", "add", "shop", "--php", "8.4", "--path", newSite(t))
+	h.mustBenbow("start")
+	h.mustBenbow("db", "create", "shop")
 	sock := h.daemon("start").Socket
 	st := h.status()
 
@@ -59,7 +59,7 @@ func TestAdminerLogin(t *testing.T) {
 	if err := json.Unmarshal(h.mustAPI(sock, "POST", "/v1/adminer/login", `{}`), &login); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(login.URL, "covo_login=") || strings.Contains(login.URL, "password") {
+	if !strings.Contains(login.URL, "benbow_login=") || strings.Contains(login.URL, "password") {
 		t.Fatalf("login URL = %s", login.URL)
 	}
 	body := browser(t, st.CA.CertPath, login.URL)

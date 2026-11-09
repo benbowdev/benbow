@@ -21,8 +21,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/store"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/store"
 )
 
 // What an agent session changed: files against the starting snapshot, and
@@ -170,7 +170,7 @@ SELECT t.TABLE_NAME, IFNULL(t.TABLE_ROWS, 0), IFNULL(DATE_FORMAT(t.UPDATE_TIME, 
 		st.Tables[f[0]] = ts
 	}
 	if st.ServerStart == "" {
-		return errcode.Errorf(errcode.Service, "MySQL's performance schema is off: restart Covo to turn it on")
+		return errcode.Errorf(errcode.Service, "MySQL's performance schema is off: restart Benbow to turn it on")
 	}
 	return nil
 }

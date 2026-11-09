@@ -1,16 +1,16 @@
 # The app
 
-`app/` is a SwiftPM package (no Xcode project): `CovoKit` (models and the
-API client, tested) and `Covo` (the SwiftUI app, macOS 14+).
+`app/` is a SwiftPM package (no Xcode project): `BenbowKit` (models and the
+API client, tested) and `Benbow` (the SwiftUI app, macOS 14+).
 
 ```sh
-app/build.sh          # builds "app/build/Covo Dev.app" (ad-hoc signed, bundle ID dev.getcovo.app.dev)
+app/build.sh          # builds "app/build/Benbow Dev.app" (ad-hoc signed, bundle ID dev.benbow.app.dev)
 app/build.sh test     # Swift tests, including one against a live daemon
-open "app/build/Covo Dev.app"
+open "app/build/Benbow Dev.app"
 ```
 
-`Covo.app` carries `covo` and `covo-hostshelper` in
-`Contents/Resources/bin`. On launch it runs `covo daemon start` and talks to
+`Benbow.app` carries `benbow` and `benbow-hostshelper` in
+`Contents/Resources/bin`. On launch it runs `benbow daemon start` and talks to
 the daemon over its socket (`docs/api.md`), refreshing every 2 seconds.
 The app has no logic of its own: every change goes through the core.
 
@@ -21,7 +21,7 @@ The app has no logic of its own: every change goes through the core.
   Adminer (every database, already logged in); Settings.
 - New Site sheet: start from an existing folder (Laravel and WordPress are
   recognised), a new empty folder, WordPress, Laravel or an App (a dev
-  server: the command Covo proposes for the folder, editable, or the port
+  server: the command Benbow proposes for the folder, editable, or the port
   of one you run yourself; no PHP); name, domain, aliases, PHP version,
   group, database (none, new, existing) and, collapsed, the site's PHP
   settings. Created in one step.
@@ -41,7 +41,7 @@ The app has no logic of its own: every change goes through the core.
   Xdebug, the companion, migration, archive, remove).
 - Apps (`apps.md`): the command (Edit… also switches to a server you run)
   and the dev server's state in place of the PHP version: a dot (running,
-  starting, error, ended, stopped), Restart, and on error Covo's message
+  starting, error, ended, stopped), Restart, and on error Benbow's message
   with the last lines of output; an orange triangle in the list when it
   has stopped. Tools: Snapshots, Production, Open on Phone. Advanced:
   variables (names only; values go to the keychain) and "Send Host:
@@ -64,7 +64,7 @@ PHP (versions, php.ini per version), MySQL, Mail, Domains (`.test`,
 
 The C from the brand kit (`docs/brand`), as a template image so macOS tints
 it; dimmed while stopped. It lists the sites for quick opening, Start/Stop,
-Adminer, the mail inbox, and Quit. Closing the window keeps Covo in the menu
+Adminer, the mail inbox, and Quit. Closing the window keeps Benbow in the menu
 bar.
 
 ## Updates
@@ -73,23 +73,23 @@ When the daemon's daily check (or Check Now) finds component updates, a
 discreet "n Updates" button appears in the toolbar (on its own, left of
 Adminer and Mail; Settings sits apart at the end), with the list and
 Update / Update All; the same list is in Settings → General (with "Check
-for component updates daily": off, Covo makes no update request by
+for component updates daily": off, Benbow makes no update request by
 itself), and the menu bar offers to install them. Nothing is installed without a click
 (`docs/updates.md`).
 
 ## Updates of the app itself
 
-Released builds check `https://getcovo.dev/appcast.xml` once a day with
-Sparkle. A newer Covo joins the same "n Updates" button as the components,
-at the top of its list; Install… there (or Covo → Check for Updates…)
+Released builds check `https://benbow.dev/appcast.xml` once a day with
+Sparkle. A newer Benbow joins the same "n Updates" button as the components,
+at the top of its list; Install… there (or Benbow → Check for Updates…)
 opens Sparkle's window with the release notes and Install. Nothing installs without a click.
 Settings → General → Updates turns the daily check off. Development builds
-(`app/build.sh` without `COVO_VERSION`) have no feed and never check.
+(`app/build.sh` without `BENBOW_VERSION`) have no feed and never check.
 
 ## AI agents
 
 A site's detail has **Work with an Agent…**: pick one of the agents on this
-Mac (Claude Code, Codex, Gemini CLI, Cursor, Copilot CLI); Covo saves the
+Mac (Claude Code, Codex, Gemini CLI, Cursor, Copilot CLI); Benbow saves the
 site, lets the agent change it until you decide, and starts the agent in
 the site's folder. While an agent session is open the site shows ✦ in the
 list and a banner in its detail: What Changed…, Keep Changes, Undo All…;

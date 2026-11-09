@@ -12,7 +12,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/getcovo/covo/internal/errcode"
+	"github.com/benbowdev/benbow/internal/errcode"
 )
 
 // testdata/settings6.xml is a synthetic MAMP PRO archive (made-up hosts
@@ -37,7 +37,7 @@ func TestReadCopy(t *testing.T) {
 	if out, err := exec.Command("/usr/bin/plutil", "-convert", "binary1", "-o", src, filepath.Join("testdata", "settings6.xml")).CombinedOutput(); err != nil {
 		t.Fatalf("plutil: %v %s", err, out)
 	}
-	if err := os.Chmod(src, 0o444); err != nil { // read-only, as far as Covo is concerned
+	if err := os.Chmod(src, 0o444); err != nil { // read-only, as far as Benbow is concerned
 		t.Fatal(err)
 	}
 	before, _ := os.ReadFile(src)

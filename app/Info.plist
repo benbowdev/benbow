@@ -3,13 +3,13 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleIdentifier</key>
-	<string>dev.getcovo.app</string>
+	<string>dev.benbow.app</string>
 	<key>CFBundleName</key>
-	<string>Covo</string>
+	<string>Benbow</string>
 	<key>CFBundleDisplayName</key>
-	<string>Covo</string>
+	<string>Benbow</string>
 	<key>CFBundleExecutable</key>
-	<string>Covo</string>
+	<string>Benbow</string>
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
 	<key>CFBundlePackageType</key>

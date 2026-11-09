@@ -13,13 +13,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/keychain"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/keychain"
 )
 
 var update = flag.Bool("update", false, "rewrite golden files")
 
-const home = "/Users/test/Library/Application Support/covo"
+const home = "/Users/test/Library/Application Support/benbow"
 
 func config() Config {
 	return Config{
@@ -90,7 +90,7 @@ func TestNewPassword(t *testing.T) {
 func TestKeychain(t *testing.T) {
 	ctx := context.Background()
 	f := keychain.NewFake()
-	k := Keychain{Path: "/Users/test/Library/Keychains/login.keychain-db", Service: "dev.getcovo.mysql", Run: f.Run}
+	k := Keychain{Path: "/Users/test/Library/Keychains/login.keychain-db", Service: "dev.benbow.mysql", Run: f.Run}
 
 	if _, err := k.Get(ctx); !errors.Is(err, ErrNoPassword) {
 		t.Fatalf("Get on empty = %v", err)
@@ -135,7 +135,7 @@ func TestKeychain(t *testing.T) {
 func TestKeychainAccounts(t *testing.T) {
 	ctx := context.Background()
 	f := keychain.NewFake()
-	root := Keychain{Path: "/k", Service: "dev.getcovo.mysql", Run: f.Run}
+	root := Keychain{Path: "/k", Service: "dev.benbow.mysql", Run: f.Run}
 	shop := root.For("shop")
 	rootPW, shopPW := NewPassword(), NewPassword()
 	if err := root.Set(ctx, rootPW); err != nil {

@@ -10,16 +10,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/getcovo/covo/internal/ca"
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/fsutil"
-	"github.com/getcovo/covo/internal/store"
+	"github.com/benbowdev/benbow/internal/ca"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/fsutil"
+	"github.com/benbowdev/benbow/internal/store"
 )
 
 // A PHP site's companion (docs/apps.md) is a dev server started and stopped
 // with the site, without a domain of its own: typically Vite next to
 // Laravel. It runs like an app's command (login shell, PORT and {port}, its
-// own log and state) on a port Covo gives it.
+// own log and state) on a port Benbow gives it.
 
 // laravelVite reports whether the site is Laravel with laravel-vite-plugin,
 // which serves HTTPS on the site's domain when given a certificate.
@@ -40,7 +40,7 @@ func (c *Core) companionCertPaths(site string) (cert, key string) {
 }
 
 // ensureCompanionCert returns a certificate for the site's domain and
-// aliases signed by Covo's CA, reusing the one on disk while it is current.
+// aliases signed by Benbow's CA, reusing the one on disk while it is current.
 // The key is readable by the user only.
 func (c *Core) ensureCompanionCert(s store.Site) (cert, key string, err error) {
 	cert, key = c.companionCertPaths(s.Name)
@@ -68,7 +68,7 @@ func (c *Core) ensureCompanionCert(s store.Site) (cert, key string, err error) {
 	return cert, key, nil
 }
 
-// companionEnvironment is what Covo adds for a companion: for Laravel with
+// companionEnvironment is what Benbow adds for a companion: for Laravel with
 // laravel-vite-plugin, a certificate for the site's domain and the site's
 // address without its port (the plugin listens on APP_URL's host and
 // writes public/hot with it), so pages load Vite's scripts over trusted

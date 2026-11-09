@@ -18,11 +18,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/fsutil"
-	"github.com/getcovo/covo/internal/mysql"
-	"github.com/getcovo/covo/internal/php"
-	"github.com/getcovo/covo/internal/store"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/fsutil"
+	"github.com/benbowdev/benbow/internal/mysql"
+	"github.com/benbowdev/benbow/internal/php"
+	"github.com/benbowdev/benbow/internal/store"
 )
 
 // ensurePHPCLI installs the command-line PHP matching the site's PHP-FPM
@@ -48,7 +48,7 @@ func (c *Core) ensurePHPCLI(ctx context.Context, v store.PHPVersion) (string, er
 }
 
 // phpCLI prepares the command-line PHP for minor: the build matching its
-// PHP-FPM exactly and Covo's php.ini (MySQL socket and port, CA bundle,
+// PHP-FPM exactly and Benbow's php.ini (MySQL socket and port, CA bundle,
 // Mailpit; no Xdebug). It returns the binary and the ini file.
 func (c *Core) phpCLI(ctx context.Context, minor string) (bin, ini string, err error) {
 	v, err := c.ensurePHP(ctx, minor)
@@ -77,36 +77,36 @@ func (c *Core) phpCLI(ctx context.Context, minor string) (bin, ini string, err e
 }
 
 // phpToolCommand runs script (a .phar or artisan) with args for a site:
-// its PHP version, Covo's php.ini, no memory limit, errors on stderr, in
-// the project folder, never reading .ini files from outside Covo.
+// its PHP version, Benbow's php.ini, no memory limit, errors on stderr, in
+// the project folder, never reading .ini files from outside Benbow.
 func (c *Core) phpToolCommand(ctx context.Context, minor, dir, script string, args ...string) (*exec.Cmd, error) {
 	bin, ini, err := c.phpCLI(ctx, minor)
 	if err != nil {
 		return nil, err
 	}
 	// Deprecation notices of the tools' own code (wp-cli on a newer PHP)
-	// are noise here; the site's code is checked with covo php check.
+	// are noise here; the site's code is checked with benbow php check.
 	argv := append([]string{"-c", ini, "-d", "display_errors=stderr", "-d", "error_reporting=E_ALL&~E_DEPRECATED", "-d", "memory_limit=-1", script}, args...)
 	cmd := exec.CommandContext(ctx, bin, argv...)
 	cmd.Dir = dir
 	// PHPRC: PHP started by the tool itself (Composer's @php scripts) reads
-	// Covo's php.ini too.
+	// Benbow's php.ini too.
 	cmd.Env = append(os.Environ(), "PHP_INI_SCAN_DIR=", "PHPRC="+ini)
-	// Covo's MySQL client tools first on PATH: wp db export/import and
+	// Benbow's MySQL client tools first on PATH: wp db export/import and
 	// friends use them (never another mysqldump on this Mac).
 	if on, err := c.mysqlEnabled(ctx); err == nil && on {
 		if dir, _, err := c.ensureMySQL(ctx); err == nil {
 			cmd.Env = append(cmd.Env, "PATH="+filepath.Join(dir, "bin")+":"+os.Getenv("PATH"))
 		}
 		if port, err := c.mysqlPort(ctx); err == nil {
-			// "localhost" means Covo's socket for those tools too.
+			// "localhost" means Benbow's socket for those tools too.
 			cmd.Env = append(cmd.Env, "MYSQL_UNIX_PORT="+c.mysqlSocketPath(), "MYSQL_TCP_PORT="+strconv.Itoa(port))
 		}
 	}
 	return cmd, nil
 }
 
-// wpCommand prepares wp-cli for a site, with its cache inside the Covo
+// wpCommand prepares wp-cli for a site, with its cache inside the Benbow
 // folder.
 func (c *Core) wpCommand(ctx context.Context, site store.Site, args ...string) (*exec.Cmd, error) {
 	if err := phpOnly(site, "wp-cli"); err != nil {
@@ -127,7 +127,7 @@ func (c *Core) wpCommand(ctx context.Context, site store.Site, args ...string) (
 	data := filepath.Join(c.Layout.Data, "wp-cli")
 	// wp-cli runs some commands again in a child process (rewrite
 	// structure → rewrite flush) through a shell, with its own path
-	// unquoted: Covo's folder ("Application Support") has a space. A
+	// unquoted: Benbow's folder ("Application Support") has a space. A
 	// prepend file quotes it first.
 	launch := filepath.Join(data, "launch.php")
 	if err := writeIfChanged(launch, []byte(wpLaunchFix)); err != nil {
@@ -148,7 +148,7 @@ func (c *Core) wpCommand(ctx context.Context, site store.Site, args ...string) (
 // wpLaunchFix quotes wp-cli's own path in $argv[0], which wp-cli puts
 // into shell commands as it is.
 const wpLaunchFix = `<?php
-// Covo: quote wp-cli's path for the commands it runs again in a shell.
+// Benbow: quote wp-cli's path for the commands it runs again in a shell.
 if (PHP_SAPI === 'cli' && isset($GLOBALS['argv'][0]) && $GLOBALS['argv'][0] !== ''
 	&& $GLOBALS['argv'][0][0] !== "'" && strpbrk($GLOBALS['argv'][0], " \t'\"$` + "`" + `\\") !== false) {
 	$GLOBALS['argv'][0] = escapeshellarg($GLOBALS['argv'][0]);
@@ -216,7 +216,7 @@ type WordPressRequest struct {
 }
 
 // WordPressResult is the new site and how to log in. The admin password is
-// shown once: Covo does not keep it.
+// shown once: Benbow does not keep it.
 type WordPressResult struct {
 	SiteStatus
 	WordPress     string           `json:"wordpress"`
@@ -364,7 +364,7 @@ func prepareEmptyDir(path string) (bool, error) {
 		}
 		return true, nil
 	case err != nil:
-		return false, errcode.Newf(errcode.InvalidInput, "%s is not a folder Covo can use: %v", path, err)
+		return false, errcode.Newf(errcode.InvalidInput, "%s is not a folder Benbow can use: %v", path, err)
 	}
 	for _, e := range entries {
 		if e.Name() != ".DS_Store" {

@@ -10,12 +10,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/getcovo/covo/internal/errcode"
+	"github.com/benbowdev/benbow/internal/errcode"
 )
 
 var update = flag.Bool("update", false, "rewrite golden files")
 
-const home = "/Users/test/Library/Application Support/covo"
+const home = "/Users/test/Library/Application Support/benbow"
 
 func TestGolden(t *testing.T) {
 	fpm, err := FPMConf(FPMConfig{

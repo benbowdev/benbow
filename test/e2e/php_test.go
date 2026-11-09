@@ -26,7 +26,7 @@ func TestPHPInstallModules(t *testing.T) {
 				Version string   `json:"version"`
 				Modules []string `json:"modules"`
 			}
-			if err := json.Unmarshal(h.mustCovo("php", "install", minor), &res); err != nil {
+			if err := json.Unmarshal(h.mustBenbow("php", "install", minor), &res); err != nil {
 				t.Fatal(err)
 			}
 			for _, m := range wordpressModules {

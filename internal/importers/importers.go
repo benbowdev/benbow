@@ -19,11 +19,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/mamp"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/mamp"
 )
 
-// Sources Covo imports from.
+// Sources Benbow imports from.
 const (
 	MAMP  = "mamp"
 	Local = "local"

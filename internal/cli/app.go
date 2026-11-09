@@ -10,15 +10,15 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/getcovo/covo/internal/core"
+	"github.com/benbowdev/benbow/internal/core"
 )
 
 // appCmd holds what the launchd agents of apps run. Users manage apps with
-// covo site (add --command, restart, logs --app).
+// benbow site (add --command, restart, logs --app).
 func (a *app) appCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:    "app",
-		Short:  "Run app sites' dev servers (used by Covo's launchd agents)",
+		Short:  "Run app sites' dev servers (used by Benbow's launchd agents)",
 		Hidden: true,
 	}
 	var companion bool
@@ -32,7 +32,7 @@ func (a *app) appCmd() *cobra.Command {
 			ctx := context.Background()
 			c, err := core.Open(ctx)
 			if err != nil {
-				fmt.Fprintln(os.Stderr, "[covo]", err)
+				fmt.Fprintln(os.Stderr, "[benbow]", err)
 				os.Exit(1)
 			}
 			code := c.RunApp(ctx, args[0], companion)

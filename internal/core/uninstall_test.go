@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/paths"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/paths"
 )
 
 func TestCheckRemovable(t *testing.T) {
@@ -21,7 +21,7 @@ func TestCheckRemovable(t *testing.T) {
 		root string
 		ok   bool
 	}{
-		{home + "/Library/Application Support/covo", true},
+		{home + "/Library/Application Support/benbow", true},
 		{t.TempDir(), true},
 		{"/", false},
 		{home, false},
@@ -57,9 +57,9 @@ func TestMigrationBackups(t *testing.T) {
 // A test installation (own label prefix) never touches the real agents'
 // configuration.
 func TestUninstallerLeavesRealAgentsOfTestInstalls(t *testing.T) {
-	t.Setenv("COVO_LABEL_PREFIX", "test.covo.uninstall")
-	t.Setenv("COVO_AGENTS_HOME", "")
-	t.Setenv("COVO_HOME", t.TempDir())
+	t.Setenv("BENBOW_LABEL_PREFIX", "test.benbow.uninstall")
+	t.Setenv("BENBOW_AGENTS_HOME", "")
+	t.Setenv("BENBOW_HOME", t.TempDir())
 	u, err := NewUninstaller()
 	if err != nil {
 		t.Fatal(err)

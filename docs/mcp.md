@@ -1,12 +1,12 @@
 # MCP server
 
-`covo mcp` serves the Model Context Protocol over stdin/stdout, so AI agents
-can work with Covo.
+`benbow mcp` serves the Model Context Protocol over stdin/stdout, so AI agents
+can work with Benbow.
 
 Claude Code:
 
 ```sh
-claude mcp add covo -- covo mcp
+claude mcp add benbow -- benbow mcp
 ```
 
 Claude Desktop (`~/Library/Application Support/Claude/claude_desktop_config.json`):
@@ -14,13 +14,13 @@ Claude Desktop (`~/Library/Application Support/Claude/claude_desktop_config.json
 ```json
 {
   "mcpServers": {
-    "covo": { "command": "/Applications/Covo.app/Contents/Resources/bin/covo", "args": ["mcp"] }
+    "benbow": { "command": "/Applications/Benbow.app/Contents/Resources/bin/benbow", "args": ["mcp"] }
   }
 }
 ```
 
 In the app, Settings → AI Agents shows both lines with the full path of the
-`covo` inside the app.
+`benbow` inside the app.
 
 ## Read-only by default
 
@@ -28,11 +28,11 @@ Agents can always read. They can change something only where the user
 allowed it:
 
 ```sh
-covo mcp allow mysite     # changes to one site
-covo mcp allow '*'        # changes everywhere (also add sites, start, stop)
-covo mcp deny mysite
-covo mcp status           # what is allowed
-covo mcp log [-n 50]      # what agents did, refused attempts included
+benbow mcp allow mysite     # changes to one site
+benbow mcp allow '*'        # changes everywhere (also add sites, start, stop)
+benbow mcp deny mysite
+benbow mcp status           # what is allowed
+benbow mcp log [-n 50]      # what agents did, refused attempts included
 ```
 
 The same switches are in Settings → AI Agents, with the recent actions.
@@ -42,7 +42,7 @@ logged. Tools that do not belong to one site (`start`, `stop`, `add_site`,
 
 Every change tool:
 
-- takes `dry_run`: Covo checks the permission and the arguments and says
+- takes `dry_run`: Benbow checks the permission and the arguments and says
   what it would do, without doing it (`import_sites` is a dry run unless the
   agent passes `dry_run: false`);
 - works inside the site's agent session (`agents.md`): the session's
@@ -56,22 +56,22 @@ Every change tool:
 
 | Tool | Changes | What |
 |---|---|---|
-| `covo_status` | no | running, services, sites with addresses, databases, mail |
+| `benbow_status` | no | running, services, sites with addresses, databases, mail |
 | `list_sites` | no | every site |
 | `site_logs` | no | end of a site's PHP error log, request log or app output (kind `app`, the default for apps) |
-| `detect_app` | no | the command Covo proposes for a dev server's folder (`apps.md`) |
+| `detect_app` | no | the command Benbow proposes for a dev server's folder (`apps.md`) |
 | `list_php_versions` | no | installed and available versions, php.net support status |
 | `php_compatibility_check` | no | what would break on another PHP version (`php.md`) |
-| `list_databases` | no | databases on Covo's MySQL and PostgreSQL |
+| `list_databases` | no | databases on Benbow's MySQL and PostgreSQL |
 | `list_snapshots` | no | a site's snapshots |
 | `list_blueprints` | no | saved blueprints, or one's JSON |
 | `agent_permissions` | no | what agents may change |
 | `session_status` | no | the site's agent session: starting snapshot, checkpoints |
-| `fetch_page` | no | a page of a Covo site with its redirects, text and the PHP errors of that request (`agents.md`) |
+| `fetch_page` | no | a page of a Benbow site with its redirects, text and the PHP errors of that request (`agents.md`) |
 | `mail_messages`, `read_mail` | no | the mail PHP sent, caught by Mailpit: list, one message's text and links |
 | `query_database` | no | one read-only SQL statement on a site's database (500 rows, 10 s) |
 | `session_diff` | no | files and database tables changed since the session started; one file's diff (secrets masked) |
-| `app_env` | no | names of an app's variables (Covo's and the user's), never values |
+| `app_env` | no | names of an app's variables (Benbow's and the user's), never values |
 | `restart_app` | yes | the app site (`apps.md`) |
 | `start`, `stop` | yes | all sites and services |
 | `add_site` | yes | folder, PHP, domain, aliases, new folder, database, php.ini values; an app with `command` or `proxy_port` (`apps.md`) |
@@ -90,6 +90,6 @@ On purpose there is no tool that removes a site, a database, a snapshot or
 a group, and no push: those stay with the user. `wp` refuses `--prompt` and
 `shell`, `artisan` refuses `tinker` (they need a terminal). Output is cut at
 100 KiB; a tool run stops after 10 minutes. Errors come back as tool errors
-starting with Covo's error code (`not_found: …`).
+starting with Benbow's error code (`not_found: …`).
 
 Built with the official Go SDK (`github.com/modelcontextprotocol/go-sdk`).

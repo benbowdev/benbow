@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/getcovo/covo/internal/errcode"
+	"github.com/benbowdev/benbow/internal/errcode"
 )
 
 // Settings are the php.ini values a user may change, per PHP minor version.
@@ -63,7 +63,7 @@ func (s *Settings) Set(name, value string) error {
 		}
 	default:
 		return errcode.Newf(errcode.InvalidInput,
-			"unknown PHP setting %q; Covo manages %s", name, strings.Join(SettingNames, ", "))
+			"unknown PHP setting %q; Benbow manages %s", name, strings.Join(SettingNames, ", "))
 
 	}
 	return nil

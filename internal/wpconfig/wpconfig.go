@@ -9,13 +9,13 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/getcovo/covo/internal/errcode"
+	"github.com/benbowdev/benbow/internal/errcode"
 )
 
-// Keys Covo reads and changes.
+// Keys Benbow reads and changes.
 var Keys = []string{"DB_NAME", "DB_USER", "DB_PASSWORD", "DB_HOST"}
 
-// Config is what Covo needs from a wp-config.php.
+// Config is what Benbow needs from a wp-config.php.
 type Config struct {
 	Values map[string]string
 	// TablePrefix is $table_prefix ("wp_" when not found).

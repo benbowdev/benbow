@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 Andrea Casali
 
-// Command devserver stands in for a dev server Covo starts: it listens on
+// Command devserver stands in for a dev server Benbow starts: it listens on
 // the port it is given, starts a child (like a bundler worker) and a
 // grandchild in its own session (like a detached watcher), writes their
 // pids to a file, reports its environment, and crashes on request.
@@ -55,7 +55,7 @@ func main() {
 			"port":                os.Getenv("PORT"),
 			"flag_port":           *port,
 			"node_extra_ca_certs": os.Getenv("NODE_EXTRA_CA_CERTS"),
-			"covo_vars":           covoVars(),
+			"benbow_vars":         benbowVars(),
 			"app_url":             os.Getenv("APP_URL"),
 			"database_url":        os.Getenv("DATABASE_URL"),
 			"smtp_port":           os.Getenv("SMTP_PORT"),
@@ -75,12 +75,12 @@ func main() {
 	os.Exit(1)
 }
 
-// covoVars lists Covo's own variables that leaked into the app's
+// benbowVars lists Benbow's own variables that leaked into the app's
 // environment (there should be none but the documented ones).
-func covoVars() string {
+func benbowVars() string {
 	var out []string
 	for _, kv := range os.Environ() {
-		if strings.HasPrefix(kv, "COVO_") && !strings.HasPrefix(kv, "COVO_APP_DIR=") && !strings.HasPrefix(kv, "COVO_APP_RUN=") {
+		if strings.HasPrefix(kv, "BENBOW_") && !strings.HasPrefix(kv, "BENBOW_APP_DIR=") && !strings.HasPrefix(kv, "BENBOW_APP_RUN=") {
 			k, _, _ := strings.Cut(kv, "=")
 			out = append(out, k)
 		}

@@ -21,7 +21,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/getcovo/covo/internal/errcode"
+	"github.com/benbowdev/benbow/internal/errcode"
 )
 
 // ErrNotFound means the keychain holds no matching item.
@@ -89,7 +89,7 @@ func (i Item) Set(ctx context.Context, secret string) error {
 	if i.Service == "" || i.Account == "" || !quotable(i.Service+i.Account+label+i.Path) {
 		return errcode.Errorf(errcode.InvalidInput, "unsupported keychain service, account, label or path")
 	}
-	line := fmt.Sprintf("add-generic-password -U -a \"%s\" -s \"%s\" -l \"%s\" -j \"Created by Covo. Removed by covo uninstall.\" -X %s \"%s\"\n",
+	line := fmt.Sprintf("add-generic-password -U -a \"%s\" -s \"%s\" -l \"%s\" -j \"Created by Benbow. Removed by benbow uninstall.\" -X %s \"%s\"\n",
 		i.Account, i.Service, label, hex.EncodeToString([]byte(secret)), i.Path)
 	if out, err := i.run(ctx, line, "-i"); err != nil {
 		return errcode.New(errcode.Service, fmt.Errorf("store %s in the keychain: %w: %s", i.Service, err, strings.TrimSpace(out)))

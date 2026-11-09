@@ -2,7 +2,7 @@
 
 Betas are a signed, notarized DMG. Versions are `0.1.0-beta.N`. From
 0.1.0-beta.3 the app updates itself through Sparkle: the DMG goes on a
-GitHub release and `dist/appcast.xml` on getcovo.dev.
+GitHub release and `dist/appcast.xml` on benbow.dev.
 
 ## Once per Mac
 
@@ -19,7 +19,7 @@ GitHub release and `dist/appcast.xml` on getcovo.dev.
    command line):
 
    ```sh
-   xcrun notarytool store-credentials covo-notary --apple-id <apple-id> --team-id <team-id>
+   xcrun notarytool store-credentials benbow-notary --apple-id <apple-id> --team-id <team-id>
    ```
 
    The Team ID is in developer.apple.com → Account → Membership details,
@@ -27,17 +27,17 @@ GitHub release and `dist/appcast.xml` on getcovo.dev.
    code in an "Apple Development: Name (…)" certificate is a personal ID,
    not the Team ID).
 4. The Sparkle signing key (EdDSA), in the login keychain under the account
-   `covo`. Its public half is `SUPublicEDKey` in `app/Info.plist`: every
+   `benbow`. Its public half is `SUPublicEDKey` in `app/Info.plist`: every
    update must be signed with this exact key, or installed apps refuse it.
    Made once with Sparkle's tool (after `swift package resolve` in `app/`):
 
    ```sh
-   app/.build/artifacts/sparkle/Sparkle/bin/generate_keys --account covo
+   app/.build/artifacts/sparkle/Sparkle/bin/generate_keys --account benbow
    ```
 
-   Keep an offline backup (`generate_keys --account covo -x <file>`, then
+   Keep an offline backup (`generate_keys --account benbow -x <file>`, then
    store the file somewhere safe and delete it). On another Mac,
-   `generate_keys --account covo -f <file>` imports it. If the key is lost,
+   `generate_keys --account benbow -f <file>` imports it. If the key is lost,
    installed copies can only move to a new key through a manual download.
 
 ## Each release
@@ -50,14 +50,14 @@ app/release.sh 0.1.0-beta.1
 ```
 
 `app/release.sh` refuses a dirty working tree, builds with the version
-stamped in `covo version` and the app's Info.plist (build number = commit
-count), signs `covo`, `covo-hostshelper` and the app with the hardened
+stamped in `benbow version` and the app's Info.plist (build number = commit
+count), signs `benbow`, `benbow-hostshelper` and the app with the hardened
 runtime and a secure timestamp, notarizes and staples the app, then makes,
-signs, notarizes and staples `dist/Covo-<version>.dmg` and writes its
+signs, notarizes and staples `dist/Benbow-<version>.dmg` and writes its
 SHA-256 next to it. Sparkle's framework is inside the app (its XPC services
-are dropped: Covo is not sandboxed) and signed the same way. Last, it signs
+are dropped: Benbow is not sandboxed) and signed the same way. Last, it signs
 the DMG with the Sparkle key and writes `dist/appcast.xml`, which points at
-`https://github.com/getcovo/covo/releases/download/v<version>/Covo-<version>.dmg`.
+`https://github.com/benbowdev/benbow/releases/download/v<version>/Benbow-<version>.dmg`.
 
 Write the release notes first in `dist/notes-<version>.md`: a few lines of
 basic Markdown (paragraphs, lists, `code`, links; no tables or images).
@@ -79,5 +79,5 @@ Then publish, in this order (an appcast must never point at a missing DMG):
 Before the repository is public, GitHub release downloads need a login,
 so Sparkle cannot fetch them: until then, send the DMG by hand.
 
-Components (PHP, Caddy, MySQL…) are not in the DMG: Covo downloads them on
+Components (PHP, Caddy, MySQL…) are not in the DMG: Benbow downloads them on
 first use and checks them against the SHA-256 pinned in its manifest.

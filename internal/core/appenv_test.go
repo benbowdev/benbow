@@ -9,10 +9,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/keychain"
-	"github.com/getcovo/covo/internal/launchd"
-	"github.com/getcovo/covo/internal/store"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/keychain"
+	"github.com/benbowdev/benbow/internal/launchd"
+	"github.com/benbowdev/benbow/internal/store"
 )
 
 func TestDatabaseURL(t *testing.T) {
@@ -32,7 +32,7 @@ func TestCheckEnvName(t *testing.T) {
 			t.Errorf("%s refused: %v", ok, err)
 		}
 	}
-	for _, bad := range []string{"", "1X", "A-B", "A B", "PORT", "COVO_APP_RUN", "HOME"} {
+	for _, bad := range []string{"", "1X", "A-B", "A B", "PORT", "BENBOW_APP_RUN", "HOME"} {
 		if err := checkEnvName(bad); errcode.Code(err) != errcode.InvalidInput {
 			t.Errorf("%q accepted: %v", bad, err)
 		}
@@ -44,7 +44,7 @@ func TestAppEnv(t *testing.T) {
 	c := runCore(t)
 	fake := keychain.NewFake()
 	c.keychainRun = fake.Run
-	c.launchctl = &launchd.Launchctl{Prefix: "dev.getcovo", Run: func(context.Context, ...string) (string, error) {
+	c.launchctl = &launchd.Launchctl{Prefix: "dev.benbow", Run: func(context.Context, ...string) (string, error) {
 		return "PID\tStatus\tLabel\n", nil
 	}}
 	project := t.TempDir()
@@ -62,7 +62,7 @@ func TestAppEnv(t *testing.T) {
 	if !slices.Contains(res.Provided, "APP_URL") {
 		t.Errorf("provided = %v", res.Provided)
 	}
-	if v := fake.Items["shop@dev.getcovo.appenv"]; !strings.Contains(v, "s3cret") {
+	if v := fake.Items["shop@dev.benbow.appenv"]; !strings.Contains(v, "s3cret") {
 		t.Errorf("keychain item = %q", v)
 	}
 	shown, err := c.GetAppEnv(ctx, "shop", true)
@@ -70,7 +70,7 @@ func TestAppEnv(t *testing.T) {
 		t.Fatalf("show = %+v, %v", shown, err)
 	}
 
-	// The user's variables come after Covo's, so theirs win.
+	// The user's variables come after Benbow's, so theirs win.
 	site, _ := c.Store.Site(ctx, "shop")
 	env, names, _ := c.appEnvironment(ctx, site)
 	if env[len(env)-1] != "DATABASE_URL=mine" || !slices.Contains(names, "API_KEY") {
@@ -83,7 +83,7 @@ func TestAppEnv(t *testing.T) {
 	if res, err = c.SetAppEnv(ctx, "shop", nil, []string{"API_KEY", "DATABASE_URL"}); err != nil || len(res.Names) != 0 {
 		t.Fatalf("unset = %+v, %v", res, err)
 	}
-	if _, ok := fake.Items["shop@dev.getcovo.appenv"]; ok {
+	if _, ok := fake.Items["shop@dev.benbow.appenv"]; ok {
 		t.Error("an empty set of variables is still in the keychain")
 	}
 
@@ -108,7 +108,7 @@ func TestAppEnv(t *testing.T) {
 	if _, err := c.RemoveSite(ctx, "shop"); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := fake.Items["shop@dev.getcovo.appenv"]; ok {
+	if _, ok := fake.Items["shop@dev.benbow.appenv"]; ok {
 		t.Error("variables left behind by a removed app")
 	}
 }

@@ -17,15 +17,15 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/fsutil"
-	"github.com/getcovo/covo/internal/hostshelper"
-	"github.com/getcovo/covo/internal/launchd"
-	"github.com/getcovo/covo/internal/ports"
-	"github.com/getcovo/covo/internal/resolver"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/fsutil"
+	"github.com/benbowdev/benbow/internal/hostshelper"
+	"github.com/benbowdev/benbow/internal/launchd"
+	"github.com/benbowdev/benbow/internal/ports"
+	"github.com/benbowdev/benbow/internal/resolver"
 )
 
-// Domain suffixes. Covo only ever serves reserved suffixes, which its CA is
+// Domain suffixes. Benbow only ever serves reserved suffixes, which its CA is
 // constrained to.
 const (
 	suffixLocalhost = "localhost" // default, nothing to set up
@@ -35,7 +35,7 @@ const (
 
 // EnvResolverDir overrides /etc/resolver, so that tests never need
 // administrator rights or touch the real file.
-const EnvResolverDir = "COVO_RESOLVER_DIR"
+const EnvResolverDir = "BENBOW_RESOLVER_DIR"
 
 const (
 	settingDNSPort = "dns_port"
@@ -58,7 +58,7 @@ func domainSuffix(domain string) (string, error) {
 	suffix := domain[strings.LastIndexByte(domain, '.')+1:]
 	if !slices.Contains([]string{suffixLocalhost, suffixTest, suffixLocal}, suffix) {
 		return "", errcode.Newf(errcode.InvalidInput,
-			"domain %q must end in .localhost, .test or .local: Covo only serves reserved local domains", domain)
+			"domain %q must end in .localhost, .test or .local: Benbow only serves reserved local domains", domain)
 
 	}
 	return suffix, nil
@@ -92,7 +92,7 @@ func (c *Core) checkSiteDomain(ctx context.Context, domain string) error {
 		}
 		if !ok {
 			return errcode.Newf(errcode.Unsupported,
-				"%s needs .test domains: run `covo domains enable test` first (one administrator authorization)", domain)
+				"%s needs .test domains: run `benbow domains enable test` first (one administrator authorization)", domain)
 
 		}
 	case suffixLocal:
@@ -102,7 +102,7 @@ func (c *Core) checkSiteDomain(ctx context.Context, domain string) error {
 		}
 		if !ok {
 			return errcode.Newf(errcode.Unsupported,
-				"%s needs .local domains: run `covo domains enable local` first (MAMP compatibility mode, one administrator authorization)", domain)
+				"%s needs .local domains: run `benbow domains enable local` first (MAMP compatibility mode, one administrator authorization)", domain)
 
 		}
 	}
@@ -177,7 +177,7 @@ func (c *Core) dnsPort(ctx context.Context) (int, error) {
 }
 
 // EnableDomain turns on an opt-in suffix. For .test it installs the resolver
-// file and starts the DNS server if Covo is running; for .local it installs
+// file and starts the DNS server if Benbow is running; for .local it installs
 // the privileged hosts helper. Either takes one administrator authorization.
 // beforePrompt is called right before the macOS dialog, and not at all if
 // nothing needs to change.
@@ -231,7 +231,7 @@ func (c *Core) EnableDomain(ctx context.Context, zone string, beforePrompt func(
 
 // DisableDomain turns off an opt-in suffix. For .test it removes the resolver
 // file (one administrator authorization) and stops the DNS server; for .local
-// the helper removes Covo's hosts lines and uninstalls itself (no password).
+// the helper removes Benbow's hosts lines and uninstalls itself (no password).
 // It refuses while sites still use the suffix.
 func (c *Core) DisableDomain(ctx context.Context, zone string, beforePrompt func()) (DomainResult, error) {
 	if err := checkZone(zone); err != nil {
@@ -312,24 +312,24 @@ func (c *Core) Domains(ctx context.Context) ([]DomainStatus, error) {
 	return out, nil
 }
 
-// selfBinary copies the running covo binary into the Covo home, so that the
+// selfBinary copies the running benbow binary into the Benbow home, so that the
 // DNS agent never depends on where the CLI happens to be (a build folder,
 // Downloads…). It returns the path and a short hash of the binary.
 func (c *Core) selfBinary() (string, string, error) {
 	exe, err := os.Executable()
 	if err != nil {
-		return "", "", fmt.Errorf("locate covo binary: %w", err)
+		return "", "", fmt.Errorf("locate benbow binary: %w", err)
 	}
 	if exe, err = filepath.EvalSymlinks(exe); err != nil {
-		return "", "", fmt.Errorf("locate covo binary: %w", err)
+		return "", "", fmt.Errorf("locate benbow binary: %w", err)
 	}
 	body, err := os.ReadFile(exe)
 	if err != nil {
-		return "", "", fmt.Errorf("read covo binary: %w", err)
+		return "", "", fmt.Errorf("read benbow binary: %w", err)
 	}
 	sum := sha256.Sum256(body)
 	hash := hex.EncodeToString(sum[:8])
-	dst := filepath.Join(c.Layout.Bin, "covo", "covo")
+	dst := filepath.Join(c.Layout.Bin, "benbow", "benbow")
 	if cur, err := os.Open(dst); err == nil {
 		h := sha256.New()
 		_, _ = io.Copy(h, cur)
@@ -356,8 +356,8 @@ func (c *Core) dnsAgent(bin, binHash string, port int, zones []string) launchd.A
 		Label:   c.labelFor(dnsService),
 		Program: bin,
 		Args:    args,
-		// A new covo binary restarts the agent.
-		Env:       map[string]string{"COVO_BINARY_HASH": binHash},
+		// A new benbow binary restarts the agent.
+		Env:       map[string]string{"BENBOW_BINARY_HASH": binHash},
 		WorkDir:   c.Layout.Root,
 		StdoutLog: out,
 		StderrLog: errLog,
@@ -365,7 +365,7 @@ func (c *Core) dnsAgent(bin, binHash string, port int, zones []string) launchd.A
 }
 
 // dnsAgents returns the DNS agent when an opt-in zone needs it, after
-// checking that its port is free (or already Covo's).
+// checking that its port is free (or already Benbow's).
 func (c *Core) dnsAgents(ctx context.Context, loaded map[string]launchd.Status) ([]launchd.Agent, int, error) {
 	enabled, err := c.domainEnabled(ctx, suffixTest)
 	if err != nil || !enabled {
@@ -377,7 +377,7 @@ func (c *Core) dnsAgents(ctx context.Context, loaded map[string]launchd.Status) 
 	}
 	if !loaded[c.labelFor(dnsService)].Running && !ports.FreeDNS(port) {
 		return nil, 0, errcode.Newf(errcode.PortInUse,
-			"DNS port %d (127.0.0.1, written in %s) is in use by %s; run `covo domains disable test` and `covo domains enable test` to pick a free one",
+			"DNS port %d (127.0.0.1, written in %s) is in use by %s; run `benbow domains disable test` and `benbow domains enable test` to pick a free one",
 			port, c.resolver.Path(suffixTest), ports.Describe(ports.Owners(ctx, port)))
 
 	}

@@ -4,8 +4,8 @@
 // Package mamp reads MAMP PRO's site list, read only.
 //
 // MAMP PRO keeps its hosts in settings6.plist, an NSKeyedArchiver archive.
-// Covo never opens that file except to copy it: the copy is converted to XML
-// by /usr/bin/plutil and parsed here. Only the fields Covo needs are read,
+// Benbow never opens that file except to copy it: the copy is converted to XML
+// by /usr/bin/plutil and parsed here. Only the fields Benbow needs are read,
 // lazily, so the archive's object cycles do not matter.
 package mamp
 
@@ -23,7 +23,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/getcovo/covo/internal/errcode"
+	"github.com/benbowdev/benbow/internal/errcode"
 )
 
 // maxSettings caps the file copied and parsed (MAMP's is ~60 KB).

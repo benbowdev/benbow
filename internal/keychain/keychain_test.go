@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/getcovo/covo/internal/errcode"
+	"github.com/benbowdev/benbow/internal/errcode"
 )
 
 func TestSetGetAnySecret(t *testing.T) {
@@ -28,7 +28,7 @@ func TestSetGetAnySecret(t *testing.T) {
 	}
 	for _, s := range secrets {
 		f := NewFake()
-		it := Item{Path: "/k", Service: "dev.getcovo.remote", Account: "shop/production", Run: f.Run}
+		it := Item{Path: "/k", Service: "dev.benbow.remote", Account: "shop/production", Run: f.Run}
 		if err := it.Set(ctx, s); err != nil {
 			t.Fatalf("Set(%q) = %v", s, err)
 		}

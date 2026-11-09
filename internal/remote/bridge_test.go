@@ -14,7 +14,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/getcovo/covo/internal/errcode"
+	"github.com/benbowdev/benbow/internal/errcode"
 )
 
 func TestBridgeURL(t *testing.T) {
@@ -48,15 +48,15 @@ func TestBridgeURL(t *testing.T) {
 func TestBridgeDoesNotFollowRedirects(t *testing.T) {
 	leaked := make(chan string, 1)
 	elsewhere := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
-		leaked <- r.Header.Get("X-Covo-Token")
+		leaked <- r.Header.Get("X-Benbow-Token")
 	}))
 	defer elsewhere.Close()
 	redirecting := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, elsewhere.URL+"/covo-bridge.php", http.StatusMovedPermanently)
+		http.Redirect(w, r, elsewhere.URL+"/benbow-bridge.php", http.StatusMovedPermanently)
 	}))
 	defer redirecting.Close()
 
-	b := Bridge{URL: redirecting.URL + "/covo-bridge.php", Token: "secret-token"}
+	b := Bridge{URL: redirecting.URL + "/benbow-bridge.php", Token: "secret-token"}
 	_, err := b.request(context.Background(), http.MethodGet, "info", nil)
 	if err == nil || !strings.Contains(err.Error(), "redirects") {
 		t.Fatalf("request = %v, want a redirect error", err)

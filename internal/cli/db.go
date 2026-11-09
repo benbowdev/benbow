@@ -8,15 +8,15 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/getcovo/covo/internal/core"
-	"github.com/getcovo/covo/internal/errcode"
+	"github.com/benbowdev/benbow/internal/core"
+	"github.com/benbowdev/benbow/internal/errcode"
 	"github.com/spf13/cobra"
 )
 
 func (a *app) dbCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "db",
-		Short: "Manage site databases on Covo's MySQL",
+		Short: "Manage site databases on Benbow's MySQL",
 	}
 	cmd.AddCommand(a.dbListCmd(), a.dbShowCmd(), a.dbCreateCmd(), a.dbLinkCmd(), a.dbUnlinkCmd(), a.dbQueryCmd())
 	return cmd
@@ -67,7 +67,7 @@ func (r siteDBResult) Text(w io.Writer) {
 	if r.Engine == core.EnginePostgres {
 		engine = "PostgreSQL"
 	}
-	fmt.Fprintf(w, "%s  %s database %s\n  user      %s\n  host      %s (port %d)\n  socket    %s\n  password  covo db show %s --json\n",
+	fmt.Fprintf(w, "%s  %s database %s\n  user      %s\n  host      %s (port %d)\n  socket    %s\n  password  benbow db show %s --json\n",
 		r.Site, engine, r.Database, r.User, r.Host, r.Port, r.Socket, r.Site)
 }
 

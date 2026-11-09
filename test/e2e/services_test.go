@@ -37,7 +37,7 @@ type statusData struct {
 func (h *harness) status() statusData {
 	h.t.Helper()
 	var st statusData
-	if err := json.Unmarshal(h.mustCovo("status"), &st); err != nil {
+	if err := json.Unmarshal(h.mustBenbow("status"), &st); err != nil {
 		h.t.Fatal(err)
 	}
 	return st
@@ -61,7 +61,7 @@ func (h *harness) loadedLabels() []string {
 
 func (h *harness) prefix() string {
 	for _, kv := range h.env {
-		if v, ok := strings.CutPrefix(kv, "COVO_LABEL_PREFIX="); ok {
+		if v, ok := strings.CutPrefix(kv, "BENBOW_LABEL_PREFIX="); ok {
 			return v
 		}
 	}
@@ -73,7 +73,7 @@ func TestStartStopIdempotent(t *testing.T) {
 	h := newHarness(t)
 
 	for i := range 2 {
-		h.mustCovo("start")
+		h.mustBenbow("start")
 		st := h.status()
 		if !st.Running || len(st.Services) != 1 || st.Services[0].Name != "caddy" || st.Services[0].PID == 0 {
 			t.Fatalf("start #%d: status = %+v", i+1, st)
@@ -83,13 +83,13 @@ func TestStartStopIdempotent(t *testing.T) {
 		}
 	}
 	firstPID := h.status().Services[0].PID
-	h.mustCovo("start")
+	h.mustBenbow("start")
 	if pid := h.status().Services[0].PID; pid != firstPID {
 		t.Fatalf("idempotent start restarted caddy: pid %d -> %d", firstPID, pid)
 	}
 
 	for range 2 {
-		h.mustCovo("stop")
+		h.mustBenbow("stop")
 		if labels := h.loadedLabels(); len(labels) != 0 {
 			t.Fatalf("agents still loaded after stop: %v", labels)
 		}
@@ -101,8 +101,8 @@ func TestStartStopIdempotent(t *testing.T) {
 
 func TestStartRefusesBusyPort(t *testing.T) {
 	h := newHarness(t)
-	h.mustCovo("start")
-	h.mustCovo("stop")
+	h.mustBenbow("start")
+	h.mustBenbow("stop")
 
 	// Someone else takes the stored port.
 	l, err := net.Listen("tcp", "127.0.0.1:"+strconv.Itoa(h.port))
@@ -111,7 +111,7 @@ func TestStartRefusesBusyPort(t *testing.T) {
 	}
 	defer l.Close()
 
-	env := h.covo("start")
+	env := h.benbow("start")
 	if env.OK || env.Error == nil || env.Error.Code != "port_in_use" {
 		t.Fatalf("start on busy port: %+v", env)
 	}
@@ -124,7 +124,7 @@ func TestStartRefusesBusyPort(t *testing.T) {
 
 	// The suggested way out works.
 	alt := freePort(t)
-	h.mustCovo("start", "--https-port", strconv.Itoa(alt))
+	h.mustBenbow("start", "--https-port", strconv.Itoa(alt))
 	if st := h.status(); st.HTTPSPort != alt || !st.Running {
 		t.Fatalf("after --https-port: %+v", st)
 	}

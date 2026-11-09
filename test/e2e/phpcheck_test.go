@@ -30,7 +30,7 @@ func TestPHPCheck(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "legacy.php"), []byte(legacyCode), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	h.mustCovo("site", "add", "old", "--php", "8.4", "--path", dir)
+	h.mustBenbow("site", "add", "old", "--php", "8.4", "--path", dir)
 
 	type result struct {
 		Target    string   `json:"target"`
@@ -47,7 +47,7 @@ func TestPHPCheck(t *testing.T) {
 		} `json:"files"`
 	}
 	var r result
-	data := h.mustCovo("php", "check", "old", "--target", "8.4")
+	data := h.mustBenbow("php", "check", "old", "--target", "8.4")
 	if err := json.Unmarshal(data, &r); err != nil {
 		t.Fatal(err)
 	}
@@ -75,15 +75,15 @@ func TestPHPCheck(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	h.mustCovo("site", "add", "wp", "--php", "8.4", "--path", wp)
+	h.mustBenbow("site", "add", "wp", "--php", "8.4", "--path", wp)
 	r = result{}
-	if err := json.Unmarshal(h.mustCovo("php", "check", "wp"), &r); err != nil {
+	if err := json.Unmarshal(h.mustBenbow("php", "check", "wp"), &r); err != nil {
 		t.Fatal(err)
 	}
 	if !r.WordPress || strings.Join(r.Scanned, ",") != "wp-content" || len(r.Files) != 1 || r.Files[0].Path != "wp-content/plugins/old/old.php" {
 		t.Fatalf("wordpress check = %+v", r)
 	}
-	if env := h.covo("php", "check", "nope"); env.OK || env.Error.Code != "not_found" {
+	if env := h.benbow("php", "check", "nope"); env.OK || env.Error.Code != "not_found" {
 		t.Fatalf("missing site = %+v", env)
 	}
 }

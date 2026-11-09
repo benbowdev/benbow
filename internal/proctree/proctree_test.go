@@ -17,10 +17,10 @@ import (
 	"time"
 )
 
-// The test binary plays the processes of a dev server: COVO_PROCTREE_ROLE
+// The test binary plays the processes of a dev server: BENBOW_PROCTREE_ROLE
 // picks the role.
 func TestMain(m *testing.M) {
-	switch os.Getenv("COVO_PROCTREE_ROLE") {
+	switch os.Getenv("BENBOW_PROCTREE_ROLE") {
 	case "parent":
 		parent()
 	case "child":
@@ -39,7 +39,7 @@ func TestMain(m *testing.M) {
 func parent() {
 	start := func(role string, setsid bool) int {
 		cmd := exec.Command(os.Args[0])
-		cmd.Env = append(os.Environ(), "COVO_PROCTREE_ROLE="+role)
+		cmd.Env = append(os.Environ(), "BENBOW_PROCTREE_ROLE="+role)
 		cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: setsid}
 		if err := cmd.Start(); err != nil {
 			fmt.Println("error", err)
@@ -48,7 +48,7 @@ func parent() {
 		return cmd.Process.Pid
 	}
 	fmt.Println(start("child", false), start("escaper", true))
-	if os.Getenv("COVO_PROCTREE_EXIT") != "" {
+	if os.Getenv("BENBOW_PROCTREE_EXIT") != "" {
 		_, _ = bufio.NewReader(os.Stdin).ReadString('\n') // until told to go
 		os.Exit(3)
 	}
@@ -58,9 +58,9 @@ func parent() {
 func startTree(t *testing.T, exitEarly bool) (*exec.Cmd, io.WriteCloser, []int) {
 	t.Helper()
 	cmd := exec.Command(os.Args[0])
-	cmd.Env = append(os.Environ(), "COVO_PROCTREE_ROLE=parent", testTag)
+	cmd.Env = append(os.Environ(), "BENBOW_PROCTREE_ROLE=parent", testTag)
 	if exitEarly {
-		cmd.Env = append(cmd.Env, "COVO_PROCTREE_EXIT=1")
+		cmd.Env = append(cmd.Env, "BENBOW_PROCTREE_EXIT=1")
 	}
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	out, err := cmd.StdoutPipe()
@@ -95,7 +95,7 @@ func startTree(t *testing.T, exitEarly bool) (*exec.Cmd, io.WriteCloser, []int) 
 }
 
 // testTag marks this test's processes in their environment.
-var testTag = "COVO_PROCTREE_TAG=" + strconv.Itoa(os.Getpid())
+var testTag = "BENBOW_PROCTREE_TAG=" + strconv.Itoa(os.Getpid())
 
 func TestStopKillsTheWholeTree(t *testing.T) {
 	cmd, _, pids := startTree(t, false)

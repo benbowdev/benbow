@@ -14,11 +14,11 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/getcovo/covo/internal/caddy"
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/paths"
-	"github.com/getcovo/covo/internal/php"
-	"github.com/getcovo/covo/internal/store"
+	"github.com/benbowdev/benbow/internal/caddy"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/paths"
+	"github.com/benbowdev/benbow/internal/php"
+	"github.com/benbowdev/benbow/internal/store"
 )
 
 // siteNameRe is a single DNS label: by default the site is served at
@@ -29,7 +29,7 @@ var siteNameRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
 type AddSiteRequest struct {
 	Name string
 	// Domain defaults to <name>.localhost. It may be any name under
-	// .localhost, or .test once enabled (e.g. demo.covo.test).
+	// .localhost, or .test once enabled (e.g. demo.benbow.test).
 	Domain string
 	PHP    string // minor version, e.g. "8.4"
 	Path   string // absolute path of the document root
@@ -50,12 +50,12 @@ type AddSiteRequest struct {
 	// DatabaseEngine is "mysql" (default) or "pgsql".
 	DatabaseEngine string
 
-	// Command makes the site an app that Covo starts (docs/apps.md); Path
+	// Command makes the site an app that Benbow starts (docs/apps.md); Path
 	// is then the project folder and PHP is unused. Port fixes its port
 	// (default: a free one from 41000).
 	Command string
 	Port    int
-	// ProxyPort makes the site an app Covo only proxies to: the user runs
+	// ProxyPort makes the site an app Benbow only proxies to: the user runs
 	// the dev server on this port.
 	ProxyPort int
 	// AppHost is the Host header the app receives ("" or "localhost").
@@ -69,7 +69,7 @@ type AddSiteRequest struct {
 // SiteResult is a site with its URL and whether services were (re)applied.
 type SiteResult struct {
 	SiteStatus
-	// Applied is true when Covo was running and the change is already live.
+	// Applied is true when Benbow was running and the change is already live.
 	Applied bool `json:"applied"`
 	// Warning is set when the site's PHP version no longer gets security fixes.
 	Warning string `json:"warning,omitempty"`
@@ -85,7 +85,7 @@ func phpWarning(minor string) string {
 }
 
 // AddSite registers a site, installing its PHP version if needed, with its
-// aliases, group, php.ini values and database. If Covo is running the site
+// aliases, group, php.ini values and database. If Benbow is running the site
 // goes live immediately. If any step fails, everything it did is undone:
 // the site, its database and the folder it created.
 func (c *Core) AddSite(ctx context.Context, req AddSiteRequest) (SiteResult, error) {
@@ -349,7 +349,7 @@ type UpdateSiteRequest struct {
 	Group *int64
 	// Force accepts a new folder without index.php or index.html.
 	Force bool
-	// Apps only: Command switches to (or changes) the command Covo starts,
+	// Apps only: Command switches to (or changes) the command Benbow starts,
 	// ProxyPort to proxying a server the user runs, Port fixes the port of
 	// a started app, AppHost (when set) the Host header ("" or "localhost").
 	Command   string
@@ -418,7 +418,7 @@ func (c *Core) checkAliases(ctx context.Context, site store.Site, aliases []stri
 }
 
 // UpdateSite changes a site's PHP version, folder or domain, or turns it on
-// or off, installing the PHP version if needed. If Covo is running the change goes live
+// or off, installing the PHP version if needed. If Benbow is running the change goes live
 // immediately; if that fails the previous settings are restored.
 func (c *Core) UpdateSite(ctx context.Context, req UpdateSiteRequest) (SiteResult, error) {
 	var res SiteResult
@@ -604,7 +604,7 @@ func (c *Core) RemoveSite(ctx context.Context, name string) (SiteResult, error) 
 		if err := c.syncLocal(ctx); err != nil {
 			return err
 		}
-		// Its logs and snapshots are Covo's own files; the site's folder is
+		// Its logs and snapshots are Benbow's own files; the site's folder is
 		// never touched.
 		_ = os.RemoveAll(c.siteLogDir(name))
 		_ = os.RemoveAll(c.snapshotDir(name))
@@ -627,7 +627,7 @@ func (c *Core) ListSites(ctx context.Context) ([]SiteStatus, error) {
 	return st.Sites, nil
 }
 
-// applyIfRunning reconciles services when Covo has been started.
+// applyIfRunning reconciles services when Benbow has been started.
 func (c *Core) applyIfRunning(ctx context.Context) (bool, error) {
 	_, running, err := c.Store.Setting(ctx, settingRunning)
 	if err != nil || !running {

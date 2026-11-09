@@ -21,15 +21,15 @@ import (
 )
 
 const (
-	beginMarker = "# BEGIN Covo: managed automatically, do not edit"
-	endMarker   = "# END Covo"
+	beginMarker = "# BEGIN Benbow: managed automatically, do not edit"
+	endMarker   = "# END Benbow"
 )
 
 func TestLocalDomains(t *testing.T) {
 	h := newHarness(t)
 	site := newSite(t)
 
-	if env := h.covo("site", "add", "shop", "--domain", "shop.local", "--path", site); env.OK || env.Error.Code != "unsupported" {
+	if env := h.benbow("site", "add", "shop", "--domain", "shop.local", "--path", site); env.OK || env.Error.Code != "unsupported" {
 		t.Fatalf("site add .local before enable: %+v", env.Error)
 	}
 
@@ -40,7 +40,7 @@ func TestLocalDomains(t *testing.T) {
 			Names   []string `json:"names"`
 		} `json:"helper"`
 	}
-	if err := json.Unmarshal(h.mustCovo("domains", "enable", "local"), &enabled); err != nil {
+	if err := json.Unmarshal(h.mustBenbow("domains", "enable", "local"), &enabled); err != nil {
 		t.Fatal(err)
 	}
 	if !enabled.Enabled || !enabled.Helper.Running || len(enabled.Helper.Names) != 0 {
@@ -50,14 +50,14 @@ func TestLocalDomains(t *testing.T) {
 		t.Fatal("enabling without sites changed the hosts file")
 	}
 
-	h.mustCovo("site", "add", "shop", "--domain", "shop.local", "--php", "8.4", "--path", site)
-	h.mustCovo("site", "add", "blog", "--domain", "blog.covo.local", "--php", "8.4", "--path", site)
+	h.mustBenbow("site", "add", "shop", "--domain", "shop.local", "--php", "8.4", "--path", site)
+	h.mustBenbow("site", "add", "blog", "--domain", "blog.benbow.local", "--php", "8.4", "--path", site)
 	// A .local alias is written as well; a .localhost one is not needed.
-	h.mustCovo("site", "set", "shop", "--aliases", "www.shop.local,shop.localhost")
+	h.mustBenbow("site", "set", "shop", "--aliases", "www.shop.local,shop.localhost")
 	got := h.hosts()
 	original := h.hostsOriginal
 	wantBlock := beginMarker + "\n" +
-		"127.0.0.1\tblog.covo.local\n::1\t\tblog.covo.local\n" +
+		"127.0.0.1\tblog.benbow.local\n::1\t\tblog.benbow.local\n" +
 		"127.0.0.1\tshop.local\n::1\t\tshop.local\n" +
 		"127.0.0.1\twww.shop.local\n::1\t\twww.shop.local\n" +
 		endMarker + "\n"
@@ -72,13 +72,13 @@ func TestLocalDomains(t *testing.T) {
 	}
 
 	// Served over HTTPS (hosts resolution is simulated: the file is a copy).
-	h.mustCovo("start")
+	h.mustBenbow("start")
 	var status struct {
 		CA struct {
 			CertPath string `json:"cert_path"`
 		} `json:"ca"`
 	}
-	if err := json.Unmarshal(h.mustCovo("status"), &status); err != nil {
+	if err := json.Unmarshal(h.mustBenbow("status"), &status); err != nil {
 		t.Fatal(err)
 	}
 	pem, err := os.ReadFile(status.CA.CertPath)
@@ -110,16 +110,16 @@ func TestLocalDomains(t *testing.T) {
 		t.Fatalf("GET %s = %q", url, body)
 	}
 
-	if env := h.covo("domains", "disable", "local"); env.OK || env.Error.Code != "conflict" {
+	if env := h.benbow("domains", "disable", "local"); env.OK || env.Error.Code != "conflict" {
 		t.Fatalf("disable with .local sites: %+v", env.Error)
 	}
-	h.mustCovo("site", "remove", "blog")
-	h.mustCovo("site", "remove", "shop")
+	h.mustBenbow("site", "remove", "blog")
+	h.mustBenbow("site", "remove", "shop")
 	if h.hosts() != h.hostsOriginal {
 		t.Fatalf("removing the sites did not restore the hosts file:\n%s", h.hosts())
 	}
 
-	h.mustCovo("domains", "disable", "local")
+	h.mustBenbow("domains", "disable", "local")
 	for _, f := range h.helperFiles {
 		if _, err := os.Stat(f); !os.IsNotExist(err) {
 			t.Errorf("helper file %s not removed by disable", f)
@@ -129,12 +129,12 @@ func TestLocalDomains(t *testing.T) {
 
 func TestUninstallClearsHostsLines(t *testing.T) {
 	h := newHarness(t)
-	h.mustCovo("domains", "enable", "local")
-	h.mustCovo("site", "add", "shop", "--domain", "shop.local", "--php", "8.4", "--path", newSite(t))
+	h.mustBenbow("domains", "enable", "local")
+	h.mustBenbow("site", "add", "shop", "--domain", "shop.local", "--php", "8.4", "--path", newSite(t))
 	if !strings.Contains(h.hosts(), "shop.local") {
 		t.Fatal("no hosts line")
 	}
-	h.mustCovo("uninstall", "--yes")
+	h.mustBenbow("uninstall", "--yes")
 	if h.hosts() != h.hostsOriginal {
 		t.Fatalf("uninstall left the hosts file changed:\n%s", h.hosts())
 	}
@@ -146,15 +146,15 @@ func TestNoSystemHelperFromTests(t *testing.T) {
 	h := newHarness(t)
 	var env []string
 	for _, e := range h.env {
-		if !strings.HasPrefix(e, "COVO_HOSTS_HELPER_SOCKET=") {
+		if !strings.HasPrefix(e, "BENBOW_HOSTS_HELPER_SOCKET=") {
 			env = append(env, e)
 		}
 	}
 	h.env = env
-	if _, err := os.Stat("/Library/LaunchDaemons/dev.getcovo.hostshelper.plist"); err == nil {
+	if _, err := os.Stat("/Library/LaunchDaemons/dev.benbow.hostshelper.plist"); err == nil {
 		t.Skip("a real helper is installed: its socket would answer")
 	}
-	if res := h.covo("domains", "enable", "local"); res.OK || res.Error.Code != "unsupported" {
+	if res := h.benbow("domains", "enable", "local"); res.OK || res.Error.Code != "unsupported" {
 		t.Fatalf("enable local with a test prefix: %+v", res.Error)
 	}
 }

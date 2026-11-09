@@ -24,7 +24,7 @@ var now = time.Date(2026, 10, 29, 12, 0, 0, 0, time.UTC)
 
 func mustGenerate(t *testing.T) Material {
 	t.Helper()
-	m, err := Generate("Covo Test CA", now)
+	m, err := Generate("Benbow Test CA", now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,14 +81,14 @@ func TestNameConstraints(t *testing.T) {
 		ok   bool
 	}{
 		{"demo.localhost", true},
-		{"demo.covo.localhost", true},
+		{"demo.benbow.localhost", true},
 		{"demo.test", true},
-		{"demo.covo.test", true},
+		{"demo.benbow.test", true},
 		{"studio.local", true},
 		{"example.com", false},
 		{"localhost.example.com", false},
 		{"test.example.com", false},
-		{"demo.covo", false},
+		{"demo.benbow", false},
 		{"google.com", false},
 		{"127.0.0.1", false},
 		{"::1", false},
@@ -110,7 +110,7 @@ func TestNameConstraints(t *testing.T) {
 
 func TestGenerateShape(t *testing.T) {
 	m := mustGenerate(t)
-	if err := Check(m, "Covo Test CA", now); err != nil {
+	if err := Check(m, "Benbow Test CA", now); err != nil {
 		t.Fatal(err)
 	}
 	root, _ := parseCert(m.RootCert)
@@ -136,10 +136,10 @@ func TestCheckRejects(t *testing.T) {
 		at   time.Time
 	}{
 		{"wrong name", m, "Someone Else", now},
-		{"near expiry", m, "Covo Test CA", now.Add(validity - 10*24*time.Hour)},
-		{"foreign intermediate", Material{m.RootCert, other.IntermediateCert, other.IntermediateKey}, "Covo Test CA", now},
-		{"mismatched key", Material{m.RootCert, m.IntermediateCert, other.IntermediateKey}, "Covo Test CA", now},
-		{"unconstrained root", Material{unconstrainedRoot(t), m.IntermediateCert, m.IntermediateKey}, "Covo Test CA", now},
+		{"near expiry", m, "Benbow Test CA", now.Add(validity - 10*24*time.Hour)},
+		{"foreign intermediate", Material{m.RootCert, other.IntermediateCert, other.IntermediateKey}, "Benbow Test CA", now},
+		{"mismatched key", Material{m.RootCert, m.IntermediateCert, other.IntermediateKey}, "Benbow Test CA", now},
+		{"unconstrained root", Material{unconstrainedRoot(t), m.IntermediateCert, m.IntermediateKey}, "Benbow Test CA", now},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -155,7 +155,7 @@ func unconstrainedRoot(t *testing.T) []byte {
 	t.Helper()
 	k, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	tmpl := &x509.Certificate{
-		SerialNumber: big.NewInt(1), Subject: pkix.Name{CommonName: "Covo Test CA"},
+		SerialNumber: big.NewInt(1), Subject: pkix.Name{CommonName: "Benbow Test CA"},
 		NotBefore: now.Add(-time.Hour), NotAfter: now.Add(validity),
 		IsCA: true, BasicConstraintsValid: true, KeyUsage: x509.KeyUsageCertSign,
 	}
@@ -168,7 +168,7 @@ func unconstrainedRoot(t *testing.T) []byte {
 
 func TestEnsure(t *testing.T) {
 	d := Dir(filepath.Join(t.TempDir(), "ca"))
-	created, err := Ensure(d, "Covo Test CA", now)
+	created, err := Ensure(d, "Benbow Test CA", now)
 	if err != nil || !created {
 		t.Fatalf("first Ensure: created=%v err=%v", created, err)
 	}
@@ -186,7 +186,7 @@ func TestEnsure(t *testing.T) {
 		}
 	}
 
-	created, err = Ensure(d, "Covo Test CA", now.Add(24*time.Hour))
+	created, err = Ensure(d, "Benbow Test CA", now.Add(24*time.Hour))
 	if err != nil || created {
 		t.Fatalf("second Ensure must keep the CA: created=%v err=%v", created, err)
 	}
@@ -195,7 +195,7 @@ func TestEnsure(t *testing.T) {
 	if err := os.WriteFile(d.RootCert(), unconstrainedRoot(t), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	created, err = Ensure(d, "Covo Test CA", now)
+	created, err = Ensure(d, "Benbow Test CA", now)
 	if err != nil || !created {
 		t.Fatalf("Ensure must replace an unconstrained CA: created=%v err=%v", created, err)
 	}
@@ -207,15 +207,15 @@ func TestEnsure(t *testing.T) {
 
 func TestBundle(t *testing.T) {
 	m := mustGenerate(t)
-	b := string(Bundle([]byte("MOZILLA\n\n"), m.RootCert, "Covo Test CA"))
-	if !strings.HasPrefix(b, "MOZILLA\n\nCovo Test CA (added by Covo)\n-----BEGIN CERTIFICATE-----") {
+	b := string(Bundle([]byte("MOZILLA\n\n"), m.RootCert, "Benbow Test CA"))
+	if !strings.HasPrefix(b, "MOZILLA\n\nBenbow Test CA (added by Benbow)\n-----BEGIN CERTIFICATE-----") {
 		t.Fatalf("unexpected bundle:\n%s", b)
 	}
 }
 
 func TestLeaf(t *testing.T) {
 	d := Dir(t.TempDir())
-	if _, err := Ensure(d, "Covo Test CA", now); err != nil {
+	if _, err := Ensure(d, "Benbow Test CA", now); err != nil {
 		t.Fatal(err)
 	}
 	before, err := Load(d)

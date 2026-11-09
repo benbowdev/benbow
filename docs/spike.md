@@ -4,10 +4,10 @@ Decisions, risks and findings from the Spike phase. Short on purpose.
 
 ## Result
 
-`covo site add demo --php 8.4 && covo start` serves https://demo.localhost:8443
+`benbow site add demo --php 8.4 && benbow start` serves https://demo.localhost:8443
 through Caddy + static PHP-FPM 8.4 with a trusted certificate, and a second
 site on PHP 8.2 runs in parallel (`TestTwoPHPVersionsInParallel`).
-`covo uninstall` removes everything Covo added: after running it on the real
+`benbow uninstall` removes everything Benbow added: after running it on the real
 home, the Step 0 inventory was identical (ports, launchd, keychain trust
 settings, `/etc/resolver`, `/etc/hosts`), MAMP still running, site folder
 untouched.
@@ -17,17 +17,17 @@ untouched.
 - **No daemon in the spike.** The CLI calls `internal/core` in-process. The
   core already returns plain, JSON-serialisable types, so Core v1 can put it
   behind the Unix-socket API without moving logic. Concurrent CLI runs are
-  serialised with a `flock` on `covo.lock`.
+  serialised with a `flock` on `benbow.lock`.
 - **Embedded manifest** of pinned artifacts (see Checksums). Updating a
-  component means a new Covo build for now; Core v1 adds remote manifests.
-- **Everything under the Covo home**, launchd plists included. The only
+  component means a new Benbow build for now; Core v1 adds remote manifests.
+- **Everything under the Benbow home**, launchd plists included. The only
   things outside it: the socket fallback in `$TMPDIR` (only when the home
-  path is too long) and the CA in the login keychain after `covo trust`.
+  path is too long) and the CA in the login keychain after `benbow trust`.
 - **Every command supports `--json`** with the envelope
   `{"schema":1,"ok":…,"data":…|"error":{"code","message"}}` and a non-zero
   exit code on error. Error codes are stable (`internal/errcode`).
-- **Test isolation**: integration tests use their own `COVO_HOME`,
-  `COVO_LABEL_PREFIX`, `COVO_HTTPS_PORT` and `COVO_CA_NAME`, so they never
+- **Test isolation**: integration tests use their own `BENBOW_HOME`,
+  `BENBOW_LABEL_PREFIX`, `BENBOW_HTTPS_PORT` and `BENBOW_CA_NAME`, so they never
   touch a real installation, its agents or its trusted CA.
 
 ## Components
@@ -75,22 +75,22 @@ Xdebug toggle. **Risk: open.**
 `site add` refuses (`forbidden_folder`, even with `--force`): `/`, the home
 folder, `/Users`, `/Volumes` and disk roots, system trees (`/System`,
 `/Library`, `/usr`, `/etc`, `/Applications`, `~/Library`, …) and anything
-overlapping the Covo home (it holds the CA keys). Symlinks are resolved
+overlapping the Benbow home (it holds the CA keys). Symlinks are resolved
 first. A folder without `index.php` or `index.html` needs confirmation
 (interactive) or `--force` (`confirmation_required`).
 
 ## Uninstall
 
-`covo uninstall` stops every agent under the label prefix, removes this
+`benbow uninstall` stops every agent under the label prefix, removes this
 install's CA from the keychain (by SHA-1; by name only if the CA file is
-gone), and deletes the Covo home and socket fallback. It does not open the
+gone), and deletes the Benbow home and socket fallback. It does not open the
 database, so it also cleans a partial or corrupted install. It refuses to
-delete a home containing files Covo did not create (`conflict`) and asks for
+delete a home containing files Benbow did not create (`conflict`) and asks for
 confirmation unless `--yes`. Site folders are never touched. It also removes every
-secret Covo keeps in the login keychain, the `/etc/resolver` file and the
-`.local` helper, and Covo's MCP server from the AI agents it was connected
+secret Benbow keeps in the login keychain, the `/etc/resolver` file and the
+`.local` helper, and Benbow's MCP server from the AI agents it was connected
 to. Before asking, it lists the backups of `wp-config.php`/`.env` taken by
-migrations, which go with the Covo home.
+migrations, which go with the Benbow home.
 
 ## Logs
 
@@ -103,16 +103,16 @@ nothing there).
 ## Sockets
 
 PHP-FPM and the Caddy admin API listen on Unix sockets, so the only TCP port
-Covo opens is HTTPS (8443). Socket paths are limited to 103 bytes on macOS; if
-`<COVO_HOME>/run/caddy-admin.sock` is longer, sockets move to
-`$TMPDIR/covo-<uid>-<hash>/` (0700, owner checked).
+Benbow opens is HTTPS (8443). Socket paths are limited to 103 bytes on macOS; if
+`<BENBOW_HOME>/run/caddy-admin.sock` is longer, sockets move to
+`$TMPDIR/benbow-<uid>-<hash>/` (0700, owner checked).
 
 ## Services
 
-- launchd user agents (`dev.getcovo.caddy`, `dev.getcovo.php84`, …) are
-  bootstrapped from plists inside the Covo home, never copied to
+- launchd user agents (`dev.benbow.caddy`, `dev.benbow.php84`, …) are
+  bootstrapped from plists inside the Benbow home, never copied to
   `~/Library/LaunchAgents`. Consequence: after a reboot nothing runs until
-  `covo start`. Autostart at login will be an explicit option later.
+  `benbow start`. Autostart at login will be an explicit option later.
 - Caddy listens only on `127.0.0.1` and `[::1]` (`default_bind`) and only on
   the HTTPS port; it binds nothing while there are no sites. HTTP redirects
   are disabled, so port 80 (MAMP here) is never touched.
@@ -120,27 +120,27 @@ Covo opens is HTTPS (8443). Socket paths are limited to 103 bytes on macOS; if
   A php.ini / php-fpm.conf change restarts that FPM agent (the config hash is
   part of the plist).
 - **macOS privacy (TCC): tested 2026-10-29, macOS 26.2.** A site in
-  `~/Documents/covo-tcc-test` served both a static file and `index.php`
+  `~/Documents/benbow-tcc-test` served both a static file and `index.php`
   (HTTP 200), with no prompt and nothing in the logs. Caddy and PHP-FPM never
-  got a permission of their own, while the shell running `covo start` (inside
+  got a permission of their own, while the shell running `benbow start` (inside
   VS Code) can read `~/Documents` but has no Full Disk Access. So macOS
   attributes the agents to the app that ran `launchctl bootstrap`, and they
   inherit its folder permissions.
   Consequences: from a terminal app that has (or is granted) access to
   Documents/Desktop/Downloads/iCloud Drive, sites there work. From one that
   has been denied, Caddy/PHP would get "operation not permitted". The future
-  Covo.app will be the responsible app and macOS will prompt for it once.
+  Benbow.app will be the responsible app and macOS will prompt for it once.
   No `protected_folder` warning was added since the read succeeded; revisit if
   a user reports the failure or when the GUI starts the agents.
 
 ## Local CA trust
 
-- `covo trust` runs `security add-trusted-cert -r trustRoot -k
+- `benbow trust` runs `security add-trusted-cert -r trustRoot -k
   ~/Library/Keychains/login.keychain-db root.crt`: no sudo, trust for the
   current user only, one macOS authorization dialog. Caddy is configured with
   `skip_install_trust`, so it never tries to install its CA by itself.
-- `covo untrust` removes trust settings and keychain items for every
-  certificate whose CN is exactly "Covo Local CA" (the on-disk root is also
+- `benbow untrust` removes trust settings and keychain items for every
+  certificate whose CN is exactly "Benbow Local CA" (the on-disk root is also
   matched by SHA-1). It only runs commands for items that are present, so a
   no-op never shows a dialog. Both commands are idempotent.
 - Tested 2026-10-29 on the real home: trust → system `curl` and Chrome load

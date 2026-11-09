@@ -16,7 +16,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// TestMCP drives `covo mcp` over stdio like an agent would.
+// TestMCP drives `benbow mcp` over stdio like an agent would.
 func TestMCP(t *testing.T) {
 	h := newHarness(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
@@ -48,7 +48,7 @@ func TestMCP(t *testing.T) {
 	if err != nil || !res0.IsError || !strings.HasPrefix(res0.Content[0].(*mcp.TextContent).Text, "forbidden:") {
 		t.Fatalf("add_site without permission = %+v, %v", res0.Content[0].(*mcp.TextContent).Text, err)
 	}
-	h.mustCovo("mcp", "allow", "*")
+	h.mustBenbow("mcp", "allow", "*")
 	if !strings.Contains(call("add_site", map[string]any{"name": "agent", "path": newSite(t), "php": "8.4", "dry_run": true}), `"dry_run": true`) {
 		t.Fatal("dry run not reported")
 	}
@@ -65,13 +65,13 @@ func TestMCP(t *testing.T) {
 	if body := h.get(sites[0].URL, st.CA.CertPath); !strings.HasPrefix(body, "8.4.") {
 		t.Fatalf("site added over MCP served %q", body)
 	}
-	h.mustCovo("mcp", "deny", "*")
-	h.mustCovo("mcp", "allow", "agent")
+	h.mustBenbow("mcp", "deny", "*")
+	h.mustBenbow("mcp", "allow", "agent")
 	out := call("update_site", map[string]any{"name": "agent", "enabled": false})
 	if !strings.Contains(out, `"session_start"`) || strings.Contains(out, `"checkpoint"`) {
 		t.Fatalf("update_site should open the agent session without a checkpoint: %s", out)
 	}
-	if !strings.Contains(call("covo_status", nil), `"enabled": false`) {
+	if !strings.Contains(call("benbow_status", nil), `"enabled": false`) {
 		t.Fatal("update_site did not turn the site off")
 	}
 	call("site_logs", map[string]any{"site": "agent", "kind": "access"})
@@ -93,11 +93,11 @@ func TestMCP(t *testing.T) {
 		Error    string `json:"error"`
 		Snapshot string `json:"snapshot"`
 	}
-	if err := json.Unmarshal(h.mustCovo("mcp", "log"), &log); err != nil || len(log) < 4 || log[0].Tool != "stop" || log[0].Error == "" {
+	if err := json.Unmarshal(h.mustBenbow("mcp", "log"), &log); err != nil || len(log) < 4 || log[0].Tool != "stop" || log[0].Error == "" {
 		t.Fatalf("mcp log = %+v, %v", log, err)
 	}
 	var snaps []any
-	if err := json.Unmarshal(h.mustCovo("snapshot", "list", "agent"), &snaps); err != nil || len(snaps) != 1 {
+	if err := json.Unmarshal(h.mustBenbow("snapshot", "list", "agent"), &snaps); err != nil || len(snaps) != 1 {
 		t.Fatalf("snapshots = %v, %v", snaps, err)
 	}
 }

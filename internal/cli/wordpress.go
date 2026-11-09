@@ -9,25 +9,25 @@ import (
 	"io"
 	"os"
 
-	"github.com/getcovo/covo/internal/core"
-	"github.com/getcovo/covo/internal/errcode"
+	"github.com/benbowdev/benbow/internal/core"
+	"github.com/benbowdev/benbow/internal/errcode"
 	"github.com/spf13/cobra"
 )
 
 func (a *app) wpCmd() *cobra.Command {
-	return a.toolCmd(core.ToolWP, "Run wp-cli for a site, with its PHP version and Covo's MySQL",
-		"Run wp-cli for a site, e.g. `covo wp shop plugin list`.")
+	return a.toolCmd(core.ToolWP, "Run wp-cli for a site, with its PHP version and Benbow's MySQL",
+		"Run wp-cli for a site, e.g. `benbow wp shop plugin list`.")
 }
 
 func (a *app) composerCmd() *cobra.Command {
 	return a.toolCmd(core.ToolComposer, "Run Composer in a site's project folder, with its PHP version",
-		"Run Composer for a site, e.g. `covo composer shop require guzzlehttp/guzzle`.\n"+
-			"Composer 2.11 (2.2 LTS for PHP older than 7.3); its cache is in Covo's folder.")
+		"Run Composer for a site, e.g. `benbow composer shop require guzzlehttp/guzzle`.\n"+
+			"Composer 2.11 (2.2 LTS for PHP older than 7.3); its cache is in Benbow's folder.")
 }
 
 func (a *app) artisanCmd() *cobra.Command {
 	return a.toolCmd(core.ToolArtisan, "Run Laravel's artisan for a site, with its PHP version",
-		"Run artisan for a Laravel site, e.g. `covo artisan shop migrate`.")
+		"Run artisan for a Laravel site, e.g. `benbow artisan shop migrate`.")
 }
 
 // toolCmd runs a site tool: every argument after the site name goes to the
@@ -65,7 +65,7 @@ type wordpressResult core.WordPressResult
 func (r wordpressResult) Text(w io.Writer) {
 	fmt.Fprintf(w, "WordPress %s ready at %s\n  folder    %s\n  database  %s\n  admin     %s\n  user      %s\n  password  %s\n",
 		r.WordPress, r.URL, r.Path, r.Database, r.AdminURL, r.AdminUser, r.AdminPassword)
-	fmt.Fprintln(w, "Save the admin password now: Covo does not keep it.")
+	fmt.Fprintln(w, "Save the admin password now: Benbow does not keep it.")
 	if r.Blueprint != nil {
 		blueprintApplyResult(*r.Blueprint).Text(w)
 	}
@@ -108,11 +108,11 @@ func (a *app) wordpressCmd() *cobra.Command {
 	cmd.Flags().StringVar(&req.Title, "title", "", "site title (default: the name)")
 	cmd.Flags().StringVar(&req.AdminUser, "admin-user", "admin", "administrator user name")
 	cmd.Flags().StringVar(&req.AdminEmail, "admin-email", "", "administrator email (default admin@<domain>)")
-	cmd.Flags().StringVar(&req.Domain, "domain", "", "local domain, e.g. blog.covo.test (default: <name>.localhost)")
+	cmd.Flags().StringVar(&req.Domain, "domain", "", "local domain, e.g. blog.benbow.test (default: <name>.localhost)")
 	cmd.Flags().StringSliceVar(&req.Aliases, "aliases", nil, "extra domains, comma separated")
-	cmd.Flags().StringVar(&group, "group", "", "list the site in this group, e.g. Clients/Acme (see covo group)")
+	cmd.Flags().StringVar(&group, "group", "", "list the site in this group, e.g. Clients/Acme (see benbow group)")
 	cmd.Flags().StringArrayVar(&ini, "ini", nil, "php.ini value of this site, name=value (repeatable)")
-	cmd.Flags().StringVar(&req.Blueprint, "blueprint", "", "apply this blueprint (see covo blueprint)")
+	cmd.Flags().StringVar(&req.Blueprint, "blueprint", "", "apply this blueprint (see benbow blueprint)")
 	cmd.Flags().BoolVar(&req.AcceptChanges, "accept-changes", false, "with --blueprint: accept sources whose content changed since first use")
 	cmd.Flags().BoolVar(&yes, "yes", false, "with --blueprint: do not ask")
 	return cmd

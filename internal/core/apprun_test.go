@@ -11,30 +11,30 @@ import (
 	"testing"
 	"time"
 
-	"github.com/getcovo/covo/internal/launchd"
-	"github.com/getcovo/covo/internal/paths"
-	"github.com/getcovo/covo/internal/store"
+	"github.com/benbowdev/benbow/internal/launchd"
+	"github.com/benbowdev/benbow/internal/paths"
+	"github.com/benbowdev/benbow/internal/store"
 )
 
 func TestAppCommand(t *testing.T) {
 	s := store.Site{Path: "/Users/me/Code/my shop", Command: "npm run dev -- --port {port} --strictPort", AppPort: 41002}
 	got := appCommand("/bin/zsh", devProc{Site: s})
-	want := []string{"/bin/zsh", "-l", "-i", "-c", "cd \"$COVO_APP_DIR\" || exit 1\nnpm run dev -- --port 41002 --strictPort"}
+	want := []string{"/bin/zsh", "-l", "-i", "-c", "cd \"$BENBOW_APP_DIR\" || exit 1\nnpm run dev -- --port 41002 --strictPort"}
 	if strings.Join(got, "|") != strings.Join(want, "|") {
 		t.Errorf("appCommand = %q, want %q", got, want)
 	}
 
 	c := runCore(t)
-	t.Setenv("COVO_HOME", "/somewhere")
+	t.Setenv("BENBOW_HOME", "/somewhere")
 	t.Setenv("PORT", "1")
 	env := strings.Join(c.appEnv(devProc{Site: s}, "/bin/zsh"), "\n")
-	for _, kv := range []string{"PORT=41002", "COVO_APP_DIR=" + s.Path, "SHELL=/bin/zsh", "NO_COLOR=1", "BROWSER=none", "NODE_EXTRA_CA_CERTS=" + c.CACertPath()} {
+	for _, kv := range []string{"PORT=41002", "BENBOW_APP_DIR=" + s.Path, "SHELL=/bin/zsh", "NO_COLOR=1", "BROWSER=none", "NODE_EXTRA_CA_CERTS=" + c.CACertPath()} {
 		if !strings.Contains(env, kv+"\n") && !strings.HasSuffix(env, kv) {
 			t.Errorf("env lacks %s", kv)
 		}
 	}
-	if strings.Contains(env, "COVO_HOME") || strings.Contains(env, "PORT=1\n") {
-		t.Errorf("env leaks Covo's variables or the old PORT:\n%s", env)
+	if strings.Contains(env, "BENBOW_HOME") || strings.Contains(env, "PORT=1\n") {
+		t.Errorf("env leaks Benbow's variables or the old PORT:\n%s", env)
 	}
 }
 
@@ -48,7 +48,7 @@ func TestDiagnoseApp(t *testing.T) {
 		{127, []string{"zsh:2: command not found: node"}, "node was not found by your login shell. Install it with your version manager (nvm"},
 		{127, []string{"bash: line 2: pnpm: command not found"}, "pnpm was not found"},
 		{127, []string{"env: node: No such file or directory"}, "node was not found"},
-		{1, []string{"Error: listen EADDRINUSE: address already in use :::41000"}, "already in use. Covo gave the command port 41000"},
+		{1, []string{"Error: listen EADDRINUSE: address already in use :::41000"}, "already in use. Benbow gave the command port 41000"},
 		{1, []string{"error when starting dev server:", "Error: Port 41000 is already in use"}, "already in use"},
 		{127, nil, "A program in the command was not found"},
 		{0, nil, "The command finished"},
@@ -77,7 +77,7 @@ func runCore(t *testing.T) *Core {
 		t.Fatal(err)
 	}
 	c.Layout = l
-	c.launchctl = &launchd.Launchctl{Prefix: "dev.getcovo"}
+	c.launchctl = &launchd.Launchctl{Prefix: "dev.benbow"}
 	return c
 }
 
@@ -93,7 +93,7 @@ func TestAppStatus(t *testing.T) {
 
 	run := store.Site{Name: "shop", Kind: store.KindApp, AppMode: store.AppRun, AppPort: open, Enabled: true, Command: "npm run dev"}
 	label := c.appLabel("shop")
-	if label != "dev.getcovo.app-shop" {
+	if label != "dev.benbow.app-shop" {
 		t.Errorf("label = %q", label)
 	}
 	none := map[string]launchd.Status{}
@@ -150,9 +150,9 @@ func TestAppStatus(t *testing.T) {
 func TestAppAgent(t *testing.T) {
 	c := runCore(t)
 	if _, err := c.appAgents(t.Context(), []store.Site{{Name: "x", Kind: store.KindApp, AppMode: store.AppRun, Enabled: true}}); err == nil {
-		t.Error("app agents without the covo binary")
+		t.Error("app agents without the benbow binary")
 	}
-	c.Executable = "/Applications/Covo.app/Contents/MacOS/covo"
+	c.Executable = "/Applications/Benbow.app/Contents/MacOS/benbow"
 	sites := []store.Site{
 		{Name: "shop", Kind: store.KindApp, AppMode: store.AppRun, Enabled: true, Path: "/p", Command: "npm run dev", AppPort: 41000},
 		{Name: "off", Kind: store.KindApp, AppMode: store.AppRun, Enabled: false},
@@ -164,13 +164,13 @@ func TestAppAgent(t *testing.T) {
 		t.Fatalf("agents = %+v, %v", agents, err)
 	}
 	a := agents[0]
-	if a.Label != "dev.getcovo.app-shop" || !a.NoKeepAlive || a.Program != c.Executable ||
+	if a.Label != "dev.benbow.app-shop" || !a.NoKeepAlive || a.Program != c.Executable ||
 		strings.Join(a.Args, " ") != "app run shop" || a.StdoutLog != filepath.Join(c.siteLogDir("shop"), "app.log") || a.StdoutLog != a.StderrLog {
 		t.Errorf("agent = %+v", a)
 	}
 	other := sites[0]
 	other.Command = "pnpm dev"
-	if c.appAgent(devProc{Site: other}, "").Env["COVO_CONFIG_HASH"] == a.Env["COVO_CONFIG_HASH"] {
+	if c.appAgent(devProc{Site: other}, "").Env["BENBOW_CONFIG_HASH"] == a.Env["BENBOW_CONFIG_HASH"] {
 		t.Error("a new command does not change the plist")
 	}
 }

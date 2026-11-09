@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 Andrea Casali
 
-// Package mcpserver exposes Covo to AI agents over the Model Context
+// Package mcpserver exposes Benbow to AI agents over the Model Context
 // Protocol (stdio). Like the CLI it is a thin client: every tool calls the
 // core.
 //
 // Agents are read-only by default. A tool that changes something needs the
-// user's permission (Covo → Settings → AI agents, or `covo mcp allow`) for
-// that site, or for everything; before it changes a site Covo takes a
+// user's permission (Benbow → Settings → AI agents, or `benbow mcp allow`) for
+// that site, or for everything; before it changes a site Benbow takes a
 // snapshot of it, and every change (or refused attempt) is logged and shown
 // in the app. Changing tools take dry_run to show what they would do.
 // Nothing here deletes sites, databases or groups.
@@ -25,10 +25,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/getcovo/covo/internal/core"
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/store"
-	"github.com/getcovo/covo/internal/version"
+	"github.com/benbowdev/benbow/internal/core"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/store"
+	"github.com/benbowdev/benbow/internal/version"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -39,27 +39,27 @@ const maxOutput = 100 << 10
 // may change state in between.
 type Open func(ctx context.Context) (*core.Core, error)
 
-// Instructions tell agents what Covo is and the recommended workflow.
-const Instructions = "Covo is a local PHP/WordPress/Laravel development environment on this Mac (like MAMP PRO): sites are folders " +
+// Instructions tell agents what Benbow is and the recommended workflow.
+const Instructions = "Benbow is a local PHP/WordPress/Laravel development environment on this Mac (like MAMP PRO): sites are folders " +
 	"served over HTTPS at local addresses (e.g. https://shop.localhost:8443), each with its own PHP version and database. " +
-	"A site can also be an app: a dev server in any language (Next.js, Vite, Django…) that Covo starts with the user's own " +
+	"A site can also be an app: a dev server in any language (Next.js, Vite, Django…) that Benbow starts with the user's own " +
 	"command and tools (it never installs runtimes), behind the same kind of address; a PHP site can have a companion (e.g. Vite).\n\n" +
 	"Recommended workflow:\n" +
-	"1. covo_status, then agent_permissions: you can always read; you change a site only where the user allowed it " +
+	"1. benbow_status, then agent_permissions: you can always read; you change a site only where the user allowed it " +
 	"(or while a \"Work with an agent\" session gives you the site).\n" +
-	"2. Work inside the site's agent session (session_status): Covo saved the site's files and database when the session " +
-	"started and the user will keep your changes or undo them all. Make changes with Covo's wp, composer and artisan tools " +
-	"(they use the site's PHP); Covo takes a checkpoint before risky ones. Use dry_run first when unsure.\n" +
+	"2. Work inside the site's agent session (session_status): Benbow saved the site's files and database when the session " +
+	"started and the user will keep your changes or undo them all. Make changes with Benbow's wp, composer and artisan tools " +
+	"(they use the site's PHP); Benbow takes a checkpoint before risky ones. Use dry_run first when unsure.\n" +
 	"3. Check your work: fetch_page (the page, its redirects and the PHP errors of that very request, or an app's output), site_logs, " +
 	"mail_messages and read_mail for mail PHP sent, query_database to read the database.\n" +
 	"4. Before saying you are done, call session_diff and show the user what changed (files and database tables), " +
-	"and remind them to keep or undo the changes in Covo.\n\n" +
-	"Covo never lets agents delete sites, databases or snapshots, push to servers, or keep or undo a session: those stay with the user."
+	"and remind them to keep or undo the changes in Benbow.\n\n" +
+	"Benbow never lets agents delete sites, databases or snapshots, push to servers, or keep or undo a session: those stay with the user."
 
 // New returns the MCP server.
 func New(open Open) *mcp.Server {
 	t := tools{open: open, conn: &conn{}}
-	s := mcp.NewServer(&mcp.Implementation{Name: "covo", Title: "Covo", Version: version.Get().Version}, &mcp.ServerOptions{
+	s := mcp.NewServer(&mcp.Implementation{Name: "benbow", Title: "Benbow", Version: version.Get().Version}, &mcp.ServerOptions{
 		Instructions: Instructions,
 	})
 	// On the agent's first request (initialize, or server/discover in the
@@ -79,38 +79,38 @@ func New(open Open) *mcp.Server {
 	network := &mcp.ToolAnnotations{DestructiveHint: ptr(true), OpenWorldHint: ptr(true)}
 
 	// Read only.
-	mcp.AddTool(s, &mcp.Tool{Name: "covo_status", Title: "Covo status", Annotations: ro,
-		Description: "Whether Covo is running, its services, the sites with their addresses, MySQL, PostgreSQL, Redis and Mail."}, t.status)
+	mcp.AddTool(s, &mcp.Tool{Name: "benbow_status", Title: "Benbow status", Annotations: ro,
+		Description: "Whether Benbow is running, its services, the sites with their addresses, MySQL, PostgreSQL, Redis and Mail."}, t.status)
 	mcp.AddTool(s, &mcp.Tool{Name: "list_sites", Title: "List sites", Annotations: ro,
 		Description: "Every site: name, folder, framework, PHP version, address, domain and aliases, database, on/off, group."}, t.listSites)
 	mcp.AddTool(s, &mcp.Tool{Name: "site_logs", Title: "Site logs", Annotations: ro,
 		Description: "The end of a site's PHP error log (kind \"php\"), request log (kind \"access\"), an app's dev server output (kind \"app\") or a PHP site's companion output (kind \"companion\")."}, t.siteLogs)
 	mcp.AddTool(s, &mcp.Tool{Name: "detect_app", Title: "Detect an app's command", Annotations: ro,
-		Description: "For a folder with a dev server in any language (package.json, manage.py, FastAPI, Flask, Rails), the command Covo proposes " +
-			"to start it, with {port} for its port. Covo never installs Node, Python or packages: the command runs with the user's own tools. " +
+		Description: "For a folder with a dev server in any language (package.json, manage.py, FastAPI, Flask, Rails), the command Benbow proposes " +
+			"to start it, with {port} for its port. Benbow never installs Node, Python or packages: the command runs with the user's own tools. " +
 			"Show the command to the user before adding the site with add_site and command."}, t.detectApp)
 	mcp.AddTool(s, &mcp.Tool{Name: "list_php_versions", Title: "PHP versions", Annotations: ro,
 		Description: "Installed and available PHP versions, with php.net's support status (active, security, eol)."}, t.listPHP)
 	mcp.AddTool(s, &mcp.Tool{Name: "php_compatibility_check", Title: "PHP compatibility check", Annotations: ro,
 		Description: "Lists what in a site's code would break on another PHP version (PHPCompatibility). Reads the code only."}, t.phpCheck)
 	mcp.AddTool(s, &mcp.Tool{Name: "list_databases", Title: "List databases", Annotations: ro,
-		Description: "The databases on Covo's MySQL (engine mysql, default) or PostgreSQL (engine pgsql)."}, t.listDatabases)
+		Description: "The databases on Benbow's MySQL (engine mysql, default) or PostgreSQL (engine pgsql)."}, t.listDatabases)
 	mcp.AddTool(s, &mcp.Tool{Name: "list_snapshots", Title: "List snapshots", Annotations: ro,
-		Description: "A site's snapshots (files and database saved by Covo), newest first."}, t.listSnapshots)
+		Description: "A site's snapshots (files and database saved by Benbow), newest first."}, t.listSnapshots)
 	mcp.AddTool(s, &mcp.Tool{Name: "session_status", Title: "Agent session", Annotations: ro,
 		Description: "A site's agent session: when it started, the snapshot of the starting state the user can go back to, " +
-			"and the checkpoints taken before risky changes. Only the user can keep or undo a session, in Covo."}, t.sessionStatus)
+			"and the checkpoints taken before risky changes. Only the user can keep or undo a session, in Benbow."}, t.sessionStatus)
 	mcp.AddTool(s, &mcp.Tool{Name: "session_diff", Title: "What changed", Annotations: ro,
 		Description: "What changed since the site's agent session started: files added, modified and deleted (.git, node_modules and generated folders such as .venv and .next left out), " +
 			"and database tables with rows inserted, updated and deleted. file gives one file's unified diff; secrets in .env, " +
 			"wp-config.php and key files are masked. Show this to the user before saying the work is done."}, t.sessionDiff)
 	mcp.AddTool(s, &mcp.Tool{Name: "fetch_page", Title: "Fetch a page", Annotations: ro,
-		Description: "Requests a page of a Covo site (GET or HEAD; never another address) like a browser and returns the status, main headers, " +
+		Description: "Requests a page of a Benbow site (GET or HEAD; never another address) like a browser and returns the status, main headers, " +
 			"redirects, title, the page's text, and the PHP errors, warnings, notices and deprecations that this very request produced; " +
-			"for an app Covo starts, what its dev server printed meanwhile (app_output). Use it to check your work. " +
+			"for an app Benbow starts, what its dev server printed meanwhile (app_output). Use it to check your work. " +
 			"After changing an app's code, its dev server usually reloads by itself; restart_app when it does not."}, t.fetchPage)
 	mcp.AddTool(s, &mcp.Tool{Name: "mail_messages", Title: "Mail sent", Annotations: ro,
-		Description: "The newest messages PHP sent, caught by Covo's Mailpit (nothing leaves the Mac); filter by recipient or subject words."}, t.mailMessages)
+		Description: "The newest messages PHP sent, caught by Benbow's Mailpit (nothing leaves the Mac); filter by recipient or subject words."}, t.mailMessages)
 	mcp.AddTool(s, &mcp.Tool{Name: "read_mail", Title: "Read a mail", Annotations: ro,
 		Description: "One caught message (id from mail_messages, or the newest): sender, recipients, text and links, to check forms and notifications."}, t.readMail)
 	mcp.AddTool(s, &mcp.Tool{Name: "query_database", Title: "Query the database", Annotations: ro,
@@ -119,17 +119,17 @@ func New(open Open) *mcp.Server {
 	mcp.AddTool(s, &mcp.Tool{Name: "list_blueprints", Title: "List blueprints", Annotations: ro,
 		Description: "Saved WordPress blueprints (themes, plugins, options); name gives one blueprint's JSON."}, t.listBlueprints)
 	mcp.AddTool(s, &mcp.Tool{Name: "agent_permissions", Title: "What agents may change", Annotations: ro,
-		Description: "Which sites AI agents may change (set by the user in Covo; agents cannot change it)."}, t.permissions)
+		Description: "Which sites AI agents may change (set by the user in Benbow; agents cannot change it)."}, t.permissions)
 
 	// Changes: permission, snapshot, log.
 	mcp.AddTool(s, &mcp.Tool{Name: "app_env", Title: "An app's environment variables", Annotations: ro,
-		Description: "The names of the variables an app gets: the ones Covo sets (APP_URL, DATABASE_URL, REDIS_URL, SMTP_*) and the user's own. Values are never shown to agents: ask the user to set one with `covo site env <site> set NAME`."}, t.appEnv)
+		Description: "The names of the variables an app gets: the ones Benbow sets (APP_URL, DATABASE_URL, REDIS_URL, SMTP_*) and the user's own. Values are never shown to agents: ask the user to set one with `benbow site env <site> set NAME`."}, t.appEnv)
 	mcp.AddTool(s, &mcp.Tool{Name: "restart_app", Title: "Restart an app's dev server", Annotations: change,
 		Description: "Stops an app site's dev server, or a PHP site's companion (every process its command started), and starts it again; returns its state (starting, running, error with a message). Its output: site_logs with kind \"app\"."}, t.restartApp)
-	mcp.AddTool(s, &mcp.Tool{Name: "start", Title: "Start Covo", Annotations: change,
-		Description: "Starts every enabled site and Covo's services. Needs permission for everything."}, t.start)
-	mcp.AddTool(s, &mcp.Tool{Name: "stop", Title: "Stop Covo", Annotations: change,
-		Description: "Stops every site and Covo's services. Nothing is deleted. Needs permission for everything."}, t.stop)
+	mcp.AddTool(s, &mcp.Tool{Name: "start", Title: "Start Benbow", Annotations: change,
+		Description: "Starts every enabled site and Benbow's services. Needs permission for everything."}, t.start)
+	mcp.AddTool(s, &mcp.Tool{Name: "stop", Title: "Stop Benbow", Annotations: change,
+		Description: "Stops every site and Benbow's services. Nothing is deleted. Needs permission for everything."}, t.stop)
 	mcp.AddTool(s, &mcp.Tool{Name: "add_site", Title: "Add a site", Annotations: change,
 		Description: "Adds a site for a folder (absolute path). Optional: domain, aliases, create_folder, database (\"new\" or an existing name), " +
 			"database_engine, php.ini values. Needs permission for everything."}, t.addSite)
@@ -152,7 +152,7 @@ func New(open Open) *mcp.Server {
 		Description: "Puts a site's files and database back to a snapshot (the current state is saved first)."}, t.restoreSnapshot)
 	mcp.AddTool(s, &mcp.Tool{Name: "apply_blueprint", Title: "Apply a blueprint", Annotations: network,
 		Description: "Installs a saved blueprint's themes, plugins, options and constants into a WordPress site (third-party code; snapshot first). " +
-			"Stops if a download changed since Covo first saw it: only the user can accept that. dry_run lists what would be installed."}, t.applyBlueprint)
+			"Stops if a download changed since Benbow first saw it: only the user can accept that. dry_run lists what would be installed."}, t.applyBlueprint)
 	mcp.AddTool(s, &mcp.Tool{Name: "save_blueprint", Title: "Save a site as blueprint", Annotations: change,
 		Description: "Saves a WordPress site's wordpress.org themes and plugins, permalinks, timezone and must-use plugins as a blueprint. Needs permission for everything."}, t.saveBlueprint)
 	mcp.AddTool(s, &mcp.Tool{Name: "pull", Title: "Pull from production", Annotations: network,
@@ -169,7 +169,7 @@ type tools struct {
 	conn *conn
 }
 
-// conn is what Covo knows about the connected agent.
+// conn is what Benbow knows about the connected agent.
 type conn struct {
 	once  sync.Once
 	mu    sync.Mutex
@@ -214,7 +214,7 @@ func (t tools) connected(ctx context.Context, ss *mcp.ServerSession) {
 	}
 	c, err := t.open(ctx)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "covo: %v\n", err)
+		fmt.Fprintf(os.Stderr, "benbow: %v\n", err)
 		return
 	}
 	defer func() { _ = c.Close() }()
@@ -225,7 +225,7 @@ func (t tools) connected(ctx context.Context, ss *mcp.ServerSession) {
 		}
 		if _, _, err := c.EnsureAgentSession(ctx, core.SessionRequest{Site: site, Agent: t.conn.agentName(), Source: core.SessionFromFolder}); err != nil {
 			// Stderr ends up in the agent's MCP log.
-			fmt.Fprintf(os.Stderr, "covo: agent session on %s: %v\n", site, err)
+			fmt.Fprintf(os.Stderr, "benbow: agent session on %s: %v\n", site, err)
 		}
 	}
 }
@@ -300,7 +300,7 @@ func change[T any](ctx context.Context, t tools, tool, site string, args any, dr
 	}
 	if res.SessionStart != "" {
 		out["session_start"] = res.SessionStart
-		out["undo_all"] = "the user can keep or undo everything since the session started in Covo"
+		out["undo_all"] = "the user can keep or undo everything since the session started in Benbow"
 	}
 	if dryRun {
 		out["dry_run"] = true
@@ -309,7 +309,7 @@ func change[T any](ctx context.Context, t tools, tool, site string, args any, dr
 }
 
 // toolError reports a failure to the agent (not as a protocol error), with
-// Covo's error code.
+// Benbow's error code.
 func toolError(err error) *mcp.CallToolResult {
 	return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{
 		&mcp.TextContent{Text: errcode.Code(err) + ": " + err.Error()},
@@ -423,7 +423,7 @@ func (t tools) listSnapshots(ctx context.Context, _ *mcp.CallToolRequest, in sit
 
 type fetchIn struct {
 	Site   string `json:"site" jsonschema:"the site's name"`
-	Path   string `json:"path,omitempty" jsonschema:"path on the site, e.g. /shop/?p=2 (default /), or a full URL on a Covo site's address"`
+	Path   string `json:"path,omitempty" jsonschema:"path on the site, e.g. /shop/?p=2 (default /), or a full URL on a Benbow site's address"`
 	Method string `json:"method,omitempty" jsonschema:"GET (default) or HEAD"`
 	HTML   bool   `json:"html,omitempty" jsonschema:"also return the page's HTML (cut at 100 KiB)"`
 }
@@ -510,9 +510,9 @@ type addSiteIn struct {
 	DatabaseEngine string            `json:"database_engine,omitempty" jsonschema:"mysql (default) or pgsql"`
 	PHPSettings    map[string]string `json:"php_settings,omitempty" jsonschema:"php.ini values: memory_limit, upload_max_filesize, max_execution_time, display_errors"`
 	Force          bool              `json:"force,omitempty" jsonschema:"accept a folder without index.php or index.html"`
-	Command        string            `json:"command,omitempty" jsonschema:"makes the site an app: the dev server command Covo starts from path, e.g. npm run dev ({port} is its port; see detect_app)"`
+	Command        string            `json:"command,omitempty" jsonschema:"makes the site an app: the dev server command Benbow starts from path, e.g. npm run dev ({port} is its port; see detect_app)"`
 	Port           int               `json:"port,omitempty" jsonschema:"with command: a fixed port (default: a free one from 41000)"`
-	ProxyPort      int               `json:"proxy_port,omitempty" jsonschema:"makes the site an app Covo only proxies to: the port where the user runs the dev server"`
+	ProxyPort      int               `json:"proxy_port,omitempty" jsonschema:"makes the site an app Benbow only proxies to: the port where the user runs the dev server"`
 	DryRun         bool              `json:"dry_run,omitempty" jsonschema:"only say what would happen"`
 }
 
@@ -564,7 +564,7 @@ type updateSiteIn struct {
 	Aliases *[]string `json:"aliases,omitempty" jsonschema:"replace the extra domains (empty list clears them)"`
 	Enabled *bool     `json:"enabled,omitempty" jsonschema:"serve the site (true) or not (false)"`
 	Force   bool      `json:"force,omitempty" jsonschema:"accept a folder without index.php or index.html"`
-	Command string    `json:"command,omitempty" jsonschema:"apps: new command Covo starts"`
+	Command string    `json:"command,omitempty" jsonschema:"apps: new command Benbow starts"`
 	Port    int       `json:"port,omitempty" jsonschema:"apps: new fixed port for the command"`
 	Proxy   int       `json:"proxy_port,omitempty" jsonschema:"apps: only proxy to a dev server the user runs on this port"`
 	// Companion is a pointer: "" removes it.
@@ -670,7 +670,7 @@ func (t tools) runTool(tool string) func(context.Context, *mcp.CallToolRequest, 
 		for _, a := range in.Args {
 			// They need a terminal to answer questions.
 			if strings.HasPrefix(a, "--prompt") || (tool == core.ToolWP && a == "shell") || (tool == core.ToolArtisan && a == "tinker") {
-				return toolError(errcode.Newf(errcode.Unsupported, "%q needs a terminal: run `covo %s %s …` yourself", a, tool, in.Site)), nil, nil
+				return toolError(errcode.Newf(errcode.Unsupported, "%q needs a terminal: run `benbow %s %s …` yourself", a, tool, in.Site)), nil, nil
 			}
 		}
 		ctx, cancel := context.WithTimeout(ctx, toolTimeout)
@@ -735,7 +735,7 @@ type importIn struct {
 	Source    string   `json:"source" jsonschema:"mamp, local, herd, valet or xampp"`
 	Sites     []string `json:"sites,omitempty" jsonschema:"only these hosts"`
 	Localhost bool     `json:"localhost,omitempty" jsonschema:"serve them as <name>.localhost"`
-	Migrate   bool     `json:"migrate,omitempty" jsonschema:"also copy databases and point wp-config.php/.env at Covo"`
+	Migrate   bool     `json:"migrate,omitempty" jsonschema:"also copy databases and point wp-config.php/.env at Benbow"`
 	DryRun    *bool    `json:"dry_run,omitempty" jsonschema:"only say what would happen (default true)"`
 }
 

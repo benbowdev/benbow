@@ -31,7 +31,7 @@ type daemonData struct {
 func (h *harness) daemon(args ...string) daemonData {
 	h.t.Helper()
 	var d daemonData
-	if err := json.Unmarshal(h.mustCovo(append([]string{"daemon"}, args...)...), &d); err != nil {
+	if err := json.Unmarshal(h.mustBenbow(append([]string{"daemon"}, args...)...), &d); err != nil {
 		h.t.Fatal(err)
 	}
 	return d
@@ -48,7 +48,7 @@ func (h *harness) api(sock, method, path, body string) envelope {
 	}}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, method, "http://covo"+path, strings.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, method, "http://benbow"+path, strings.NewReader(body))
 	if err != nil {
 		h.t.Fatal(err)
 	}
@@ -73,7 +73,7 @@ func (h *harness) mustAPI(sock, method, path, body string) json.RawMessage {
 	return env.Data
 }
 
-// TestDaemon drives Covo through the API the app uses: the daemon serves
+// TestDaemon drives Benbow through the API the app uses: the daemon serves
 // the core, survives start/stop of the services and goes with uninstall.
 func TestDaemon(t *testing.T) {
 	h := newHarness(t)
@@ -123,7 +123,7 @@ func TestDaemon(t *testing.T) {
 
 	// Stopping the services, through the API or the CLI, leaves the daemon.
 	h.mustAPI(sock, "POST", "/v1/stop", "")
-	h.mustCovo("stop")
+	h.mustBenbow("stop")
 	if d := h.daemon(); !d.Answering || d.PID != pid {
 		t.Fatalf("stop took the daemon down: %+v", d)
 	}
@@ -131,8 +131,8 @@ func TestDaemon(t *testing.T) {
 		t.Fatalf("loaded after stop: %v", labels)
 	}
 
-	// A different covo binary restarts it.
-	other := filepath.Join(t.TempDir(), "covo")
+	// A different benbow binary restarts it.
+	other := filepath.Join(t.TempDir(), "benbow")
 	if out, err := exec.Command("cp", h.bin, other).CombinedOutput(); err != nil {
 		t.Fatalf("cp: %v %s", err, out)
 	}
@@ -157,7 +157,7 @@ func TestDaemon(t *testing.T) {
 		t.Fatalf("socket left behind: %v", err)
 	}
 	h.daemon("start")
-	h.mustCovo("uninstall", "--yes")
+	h.mustBenbow("uninstall", "--yes")
 	if labels := h.loadedLabels(); len(labels) != 0 {
 		t.Fatalf("loaded after uninstall: %v", labels)
 	}

@@ -63,7 +63,7 @@ func devServer(t *testing.T) int {
 	return l.Addr().(*net.TCPAddr).Port
 }
 
-// TestAppProxy serves a dev server the user runs behind a Covo domain:
+// TestAppProxy serves a dev server the user runs behind a Benbow domain:
 // HTTPS with the local CA, forwarded headers, the Host option and a
 // WebSocket upgrade (hot reload) through Caddy.
 func TestAppProxy(t *testing.T) {
@@ -77,14 +77,14 @@ func TestAppProxy(t *testing.T) {
 		Framework string `json:"framework"`
 		Command   string `json:"command"`
 	}
-	if err := json.Unmarshal(h.mustCovo("site", "detect", project), &detected); err != nil {
+	if err := json.Unmarshal(h.mustBenbow("site", "detect", project), &detected); err != nil {
 		t.Fatal(err)
 	}
 	if detected.Framework != "vite" || detected.Command != "npm run dev -- --port {port} --strictPort" {
 		t.Fatalf("detect = %+v", detected)
 	}
 
-	h.mustCovo("start")
+	h.mustBenbow("start")
 	port := devServer(t)
 	var added struct {
 		Kind    string `json:"kind"`
@@ -94,7 +94,7 @@ func TestAppProxy(t *testing.T) {
 		URL     string `json:"url"`
 		Applied bool   `json:"applied"`
 	}
-	if err := json.Unmarshal(h.mustCovo("site", "add", "front", "--path", project, "--proxy-port", strconv.Itoa(port)), &added); err != nil {
+	if err := json.Unmarshal(h.mustBenbow("site", "add", "front", "--path", project, "--proxy-port", strconv.Itoa(port)), &added); err != nil {
 		t.Fatal(err)
 	}
 	if added.Kind != "app" || added.AppMode != "proxy" || added.AppPort != port || added.PHP != "" || !added.Applied {
@@ -126,7 +126,7 @@ func TestAppProxy(t *testing.T) {
 		t.Errorf("proxied request = %+v", got)
 	}
 
-	h.mustCovo("site", "set", "front", "--host-header", "localhost")
+	h.mustBenbow("site", "set", "front", "--host-header", "localhost")
 	t.Cleanup(func() {
 		if t.Failed() {
 			b, _ := os.ReadFile(filepath.Join(h.home(), "logs", "caddy.log"))
@@ -165,10 +165,10 @@ func TestAppProxy(t *testing.T) {
 	}
 
 	// PHP tools refuse an app.
-	if env := h.covo("php", "check", "front"); env.OK || env.Error == nil || env.Error.Code != "invalid_input" {
+	if env := h.benbow("php", "check", "front"); env.OK || env.Error == nil || env.Error.Code != "invalid_input" {
 		t.Errorf("php check on an app = %+v", env.Error)
 	}
-	h.mustCovo("site", "remove", "front")
+	h.mustBenbow("site", "remove", "front")
 }
 
 type appState struct {
@@ -180,14 +180,14 @@ type appState struct {
 	LogTail  []string `json:"log_tail"`
 }
 
-// appState reads a site's app state from covo site list.
+// appState reads a site's app state from benbow site list.
 func (h *harness) appState(site string) appState {
 	h.t.Helper()
 	var sites []struct {
 		Name string    `json:"name"`
 		App  *appState `json:"app"`
 	}
-	if err := json.Unmarshal(h.mustCovo("site", "list"), &sites); err != nil {
+	if err := json.Unmarshal(h.mustBenbow("site", "list"), &sites); err != nil {
 		h.t.Fatal(err)
 	}
 	for _, s := range sites {
@@ -254,8 +254,8 @@ func checkAllGone(t *testing.T, when string, pids []int) {
 	}
 }
 
-// TestAppRun lets Covo start a dev server: through the login shell, on the
-// port Covo gave it, restarted on request, never restarted after a crash,
+// TestAppRun lets Benbow start a dev server: through the login shell, on the
+// port Benbow gave it, restarted on request, never restarted after a crash,
 // and stopped with every process it started.
 func TestAppRun(t *testing.T) {
 	h := newHarness(t)
@@ -276,14 +276,14 @@ func TestAppRun(t *testing.T) {
 		}
 	})
 
-	h.mustCovo("start")
+	h.mustBenbow("start")
 	var added struct {
 		AppMode string `json:"app_mode"`
 		AppPort int    `json:"app_port"`
 		URL     string `json:"url"`
 	}
 	cmd := fmt.Sprintf("'%s' --pids '%s' --port {port}", server, pidFile)
-	if err := json.Unmarshal(h.mustCovo("site", "add", "svc", "--path", project, "--command", cmd), &added); err != nil {
+	if err := json.Unmarshal(h.mustBenbow("site", "add", "svc", "--path", project, "--command", cmd), &added); err != nil {
 		t.Fatal(err)
 	}
 	if added.AppMode != "run" || added.AppPort < 41000 {
@@ -293,15 +293,15 @@ func TestAppRun(t *testing.T) {
 	pids := readPids(t, pidFile, nil)
 	st := h.status()
 	var seen struct {
-		Port, FlagPort, CA, CovoVars string
+		Port, FlagPort, CA, BenbowVars string
 	}
 	var got map[string]string
 	if err := json.Unmarshal([]byte(h.get(added.URL+"/", st.CA.CertPath)), &got); err != nil {
 		t.Fatal(err)
 	}
-	seen.Port, seen.FlagPort, seen.CA, seen.CovoVars = got["port"], got["flag_port"], got["node_extra_ca_certs"], got["covo_vars"]
+	seen.Port, seen.FlagPort, seen.CA, seen.BenbowVars = got["port"], got["flag_port"], got["node_extra_ca_certs"], got["benbow_vars"]
 	want := strconv.Itoa(added.AppPort)
-	if seen.Port != want || seen.FlagPort != want || seen.CA != st.CA.CertPath || seen.CovoVars != "" {
+	if seen.Port != want || seen.FlagPort != want || seen.CA != st.CA.CertPath || seen.BenbowVars != "" {
 		t.Errorf("app saw %+v, want port %s and CA %s", seen, want, st.CA.CertPath)
 	}
 	if len(st.Orphans) != 0 {
@@ -313,7 +313,7 @@ func TestAppRun(t *testing.T) {
 		Status    int      `json:"status"`
 		AppOutput []string `json:"app_output"`
 	}
-	if err := json.Unmarshal(h.mustCovo("fetch", "svc", "/fetched"), &fetched); err != nil {
+	if err := json.Unmarshal(h.mustBenbow("fetch", "svc", "/fetched"), &fetched); err != nil {
 		t.Fatal(err)
 	}
 	if fetched.Status != 200 || !strings.Contains(strings.Join(fetched.AppOutput, "\n"), "devserver GET /fetched") {
@@ -321,7 +321,7 @@ func TestAppRun(t *testing.T) {
 	}
 
 	// Restart: every old process goes, a new server comes.
-	h.mustCovo("site", "restart", "svc")
+	h.mustBenbow("site", "restart", "svc")
 	checkAllGone(t, "after restart", pids)
 	pids = readPids(t, pidFile, pids)
 	h.waitApp("svc", "running")
@@ -341,21 +341,21 @@ func TestAppRun(t *testing.T) {
 		t.Errorf("the app was restarted after a crash: %+v", st)
 	}
 
-	// covo start brings an exited app back.
-	h.mustCovo("start")
+	// benbow start brings an exited app back.
+	h.mustBenbow("start")
 	pids = readPids(t, pidFile, pids)
 	h.waitApp("svc", "running")
 
 	// A program the login shell cannot find.
-	h.mustCovo("site", "add", "broken", "--path", project, "--command", "covo-no-such-program --port {port}")
+	h.mustBenbow("site", "add", "broken", "--path", project, "--command", "benbow-no-such-program --port {port}")
 	broken := h.waitApp("broken", "error")
-	if !strings.Contains(broken.Message, "covo-no-such-program was not found") {
+	if !strings.Contains(broken.Message, "benbow-no-such-program was not found") {
 		t.Errorf("missing program: %+v", broken)
 	}
-	h.mustCovo("site", "remove", "broken")
+	h.mustBenbow("site", "remove", "broken")
 
 	// Stop: every process ends and the port is free again.
-	h.mustCovo("stop")
+	h.mustBenbow("stop")
 	checkAllGone(t, "after stop", pids)
 	if st := h.appState("svc"); st.State != "stopped" {
 		t.Errorf("after stop: %+v", st)
@@ -368,7 +368,7 @@ func TestAppRun(t *testing.T) {
 	var logs struct {
 		Lines []string `json:"lines"`
 	}
-	if err := json.Unmarshal(h.mustCovo("site", "logs", "svc", "--app"), &logs); err != nil {
+	if err := json.Unmarshal(h.mustBenbow("site", "logs", "svc", "--app"), &logs); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(strings.Join(logs.Lines, "\n"), "devserver listening on "+want) {
@@ -376,9 +376,9 @@ func TestAppRun(t *testing.T) {
 	}
 }
 
-// TestAppEnv gives a started app what Covo knows about its site (URL,
+// TestAppEnv gives a started app what Benbow knows about its site (URL,
 // database, Mailpit) and the user's own variables from the keychain, and
-// keeps the secrets out of plists, logs and Covo's output.
+// keeps the secrets out of plists, logs and Benbow's output.
 func TestAppEnv(t *testing.T) {
 	if runtime.GOARCH != "arm64" {
 		t.Skip("MySQL 8.4 is pinned for Apple Silicon only")
@@ -389,22 +389,22 @@ func TestAppEnv(t *testing.T) {
 	if out, err := exec.Command("go", "build", "-o", server, "./testdata/devserver").CombinedOutput(); err != nil {
 		t.Fatalf("build devserver: %v\n%s", err, out)
 	}
-	h.mustCovo("start")
-	h.mustCovo("mysql", "enable")
-	h.mustCovo("mail", "enable")
+	h.mustBenbow("start")
+	h.mustBenbow("mysql", "enable")
+	h.mustBenbow("mail", "enable")
 	var added struct {
 		URL string `json:"url"`
 	}
-	if err := json.Unmarshal(h.mustCovo("site", "add", "envapp", "--path", tmp, "--command", "'"+server+"' --port {port}"), &added); err != nil {
+	if err := json.Unmarshal(h.mustBenbow("site", "add", "envapp", "--path", tmp, "--command", "'"+server+"' --port {port}"), &added); err != nil {
 		t.Fatal(err)
 	}
-	h.mustCovo("db", "create", "envapp")
-	const secret = "s3cret-value-for-covo-e2e"
+	h.mustBenbow("db", "create", "envapp")
+	const secret = "s3cret-value-for-benbow-e2e"
 	var set struct {
 		Names    []string `json:"names"`
 		Provided []string `json:"provided"`
 	}
-	if err := json.Unmarshal(h.mustCovo("site", "env", "envapp", "set", "MY_SECRET="+secret), &set); err != nil {
+	if err := json.Unmarshal(h.mustBenbow("site", "env", "envapp", "set", "MY_SECRET="+secret), &set); err != nil {
 		t.Fatal(err)
 	}
 	if strings.Join(set.Names, ",") != "MY_SECRET" || !strings.Contains(strings.Join(set.Provided, ","), "DATABASE_URL") {
@@ -444,15 +444,15 @@ func TestAppEnv(t *testing.T) {
 		}
 	}
 	for _, args := range [][]string{{"status"}, {"site", "list"}, {"site", "env", "envapp"}} {
-		out, _ := json.Marshal(h.covo(args...))
+		out, _ := json.Marshal(h.benbow(args...))
 		if strings.Contains(string(out), secret) || strings.Contains(string(out), password) {
-			t.Errorf("covo %s shows a secret", strings.Join(args, " "))
+			t.Errorf("benbow %s shows a secret", strings.Join(args, " "))
 		}
 	}
 	var shown struct {
 		Values map[string]string `json:"values"`
 	}
-	if err := json.Unmarshal(h.mustCovo("site", "env", "envapp", "--show"), &shown); err != nil || shown.Values["MY_SECRET"] != secret {
+	if err := json.Unmarshal(h.mustBenbow("site", "env", "envapp", "--show"), &shown); err != nil || shown.Values["MY_SECRET"] != secret {
 		t.Errorf("--show = %+v, %v", shown, err)
 	}
 
@@ -460,7 +460,7 @@ func TestAppEnv(t *testing.T) {
 	var unset struct {
 		Restarted bool `json:"restarted"`
 	}
-	if err := json.Unmarshal(h.mustCovo("site", "env", "envapp", "unset", "MY_SECRET"), &unset); err != nil || !unset.Restarted {
+	if err := json.Unmarshal(h.mustBenbow("site", "env", "envapp", "unset", "MY_SECRET"), &unset); err != nil || !unset.Restarted {
 		t.Errorf("unset = %+v, %v", unset, err)
 	}
 	h.waitApp("envapp", "running")
@@ -468,7 +468,7 @@ func TestAppEnv(t *testing.T) {
 	if err := json.Unmarshal([]byte(h.get(added.URL+"/", st.CA.CertPath)), &got); err != nil || got["my_secret"] != "" {
 		t.Errorf("after unset the app saw %+v, %v", got, err)
 	}
-	h.mustCovo("site", "remove", "envapp")
+	h.mustBenbow("site", "remove", "envapp")
 	if h.keychainAccountIn(".appenv", "envapp") {
 		t.Error("the removed app's variables are still in the keychain")
 	}
@@ -476,7 +476,7 @@ func TestAppEnv(t *testing.T) {
 
 // TestCompanion runs a dev server next to a Laravel site: started and
 // stopped with it, in the project root, and serving HTTPS with a
-// certificate from Covo's CA for the site's domain, as laravel-vite-plugin
+// certificate from Benbow's CA for the site's domain, as laravel-vite-plugin
 // does with VITE_DEV_SERVER_CERT and APP_URL.
 func TestCompanion(t *testing.T) {
 	h := newHarness(t)
@@ -504,12 +504,12 @@ func TestCompanion(t *testing.T) {
 			t.Logf("companion.log:\n%s", b)
 		}
 	})
-	h.mustCovo("start")
-	h.mustCovo("site", "add", "lara", "--php", "8.4", "--path", project)
+	h.mustBenbow("start")
+	h.mustBenbow("site", "add", "lara", "--php", "8.4", "--path", project)
 	var set struct {
 		CompanionPort int `json:"companion_port"`
 	}
-	if err := json.Unmarshal(h.mustCovo("site", "set", "lara", "--companion", "'"+server+"' --port {port}"), &set); err != nil {
+	if err := json.Unmarshal(h.mustBenbow("site", "set", "lara", "--companion", "'"+server+"' --port {port}"), &set); err != nil {
 		t.Fatal(err)
 	}
 	if set.CompanionPort < 41000 {
@@ -523,7 +523,7 @@ func TestCompanion(t *testing.T) {
 				Name      string    `json:"name"`
 				Companion *appState `json:"companion"`
 			}
-			if err := json.Unmarshal(h.mustCovo("site", "list"), &sites); err != nil {
+			if err := json.Unmarshal(h.mustBenbow("site", "list"), &sites); err != nil {
 				t.Fatal(err)
 			}
 			for _, s := range sites {
@@ -546,7 +546,7 @@ func TestCompanion(t *testing.T) {
 		t.Errorf("PHP page = %q", body)
 	}
 	// The companion answers HTTPS for the site's domain, trusted through
-	// Covo's root alone.
+	// Benbow's root alone.
 	pem, err := os.ReadFile(st.CA.CertPath)
 	if err != nil {
 		t.Fatal(err)
@@ -577,11 +577,11 @@ func TestCompanion(t *testing.T) {
 
 	// Turning the site off stops the companion; removing the companion
 	// stops it for good.
-	h.mustCovo("site", "disable", "lara")
+	h.mustBenbow("site", "disable", "lara")
 	waitCompanion("stopped")
-	h.mustCovo("site", "enable", "lara")
+	h.mustBenbow("site", "enable", "lara")
 	waitCompanion("running")
-	h.mustCovo("site", "set", "lara", "--companion", "")
+	h.mustBenbow("site", "set", "lara", "--companion", "")
 	for range 50 {
 		if !portOpen(set.CompanionPort) {
 			break

@@ -22,7 +22,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/getcovo/covo/internal/errcode"
+	"github.com/benbowdev/benbow/internal/errcode"
 )
 
 type entry struct {
@@ -84,7 +84,7 @@ func serve(t *testing.T, body []byte) (*httptest.Server, *atomic.Int32) {
 }
 
 func newInstaller(t *testing.T) Installer {
-	root := filepath.Join(t.TempDir(), "Covo Home")
+	root := filepath.Join(t.TempDir(), "Benbow Home")
 	return Installer{BinDir: filepath.Join(root, "bin"), TmpDir: filepath.Join(root, "tmp")}
 }
 

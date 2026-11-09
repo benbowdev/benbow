@@ -13,21 +13,21 @@ import (
 	"testing"
 	"time"
 
-	"github.com/getcovo/covo/internal/agents"
-	"github.com/getcovo/covo/internal/core"
-	"github.com/getcovo/covo/internal/envelope"
-	"github.com/getcovo/covo/internal/store"
+	"github.com/benbowdev/benbow/internal/agents"
+	"github.com/benbowdev/benbow/internal/core"
+	"github.com/benbowdev/benbow/internal/envelope"
+	"github.com/benbowdev/benbow/internal/store"
 )
 
 var update = flag.Bool("update", false, "rewrite the wire golden files")
 
 // wireDir holds the JSON the app decodes: the Swift tests read the same
-// files (CovoKitTests, testWireFixtures), so a renamed or retyped field
+// files (BenbowKitTests, testWireFixtures), so a renamed or retyped field
 // shows up on both sides.
-const wireDir = "../../app/Tests/CovoKitTests/Fixtures/wire"
+const wireDir = "../../app/Tests/BenbowKitTests/Fixtures/wire"
 
 // wireTypes are the answers the app decodes, by file name. Add one when the
-// app starts decoding a new answer, and its Swift type in CovoKitTests.
+// app starts decoding a new answer, and its Swift type in BenbowKitTests.
 var wireTypes = map[string]any{
 	"status":            core.Status{},
 	"site-result":       core.SiteResult{},

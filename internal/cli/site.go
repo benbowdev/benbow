@@ -12,9 +12,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/getcovo/covo/internal/core"
-	"github.com/getcovo/covo/internal/errcode"
-	"github.com/getcovo/covo/internal/store"
+	"github.com/benbowdev/benbow/internal/core"
+	"github.com/benbowdev/benbow/internal/errcode"
+	"github.com/benbowdev/benbow/internal/store"
 	"github.com/spf13/cobra"
 )
 
@@ -42,11 +42,11 @@ func (r siteResult) Text(w io.Writer) {
 	}
 	switch {
 	case r.Archived:
-		fmt.Fprintln(w, "Archived: not served. Bring it back with `covo site unarchive`.")
+		fmt.Fprintln(w, "Archived: not served. Bring it back with `benbow site unarchive`.")
 	case !r.Enabled:
-		fmt.Fprintln(w, "Disabled: Covo does not serve it. Turn it on with `covo site enable`.")
+		fmt.Fprintln(w, "Disabled: Benbow does not serve it. Turn it on with `benbow site enable`.")
 	case !r.Applied:
-		fmt.Fprintln(w, "Covo is not running: run `covo start`.")
+		fmt.Fprintln(w, "Benbow is not running: run `benbow start`.")
 	}
 }
 
@@ -59,12 +59,12 @@ func (a *app) siteAddCmd() *cobra.Command {
 		Short: "Add a site served at https://<name>.localhost (or --domain)",
 		Long: `Add a site served at https://<name>.localhost (or --domain).
 
-A PHP site by default. With --command it is an app: Covo starts that command
+A PHP site by default. With --command it is an app: Benbow starts that command
 (any dev server: npm run dev, uvicorn…) in your login shell from the folder,
 with PORT set and {port} replaced, and proxies the domain to it. With
---proxy-port Covo only proxies to a server you run yourself. Covo never
+--proxy-port Benbow only proxies to a server you run yourself. Benbow never
 installs Node, Python or anything else: see docs/apps.md and
-` + "`covo site detect`" + ` for a proposed command.`,
+` + "`benbow site detect`" + ` for a proposed command.`,
 		Args: cobra.ExactArgs(1),
 		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
 			req.Name = args[0]
@@ -96,15 +96,15 @@ installs Node, Python or anything else: see docs/apps.md and
 	}
 	cmd.Flags().StringVar(&req.PHP, "php", "8.4", "PHP version (e.g. 8.4, 8.2)")
 	cmd.Flags().StringVar(&path, "path", "", "document root (default: current folder)")
-	cmd.Flags().StringVar(&req.Domain, "domain", "", "local domain, e.g. demo.covo.test (default: <name>.localhost)")
+	cmd.Flags().StringVar(&req.Domain, "domain", "", "local domain, e.g. demo.benbow.test (default: <name>.localhost)")
 	cmd.Flags().BoolVar(&req.Force, "force", false, "add the folder even if it has no index.php or index.html")
 	cmd.Flags().BoolVar(&req.CreateFolder, "create-folder", false, "create the document root (missing or empty) for a new site")
 	cmd.Flags().StringSliceVar(&req.Aliases, "aliases", nil, "extra domains, comma separated")
-	cmd.Flags().StringVar(&group, "group", "", "list the site in this group, e.g. Clients/Acme (see covo group)")
+	cmd.Flags().StringVar(&group, "group", "", "list the site in this group, e.g. Clients/Acme (see benbow group)")
 	cmd.Flags().StringVar(&database, "database", "", `"new" for a database with its own user, or the name of an existing one to link`)
 	cmd.Flags().StringArrayVar(&ini, "ini", nil, "php.ini value of this site, name=value (repeatable)")
 	cmd.Flags().StringVar(&engine, "engine", "mysql", "database engine for --database: mysql or pgsql")
-	cmd.Flags().StringVar(&req.Command, "command", "", `app: the command Covo starts, e.g. "npm run dev" ({port} is replaced by its port)`)
+	cmd.Flags().StringVar(&req.Command, "command", "", `app: the command Benbow starts, e.g. "npm run dev" ({port} is replaced by its port)`)
 	cmd.Flags().IntVar(&req.Port, "port", 0, "app: fixed port for --command (default: a free one from 41000)")
 	cmd.Flags().IntVar(&req.ProxyPort, "proxy-port", 0, "app: only proxy to a dev server you run on this port")
 	cmd.Flags().StringVar(&req.AppHost, "host-header", "", `app: "localhost" sends Host: localhost:<port> instead of the site's domain`)
@@ -132,7 +132,7 @@ func (r detectResult) Text(w io.Writer) {
 		fmt.Fprintf(w, "Note: %s\n", n)
 	}
 	if r.Command != "" {
-		fmt.Fprintf(w, "\nAdd it with: covo site add <name> --path %q --command %q\n", r.Path, r.Command)
+		fmt.Fprintf(w, "\nAdd it with: benbow site add <name> --path %q --command %q\n", r.Path, r.Command)
 	}
 }
 
@@ -220,12 +220,12 @@ func (a *app) siteSetCmd() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&phpVersion, "php", "", "new PHP version (e.g. 8.3)")
 	cmd.Flags().StringVar(&path, "path", "", "new document root")
-	cmd.Flags().StringVar(&domain, "domain", "", "new local domain, e.g. demo.covo.test")
+	cmd.Flags().StringVar(&domain, "domain", "", "new local domain, e.g. demo.benbow.test")
 	cmd.Flags().StringSliceVar(&aliases, "aliases", nil, `extra domains, comma separated, replacing the current ones ("" clears)`)
 	cmd.Flags().StringVar(&group, "group", "", `move the site into a group, e.g. Clients/Acme ("" for the top level)`)
 	cmd.Flags().StringVar(&title, "title", "", `label shown in the list instead of the name ("" clears)`)
 	cmd.Flags().BoolVar(&force, "force", false, "accept a folder without index.php or index.html")
-	cmd.Flags().StringVar(&command, "command", "", "app: new command Covo starts (also switches a proxied app to started)")
+	cmd.Flags().StringVar(&command, "command", "", "app: new command Benbow starts (also switches a proxied app to started)")
 	cmd.Flags().IntVar(&port, "port", 0, "app: new fixed port for the command")
 	cmd.Flags().IntVar(&proxyPort, "proxy-port", 0, "app: only proxy to a dev server you run on this port")
 	cmd.Flags().StringVar(&hostHeader, "host-header", "", `app: "localhost" sends Host: localhost:<port>; "" the site's domain`)
@@ -367,7 +367,7 @@ type siteListResult []core.SiteStatus
 
 func (r siteListResult) Text(w io.Writer) {
 	if len(r) == 0 {
-		fmt.Fprintln(w, "No sites. Add one with: covo site add <name> --php 8.4")
+		fmt.Fprintln(w, "No sites. Add one with: benbow site add <name> --php 8.4")
 	}
 	for _, s := range r {
 		off := ""
@@ -474,10 +474,10 @@ func (r appEnvResult) Text(w io.Writer) {
 		fmt.Fprintf(w, "%s restarted with its new variables.\n", r.Site)
 	}
 	if len(r.Provided) > 0 {
-		fmt.Fprintf(w, "Set by Covo: %s\n", strings.Join(r.Provided, ", "))
+		fmt.Fprintf(w, "Set by Benbow: %s\n", strings.Join(r.Provided, ", "))
 	}
 	if len(r.Names) == 0 {
-		fmt.Fprintln(w, "No variables of your own. Add one with: covo site env "+r.Site+" set NAME=value")
+		fmt.Fprintln(w, "No variables of your own. Add one with: benbow site env "+r.Site+" set NAME=value")
 		return
 	}
 	fmt.Fprintln(w, "Your variables (in the login keychain):")
@@ -495,12 +495,12 @@ func (a *app) siteEnvCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "env <name> [set NAME=value... | set NAME | unset NAME...]",
 		Short: "An app's own environment variables, kept in the login keychain",
-		Long: "Lists an app's own variables (names; values with --show) and the ones Covo sets itself\n" +
+		Long: "Lists an app's own variables (names; values with --show) and the ones Benbow sets itself\n" +
 			"(APP_URL, DATABASE_URL, REDIS_URL, SMTP_*). Values are kept in the login keychain and only\n" +
 			"reach the app's process. Changing them restarts the app if it runs.\n\n" +
-			"  covo site env shop set API_KEY=abc STRIPE_MODE=test\n" +
-			"  covo site env shop set API_KEY      # reads the value from stdin, out of your shell history\n" +
-			"  covo site env shop unset API_KEY",
+			"  benbow site env shop set API_KEY=abc STRIPE_MODE=test\n" +
+			"  benbow site env shop set API_KEY      # reads the value from stdin, out of your shell history\n" +
+			"  benbow site env shop unset API_KEY",
 		Args: cobra.MinimumNArgs(1),
 		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
 			name := args[0]

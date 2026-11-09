@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/getcovo/covo/internal/errcode"
+	"github.com/benbowdev/benbow/internal/errcode"
 )
 
 func TestAdminerLoginIsOneTime(t *testing.T) {
@@ -27,17 +27,17 @@ func TestAdminerLoginIsOneTime(t *testing.T) {
 }
 
 func TestAdminerFront(t *testing.T) {
-	front, err := adminerFront("/Users/x/Library/Application Support/covo/components/adminer/adminer.php", "/Users/x/Library/Application Support/covo/run/covo.sock")
+	front, err := adminerFront("/Users/x/Library/Application Support/benbow/components/adminer/adminer.php", "/Users/x/Library/Application Support/benbow/run/benbow.sock")
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"CURLOPT_UNIX_SOCKET_PATH => '/Users/x/Library/Application Support/covo/run/covo.sock'",
-		"require '/Users/x/Library/Application Support/covo/components/adminer/adminer.php';", "[0-9a-f]{64}"} {
+	for _, want := range []string{"CURLOPT_UNIX_SOCKET_PATH => '/Users/x/Library/Application Support/benbow/run/benbow.sock'",
+		"require '/Users/x/Library/Application Support/benbow/components/adminer/adminer.php';", "[0-9a-f]{64}"} {
 		if !strings.Contains(front, want) {
 			t.Errorf("front file lacks %q", want)
 		}
 	}
-	if _, err := adminerFront("/x/it's/adminer.php", "/x/covo.sock"); errcode.Code(err) != errcode.InvalidInput {
+	if _, err := adminerFront("/x/it's/adminer.php", "/x/benbow.sock"); errcode.Code(err) != errcode.InvalidInput {
 		t.Fatalf("quote in path err = %v", err)
 	}
 }

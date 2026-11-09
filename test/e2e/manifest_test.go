@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/getcovo/covo/internal/components"
+	"github.com/benbowdev/benbow/internal/components"
 )
 
 // TestCaddyManifestMatchesOfficialChecksums checks every pinned Caddy SHA-512
@@ -97,7 +97,7 @@ func TestCABundleMatchesPublishedChecksum(t *testing.T) {
 }
 
 // TestXdebugManifestMatchesRelease checks every pinned xdebug.so against the
-// SHA256SUMS published in the same getcovo/covo-binaries release.
+// SHA256SUMS published in the same benbowdev/benbow-binaries release.
 func TestXdebugManifestMatchesRelease(t *testing.T) {
 	m, err := components.Embedded()
 	if err != nil {
@@ -111,8 +111,8 @@ func TestXdebugManifestMatchesRelease(t *testing.T) {
 		}
 		n++
 		dir, file := a.URL[:strings.LastIndex(a.URL, "/")], a.URL[strings.LastIndex(a.URL, "/")+1:]
-		if !strings.HasPrefix(dir, "https://github.com/getcovo/covo-binaries/releases/download/") {
-			t.Errorf("%s: not a covo-binaries release", a.URL)
+		if !strings.HasPrefix(dir, "https://github.com/benbowdev/benbow-binaries/releases/download/") {
+			t.Errorf("%s: not a benbow-binaries release", a.URL)
 		}
 		if _, ok := sums[dir]; !ok {
 			resp, err := http.Get(dir + "/SHA256SUMS")
