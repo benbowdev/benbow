@@ -5,8 +5,11 @@ package core
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 
+	"github.com/benbowdev/benbow/internal/components"
 	"github.com/benbowdev/benbow/internal/keychain"
 )
 
@@ -52,5 +55,33 @@ func TestCopyCovoKeychain(t *testing.T) {
 	}
 	if fake.Items["root@dev.old.mysql"] != "rootpw" {
 		t.Error("the old item was changed before the migration finished")
+	}
+}
+
+func TestMarkCovoComponents(t *testing.T) {
+	bin := t.TempDir()
+	caddy := filepath.Join(bin, "caddy", "2.11.7")
+	cli := filepath.Join(bin, "php-cli", "8.4.23", "8.4.23")
+	for _, d := range []string{caddy, cli} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(d, covoComponentMarker), []byte("abc\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := markCovoComponents(bin); err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range []string{caddy, cli} {
+		if b, err := os.ReadFile(filepath.Join(d, components.MarkerFile)); err != nil || string(b) != "abc\n" {
+			t.Errorf("%s: marker %q %v", d, b, err)
+		}
+		if _, err := os.Stat(filepath.Join(d, covoComponentMarker)); err != nil {
+			t.Errorf("Covo's marker went away: %v", err)
+		}
+	}
+	if err := markCovoComponents(filepath.Join(bin, "missing")); err != nil {
+		t.Errorf("no bin folder: %v", err)
 	}
 }

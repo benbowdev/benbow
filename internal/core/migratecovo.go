@@ -12,12 +12,14 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/benbowdev/benbow/internal/agents"
+	"github.com/benbowdev/benbow/internal/components"
 	"github.com/benbowdev/benbow/internal/errcode"
 	"github.com/benbowdev/benbow/internal/fsutil"
 	"github.com/benbowdev/benbow/internal/keychain"
@@ -54,6 +56,8 @@ var keychainServices = []string{"mysql", "postgres", "remote", "github", appEnvS
 // covoSource is the Covo installation to migrate.
 type covoSource struct {
 	Home, Prefix, CAName string
+	// isDefault: the real Covo, not one named by the environment (tests).
+	isDefault bool
 }
 
 func covoSourceFromEnv() (covoSource, error) {
@@ -64,6 +68,7 @@ func covoSourceFromEnv() (covoSource, error) {
 			return src, fmt.Errorf("resolve home directory: %w", err)
 		}
 		src.Home = filepath.Join(home, "Library", "Application Support", "covo")
+		src.isDefault = true
 	}
 	if src.Prefix == "" {
 		src.Prefix = covoLabelPrefix
@@ -219,6 +224,14 @@ func MigrateFromCovo(ctx context.Context, opts MigrateCovoOptions) (CovoMigratio
 	} else if has {
 		return res, errcode.Newf(errcode.Conflict, "Benbow already has sites in %s: the migration only moves Covo into an empty Benbow", layout.Root)
 	}
+	if src.isDefault && covoAppRunning(ctx) {
+		// Covo.app would start Covo's core again in a new, empty folder.
+		if opts.DryRun {
+			res.warn("Covo.app is open: quit it before the move")
+		} else {
+			return res, errcode.Newf(errcode.Conflict, "Covo.app is open: quit it first, or it starts Covo again")
+		}
+	}
 	running := settings[settingRunning] == "1"
 	_, testDomain := settings[settingDomain(suffixTest)]
 	if opts.DryRun {
@@ -301,6 +314,10 @@ func MigrateFromCovo(ctx context.Context, opts MigrateCovoOptions) (CovoMigratio
 	for _, p := range old {
 		_ = os.Remove(p)
 	}
+	if err := markCovoComponents(layout.Bin); err != nil {
+		return rollback(err)
+	}
+	_ = os.Remove(filepath.Join(layout.Run, "covo.sock"))
 	res.step("move the folder", "done", layout.Root)
 
 	c, err := Open(ctx)
@@ -672,4 +689,39 @@ func (c *Core) dropCovoReadOnlyUsers(ctx context.Context) (int, error) {
 	}
 	_, err = c.rootQuery(ctx, "DROP USER IF EXISTS "+strings.Join(users, ", ")+";")
 	return len(users), err
+}
+
+// covoComponentMarker is the name Covo gave components.MarkerFile.
+const covoComponentMarker = ".covo-sha256"
+
+// markCovoComponents gives every component Covo downloaded Benbow's marker
+// (the verified archive hash), so Benbow does not download it again. Covo's
+// marker stays, so a rollback leaves Covo's folder as it was.
+func markCovoComponents(bin string) error {
+	err := filepath.WalkDir(bin, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || d.Name() != covoComponentMarker {
+			return err
+		}
+		marker := filepath.Join(filepath.Dir(path), components.MarkerFile)
+		if fileExists(marker) {
+			return nil
+		}
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("read %s: %w", path, err)
+		}
+		if err := os.WriteFile(marker, b, 0o644); err != nil {
+			return fmt.Errorf("write %s: %w", marker, err)
+		}
+		return nil
+	})
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("mark Covo's components: %w", err)
+	}
+	return nil
+}
+
+// covoAppRunning reports whether Covo.app is open.
+func covoAppRunning(ctx context.Context) bool {
+	return exec.CommandContext(ctx, "/usr/bin/pgrep", "-f", "/Covo.app/Contents/MacOS/Covo$").Run() == nil
 }

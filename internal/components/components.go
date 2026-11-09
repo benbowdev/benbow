@@ -43,8 +43,8 @@ var manifestJSON []byte
 // maxFileSize caps a single extracted file (PHP-FPM is ~100 MB).
 const maxFileSize = 512 << 20
 
-// markerFile records the verified archive hash inside an install directory.
-const markerFile = ".benbow-sha256"
+// MarkerFile records the verified archive hash inside an install directory.
+const MarkerFile = ".benbow-sha256"
 
 // Artifact formats.
 const (
@@ -234,7 +234,7 @@ func (in Installer) Install(ctx context.Context, a Artifact) (Installed, error) 
 	default:
 		return Installed{}, errcode.Errorf(errcode.Internal, "unknown artifact format "+a.Format)
 	}
-	if err := os.WriteFile(filepath.Join(stage, markerFile), []byte(a.SHA256+"\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(stage, MarkerFile), []byte(a.SHA256+"\n"), 0o644); err != nil {
 		return Installed{}, fmt.Errorf("write marker: %w", err)
 	}
 	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
@@ -254,7 +254,7 @@ func (in Installer) Install(ctx context.Context, a Artifact) (Installed, error) 
 }
 
 func (in Installer) verified(dir string, a Artifact) bool {
-	b, err := os.ReadFile(filepath.Join(dir, markerFile))
+	b, err := os.ReadFile(filepath.Join(dir, MarkerFile))
 	if err != nil || strings.TrimSpace(string(b)) != a.SHA256 {
 		return false
 	}

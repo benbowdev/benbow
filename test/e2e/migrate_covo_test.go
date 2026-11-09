@@ -187,6 +187,17 @@ func TestMigrateFromCovo(t *testing.T) {
 		t.Error("Covo's keychain items are still there")
 	}
 
+	// Covo's downloaded components count as Benbow's: nothing downloads again.
+	markers, _ := filepath.Glob(filepath.Join(h.home(), "bin", "*", "*", ".covo-sha256"))
+	if len(markers) == 0 {
+		t.Error("no Covo components in the moved folder")
+	}
+	for _, m := range markers {
+		if _, err := os.Stat(filepath.Join(filepath.Dir(m), ".benbow-sha256")); err != nil {
+			t.Errorf("%s is not Benbow's: %v", filepath.Dir(m), err)
+		}
+	}
+
 	// Benbow serves the site, with its database and the same password.
 	st := h.status()
 	if !st.Running || len(st.Sites) != 1 {

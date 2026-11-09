@@ -15,12 +15,16 @@ In the app, Benbow offers it on its first start when it finds Covo.
 ## What happens
 
 1. **Covo stops**: its launchd agents (`dev.getcovo.*`), the core included.
+   Covo.app must be closed first, or it starts Covo again in a new, empty
+   folder: the app quits it, the command refuses to run while it is open.
 2. **The folder moves**: `~/Library/Application Support/covo` becomes
    `~/Library/Application Support/benbow` with one rename. Sites'
    databases, snapshots, logs and downloaded components come along without
    being copied. `covo.db` becomes `benbow.db`, and the absolute paths
    saved in it (PHP versions, snapshots, migration backups) are rewritten.
-   An empty Benbow folder already there is moved aside first.
+   An empty Benbow folder already there is moved aside first. Components
+   Covo downloaded (PHP, Caddy, MySQL…) are marked as Benbow's, so nothing
+   downloads again.
 3. **Keychain items are copied** from `dev.getcovo.{mysql,postgres,remote,
    github,appenv}` to `dev.benbow.*`, with the same accounts: database
    passwords, server passwords, the GitHub token, apps' variables.

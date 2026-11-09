@@ -31,6 +31,19 @@ struct MigrationOffer: Equatable {
     /// Covo.app, if it is still installed.
     static var oldApp: URL? { NSWorkspace.shared.urlForApplication(withBundleIdentifier: "dev.getcovo.app") }
 
+    /// Quits Covo.app if it is open; false if it is still open after 10 s
+    /// (an unsaved sheet, or the user said no).
+    @MainActor static func quitOldApp() async -> Bool {
+        let running = NSRunningApplication.runningApplications(withBundleIdentifier: "dev.getcovo.app")
+        if running.isEmpty { return true }
+        running.forEach { $0.terminate() }
+        for _ in 0..<40 {
+            if running.allSatisfy(\.isTerminated) { return true }
+            try? await Task.sleep(for: .milliseconds(250))
+        }
+        return false
+    }
+
     /// The app's own settings that carry over from Covo.
     @MainActor static func movePreferences() {
         guard let old = UserDefaults(suiteName: "dev.getcovo.app") else { return }
@@ -101,7 +114,7 @@ struct MigrationOfferView: View {
         ExplainBox(
             title: "What happens",
             steps: [
-                "Covo stops, and its folder becomes Benbow's: nothing is copied, so it takes a moment.",
+                "Covo quits and stops, and its folder becomes Benbow's: nothing is copied, so it takes a moment.",
                 "Database and server passwords are copied to Benbow's keychain items.",
                 "Benbow gets its own local certificate: macOS asks for your password to trust it.",
                 "If .test was on, macOS asks for an administrator password once more.",
@@ -168,6 +181,11 @@ struct MigrationOfferView: View {
         working = true
         defer { working = false }
         error = nil
+        // Covo.app would start Covo's core again in a new, empty folder.
+        if await !MigrationOffer.quitOldApp() {
+            error = "Quit Covo, then try again."
+            return
+        }
         do {
             let data = try await runBenbow(bin, ["migrate", "covo", "--json"])
             report = try EnvelopeDecoder.decode(MigrationReport.self, from: data)
