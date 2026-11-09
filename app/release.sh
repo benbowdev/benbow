@@ -11,7 +11,8 @@
 #     (BENBOW_SIGN_IDENTITY picks one when there are several);
 #   - notarytool credentials stored as the keychain profile "benbow-notary"
 #     (BENBOW_NOTARY_PROFILE for another name).
-#   - the Sparkle signing key in the login keychain (account "benbow").
+#   - the Sparkle signing key in the login keychain (account "benbow",
+#     BENBOW_SPARKLE_ACCOUNT for another name).
 # Output: dist/Benbow-<version>.dmg, its .sha256 and dist/appcast.xml.
 set -euo pipefail
 
@@ -24,6 +25,7 @@ app=$(cd "$(dirname "$0")" && pwd)
 repo=$(dirname "$app")
 dist="$repo/dist"
 profile="${BENBOW_NOTARY_PROFILE:-benbow-notary}"
+sparkle_account="${BENBOW_SPARKLE_ACCOUNT:-benbow}"
 
 if [[ -n "$(git -C "$repo" status --porcelain)" ]]; then
 	echo "The working tree has uncommitted changes: commit them first, so the build matches a commit." >&2
@@ -84,7 +86,7 @@ spctl --assess --type execute --verbose=2 "$bundle"
 # keychain (account "benbow", made by Sparkle's generate_keys). It points at
 # the GitHub release asset; publish it at $feed (docs/release.md).
 tools="$app/.build/artifacts/sparkle/Sparkle/bin"
-edsig=$("$tools/sign_update" --account benbow "$dmg")
+edsig=$("$tools/sign_update" --account "$sparkle_account" "$dmg")
 build=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$bundle/Contents/Info.plist")
 feed=$(/usr/libexec/PlistBuddy -c "Print :SUFeedURL" "$bundle/Contents/Info.plist")
 # Release notes shown in Sparkle's window: dist/notes-<version>.md (basic

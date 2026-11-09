@@ -40,6 +40,10 @@ GitHub release and `dist/appcast.xml` on benbow.dev.
    `generate_keys --account benbow -f <file>` imports it. If the key is lost,
    installed copies can only move to a new key through a manual download.
 
+   Keychain items made before the rename keep their old names: point the
+   script at them with `BENBOW_NOTARY_PROFILE=<profile>` and
+   `BENBOW_SPARKLE_ACCOUNT=<account>`.
+
 ## Each release
 
 ```sh
