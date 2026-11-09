@@ -31,6 +31,9 @@ Format: **decision** (date) — why. *Not chosen:* alternatives.
   frontend next to it without becoming a runtime manager. The website,
   README and announcements stay PHP-first. *Not chosen:* managing Node and
   Python versions (FlyEnv's road), Docker, production builds.
+  Changed on 2026-11-09: the home page gets an Apps chapter (the hero stays
+  PHP-first and names the front end only as "next door"), because apps are
+  ready and the Benbow launch is the moment to say so.
 - **Apps run through the login shell, are never restarted, stop as a
   whole tree** (2026-11-09) — each start runs `$SHELL -l -i -c` so every
   version manager works as in a terminal without Benbow knowing about any of
