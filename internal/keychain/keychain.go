@@ -184,3 +184,62 @@ func (i Item) AnyExists(ctx context.Context) (bool, error) {
 	}
 	return true, nil
 }
+
+// Entry is one generic password's account and label (never its secret).
+type Entry struct {
+	Account string
+	Label   string
+}
+
+// Entries lists the generic passwords of Service in the keychain, by
+// account, without reading any secret (`security dump-keychain` shows only
+// attributes). It is how a renamed service's items are found to be copied.
+func (i Item) Entries(ctx context.Context) ([]Entry, error) {
+	out, err := i.run(ctx, "", "dump-keychain", i.Path)
+	if err != nil {
+		return nil, errcode.New(errcode.Service, fmt.Errorf("list the keychain: %w: %s", err, strings.TrimSpace(out)))
+	}
+	var entries []Entry
+	var cur struct {
+		genp                 bool
+		account, label, svce string
+	}
+	flush := func() {
+		if cur.genp && cur.svce == i.Service {
+			entries = append(entries, Entry{Account: cur.account, Label: cur.label})
+		}
+		cur.genp, cur.account, cur.label, cur.svce = false, "", "", ""
+	}
+	for _, line := range strings.Split(out, "\n") {
+		t := strings.TrimSpace(line)
+		switch {
+		case strings.HasPrefix(t, "keychain: "):
+			flush()
+		case t == `class: "genp"`:
+			cur.genp = true
+		case strings.HasPrefix(t, `"acct"<blob>=`):
+			cur.account = dumpValue(strings.TrimPrefix(t, `"acct"<blob>=`))
+		case strings.HasPrefix(t, `"svce"<blob>=`):
+			cur.svce = dumpValue(strings.TrimPrefix(t, `"svce"<blob>=`))
+		case strings.HasPrefix(t, `0x00000007 <blob>=`):
+			cur.label = dumpValue(strings.TrimPrefix(t, `0x00000007 <blob>=`))
+		}
+	}
+	flush()
+	return entries, nil
+}
+
+// dumpValue decodes an attribute value of `security dump-keychain`:
+// "text", 0x6869  "hi" (hex for bytes it does not print) or <NULL>.
+func dumpValue(v string) string {
+	if strings.HasPrefix(v, "0x") {
+		h, _, _ := strings.Cut(strings.TrimPrefix(v, "0x"), " ")
+		if b, err := hex.DecodeString(h); err == nil {
+			return string(b)
+		}
+	}
+	if len(v) >= 2 && v[0] == '"' && v[len(v)-1] == '"' {
+		return v[1 : len(v)-1]
+	}
+	return ""
+}

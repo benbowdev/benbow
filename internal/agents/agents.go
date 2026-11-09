@@ -230,16 +230,17 @@ func (e Env) bundledCodex() string {
 	return ""
 }
 
-var reCodexBenbow = regexp.MustCompile(`(?m)^\s*\[mcp_servers\.` + ServerName + `\]\s*$`)
-
 // connected reads the agent's global configuration for a "benbow" server.
-func connected(s spec, path string) bool {
+func connected(s spec, path string) bool { return hasServer(s, path, ServerName) }
+
+// hasServer reads the agent's global configuration for a server named name.
+func hasServer(s spec, path, name string) bool {
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return false
 	}
 	if s.id == Codex {
-		return reCodexBenbow.Match(b)
+		return regexp.MustCompile(`(?m)^\s*\[mcp_servers\.` + regexp.QuoteMeta(name) + `\]\s*$`).Match(b)
 	}
 	var cfg struct {
 		MCPServers map[string]json.RawMessage `json:"mcpServers"`
@@ -247,7 +248,7 @@ func connected(s spec, path string) bool {
 	if json.Unmarshal(b, &cfg) != nil {
 		return false
 	}
-	_, ok := cfg.MCPServers[ServerName]
+	_, ok := cfg.MCPServers[name]
 	return ok
 }
 
@@ -379,11 +380,29 @@ func writeKeepingMode(path string, body []byte) error {
 // configuration (benbow uninstall). Claude Code and Codex do it with their
 // own command when it is there; JSON files lose only the "benbow" entry.
 func Disconnect(ctx context.Context, env Env, id string) error {
+	return RemoveServer(ctx, env, id, ServerName)
+}
+
+// HasServer reports whether an agent's global configuration has an MCP
+// server named name (the product's former name, when migrating).
+func HasServer(ctx context.Context, env Env, id, name string) bool {
+	a, err := Find(ctx, env, id)
+	if err != nil {
+		return false
+	}
+	s, _ := specFor(id)
+	return hasServer(s, a.ConfigPath, name)
+}
+
+// RemoveServer removes the MCP server named name from an agent's global
+// configuration, with the agent's own command when it has one.
+func RemoveServer(ctx context.Context, env Env, id, name string) error {
 	a, err := Find(ctx, env, id)
 	if err != nil {
 		return err
 	}
-	if !a.Connected {
+	s, _ := specFor(id)
+	if !hasServer(s, a.ConfigPath, name) {
 		return nil
 	}
 	if (id == Claude || id == Codex) && a.Path != "" {
@@ -391,7 +410,7 @@ func Disconnect(ctx context.Context, env Env, id string) error {
 		if id == Claude {
 			args = append(args, "-s", "user")
 		}
-		args = append(args, ServerName)
+		args = append(args, name)
 		ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 		defer cancel()
 		cmd := exec.CommandContext(ctx, a.Path, args...)
@@ -403,13 +422,13 @@ func Disconnect(ctx context.Context, env Env, id string) error {
 		return nil
 	}
 	if id == Codex {
-		return fmt.Errorf("remove the [mcp_servers.%s] table from %s by hand (codex is not installed)", ServerName, a.ConfigPath)
+		return fmt.Errorf("remove the [mcp_servers.%s] table from %s by hand (codex is not installed)", name, a.ConfigPath)
 	}
-	return removeJSONServer(a.ConfigPath)
+	return removeJSONServer(a.ConfigPath, name)
 }
 
-// removeJSONServer deletes mcpServers.benbow from a JSON configuration.
-func removeJSONServer(path string) error {
+// removeJSONServer deletes mcpServers.<name> from a JSON configuration.
+func removeJSONServer(path, name string) error {
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("read %s: %w", path, err)
@@ -419,10 +438,10 @@ func removeJSONServer(path string) error {
 		return fmt.Errorf("%s is not valid JSON, so Benbow leaves it alone: %w", path, err)
 	}
 	servers, _ := cfg["mcpServers"].(map[string]any)
-	if _, ok := servers[ServerName]; !ok {
+	if _, ok := servers[name]; !ok {
 		return nil
 	}
-	delete(servers, ServerName)
+	delete(servers, name)
 	out, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
 		return fmt.Errorf("encode %s: %w", path, err)

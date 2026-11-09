@@ -277,3 +277,31 @@ func TestOpenRefusesNewerSchema(t *testing.T) {
 		t.Fatalf("Open newer schema = %v, want %s", err, errcode.Unsupported)
 	}
 }
+
+func TestReplacePathPrefix(t *testing.T) {
+	ctx := context.Background()
+	s, err := Open(ctx, filepath.Join(t.TempDir(), "x.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	old := "/Users/me/Library/Application Support/oldname"
+	if err := s.PutPHP(ctx, PHPVersion{Version: "8.4.1", Minor: "8.4", Path: old + "/bin/php/8.4.1", SHA256: "x"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AddSite(ctx, Site{Name: "a", Path: old + "-sites/a", PHPMinor: "8.4", Domain: "a.localhost", Enabled: true}); err != nil {
+		t.Fatal(err)
+	}
+	n, err := s.ReplacePathPrefix(ctx, old, "/Users/me/Library/Application Support/benbow")
+	if err != nil || n != 1 {
+		t.Fatalf("changed %d, %v", n, err)
+	}
+	v, _ := s.ListPHP(ctx)
+	if v[0].Path != "/Users/me/Library/Application Support/benbow/bin/php/8.4.1" {
+		t.Errorf("php path = %q", v[0].Path)
+	}
+	// A sibling folder that only shares the prefix's letters is left alone.
+	if site, _ := s.Site(ctx, "a"); site.Path != old+"-sites/a" {
+		t.Errorf("site path = %q", site.Path)
+	}
+}

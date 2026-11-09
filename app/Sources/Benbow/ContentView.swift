@@ -44,6 +44,8 @@ struct ContentView: View {
                 } actions: {
                     Button("Try Again") { Task { await model.connect() } }
                 }
+            case .offer(let offer):
+                MigrationOfferView(offer: offer)
             case .ready:
                 split
             }

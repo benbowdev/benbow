@@ -18,6 +18,7 @@ var oldNameAllowed = []string{
 	"internal/cli/migrate",
 	"test/e2e/migrate_covo",
 	"test/repo/name_test.go",
+	"app/Sources/Benbow/MigrateCovoView.swift",
 }
 
 // TestNoFormerName keeps the old name (Covo, getcovo) out of the code,
@@ -40,7 +41,7 @@ func TestNoFormerName(t *testing.T) {
 	}
 	out, _ = exec.Command("git", "-C", root, "ls-files").Output()
 	for _, f := range strings.Fields(string(out)) {
-		if strings.Contains(strings.ToLower(f), "covo") && !strings.HasPrefix(f, "internal/core/migratecovo") && !strings.HasPrefix(f, "test/e2e/migrate_covo") && f != "docs/migrate-from-covo.md" {
+		if strings.Contains(strings.ToLower(f), "covo") && !strings.HasPrefix(f, "internal/core/migratecovo") && !strings.HasPrefix(f, "test/e2e/migrate_covo") && f != "docs/migrate-from-covo.md" && f != "app/Sources/Benbow/MigrateCovoView.swift" {
 			t.Errorf("file name %s has the former name", f)
 		}
 	}

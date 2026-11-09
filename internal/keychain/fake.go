@@ -38,6 +38,14 @@ func (f *Fake) Run(_ context.Context, stdin string, args ...string) (string, err
 		f.Items[acct+"@"+svc] = string(b)
 		return "", nil
 	}
+	if args[0] == "dump-keychain" {
+		var b strings.Builder
+		for key := range f.Items {
+			a, s, _ := strings.Cut(key, "@")
+			fmt.Fprintf(&b, "keychain: \"x\"\nclass: \"genp\"\nattributes:\n    0x00000007 <blob>=\"%s\"\n    \"acct\"<blob>=\"%s\"\n    \"svce\"<blob>=\"%s\"\n", s, a, s)
+		}
+		return b.String(), nil
+	}
 	acct, svc := flag(args, "-a"), flag(args, "-s")
 	match := ""
 	for key := range f.Items {

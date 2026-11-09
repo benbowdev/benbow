@@ -199,30 +199,46 @@ func (m Manager) Install(ctx context.Context, zone string, port int) (changed bo
 		}
 		want.CreatedDir = cur.CreatedDir
 	}
+	return true, m.write(ctx, zone, want)
+}
+
+// Replace writes this home's resolver file for zone over whatever is
+// there. Only for a file the caller has recognised as its own under
+// another form (the product's former name, when migrating).
+func (m Manager) Replace(ctx context.Context, zone string, port int, createdDir bool) error {
+	if err := checkZone(zone); err != nil {
+		return err
+	}
+	return m.write(ctx, zone, File{Home: m.Home, Port: port, CreatedDir: createdDir})
+}
+
+// write installs want as zone's resolver file with one privileged command.
+func (m Manager) write(ctx context.Context, zone string, want File) error {
+	port := want.Port
 	if err := os.MkdirAll(m.TmpDir, 0o700); err != nil {
-		return false, fmt.Errorf("create %s: %w", m.TmpDir, err)
+		return fmt.Errorf("create %s: %w", m.TmpDir, err)
 	}
 	staged := filepath.Join(m.TmpDir, "resolver-"+zone)
 	if err := os.WriteFile(staged, []byte(want.Render()), 0o644); err != nil {
-		return false, fmt.Errorf("stage resolver file: %w", err)
+		return fmt.Errorf("stage resolver file: %w", err)
 	}
 	defer os.Remove(staged)
 
 	src, err := shellQuote(staged)
 	if err != nil {
-		return false, err
+		return err
 	}
 	dir, err := shellQuote(m.Dir)
 	if err != nil {
-		return false, err
+		return err
 	}
 	dst, err := shellQuote(m.Path(zone))
 	if err != nil {
-		return false, err
+		return err
 	}
 	tmp, err := shellQuote(m.Path("." + zone + ".benbow-new"))
 	if err != nil {
-		return false, err
+		return err
 	}
 	// Copy then rename: the file appears complete or not at all. A file
 	// created by root is owned by root:wheel.
@@ -230,12 +246,12 @@ func (m Manager) Install(ctx context.Context, zone string, port int) (changed bo
 		dir, src, tmp, tmp, tmp, dst)
 	prompt := fmt.Sprintf("Benbow wants to send .%s lookups to its local DNS server (127.0.0.1 port %d).", zone, port)
 	if err := m.Run(ctx, prompt, cmd); err != nil {
-		return false, err
+		return err
 	}
 	if st, _, err := m.State(zone); err != nil || !st.Installed {
-		return false, errcode.Errorf(errcode.Service, "the resolver file was not installed")
+		return errcode.Errorf(errcode.Service, "the resolver file was not installed")
 	}
-	return true, nil
+	return nil
 }
 
 // Remove deletes Benbow's resolver file for zone, and the resolver directory

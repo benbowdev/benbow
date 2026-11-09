@@ -12,9 +12,14 @@ import Observation
 final class AppModel {
     enum Phase: Equatable {
         case connecting
+        /// An installation under Benbow's former name to move over first.
+        case offer(MigrationOffer)
         case ready
         case failed(String)
     }
+
+    /// The former-name check runs once per launch.
+    private var offerChecked = false
 
     private(set) var phase: Phase = .connecting
     private(set) var status: Status?
@@ -47,6 +52,13 @@ final class AppModel {
         guard let bin = Daemon.binary(), FileManager.default.isExecutableFile(atPath: bin.path) else {
             phase = .failed("The benbow binary is missing from the app. Rebuild it with app/build.sh.")
             return
+        }
+        if !offerChecked {
+            offerChecked = true
+            if let offer = await MigrationOffer.check(binary: bin) {
+                phase = .offer(offer)
+                return
+            }
         }
         do {
             let info = try await Daemon.start(binary: bin)

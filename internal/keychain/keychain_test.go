@@ -6,6 +6,7 @@ package keychain
 import (
 	"context"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -132,5 +133,22 @@ func TestParseSecret(t *testing.T) {
 	}
 	if _, err := parseSecret("nothing"); err == nil {
 		t.Error("parseSecret without a password line succeeded")
+	}
+}
+
+func TestEntries(t *testing.T) {
+	out := "keychain: \"/k\"\nversion: 512\nclass: \"genp\"\nattributes:\n" +
+		"    0x00000007 <blob>=\"Old MySQL root (dev.old.mysql)\"\n    \"acct\"<blob>=\"root\"\n    \"svce\"<blob>=\"dev.old.mysql\"\n" +
+		"keychain: \"/k\"\nclass: \"genp\"\nattributes:\n    0x00000007 <blob>=<NULL>\n    \"acct\"<blob>=0x73686F70  \"shop\"\n    \"svce\"<blob>=\"dev.old.mysql\"\n" +
+		"keychain: \"/k\"\nclass: \"genp\"\nattributes:\n    \"acct\"<blob>=\"x\"\n    \"svce\"<blob>=\"dev.other\"\n" +
+		"keychain: \"/k\"\nclass: \"inet\"\nattributes:\n    \"acct\"<blob>=\"y\"\n    \"svce\"<blob>=\"dev.old.mysql\"\n"
+	i := Item{Path: "/k", Service: "dev.old.mysql", Run: func(context.Context, string, ...string) (string, error) { return out, nil }}
+	got, err := i.Entries(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Entry{{"root", "Old MySQL root (dev.old.mysql)"}, {"shop", ""}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("entries = %+v, want %+v", got, want)
 	}
 }

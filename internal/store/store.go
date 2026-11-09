@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/benbowdev/benbow/internal/errcode"
 	_ "modernc.org/sqlite" // registers the "sqlite" driver
@@ -506,4 +507,66 @@ func (s *Store) SetFramework(ctx context.Context, name, framework, appRoot strin
 		return fmt.Errorf("set framework of %s: %w", name, err)
 	}
 	return nil
+}
+
+// ReplacePathPrefix rewrites every text value that starts with from (a
+// folder, so from itself or from + "/") to start with to instead, in every
+// table: absolute paths saved before the home folder moved. It returns how
+// many values changed.
+func (s *Store) ReplacePathPrefix(ctx context.Context, from, to string) (int64, error) {
+	from, to = strings.TrimSuffix(from, "/"), strings.TrimSuffix(to, "/")
+	if from == "" || to == "" || from == to {
+		return 0, fmt.Errorf("replace path prefix: bad arguments %q, %q", from, to)
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'`)
+	if err != nil {
+		return 0, fmt.Errorf("list tables: %w", err)
+	}
+	var tables []string
+	for rows.Next() {
+		var t string
+		if err := rows.Scan(&t); err != nil {
+			rows.Close()
+			return 0, fmt.Errorf("list tables: %w", err)
+		}
+		tables = append(tables, t)
+	}
+	rows.Close()
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, fmt.Errorf("begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	var n int64
+	for _, t := range tables {
+		cols, err := tx.QueryContext(ctx, `SELECT name FROM pragma_table_info(?) WHERE upper(type) IN ('TEXT', '')`, t)
+		if err != nil {
+			return 0, fmt.Errorf("columns of %s: %w", t, err)
+		}
+		var names []string
+		for cols.Next() {
+			var c string
+			if err := cols.Scan(&c); err != nil {
+				cols.Close()
+				return 0, fmt.Errorf("columns of %s: %w", t, err)
+			}
+			names = append(names, c)
+		}
+		cols.Close()
+		for _, c := range names {
+			q := fmt.Sprintf(`UPDATE %q SET %q = ? || substr(%q, ?) WHERE %q = ? OR substr(%q, 1, ?) = ?`, t, c, c, c, c)
+			// SQLite's substr counts characters, not bytes.
+			k := utf8.RuneCountInString(from) + 1
+			res, err := tx.ExecContext(ctx, q, to, k, from, k, from+"/")
+			if err != nil {
+				return 0, fmt.Errorf("rewrite %s.%s: %w", t, c, err)
+			}
+			changed, _ := res.RowsAffected()
+			n += changed
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("commit: %w", err)
+	}
+	return n, nil
 }
