@@ -11,7 +11,9 @@
 	<key>CFBundleExecutable</key>
 	<string>Benbow</string>
 	<key>CFBundleIconFile</key>
-	<string>AppIcon</string>
+	<string>Benbow</string>
+	<key>CFBundleIconName</key>
+	<string>Benbow</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

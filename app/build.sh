@@ -61,8 +61,19 @@ mkdir -p "$bundle/Contents/Frameworks"
 ditto "$bin/Sparkle.framework" "$bundle/Contents/Frameworks/Sparkle.framework"
 rm -rf "$bundle/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices" "$bundle/Contents/Frameworks/Sparkle.framework/XPCServices"
 cp "$out/benbow" "$out/benbow-hostshelper" "$bundle/Contents/Resources/bin/"
-# Icons come from the brand kit (docs/brand).
-iconutil -c icns "$app/Resources/AppIcon.iconset" -o "$bundle/Contents/Resources/AppIcon.icns"
+# Icons come from the brand kit (docs/brand). Benbow.icon (Icon Composer) compiles
+# with Xcode's actool into Assets.car, the shape macOS 26 expects (otherwise it
+# puts the icon on a grey plate), plus Benbow.icns for macOS 14 and 15. Without
+# Xcode (only the Command Line Tools) the iconset is used: fine before macOS 26.
+rm -f "$bundle/Contents/Resources/AppIcon.icns"
+if xcrun --find actool >/dev/null 2>&1; then
+	xcrun actool "$app/Resources/Benbow.icon" --compile "$bundle/Contents/Resources" \
+		--platform macosx --minimum-deployment-target 14.0 --app-icon Benbow \
+		--output-partial-info-plist "$out/icon-partial.plist" >/dev/null
+else
+	echo "actool not found (Xcode is not installed): using the iconset, macOS 26 will show the icon on a plate" >&2
+	iconutil -c icns "$app/Resources/AppIcon.iconset" -o "$bundle/Contents/Resources/Benbow.icns"
+fi
 cp "$app/Resources/benbow-menubar-template.png" "$app/Resources/benbow-menubar-template@2x.png" "$bundle/Contents/Resources/"
 
 sparkle="$bundle/Contents/Frameworks/Sparkle.framework"

@@ -10,10 +10,12 @@ GitHub release and `dist/appcast.xml` on benbow.dev.
    Holder** can create Developer ID certificates (Admin is not enough): if
    someone else is the Account Holder, they create it and send it as a
    `.p12` to import into the login keychain.
-2. A **Developer ID Application** certificate in the login keychain: Xcode →
+2. Xcode (not only the Command Line Tools): `app/build.sh` needs its `actool`
+   to compile the app icon for macOS 26.
+3. A **Developer ID Application** certificate in the login keychain: Xcode →
    Settings → Accounts → the team → Manage Certificates… → + → Developer ID
    Application. Check with `security find-identity -v -p codesigning`.
-3. An app-specific password for the Apple ID (account.apple.com → Sign-In
+4. An app-specific password for the Apple ID (account.apple.com → Sign-In
    and Security → App-Specific Passwords), then store the notarization
    credentials in the keychain (prompts for the password, never on the
    command line):
@@ -26,7 +28,7 @@ GitHub release and `dist/appcast.xml` on benbow.dev.
    and in the "Developer ID Application: Name (TEAMID)" certificate (the
    code in an "Apple Development: Name (…)" certificate is a personal ID,
    not the Team ID).
-4. The Sparkle signing key (EdDSA), in the login keychain under the account
+5. The Sparkle signing key (EdDSA), in the login keychain under the account
    `benbow`. Its public half is `SUPublicEDKey` in `app/Info.plist`: every
    update must be signed with this exact key, or installed apps refuse it.
    Made once with Sparkle's tool (after `swift package resolve` in `app/`):

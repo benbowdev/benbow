@@ -17,9 +17,13 @@ that is on means Benbow is running.
 | `menubar/benbow-menubar-template*.png/.svg` | Menu bar icon: black lantern with the flame cut out, on transparent, 16×16 grid, used as a template image (`isTemplate = true`) |
 | `web/` | `favicon.svg`, `favicon.ico`, `favicon-32.png`, `apple-touch-icon.png` (180), `icon-512.png` |
 
-The app's `app/Resources/AppIcon.iconset` (16–512 pt, @1x and @2x) is made from
-`source/benbow-icon-1024.png`; `app/build.sh` turns it into `AppIcon.icns`. The
-menu bar PNGs are copied to `app/Resources/`.
+The app's icon is `app/Resources/Benbow.icon` (Icon Composer format: the
+full-bleed artwork on the ink fill, no glass). `app/build.sh` compiles it with
+Xcode's `actool` into `Assets.car`, the shape macOS 26 expects (a plain icns is
+shown on a grey plate there), plus `Benbow.icns` for macOS 14 and 15. Without
+Xcode it falls back to `app/Resources/AppIcon.iconset` (16–512 pt, @1x and @2x,
+made from `source/benbow-icon-1024.png`, body 832 px at 96 px like Apple's grid).
+The menu bar PNGs are copied to `app/Resources/`.
 
 ## Wordmark
 
