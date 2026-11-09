@@ -100,9 +100,11 @@ func artifactKey(a Artifact) string {
 
 // Merge returns m with the artifacts of newer that m lacks, and newer's
 // serial. Artifacts are never replaced: an entry with the same component,
-// version, architecture and target but different content is an error, so
+// version, architecture and target but a different SHA-256 is an error, so
 // a published manifest can add versions but never swap a binary Benbow
-// already trusts.
+// already trusts. A different URL for the same SHA-256 is the same file
+// (a repository that moved to another owner, whose old links
+// redirect): m's URL is kept.
 func (m Manifest) Merge(newer Manifest) (Manifest, error) {
 	out := Manifest{Serial: max(m.Serial, newer.Serial), Artifacts: append([]Artifact(nil), m.Artifacts...)}
 	have := map[string]Artifact{}
@@ -116,7 +118,7 @@ func (m Manifest) Merge(newer Manifest) (Manifest, error) {
 			have[artifactKey(a)] = a
 			continue
 		}
-		if old.SHA256 != a.SHA256 || old.URL != a.URL {
+		if old.SHA256 != a.SHA256 {
 			return Manifest{}, errcode.Newf(errcode.Checksum,
 				"signed manifest changes %s %s (%s): artifacts are never replaced", a.Component, a.Version, a.Arch)
 

@@ -115,6 +115,13 @@ func TestMerge(t *testing.T) {
 	if _, err := base.Merge(swapped); errcode.Code(err) != errcode.Checksum {
 		t.Fatalf("swapped binary err = %v", err)
 	}
+	// The same file at another address (a moved repository) is accepted,
+	// and the address Benbow already has stays.
+	moved := Manifest{Serial: 3, Artifacts: []Artifact{{Component: "caddy", Version: "2.11.7", Arch: "arm64", URL: "https://old/1", SHA256: sha('1')}}}
+	got, err = base.Merge(moved)
+	if err != nil || got.Artifacts[0].URL != "https://x/1" {
+		t.Fatalf("moved file = %+v, %v", got.Artifacts, err)
+	}
 }
 
 func TestParseKeys(t *testing.T) {
