@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/getcovo/covo/internal/components"
+	"github.com/getcovo/covo/internal/keychain"
 	"github.com/getcovo/covo/internal/launchd"
 	"github.com/getcovo/covo/internal/lock"
 	"github.com/getcovo/covo/internal/paths"
@@ -54,6 +55,10 @@ type Core struct {
 	// Executable is the covo binary the agents of apps run (`covo app
 	// run`); empty when this is not the covo binary (a test).
 	Executable string
+
+	// keychainRun runs /usr/bin/security for the items Core reads itself
+	// (an app's variables); nil is the real one. Tests use keychain.Fake.
+	keychainRun keychain.Runner
 
 	// adminerLogins are one-time Adminer logins (see adminer.go); they only
 	// live in the daemon's memory.

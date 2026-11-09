@@ -193,6 +193,7 @@ extension Result where Failure == Error {
         "phone": { try check("phone", PhoneStatus.self) },
         "app-detection": { try check("app-detection", AppDetection.self) },
         "app-status": { try check("app-status", AppStatus.self) },
+        "app-env": { try check("app-env", AppEnv.self) },
     ]
     let dir = try #require(Bundle.module.url(forResource: "wire", withExtension: nil, subdirectory: "Fixtures"))
     let files = try FileManager.default.contentsOfDirectory(atPath: dir.path).filter { $0.hasSuffix(".json") }

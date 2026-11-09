@@ -73,6 +73,9 @@ func runCore(t *testing.T) *Core {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := l.Ensure(); err != nil {
+		t.Fatal(err)
+	}
 	c.Layout = l
 	c.launchctl = &launchd.Launchctl{Prefix: "dev.getcovo"}
 	return c
@@ -146,7 +149,7 @@ func TestAppStatus(t *testing.T) {
 
 func TestAppAgent(t *testing.T) {
 	c := runCore(t)
-	if _, err := c.appAgents([]store.Site{{Name: "x", Kind: store.KindApp, AppMode: store.AppRun, Enabled: true}}); err == nil {
+	if _, err := c.appAgents(t.Context(), []store.Site{{Name: "x", Kind: store.KindApp, AppMode: store.AppRun, Enabled: true}}); err == nil {
 		t.Error("app agents without the covo binary")
 	}
 	c.Executable = "/Applications/Covo.app/Contents/MacOS/covo"
@@ -156,7 +159,7 @@ func TestAppAgent(t *testing.T) {
 		{Name: "api", Kind: store.KindApp, AppMode: store.AppProxy, Enabled: true},
 		{Name: "blog", PHPMinor: "8.4", Enabled: true},
 	}
-	agents, err := c.appAgents(sites)
+	agents, err := c.appAgents(t.Context(), sites)
 	if err != nil || len(agents) != 1 {
 		t.Fatalf("agents = %+v, %v", agents, err)
 	}
@@ -167,7 +170,7 @@ func TestAppAgent(t *testing.T) {
 	}
 	other := sites[0]
 	other.Command = "pnpm dev"
-	if c.appAgent(other).Env["COVO_CONFIG_HASH"] == a.Env["COVO_CONFIG_HASH"] {
+	if c.appAgent(other, "").Env["COVO_CONFIG_HASH"] == a.Env["COVO_CONFIG_HASH"] {
 		t.Error("a new command does not change the plist")
 	}
 }

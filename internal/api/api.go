@@ -76,6 +76,8 @@ type Backend interface {
 	SiteLogs(ctx context.Context, name, kind string, lines int) (core.SiteLog, error)
 	ClearSiteLogs(ctx context.Context, name string) (core.SiteLog, error)
 	RestartApp(ctx context.Context, name string) (core.AppStatus, error)
+	GetAppEnv(ctx context.Context, name string, show bool) (core.AppEnv, error)
+	SetAppEnv(ctx context.Context, name string, set map[string]string, unset []string) (core.AppEnv, error)
 	ListPHP(ctx context.Context) (core.PHPList, error)
 	InstallPHP(ctx context.Context, spec string) (core.PHPInstall, error)
 	GetPHPSettings(ctx context.Context, minor string) (core.PHPSettings, error)
@@ -434,6 +436,21 @@ func Handler(b Backend) http.Handler {
 	// ?drop=true also deletes the database and the site's own user.
 	post("DELETE", "/v1/sites/{name}/database", func(r *http.Request, _ []byte) (any, error) {
 		return b.UnlinkSiteDatabase(r.Context(), r.PathValue("name"), r.URL.Query().Get("drop") == "true")
+	})
+	// An app's own variables: names only, values go in and never out.
+	mux.HandleFunc("GET /v1/sites/{name}/env", func(w http.ResponseWriter, r *http.Request) {
+		res, err := b.GetAppEnv(r.Context(), r.PathValue("name"), false)
+		reply(w, res, err)
+	})
+	post("PATCH", "/v1/sites/{name}/env", func(r *http.Request, body []byte) (any, error) {
+		var req struct {
+			Set   map[string]string `json:"set"`
+			Unset []string          `json:"unset"`
+		}
+		if err := decode(body, &req); err != nil {
+			return nil, err
+		}
+		return b.SetAppEnv(r.Context(), r.PathValue("name"), req.Set, req.Unset)
 	})
 	post("POST", "/v1/sites/{name}/restart", func(r *http.Request, _ []byte) (any, error) {
 		return b.RestartApp(r.Context(), r.PathValue("name"))

@@ -684,6 +684,16 @@ public struct AppStatus: Codable, Sendable, Hashable {
     public var logTail: [String]?
 }
 
+/// An app's variables (GET/PATCH /v1/sites/{name}/env): names only.
+public struct AppEnv: Codable, Sendable, Hashable {
+    public var site: String
+    /// The user's own variables, kept in the login keychain.
+    public var names: [String]
+    /// The variables Covo sets itself (APP_URL, DATABASE_URL…).
+    public var provided: [String]?
+    public var restarted: Bool?
+}
+
 /// The command Covo proposes for an app's folder (GET /v1/detect).
 public struct AppDetection: Codable, Sendable, Hashable {
     public var path: String

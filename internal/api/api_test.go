@@ -92,6 +92,14 @@ func (f *fake) SiteLogs(_ context.Context, name, kind string, lines int) (core.S
 	return core.SiteLog{}, f.record(fmt.Sprintf("logs %s %s %d", name, kind, lines))
 }
 
+func (f *fake) GetAppEnv(_ context.Context, name string, _ bool) (core.AppEnv, error) {
+	return core.AppEnv{Site: name, Names: []string{"API_KEY"}}, nil
+}
+
+func (f *fake) SetAppEnv(_ context.Context, name string, _ map[string]string, _ []string) (core.AppEnv, error) {
+	return core.AppEnv{Site: name}, nil
+}
+
 func (f *fake) RestartApp(context.Context, string) (core.AppStatus, error) {
 	return core.AppStatus{State: core.AppStarting, Port: 41000}, nil
 }

@@ -4,6 +4,7 @@
 package cli
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"io"
@@ -22,7 +23,7 @@ func (a *app) siteCmd() *cobra.Command {
 		Use:   "site",
 		Short: "Manage sites",
 	}
-	cmd.AddCommand(a.siteAddCmd(), a.siteSetCmd(), a.siteToggleCmd(true), a.siteToggleCmd(false), a.siteArchiveCmd(true), a.siteArchiveCmd(false), a.siteLogsCmd(), a.sitePHPCmd(), a.siteListCmd(), a.siteRemoveCmd(), a.siteDetectCmd(), a.siteRestartCmd())
+	cmd.AddCommand(a.siteAddCmd(), a.siteSetCmd(), a.siteToggleCmd(true), a.siteToggleCmd(false), a.siteArchiveCmd(true), a.siteArchiveCmd(false), a.siteLogsCmd(), a.sitePHPCmd(), a.siteListCmd(), a.siteRemoveCmd(), a.siteDetectCmd(), a.siteRestartCmd(), a.siteEnvCmd())
 	return cmd
 }
 
@@ -453,4 +454,92 @@ func (a *app) siteRemoveCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&dropDB, "drop-database", false, "also delete the site's database and its own MySQL user")
 	cmd.Flags().BoolVar(&yes, "yes", false, "do not ask before deleting the database")
 	return cmd
+}
+
+type appEnvResult core.AppEnv
+
+func (r appEnvResult) Text(w io.Writer) {
+	if r.Restarted {
+		fmt.Fprintf(w, "%s restarted with its new variables.\n", r.Site)
+	}
+	if len(r.Provided) > 0 {
+		fmt.Fprintf(w, "Set by Covo: %s\n", strings.Join(r.Provided, ", "))
+	}
+	if len(r.Names) == 0 {
+		fmt.Fprintln(w, "No variables of your own. Add one with: covo site env "+r.Site+" set NAME=value")
+		return
+	}
+	fmt.Fprintln(w, "Your variables (in the login keychain):")
+	for _, n := range r.Names {
+		if v, ok := r.Values[n]; ok {
+			fmt.Fprintf(w, "  %s=%s\n", n, v)
+		} else {
+			fmt.Fprintf(w, "  %s\n", n)
+		}
+	}
+}
+
+func (a *app) siteEnvCmd() *cobra.Command {
+	var show bool
+	cmd := &cobra.Command{
+		Use:   "env <name> [set NAME=value... | set NAME | unset NAME...]",
+		Short: "An app's own environment variables, kept in the login keychain",
+		Long: "Lists an app's own variables (names; values with --show) and the ones Covo sets itself\n" +
+			"(APP_URL, DATABASE_URL, REDIS_URL, SMTP_*). Values are kept in the login keychain and only\n" +
+			"reach the app's process. Changing them restarts the app if it runs.\n\n" +
+			"  covo site env shop set API_KEY=abc STRIPE_MODE=test\n" +
+			"  covo site env shop set API_KEY      # reads the value from stdin, out of your shell history\n" +
+			"  covo site env shop unset API_KEY",
+		Args: cobra.MinimumNArgs(1),
+		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
+			name := args[0]
+			if len(args) == 1 {
+				res, err := c.GetAppEnv(ctx, name, show)
+				return appEnvResult(res), err
+			}
+			verb, rest := args[1], args[2:]
+			if len(rest) == 0 {
+				return nil, errcode.Newf(errcode.InvalidInput, "%s what? Give one or more variable names", verb)
+			}
+			switch verb {
+			case "set":
+				vars, err := a.envAssignments(rest)
+				if err != nil {
+					return nil, err
+				}
+				res, err := c.SetAppEnv(ctx, name, vars, nil)
+				return appEnvResult(res), err
+			case "unset":
+				res, err := c.SetAppEnv(ctx, name, nil, rest)
+				return appEnvResult(res), err
+			}
+			return nil, errcode.Newf(errcode.InvalidInput, "unknown action %q: use set or unset", verb)
+		}),
+	}
+	cmd.Flags().BoolVar(&show, "show", false, "show the values too")
+	return cmd
+}
+
+// envAssignments parses NAME=value arguments; a single NAME reads its value
+// from stdin.
+func (a *app) envAssignments(args []string) (map[string]string, error) {
+	vars := map[string]string{}
+	for _, kv := range args {
+		k, v, ok := strings.Cut(kv, "=")
+		if !ok {
+			if len(args) != 1 {
+				return nil, errcode.Errorf(errcode.InvalidInput, "to read a value from stdin, set one variable at a time")
+			}
+			if a.stdin != nil && !a.json {
+				fmt.Fprintf(a.stderr, "Value of %s: ", k)
+			}
+			line, err := bufio.NewReader(os.Stdin).ReadString('\n')
+			if err != nil && line == "" {
+				return nil, errcode.Newf(errcode.InvalidInput, "no value for %s on stdin", k)
+			}
+			v = strings.TrimRight(line, "\r\n")
+		}
+		vars[k] = v
+	}
+	return vars, nil
 }

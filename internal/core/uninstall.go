@@ -256,8 +256,8 @@ func covoKeychains(prefix string) ([]struct {
 	if err != nil {
 		return nil, err
 	}
-	remote, github := my, my
-	remote.Service, github.Service = prefix+".remote", prefix+".github"
+	remote, github, appEnv := my, my, my
+	remote.Service, github.Service, appEnv.Service = prefix+".remote", prefix+".github", prefix+"."+appEnvService
 	return []struct {
 		what string
 		kc   mysql.Keychain
@@ -266,6 +266,7 @@ func covoKeychains(prefix string) ([]struct {
 		{"PostgreSQL passwords: superuser and site users", pg},
 		{"Passwords of production and staging servers", remote},
 		{"GitHub token for blueprints", github},
+		{"Variables of apps", appEnv},
 	}, nil
 }
 

@@ -67,6 +67,7 @@ up as a diff of those files: adding a field is fine (rerun the Go test with
 | `PATCH /v1/sites/{name}` | any of `{php, path, domain, enabled, archived, aliases, group_id, title, force}` (`group_id` 0: top level); apps: `{command, port, proxy_port, app_host}` | `covo site set`, `enable`, `disable`, `archive`, `unarchive` |
 | `GET /v1/detect?path=` | | `covo site detect` |
 | `POST /v1/sites/{name}/restart` | | `covo site restart` (apps, `apps.md`) |
+| `GET`, `PATCH /v1/sites/{name}/env` | `{set: {NAME: value}, unset: [NAME]}`; answers names only | `covo site env` |
 | `POST /v1/laravel` | `{name, path, php, database, domain, aliases, group_id, php_settings}` | `covo laravel` |
 | `POST /v1/sites/{name}/run` | `{tool, args}` (`wp`, `composer`, `artisan`) | `covo wp`, `covo composer`, `covo artisan` |
 | `POST /v1/sites/{name}/php-check` | `{target, all}` | `covo php check` |

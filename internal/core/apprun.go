@@ -130,8 +130,9 @@ func covoExecutable() string {
 }
 
 // appAgents returns the launchd agents of the apps Covo starts.
-func (c *Core) appAgents(sites []store.Site) ([]launchd.Agent, error) {
+func (c *Core) appAgents(ctx context.Context, sites []store.Site) ([]launchd.Agent, error) {
 	var agents []launchd.Agent
+	services := ""
 	for _, s := range sites {
 		if !startsApp(s) {
 			continue
@@ -139,18 +140,28 @@ func (c *Core) appAgents(sites []store.Site) ([]launchd.Agent, error) {
 		if c.Executable == "" {
 			return nil, errcode.Errorf(errcode.Service, "cannot start apps: this program is not the covo binary")
 		}
-		agents = append(agents, c.appAgent(s))
+		if services == "" {
+			services = c.appServicesHash(ctx) + ";"
+		}
+		agents = append(agents, c.appAgent(s, services))
 	}
 	return agents, nil
 }
 
-func (c *Core) appAgent(s store.Site) launchd.Agent {
+// appAgent is the agent of one app. services fingerprints the Covo
+// services its environment comes from (appServicesHash).
+func (c *Core) appAgent(s store.Site, services string) launchd.Agent {
 	// The wrapper reads the site from the store; the hash makes a changed
-	// command, port or folder change the plist, which restarts the app.
-	sum := sha256.Sum256([]byte(s.Path + "\x00" + s.Command + "\x00" + strconv.Itoa(s.AppPort)))
+	// command, port, folder, database or service change the plist, which
+	// restarts the app. It holds no secret.
+	sum := sha256.Sum256([]byte(strings.Join([]string{s.Path, s.Command, strconv.Itoa(s.AppPort),
+		s.Database, s.DBUser, s.DBEngine, services}, "\x00")))
 	env := map[string]string{"COVO_CONFIG_HASH": hex.EncodeToString(sum[:8])}
-	if h := os.Getenv(paths.EnvHome); h != "" {
-		env[paths.EnvHome] = h
+	// The wrapper must find the same Covo home and keychain items.
+	for _, k := range []string{paths.EnvHome, launchd.EnvLabelPrefix} {
+		if v := os.Getenv(k); v != "" {
+			env[k] = v
+		}
 	}
 	home, _ := os.UserHomeDir()
 	log := c.siteLogPath(s.Name, LogApp)
@@ -465,13 +476,20 @@ func (c *Core) RunApp(ctx context.Context, name string) int {
 		return fail(fmt.Sprintf("Port %d is in use by %s: stop it, or give the app another port (covo site set %s --port N).",
 			s.AppPort, ports.Describe(ports.Owners(ctx, s.AppPort)), name))
 	}
+	extra, names, warnings := c.appEnvironment(ctx, s)
+	if line := describeEnv(names); line != "" {
+		say("%s", line)
+	}
+	for _, w := range warnings {
+		say("%s", w)
+	}
 	argv := appCommand(shell, s)
 	cmd := exec.Command(argv[0], argv[1:]...)
 	home, _ := os.UserHomeDir()
 	// Every process the command starts inherits the tag, which finds the
 	// ones that leave the process tree too fast to be seen in it.
 	tag := "COVO_APP_RUN=" + name + "-" + strconv.FormatInt(run.Started.UnixNano(), 36)
-	cmd.Dir, cmd.Env = home, append(c.appEnv(s, shell), tag)
+	cmd.Dir, cmd.Env = home, append(append(c.appEnv(s, shell), extra...), tag)
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 

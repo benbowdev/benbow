@@ -19,6 +19,7 @@ covo site set shop --command "pnpm dev"            # also --port, --proxy-port
 covo site set api --host-header localhost          # "" for the site's domain
 covo site restart shop                             # stop every process, start again
 covo site logs shop --app                          # what the command printed
+covo site env shop set STRIPE_KEY=sk_test_…        # your variables, in the keychain
 ```
 
 ## Two modes
@@ -103,6 +104,66 @@ last 20 lines printed since the start). The message names a missing program
 manager (nvm, fnm, mise, volta…)`), a port in use, or a signal. Covo never
 installs runtimes or packages.
 
+## What the app is told
+
+Every start, the app's environment gets what Covo knows about the site:
+
+| Variable | When |
+|---|---|
+| `APP_URL` | always: the site's address, e.g. `https://shop.localhost:8443` |
+| `DATABASE_URL` | the site has a database: `mysql://user:password@127.0.0.1:3307/shop` or `postgresql://…@127.0.0.1:5433/shop` |
+| `REDIS_URL` | Redis is on: `redis://127.0.0.1:6380` |
+| `SMTP_HOST`, `SMTP_PORT`, `MAIL_HOST`, `MAIL_PORT`, `SMTP_URL` | Mailpit is on: mail sent there lands in Covo's inbox |
+
+Process variables usually beat a project's `.env` (Next.js, Vite, Nuxt,
+`dotenv`): when the site has a Covo database, `DATABASE_URL` points there.
+The password is read from the login keychain at each start and only
+reaches the app's process (see the exception in `decisions.md`). Linking a
+database, or turning Redis or Mailpit on or off, restarts the app.
+
+### Your own variables
+
+```sh
+covo site env shop                         # names (Covo's and yours)
+covo site env shop set API_KEY=abc DEBUG=1
+covo site env shop set API_KEY             # value read from stdin, not kept in shell history
+covo site env shop unset DEBUG
+covo site env shop --show                  # with values
+```
+
+They live in one login keychain item per app (service
+`dev.getcovo.appenv`, account the site's name) and win over Covo's
+(`DATABASE_URL` included). `PORT`, `HOME`, `SHELL` and `COVO_*` are Covo's.
+A change restarts the app if it runs. The API and agents only ever see the
+names; removing the app or `covo uninstall` deletes the item.
+
+## Frameworks behind Covo
+
+Checked on 2026-11-09 with Covo starting each project through a login shell
+(Node 22 from nvm, Python 3.10 from pyenv), the page loaded over
+`https://<name>.localhost` and hot reload checked over Covo's HTTPS (a
+changed file reaches the page's WebSocket):
+
+| Framework | Command Covo proposes | Works as is | Notes |
+|---|---|---|---|
+| Vite 7 + React | `npm run dev -- --port {port} --strictPort` | yes | HMR on `wss://<domain>` |
+| SvelteKit 2 | `npm run dev -- --port {port} --strictPort` | yes | |
+| Astro 5 | `npm run dev -- --port {port}` | yes | |
+| Nuxt 4 | `npm run dev -- --port {port}` | yes | HMR on `/_nuxt/` |
+| Next.js 16 (Turbopack) | `npm run dev` (reads `PORT`) | yes | `*.localhost` is accepted without `allowedDevOrigins` |
+| FastAPI | `.venv/bin/uvicorn main:app --reload --port {port}` | yes | |
+| Django 5 | `.venv/bin/python manage.py runserver 127.0.0.1:{port}` | yes | in DEBUG, `ALLOWED_HOSTS` accepts `.localhost`; to see `https`, set `SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")` |
+
+With `.test` or `.local` domains, Vite and Next need the domain allowed
+(`server.allowedHosts`, `allowedDevOrigins`), Django needs it in
+`ALLOWED_HOSTS`; or send `Host: localhost` (`--host-header localhost`).
+
+### A WordPress back end and a JavaScript front end
+
+Two sites: the WordPress one (PHP) and the front end as an app. The front
+end calls `https://wp.localhost:8443/wp-json/…` and trusts it, because
+`NODE_EXTRA_CA_CERTS` points at Covo's CA.
+
 ## Detecting the command
 
 `covo site detect [folder]` (and New Site in the app) reads the project and
@@ -143,13 +204,15 @@ redirects it builds are right. `--host-header localhost` sends
   (its folder is never touched) and add it again with `--command`.
 - Open on Phone does not support apps yet.
 
-API: `POST /v1/sites/{name}/restart` restarts an app and returns its state;
+API: `GET /v1/sites/{name}/env` (names), `PATCH /v1/sites/{name}/env`
+`{set: {NAME: value}, unset: [NAME]}`;
+`POST /v1/sites/{name}/restart` restarts an app and returns its state;
 `GET /v1/sites/{name}/logs/app` is its output.
 `POST /v1/sites` takes `command`, `port`, `proxy_port`, `app_host`;
 `PATCH /v1/sites/{name}` takes `command`, `port`, `proxy_port`, `app_host`;
 `GET /v1/detect?path=` returns `{path, framework, command, package_manager,
 notes}`. Sites carry `kind` (`php` or `app`), `app_mode` (`run` or `proxy`),
 `command`, `app_port`, `app_host` and, in status, `app` (the state above).
-MCP: `detect_app`, `restart_app`, `site_logs` with kind `app` (the default
+MCP: `detect_app`, `app_env` (names only), `restart_app`, `site_logs` with kind `app` (the default
 for apps), and `add_site` / `update_site` with `command`, `port`,
 `proxy_port`.

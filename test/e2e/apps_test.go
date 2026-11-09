@@ -17,9 +17,11 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -358,5 +360,103 @@ func TestAppRun(t *testing.T) {
 	}
 	if !strings.Contains(strings.Join(logs.Lines, "\n"), "devserver listening on "+want) {
 		t.Errorf("app log: %q", logs.Lines)
+	}
+}
+
+// TestAppEnv gives a started app what Covo knows about its site (URL,
+// database, Mailpit) and the user's own variables from the keychain, and
+// keeps the secrets out of plists, logs and Covo's output.
+func TestAppEnv(t *testing.T) {
+	if runtime.GOARCH != "arm64" {
+		t.Skip("MySQL 8.4 is pinned for Apple Silicon only")
+	}
+	h := newHarness(t)
+	tmp := t.TempDir()
+	server := filepath.Join(tmp, "devserver")
+	if out, err := exec.Command("go", "build", "-o", server, "./testdata/devserver").CombinedOutput(); err != nil {
+		t.Fatalf("build devserver: %v\n%s", err, out)
+	}
+	h.mustCovo("start")
+	h.mustCovo("mysql", "enable")
+	h.mustCovo("mail", "enable")
+	var added struct {
+		URL string `json:"url"`
+	}
+	if err := json.Unmarshal(h.mustCovo("site", "add", "envapp", "--path", tmp, "--command", "'"+server+"' --port {port}"), &added); err != nil {
+		t.Fatal(err)
+	}
+	h.mustCovo("db", "create", "envapp")
+	const secret = "s3cret-value-for-covo-e2e"
+	var set struct {
+		Names    []string `json:"names"`
+		Provided []string `json:"provided"`
+	}
+	if err := json.Unmarshal(h.mustCovo("site", "env", "envapp", "set", "MY_SECRET="+secret), &set); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(set.Names, ",") != "MY_SECRET" || !strings.Contains(strings.Join(set.Provided, ","), "DATABASE_URL") {
+		t.Errorf("site env set = %+v", set)
+	}
+	h.waitApp("envapp", "running")
+	st := h.status()
+	var got map[string]string
+	if err := json.Unmarshal([]byte(h.get(added.URL+"/", st.CA.CertPath)), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["my_secret"] != secret || got["app_url"] != added.URL || got["smtp_port"] == "" ||
+		!strings.HasPrefix(got["database_url"], "mysql://envapp:") || !strings.HasSuffix(got["database_url"], "/envapp") {
+		t.Errorf("the app saw %+v", got)
+	}
+	u, err := url.Parse(got["database_url"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	password, _ := u.User.Password()
+	if len(password) < 12 {
+		t.Fatalf("database password %q", password)
+	}
+
+	// The secrets are nowhere but in the keychain and the app's process.
+	var places []string
+	_ = filepath.WalkDir(h.home(), func(p string, d os.DirEntry, err error) error {
+		if err == nil && !d.IsDir() && (strings.HasSuffix(p, ".plist") || strings.HasSuffix(p, ".log") || strings.HasSuffix(p, ".json")) {
+			places = append(places, p)
+		}
+		return nil
+	})
+	for _, p := range places {
+		b, _ := os.ReadFile(p)
+		if strings.Contains(string(b), secret) || strings.Contains(string(b), password) {
+			t.Errorf("a secret is written in %s", p)
+		}
+	}
+	for _, args := range [][]string{{"status"}, {"site", "list"}, {"site", "env", "envapp"}} {
+		out, _ := json.Marshal(h.covo(args...))
+		if strings.Contains(string(out), secret) || strings.Contains(string(out), password) {
+			t.Errorf("covo %s shows a secret", strings.Join(args, " "))
+		}
+	}
+	var shown struct {
+		Values map[string]string `json:"values"`
+	}
+	if err := json.Unmarshal(h.mustCovo("site", "env", "envapp", "--show"), &shown); err != nil || shown.Values["MY_SECRET"] != secret {
+		t.Errorf("--show = %+v, %v", shown, err)
+	}
+
+	// Removing a variable restarts the app without it.
+	var unset struct {
+		Restarted bool `json:"restarted"`
+	}
+	if err := json.Unmarshal(h.mustCovo("site", "env", "envapp", "unset", "MY_SECRET"), &unset); err != nil || !unset.Restarted {
+		t.Errorf("unset = %+v, %v", unset, err)
+	}
+	h.waitApp("envapp", "running")
+	got = nil
+	if err := json.Unmarshal([]byte(h.get(added.URL+"/", st.CA.CertPath)), &got); err != nil || got["my_secret"] != "" {
+		t.Errorf("after unset the app saw %+v, %v", got, err)
+	}
+	h.mustCovo("site", "remove", "envapp")
+	if h.keychainAccountIn(".appenv", "envapp") {
+		t.Error("the removed app's variables are still in the keychain")
 	}
 }

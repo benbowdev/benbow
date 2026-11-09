@@ -74,6 +74,15 @@ Format: **decision** (date) — why. *Not chosen:* alternatives.
 - **Secrets only in the login keychain** (2026-10-29) — never in files,
   command lines, URLs or the clipboard (MySQL root, site DB users,
   PostgreSQL superuser, remote passwords, GitHub token).
+  - *Exception (2026-11-09): an app's environment.* An app Covo starts
+    gets `DATABASE_URL` with its password, and the user's own variables,
+    in its process environment: that is how Node, Python and Ruby
+    frameworks read them, and the alternative (a `.env` file Covo writes
+    in the project) would put secrets in the client's repository. Values
+    are read from the keychain at each start and go only to that process:
+    never a plist, the app log, the API, `--json` (except `covo site env
+    --show`) or an agent. *Not chosen:* a `.env` file; a URL without the
+    password (frameworks cannot connect); asking the user to copy it.
 
 ## Identity and licence
 

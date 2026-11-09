@@ -71,6 +71,7 @@ Every change tool:
 | `mail_messages`, `read_mail` | no | the mail PHP sent, caught by Mailpit: list, one message's text and links |
 | `query_database` | no | one read-only SQL statement on a site's database (500 rows, 10 s) |
 | `session_diff` | no | files and database tables changed since the session started; one file's diff (secrets masked) |
+| `app_env` | no | names of an app's variables (Covo's and the user's), never values |
 | `restart_app` | yes | the app site (`apps.md`) |
 | `start`, `stop` | yes | all sites and services |
 | `add_site` | yes | folder, PHP, domain, aliases, new folder, database, php.ini values; an app with `command` or `proxy_port` (`apps.md`) |

@@ -55,6 +55,10 @@ func main() {
 			"flag_port":           *port,
 			"node_extra_ca_certs": os.Getenv("NODE_EXTRA_CA_CERTS"),
 			"covo_vars":           covoVars(),
+			"app_url":             os.Getenv("APP_URL"),
+			"database_url":        os.Getenv("DATABASE_URL"),
+			"smtp_port":           os.Getenv("SMTP_PORT"),
+			"my_secret":           os.Getenv("MY_SECRET"),
 			"host":                r.Host,
 		})
 	})

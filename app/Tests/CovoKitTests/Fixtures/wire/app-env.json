@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "ok": true,
+  "data": {
+    "site": "x",
+    "names": [
+      "x"
+    ],
+    "values": {
+      "x": "x"
+    },
+    "provided": [
+      "x"
+    ],
+    "restarted": true
+  }
+}

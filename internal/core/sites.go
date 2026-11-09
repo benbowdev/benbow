@@ -602,6 +602,9 @@ func (c *Core) RemoveSite(ctx context.Context, name string) (SiteResult, error) 
 		_ = os.RemoveAll(c.siteLogDir(name))
 		_ = os.RemoveAll(c.snapshotDir(name))
 		c.removeAppState(name)
+		if site.IsApp() {
+			c.removeAppEnv(ctx, name)
+		}
 		res.Applied = applied
 		return nil
 	})

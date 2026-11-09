@@ -119,6 +119,8 @@ func New(open Open) *mcp.Server {
 		Description: "Which sites AI agents may change (set by the user in Covo; agents cannot change it)."}, t.permissions)
 
 	// Changes: permission, snapshot, log.
+	mcp.AddTool(s, &mcp.Tool{Name: "app_env", Title: "An app's environment variables", Annotations: ro,
+		Description: "The names of the variables an app gets: the ones Covo sets (APP_URL, DATABASE_URL, REDIS_URL, SMTP_*) and the user's own. Values are never shown to agents: ask the user to set one with `covo site env <site> set NAME`."}, t.appEnv)
 	mcp.AddTool(s, &mcp.Tool{Name: "restart_app", Title: "Restart an app's dev server", Annotations: change,
 		Description: "Stops an app site's dev server (every process its command started) and starts it again; returns its state (starting, running, error with a message). Its output: site_logs with kind \"app\"."}, t.restartApp)
 	mcp.AddTool(s, &mcp.Tool{Name: "start", Title: "Start Covo", Annotations: change,
@@ -361,6 +363,10 @@ func (t tools) siteLogs(ctx context.Context, _ *mcp.CallToolRequest, in siteLogs
 		}
 		return c.SiteLogs(ctx, in.Site, kind, in.Lines)
 	})
+}
+
+func (t tools) appEnv(ctx context.Context, _ *mcp.CallToolRequest, in siteIn) (*mcp.CallToolResult, any, error) {
+	return readSite(ctx, t, in.Site, func(c *core.Core) (core.AppEnv, error) { return c.GetAppEnv(ctx, in.Site, false) })
 }
 
 type restartAppIn struct {

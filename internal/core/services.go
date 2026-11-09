@@ -422,7 +422,7 @@ func (c *Core) reconcile(ctx context.Context) (StartResult, error) {
 		minors = append(minors, adminerPHP)
 	}
 	slices.Sort(minors)
-	appAgents, err := c.appAgents(sites)
+	appAgents, err := c.appAgents(ctx, sites)
 	if err != nil {
 		return StartResult{}, err
 	}
