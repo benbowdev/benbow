@@ -25,6 +25,7 @@ import (
 
 	"github.com/getcovo/covo/internal/caddy"
 	"github.com/getcovo/covo/internal/errcode"
+	"github.com/getcovo/covo/internal/store"
 )
 
 // fetch_page: Covo requests a page of one of its sites, the way a browser
@@ -68,6 +69,9 @@ type FetchResult struct {
 	DurationMS int64             `json:"duration_ms"`
 	// PHP lists what PHP logged for these requests (redirects included).
 	PHP []PHPMessage `json:"php"`
+	// AppOutput is what an app's dev server printed while answering (apps
+	// Covo starts), in place of PHP errors.
+	AppOutput []string `json:"app_output,omitempty"`
 }
 
 // FetchRedirect is one redirect followed.
@@ -122,6 +126,15 @@ func (c *Core) FetchPage(ctx context.Context, req FetchRequest) (FetchResult, er
 	id := hex.EncodeToString(idb)
 	probe := filepath.Join(c.probeDir(), id+".log")
 	defer os.Remove(probe)
+
+	appLog, appFrom := "", int64(-1)
+	if site.IsApp() && site.AppMode == store.AppRun {
+		appLog = c.siteLogPath(site.Name, LogApp)
+		appFrom = 0
+		if fi, err := os.Stat(appLog); err == nil {
+			appFrom = fi.Size()
+		}
+	}
 
 	ctx, cancel := context.WithTimeout(ctx, fetchTimeout)
 	defer cancel()
@@ -193,8 +206,34 @@ func (c *Core) FetchPage(ctx context.Context, req FetchRequest) (FetchResult, er
 			_ = f.Close()
 		}
 	}
+	if appLog != "" {
+		res.AppOutput = appOutputSince(appLog, appFrom)
+	}
 	c.TouchAgentSession(ctx, site.Name)
 	return res, nil
+}
+
+// appOutputSince returns the lines an app wrote to its log after offset
+// from, waiting a moment for output written just after the answer.
+func appOutputSince(log string, from int64) []string {
+	time.Sleep(300 * time.Millisecond)
+	out := []string{}
+	f, err := os.Open(log)
+	if err != nil {
+		return out
+	}
+	defer f.Close()
+	fi, err := f.Stat()
+	if err != nil || fi.Size() < from {
+		return out // emptied or rotated meanwhile
+	}
+	b, _ := io.ReadAll(io.LimitReader(io.NewSectionReader(f, from, fi.Size()-from), 64<<10))
+	for _, l := range strings.Split(strings.TrimRight(string(b), "\n"), "\n") {
+		if l != "" && !strings.HasPrefix(l, appStartMarker) {
+			out = append(out, l)
+		}
+	}
+	return out[max(len(out)-100, 0):]
 }
 
 const maxOutputHTML = 100 << 10

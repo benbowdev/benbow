@@ -514,7 +514,12 @@ struct SiteRow: View {
             if let session = model.session(for: site) {
                 AgentBadge(session: session)
             }
-            Text(site.isApp ? "app :\(site.appPort ?? 0)" : "PHP \(site.php)").font(.caption).foregroundStyle(.secondary)
+            if let st = site.isApp ? site.app : site.companion, site.enabled, model.running,
+               st.state == "error" || st.state == "exited" {
+                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                    .help(site.isApp ? "The app's command has stopped: see the site" : "The companion has stopped: see the site's Advanced section")
+            }
+            Text(verbatim: site.isApp ? "app :\(site.appPort ?? 0)" : "PHP \(site.php)").font(.caption).foregroundStyle(.secondary)
             if site.archived {
                 Image(systemName: "archivebox").foregroundStyle(.secondary).help("Archived")
             } else {

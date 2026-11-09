@@ -61,7 +61,7 @@ struct SiteDetail: View {
                 LabeledContent("Name") {
                     HStack(spacing: 6) {
                         if let fw = site.framework {
-                            Text(fw == "laravel" ? "Laravel" : fw == "wordpress" ? "WordPress" : fw)
+                            Text(NewSiteSheet.frameworkName(fw))
                                 .font(.caption.weight(.medium))
                                 .padding(.horizontal, 6).padding(.vertical, 1)
                                 .background(.quaternary, in: Capsule())
@@ -101,6 +101,9 @@ struct SiteDetail: View {
                         Text("Served from public/").font(.caption)
                     }
                 }
+                if site.isApp {
+                    AppRows(site: site)
+                } else {
                 Picker("PHP", selection: Binding(
                     get: { site.php },
                     set: { minor in
@@ -119,6 +122,7 @@ struct SiteDetail: View {
                         Spacer()
                         Button("Check Compatibility with PHP \(rec)…") { checkingPHP = true }
                     }
+                }
                 }
                 LabeledContent("HTTPS", value: site.https ? "On" : "Off")
                 DatabaseRow(site: site)
@@ -150,7 +154,7 @@ struct SiteDetail: View {
                     } label: {
                         Label("Logs", systemImage: "doc.text.magnifyingglass")
                     }
-                    .help("PHP errors and requests of this site")
+                    .help(site.isApp ? "The app's output and the requests of this site" : "PHP errors and requests of this site")
                     Button {
                         open(site.url)
                     } label: {
@@ -178,10 +182,16 @@ struct SiteDetail: View {
                         if site.framework == "wordpress" {
                             ToolTile(title: "Blueprints", symbol: "square.stack.3d.up",
                                      help: "Install a blueprint's themes and plugins, or save this site as one.") { blueprintSheet = true }
+                        } else if site.isApp {
+                            ToolTile(title: "Open on Phone", symbol: "iphone",
+                                     help: "This site on your Wi-Fi for a while, with a QR code. The dev server must accept the phone's .local address.",
+                                     active: model.status?.phone?.site == site.name) { phoneSheet = true }
+                                .disabled(site.archived)
                         } else {
                             Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
                         }
                     }
+                    if !site.isApp {
                     GridRow {
                         ToolTile(title: toolTitle, symbol: "apple.terminal",
                                  help: "Commands with this site's PHP version, in its project folder.") { runningTool = true }
@@ -191,6 +201,7 @@ struct SiteDetail: View {
                                  help: "This site on your Wi-Fi for a while, with a QR code.",
                                  active: model.status?.phone?.site == site.name) { phoneSheet = true }
                             .disabled(site.archived)
+                    }
                     }
                 }
                 .padding(.vertical, 2)
@@ -235,11 +246,19 @@ struct SiteDetail: View {
                         }
                     }
                     Text(domainHint).font(.caption).foregroundStyle(.secondary)
+                    if site.isApp {
+                        if site.appMode != "proxy" {
+                            AppEnvEditor(site: site)
+                        }
+                        HostHeaderToggle(site: site)
+                    } else {
+                    CompanionRow(site: site)
                     LabeledContent("PHP settings") {
                         Button("Edit…") { editingPHP = true }
                             .disabled(model.busy != nil)
                     }
-                    if let x = model.xdebug(for: site.php), x.available {
+                    }
+                    if !site.isApp, let x = model.xdebug(for: site.php), x.available {
                         Toggle(isOn: Binding(
                             get: { x.enabled },
                             set: { on in Task { await model.setXdebug(php: site.php, enabled: on) } }

@@ -176,9 +176,6 @@ func (c *Core) SharePhone(ctx context.Context, name string, minutes int) (PhoneS
 		if !site.Enabled {
 			return errcode.Newf(errcode.Conflict, "%s is off: turn it on first", name)
 		}
-		if site.IsApp() {
-			return errcode.Newf(errcode.Unsupported, "Open on Phone does not support apps yet")
-		}
 		if _, running, err := c.Store.Setting(ctx, settingRunning); err != nil {
 			return err
 		} else if !running {
@@ -309,17 +306,24 @@ func (c *Core) phoneConfig(ctx context.Context, sites []store.Site, publicHTTPS 
 	if err := c.writeCAPage(filepath.Join(dir, "ca"), s); err != nil {
 		return nil, nil, err
 	}
-	settings, err := c.sitePHPSettings(ctx, *site)
-	if err != nil {
-		return nil, nil, err
-	}
 	phoneURL := "https://" + s.Host + ":" + strconv.Itoa(s.Port)
 	cfg := &caddy.Phone{
 		Site: site.Name, Host: s.Host, Port: s.Port, Binds: addrs,
-		Root: site.Path, FPMSocket: c.Layout.Socket(socketName(site.PHPMinor)),
-		PHPValue: settings.PHPValue(c.siteLogPath(site.Name, LogPHP)) + "\nauto_prepend_file=" + prepend,
 		LocalURL: siteURL(*site, publicHTTPS), PhoneURL: phoneURL,
-		Laravel: site.Framework == FrameworkLaravel, CAPort: s.CAPort, CADir: filepath.Join(dir, "ca"),
+		CAPort: s.CAPort, CADir: filepath.Join(dir, "ca"),
+	}
+	if site.IsApp() {
+		// The dev server answers; only redirects are rewritten (there is no
+		// PHP to rewrite pages).
+		cfg.Upstream, cfg.UpstreamLocalHost = site.AppPort, site.AppHost == AppHostLocalhost
+	} else {
+		settings, err := c.sitePHPSettings(ctx, *site)
+		if err != nil {
+			return nil, nil, err
+		}
+		cfg.Root, cfg.FPMSocket = site.Path, c.Layout.Socket(socketName(site.PHPMinor))
+		cfg.PHPValue = settings.PHPValue(c.siteLogPath(site.Name, LogPHP)) + "\nauto_prepend_file=" + prepend
+		cfg.Laravel = site.Framework == FrameworkLaravel
 	}
 	if s.PlainPort != 0 {
 		cfg.PlainPort, cfg.PlainURL = s.PlainPort, plainURL(addrs[0], s.PlainPort)

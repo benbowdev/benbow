@@ -107,7 +107,7 @@ snapshot limit (`covo snapshot keep`).
   while; it now counts in the limit).
 - **Undo all** (`revert`) puts the files and the database back to the
   start. It also undoes changes **you** made during the session (Covo does
-  not know who changed what). `.git` and `node_modules` are never touched,
+  not know who changed what). `.git`, `node_modules` and generated folders (`snapshots.md`) are never touched,
   and the current state is saved first (a `pre-restore` snapshot: restore
   it to undo the undo).
 - A session idle for 24 hours (no tool call on the site, and no agent
@@ -133,7 +133,7 @@ covo agent diff shop --file wp-config.php     # one file's unified diff
 ```
 
 - **Files**: added, modified and deleted against the starting snapshot
-  (`.git` and `node_modules` left out), by size and modification time,
+  (`.git`, `node_modules` and generated folders left out), by size and modification time,
   then contents when only the time changed. At most 500 are listed; the
   counts are always complete.
 - **Database tables**: rows inserted, updated and deleted per table, plus

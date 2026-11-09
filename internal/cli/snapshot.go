@@ -68,7 +68,7 @@ func (a *app) snapshotCmd() *cobra.Command {
 		Use:   "snapshot",
 		Short: "Save and restore a site's files and database",
 		Long: "Snapshots save a site's project folder (APFS clones: no space until files\n" +
-			"change; .git and node_modules are left out) and its database, in Covo's folder.",
+			"change; .git, node_modules and generated folders like .venv and .next are left out) and its database, in Covo's folder.",
 	}
 	var note string
 	create := &cobra.Command{

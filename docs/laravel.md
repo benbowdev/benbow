@@ -49,7 +49,7 @@ files from elsewhere. Arguments, output and exit code pass through
 unchanged. Composer 2.11.1 is pinned by SHA-256 (getcomposer.org's
 published checksum); sites on PHP older than 7.3 get Composer 2.2.31 LTS.
 Composer's home and cache live in `data/composer` inside the Covo folder,
-not in `~/.composer`. In the app: the site's Advanced section → Run….
+not in `~/.composer`. In the app: the site's Artisan and Composer tool.
 
 API: `POST /v1/laravel` with `name`, `path`, `php`, `database` (`new` or
 `sqlite`), `domain`, `aliases`, `group_id`, `php_settings`;

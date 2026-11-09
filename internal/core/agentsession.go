@@ -320,7 +320,7 @@ type CloseResult struct {
 
 // CloseAgentSession ends the site's open session. keep (and timeout) keep
 // the changes; revert puts files and database back to the session's start
-// (after saving the current state; .git and node_modules are never
+// (after saving the current state; .git, node_modules and generated folders are never
 // touched). The checkpoints go, the starting snapshot stays as an ordinary
 // snapshot, and a temporary write permission ends.
 func (c *Core) CloseAgentSession(ctx context.Context, site, outcome string) (CloseResult, error) {

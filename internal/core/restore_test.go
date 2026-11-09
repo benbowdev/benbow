@@ -120,6 +120,8 @@ func TestCloneTreeAndMoveSkipped(t *testing.T) {
 	writeFile(t, filepath.Join(src, "wp-content", "themes", "t", "style.css"), "css")
 	writeFile(t, filepath.Join(src, ".git", "HEAD"), "ref")
 	writeFile(t, filepath.Join(src, "wp-content", "themes", "t", "node_modules", "x.js"), "js")
+	writeFile(t, filepath.Join(src, "front", ".next", "cache", "x"), "built")
+	writeFile(t, filepath.Join(src, ".venv", "bin", "python"), "py")
 
 	snap := filepath.Join(base, "snapshot", "files")
 	if err := os.MkdirAll(filepath.Dir(snap), 0o755); err != nil {
@@ -131,7 +133,7 @@ func TestCloneTreeAndMoveSkipped(t *testing.T) {
 	if got := readFile(t, filepath.Join(snap, "wp-content", "themes", "t", "style.css")); got != "css" {
 		t.Fatalf("style.css = %q", got)
 	}
-	for _, skipped := range []string{".git", "wp-content/themes/t/node_modules"} {
+	for _, skipped := range []string{".git", "wp-content/themes/t/node_modules", "front/.next", ".venv"} {
 		if _, err := os.Lstat(filepath.Join(snap, skipped)); !os.IsNotExist(err) {
 			t.Errorf("%s saved in the snapshot: %v", skipped, err)
 		}

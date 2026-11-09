@@ -47,7 +47,9 @@ func TestCaddyfileGolden(t *testing.T) {
 			{Name: "shop", Domain: "shop.localhost", Aliases: []string{"www.shop.localhost"}, Upstream: 41000,
 				AccessLog: home + "/logs/sites/shop/access.log"},
 			{Name: "api", Domain: "api.covo.test", Upstream: 3000, UpstreamLocalHost: true},
-		}, nil, nil},
+		}, nil, &Phone{Site: "shop", Host: "shop-mac.local", Port: 9443, Binds: []string{"192.168.1.5"},
+			LocalURL: "https://shop.localhost:8443", PhoneURL: "https://shop-mac.local:9443", CAPort: 9444, CADir: home + "/data/phone/ca",
+			Upstream: 41000}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

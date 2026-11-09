@@ -179,15 +179,26 @@ var tmpl = template.Must(template.New("Caddyfile").Funcs(template.FuncMap{"q": q
 	{{- if .TLS}}
 	tls internal
 	{{- end}}
-	root * {{q $p.Root}}
 	# The network sees this site: never its dotfiles (.git, .env), dumps,
 	# backups or logs.
 	@covohidden {
 		path */.* *.sql *.sql.gz *.bak *.log *.zip *.tar.gz
 		not path /.well-known/*
+		{{- if $p.Upstream}}
+		# Vite's pre-bundled dependencies.
+		not path /node_modules/.vite/*
+		{{- end}}
 	}
 	respond @covohidden 404
 	header >Location {{q $p.LocalURL}} {{q .URL}}
+	{{- if $p.Upstream}}
+	reverse_proxy localhost:{{$p.Upstream}}
+	{{- if $p.UpstreamLocalHost}} {
+		header_up Host localhost:{{$p.Upstream}}
+	}
+	{{- end}}
+	{{- else}}
+	root * {{q $p.Root}}
 	php_fastcgi {{q (print "unix/" $p.FPMSocket)}} {
 		env PHP_VALUE {{q $p.PHPValue}}
 		env COVO_PHONE_URL {{q .URL}}
@@ -197,6 +208,7 @@ var tmpl = template.Must(template.New("Caddyfile").Funcs(template.FuncMap{"q": q
 		{{- end}}
 	}
 	file_server
+	{{- end}}
 }
 {{- end}}
 {{q (print "http://:" .CAPort)}} {
@@ -231,8 +243,12 @@ type Phone struct {
 	LocalURL, PhoneURL string
 	// Laravel gets APP_URL from the environment.
 	Laravel bool
-	CAPort  int
-	CADir   string
+	// Upstream is an app's port: requests go to its dev server instead of
+	// PHP (UpstreamLocalHost: with Host localhost:<port>).
+	Upstream          int
+	UpstreamLocalHost bool
+	CAPort            int
+	CADir             string
 	// PlainPort serves the same site over plain HTTP (no certificate to
 	// install on the phone) at PlainURL; 0 for none.
 	PlainPort int
@@ -263,7 +279,12 @@ func Caddyfile(cfg Config) (string, error) {
 		check = append(check, cfg.Adminer.Dir, cfg.Adminer.FPMSocket)
 	}
 	if p := cfg.Phone; p != nil {
-		check = append(check, p.Root, p.FPMSocket, p.CADir)
+		check = append(check, p.CADir)
+		if p.Upstream == 0 {
+			check = append(check, p.Root, p.FPMSocket)
+		} else if p.Upstream < 1 || p.Upstream > 65535 {
+			return "", errcode.Newf(errcode.InvalidInput, "bad upstream port %d", p.Upstream)
+		}
 		if !hostRe.MatchString(p.Host) {
 			return "", errcode.Newf(errcode.InvalidInput, "bad phone host %q", p.Host)
 		}
@@ -273,7 +294,7 @@ func Caddyfile(cfg Config) (string, error) {
 			}
 		}
 		for _, line := range strings.Split(p.PHPValue, "\n") {
-			if !phpValueRe.MatchString(line) {
+			if p.Upstream == 0 && !phpValueRe.MatchString(line) {
 				return "", errcode.Newf(errcode.InvalidInput, "bad PHP value %q", line)
 			}
 		}

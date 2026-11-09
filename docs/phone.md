@@ -67,5 +67,18 @@ existing variable). Redirects to the local address are rewritten by Caddy.
 - WordPress installed in a subfolder (siteurl ≠ home) is shown with
   `WP_SITEURL` equal to the phone home address.
 
+## Apps
+
+An app (`apps.md`) opens on the phone too: Caddy proxies the phone address
+to its dev server. There is no PHP to rewrite pages, so only redirects get
+the phone address; absolute URLs the server writes in its pages (built from
+`APP_URL`, for example) keep the local one. The dev server sees the phone
+address as `Host` (or `localhost:<port>` with `--host-header localhost`),
+and most refuse a host they do not know: allow it in Vite
+(`server.allowedHosts: ['.local']`), Next.js (`allowedDevOrigins:
+['*.local']`) and Django (`ALLOWED_HOSTS`), or use `--host-header
+localhost`. Hot reload goes through the same address. Dotfiles stay hidden
+as for PHP sites, except Vite's `/node_modules/.vite/` dependencies.
+
 API: `GET /v1/phone`, `PUT /v1/sites/{name}/phone` (`minutes`),
-`DELETE /v1/phone`. In the app: the site's Advanced section → Open on phone.
+`DELETE /v1/phone`. In the app: the site's Open on Phone tool.

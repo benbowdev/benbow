@@ -324,6 +324,13 @@ public struct CovoAPI: Sendable {
         public var linkDatabase: String?
         /// "mysql" or "pgsql".
         public var databaseEngine: String?
+        /// Apps: the command Covo starts ("{port}" is its port), or the port
+        /// of a dev server the user runs (proxyPort); port fixes the
+        /// started command's port; appHost "localhost" sends that Host.
+        public var command: String?
+        public var port: Int?
+        public var proxyPort: Int?
+        public var appHost: String?
 
         public init(name: String, domain: String? = nil, php: String, path: String) {
             self.name = name
@@ -363,6 +370,52 @@ public struct CovoAPI: Sendable {
         try await call("PATCH", "/v1/sites/" + escape(name),
                        SiteChange(php: php, path: path, domain: domain, enabled: enabled, archived: archived,
                                   aliases: aliases, groupId: group, title: title, force: force))
+    }
+
+    struct AppChange: Encodable {
+        let command: String?
+        let port: Int?
+        let proxyPort: Int?
+        let appHost: String?
+        let companionCommand: String?
+        let companionPort: Int?
+    }
+
+    /// Changes an app's command, port, proxied port or Host header, or a PHP
+    /// site's companion ("" removes it); nil fields are left as they are.
+    public func updateApp(_ name: String, command: String? = nil, port: Int? = nil, proxyPort: Int? = nil,
+                          appHost: String? = nil, companion: String? = nil, companionPort: Int? = nil) async throws -> SiteResult {
+        try await call("PATCH", "/v1/sites/" + escape(name),
+                       AppChange(command: command, port: port, proxyPort: proxyPort, appHost: appHost,
+                                 companionCommand: companion, companionPort: companionPort))
+    }
+
+    /// The command Covo proposes for a dev server's folder.
+    public func detectApp(_ path: String) async throws -> AppDetection {
+        try await call("GET", "/v1/detect?path=" + escape(path))
+    }
+
+    /// Stops an app's command (or a PHP site's companion) and starts it again.
+    public func restartApp(_ name: String) async throws -> AppStatus {
+        try await call("POST", "/v1/sites/\(escape(name))/restart")
+    }
+
+    /// An app's variables: names only.
+    public func appEnv(_ name: String) async throws -> AppEnv {
+        try await call("GET", "/v1/sites/\(escape(name))/env")
+    }
+
+    struct EnvChange: Encodable {
+        let set: [String: String]
+        let unset: [String]
+    }
+
+    /// Sets and removes an app's variables (kept in the login keychain).
+    public func setAppEnv(_ name: String, set: [String: String] = [:], unset: [String] = []) async throws -> AppEnv {
+        // Variable names go as they are (no snake_case conversion).
+        let data = try JSONEncoder().encode(EnvChange(set: set, unset: unset))
+        let resp = try await http.send(method: "PATCH", path: "/v1/sites/\(escape(name))/env", body: data)
+        return try EnvelopeDecoder.decode(AppEnv.self, from: resp.body)
     }
 
     /// A new WordPress site; domain, aliases, group and php.ini values as
@@ -566,7 +619,7 @@ public struct CovoAPI: Sendable {
         return try EnvelopeDecoder.decode(SitePHPSettings.self, from: resp.body)
     }
 
-    /// kind is "access" or "php".
+    /// kind is "access", "php", "app" or "companion".
     public func siteLogs(_ name: String, kind: String, lines: Int = 500) async throws -> SiteLog {
         try await call("GET", "/v1/sites/\(escape(name))/logs/\(escape(kind))?lines=\(lines)")
     }

@@ -20,8 +20,11 @@ The app has no logic of its own: every change goes through the core.
   New WordPress Site, New Group, Import from MAMP PRO); Mail (when on);
   Adminer (every database, already logged in); Settings.
 - New Site sheet: start from an existing folder (Laravel and WordPress are
-  recognised), a new empty folder, WordPress or Laravel; name, domain, aliases, PHP version, group, database (none, new,
-  existing) and, collapsed, the site's PHP settings. Created in one step.
+  recognised), a new empty folder, WordPress, Laravel or an App (a dev
+  server: the command Covo proposes for the folder, editable, or the port
+  of one you run yourself; no PHP); name, domain, aliases, PHP version,
+  group, database (none, new, existing) and, collapsed, the site's PHP
+  settings. Created in one step.
 - Sidebar: groups nested to any depth (drag a row between two others to
   order, macOS draws the line; onto a group to move it inside; or Move To in
   the context menu; collapsed groups are remembered), sites
@@ -35,8 +38,17 @@ The app has no logic of its own: every change goes through the core.
   (Snapshots, Open on Phone, Production, wp-cli/Artisan/Composer, PHP Check,
   Blueprints for WordPress; description on hover); a collapsed Advanced
   section with settings only (domain, aliases, PHP settings of the site,
-  Xdebug, migration, archive, remove).
-- Logs window per site: PHP errors and requests, refreshed every 2 seconds.
+  Xdebug, the companion, migration, archive, remove).
+- Apps (`apps.md`): the command (Edit… also switches to a server you run)
+  and the dev server's state in place of the PHP version: a dot (running,
+  starting, error, ended, stopped), Restart, and on error Covo's message
+  with the last lines of output; an orange triangle in the list when it
+  has stopped. Tools: Snapshots, Production, Open on Phone. Advanced:
+  variables (names only; values go to the keychain) and "Send Host:
+  localhost". PHP sites' Advanced: the companion's command, state and
+  Restart.
+- Logs window per site: PHP errors and requests, refreshed every 2 seconds;
+  apps: output and requests; a companion's output.
 
 ## Settings (⌘, or the gear in the toolbar)
 

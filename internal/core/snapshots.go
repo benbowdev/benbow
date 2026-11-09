@@ -27,8 +27,9 @@ import (
 
 // Snapshots save a site's project folder and database under the Covo
 // folder. Files are cloned with APFS clonefile(2): a snapshot takes no
-// space until the files change. .git and node_modules are left out: a
-// restore never rewinds git history or installed packages.
+// space until the files change. .git, node_modules and generated folders
+// are left out (snapshotSkip): a restore never rewinds git history or
+// installed packages.
 
 // Snapshot kinds.
 const (
@@ -48,8 +49,17 @@ const (
 	defaultSnapshotKeep = 10
 )
 
-// snapshotSkip are folder names never saved nor restored.
-var snapshotSkip = map[string]bool{".git": true, "node_modules": true}
+// snapshotSkip are folder names never saved nor restored, at any depth:
+// git history, installed packages and what dev servers generate (they are
+// rebuilt, can be large, and change all the time).
+var snapshotSkip = map[string]bool{
+	".git": true, "node_modules": true,
+	".venv": true, "venv": true, "__pycache__": true, ".pytest_cache": true, ".mypy_cache": true, ".ruff_cache": true,
+	".next": true, ".nuxt": true, ".svelte-kit": true, ".astro": true, ".turbo": true, ".parcel-cache": true,
+}
+
+// snapshotSkipText names them in messages.
+const snapshotSkipText = ".git, node_modules and generated folders (.venv, .next, __pycache__…)"
 
 func (c *Core) snapshotDir(site string) string {
 	return filepath.Join(c.Layout.Data, "snapshots", site)
@@ -259,7 +269,7 @@ func (c *Core) restoreSnapshot(ctx context.Context, name, id string) (RestoreRes
 	bg := context.WithoutCancel(ctx)
 
 	// Files: the current folder moves aside, the snapshot is cloned in, and
-	// the folders snapshots leave out (.git, node_modules) move back.
+	// the folders snapshots leave out (snapshotSkip) move back.
 	root := sn.Root
 	aside := root + ".covo-restore-" + time.Now().Format("150405")
 	// The journal lets a restore cut short (crash, kill, reboot) be put

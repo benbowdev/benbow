@@ -440,7 +440,7 @@ func (c *Core) AgentSessionFileDiff(ctx context.Context, name, rel string, opts 
 	}
 	for _, part := range strings.Split(clean, "/") {
 		if snapshotSkip[part] {
-			return res, errcode.Errorf(errcode.InvalidInput, "sessions leave .git and node_modules out")
+			return res, errcode.Errorf(errcode.InvalidInput, "sessions leave "+snapshotSkipText+" out")
 		}
 	}
 	s, err := c.Store.OpenAgentSession(ctx, name)

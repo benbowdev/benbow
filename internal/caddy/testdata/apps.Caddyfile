@@ -48,3 +48,27 @@
 		header_up Host localhost:3000
 	}
 }
+
+# phone: shop
+"https://shop-mac.local:9443" {
+	bind 192.168.1.5
+	tls internal
+	# The network sees this site: never its dotfiles (.git, .env), dumps,
+	# backups or logs.
+	@covohidden {
+		path */.* *.sql *.sql.gz *.bak *.log *.zip *.tar.gz
+		not path /.well-known/*
+		# Vite's pre-bundled dependencies.
+		not path /node_modules/.vite/*
+	}
+	respond @covohidden 404
+	header >Location "https://shop.localhost:8443" "https://shop-mac.local:9443"
+	reverse_proxy localhost:41000
+}
+"http://:9444" {
+	bind 192.168.1.5
+	root * "/Users/test/Library/Application Support/covo/data/phone/ca"
+	header /covo-ca.mobileconfig Content-Type application/x-apple-aspen-config
+	header /covo-ca.crt Content-Type application/x-x509-ca-cert
+	file_server
+}

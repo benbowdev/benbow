@@ -308,6 +308,18 @@ func TestAppRun(t *testing.T) {
 		t.Errorf("the app's agent is reported as an orphan: %v", st.Orphans)
 	}
 
+	// fetch_page shows what the dev server printed for the request.
+	var fetched struct {
+		Status    int      `json:"status"`
+		AppOutput []string `json:"app_output"`
+	}
+	if err := json.Unmarshal(h.mustCovo("fetch", "svc", "/fetched"), &fetched); err != nil {
+		t.Fatal(err)
+	}
+	if fetched.Status != 200 || !strings.Contains(strings.Join(fetched.AppOutput, "\n"), "devserver GET /fetched") {
+		t.Errorf("fetch = %+v", fetched)
+	}
+
 	// Restart: every old process goes, a new server comes.
 	h.mustCovo("site", "restart", "svc")
 	checkAllGone(t, "after restart", pids)

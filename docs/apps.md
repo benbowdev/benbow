@@ -245,7 +245,8 @@ redirects it builds are right. `--host-header localhost` sends
 - PHP tools (wp-cli, Composer, Artisan, php.ini, the PHP compatibility
   check) refuse apps. A PHP site cannot become an app in place: remove it
   (its folder is never touched) and add it again with `--command`.
-- Open on Phone does not support apps yet.
+- On the phone (`phone.md`) only redirects get the phone address, and dev
+  servers must accept its `.local` host.
 - One companion per PHP site; apps have none (start a second app).
 
 API: `GET /v1/sites/{name}/env` (names), `PATCH /v1/sites/{name}/env`

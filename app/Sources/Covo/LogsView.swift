@@ -13,6 +13,36 @@ struct LogsView: View {
     @State private var log: SiteLog?
     @State private var failure: String?
 
+    private var info: Site? { model.sites.first { $0.name == site } }
+
+    /// The logs this site has: an app's output and requests; a PHP site's
+    /// errors, requests and, with one, its companion's output.
+    private var kinds: [(tag: String, title: String)] {
+        if info?.isApp == true {
+            return info?.appMode == "proxy" ? [("access", "Requests")] : [("app", "Output"), ("access", "Requests")]
+        }
+        var k = [("php", "PHP Errors"), ("access", "Requests")]
+        if info?.companionCommand != nil { k.append(("companion", "Companion")) }
+        return k
+    }
+
+    private var emptyTitle: String {
+        switch kind {
+        case "php": "No PHP errors"
+        case "app", "companion": "No output yet"
+        default: "No requests yet"
+        }
+    }
+
+    private var emptyText: String {
+        switch kind {
+        case "php": "Errors, warnings and notices of \(site) appear here."
+        case "app": "What the app's command prints appears here."
+        case "companion": "What the companion prints appears here."
+        default: "Open the site: each request appears here."
+        }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             ScrollViewReader { proxy in
@@ -35,11 +65,7 @@ struct LogsView: View {
                 if let failure {
                     ContentUnavailableView("Logs unavailable", systemImage: "exclamationmark.triangle", description: Text(failure))
                 } else if log?.lines.isEmpty == true {
-                    ContentUnavailableView(kind == "php" ? "No PHP errors" : "No requests yet",
-                                           systemImage: "doc.text",
-                                           description: Text(kind == "php"
-                                               ? "Errors, warnings and notices of \(site) appear here."
-                                               : "Open the site: each request appears here."))
+                    ContentUnavailableView(emptyTitle, systemImage: "doc.text", description: Text(emptyText))
                 }
             }
         }
@@ -47,8 +73,7 @@ struct LogsView: View {
         .toolbar {
             ToolbarItem(placement: .principal) {
                 Picker("Log", selection: $kind) {
-                    Text("PHP Errors").tag("php")
-                    Text("Requests").tag("access")
+                    ForEach(kinds, id: \.tag) { k in Text(k.title).tag(k.tag) }
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
@@ -68,10 +93,13 @@ struct LogsView: View {
                 } label: {
                     Label("Clear", systemImage: "trash")
                 }
-                .help("Empty both logs of \(site)")
+                .help("Empty the logs of \(site)")
             }
         }
         .frame(minWidth: 640, minHeight: 360)
+        .onAppear {
+            if !kinds.contains(where: { $0.tag == kind }) { kind = kinds.first?.tag ?? "access" }
+        }
         .task(id: kind) {
             log = nil
             while !Task.isCancelled {
@@ -92,6 +120,13 @@ struct LogsView: View {
     }
 
     private func color(_ line: String) -> Color {
+        if kind == "app" || kind == "companion" {
+            if line.hasPrefix("[covo] ") { return .secondary }
+            let l = line.lowercased()
+            if l.contains("error") { return .red }
+            if l.contains("warn") { return .orange }
+            return .primary
+        }
         if kind == "php" {
             if line.contains("Fatal error") || line.contains("Parse error") { return .red }
             if line.contains("Warning") || line.contains("Deprecated") { return .orange }

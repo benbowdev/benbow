@@ -138,7 +138,8 @@ final class AppModel {
 
     func addSite(_ site: CovoAPI.NewSite) async throws {
         guard let api else { return }
-        busy = installed(site.php) ? "Adding \(site.name)…" : "Downloading PHP \(site.php)…"
+        let app = site.command != nil || site.proxyPort != nil
+        busy = app || installed(site.php) ? "Adding \(site.name)…" : "Downloading PHP \(site.php)…"
         defer { busy = nil }
         do {
             _ = try await api.addSite(site)
@@ -234,6 +235,47 @@ final class AppModel {
         await perform("Updating \(site.name)…") {
             _ = try await $0.updateSite(site.name, aliases: aliases)
         }
+    }
+
+    // MARK: Apps
+
+    /// Changes an app's command, port, proxied port or Host header, or a
+    /// PHP site's companion. Throws so a sheet can show the error in place.
+    func updateApp(_ site: Site, command: String? = nil, port: Int? = nil, proxyPort: Int? = nil,
+                   appHost: String? = nil, companion: String? = nil, companionPort: Int? = nil) async throws {
+        guard let api else { return }
+        busy = "Updating \(site.name)…"
+        defer { busy = nil }
+        do {
+            _ = try await api.updateApp(site.name, command: command, port: port, proxyPort: proxyPort,
+                                        appHost: appHost, companion: companion, companionPort: companionPort)
+            try? await refreshAll()
+        } catch {
+            try? await refreshAll()
+            throw error
+        }
+    }
+
+    /// The command Covo proposes for a folder (nil when it cannot tell).
+    func detectApp(_ path: String) async -> AppDetection? {
+        try? await api?.detectApp(path)
+    }
+
+    func restartApp(_ site: Site) async {
+        await perform("Restarting \(site.name)…") { _ = try await $0.restartApp(site.name) }
+    }
+
+    func appEnv(_ site: Site) async -> AppEnv? {
+        try? await api?.appEnv(site.name)
+    }
+
+    func setAppEnv(_ site: Site, set: [String: String] = [:], unset: [String] = []) async throws -> AppEnv? {
+        guard let api else { return nil }
+        busy = "Saving variables…"
+        defer { busy = nil }
+        let env = try await api.setAppEnv(site.name, set: set, unset: unset)
+        try? await refreshAll()
+        return env
     }
 
     /// Reads a log without the busy state: the log window polls it.

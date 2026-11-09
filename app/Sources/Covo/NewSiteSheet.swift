@@ -6,7 +6,7 @@ import SwiftUI
 
 /// What a new site starts from.
 enum SiteSource: String, CaseIterable, Identifiable {
-    case existing, empty, wordpress, laravel
+    case existing, empty, wordpress, laravel, app
     var id: String { rawValue }
     var title: String {
         switch self {
@@ -14,6 +14,7 @@ enum SiteSource: String, CaseIterable, Identifiable {
         case .empty: "Empty Folder"
         case .wordpress: "WordPress"
         case .laravel: "Laravel"
+        case .app: "App"
         }
     }
 }
@@ -60,6 +61,12 @@ struct NewSiteSheet: View {
     @State private var engine = "mysql"
     @State private var blueprint = ""
     @State private var blueprints: [BlueprintInfo] = []
+    @State private var appMode = "run"
+    @State private var command = ""
+    @State private var proxyPort = ""
+    @State private var detection: AppDetection?
+    /// The last command Covo proposed, replaced when another folder is chosen.
+    @State private var lastProposed = ""
 
     enum DatabaseChoice: Hashable { case none, new, existing }
 
@@ -82,7 +89,7 @@ struct NewSiteSheet: View {
 
     private var path: URL? {
         switch source {
-        case .existing: folder
+        case .existing, .app: folder
         case .empty, .wordpress, .laravel: name.isEmpty ? nil : parent.appending(path: name)
         }
     }
@@ -95,7 +102,7 @@ struct NewSiteSheet: View {
         switch source {
         case .wordpress: true
         case .laravel: laravelDB == "new"
-        case .existing, .empty: database != .none
+        case .existing, .empty, .app: database != .none
         }
     }
 
@@ -119,9 +126,17 @@ struct NewSiteSheet: View {
     }
 
     private var canCreate: Bool {
-        !name.isEmpty && !php.isEmpty && path != nil && !working && !phpTooOld
+        !name.isEmpty && (source == .app || !php.isEmpty) && path != nil && !working && !phpTooOld
             && (!needsMySQL || serverReady)
             && (source == .wordpress || database != .existing || !existingDB.isEmpty)
+            && (source != .app || appReady)
+    }
+
+    /// The app's command, or the port to proxy to, is filled in.
+    private var appReady: Bool {
+        appMode == "run"
+            ? !command.trimmingCharacters(in: .whitespaces).isEmpty
+            : (Int(proxyPort).map { (1024...65535).contains($0) } ?? false)
     }
 
     // MARK: Form
@@ -153,13 +168,19 @@ struct NewSiteSheet: View {
                     Text(effectiveDomain.isEmpty ? "—" : model.address(effectiveDomain))
                         .foregroundStyle(.secondary).textSelection(.enabled)
                 }
-                Picker("PHP", selection: $php) {
-                    ForEach(model.php?.minors ?? [], id: \.self) { minor in
-                        Text(model.phpLabel(minor)).tag(minor)
+                if source != .app {
+                    Picker("PHP", selection: $php) {
+                        ForEach(model.php?.minors ?? [], id: \.self) { minor in
+                            Text(model.phpLabel(minor)).tag(minor)
+                        }
                     }
+                    PHPSupportNote(minor: php)
                 }
-                PHPSupportNote(minor: php)
                 GroupPicker(selection: $group)
+            }
+
+            if source == .app {
+                appSection
             }
 
             if source == .laravel {
@@ -218,6 +239,7 @@ struct NewSiteSheet: View {
                 }
             }
 
+            if source != .app {
             Section(isExpanded: $showINI) {
                 INIRow(key: "memory_limit", title: "Memory limit", prompt: "512M", values: $ini)
                 INIRow(key: "upload_max_filesize", title: "Max upload size", prompt: "128M", values: $ini)
@@ -232,6 +254,7 @@ struct NewSiteSheet: View {
                 }
             } header: {
                 Text("PHP Settings")
+            }
             }
 
             if let error {
@@ -260,7 +283,7 @@ struct NewSiteSheet: View {
         }
         .fileImporter(isPresented: $choosing, allowedContentTypes: [.folder]) { r in
             guard case .success(let url) = r else { return }
-            if source == .existing { pick(url) } else { parent = url }
+            if source == .existing || source == .app { pick(url) } else { parent = url }
         }
         .alert("No index file", isPresented: $noIndex) {
             Button("Add Anyway") { Task { await create(force: true) } }
@@ -277,6 +300,14 @@ struct NewSiteSheet: View {
             engine = !model.mysqlReady && model.postgresReady ? "pgsql" : "mysql"
             laravelDB = model.mysqlReady || model.postgresReady ? "new" : "sqlite"
         }
+        .task(id: source == .app ? folder : nil) {
+            guard source == .app, let folder else { return }
+            detection = await model.detectApp(folder.path)
+            if let cmd = detection?.command, !cmd.isEmpty, command.isEmpty || command == lastProposed {
+                command = cmd
+            }
+            lastProposed = detection?.command ?? ""
+        }
         .task(id: "\(database)-\(engine)") {
             if database == .existing {
                 existingDB = ""
@@ -287,7 +318,7 @@ struct NewSiteSheet: View {
 
     @ViewBuilder private var folderRow: some View {
         switch source {
-        case .existing:
+        case .existing, .app:
             LabeledContent("Folder") {
                 HStack {
                     Text(folder?.path ?? "None").lineLimit(1).truncationMode(.middle)
@@ -312,7 +343,47 @@ struct NewSiteSheet: View {
         case .empty: "Covo creates a new empty folder for the site."
         case .wordpress: "Covo downloads WordPress (checksum verified), creates the folder, a database with its own user and wp-config.php, and installs it."
         case .laravel: "A new Laravel project, served from its public folder. Existing Laravel projects: choose Existing Folder, Covo recognises them."
+        case .app: "A dev server in any language (Next.js, Vite, Django…) behind this site's address. Covo runs your command with your own tools; it never installs Node, Python or packages."
         }
+    }
+
+    @ViewBuilder private var appSection: some View {
+        Section {
+            Picker("Dev server", selection: $appMode) {
+                Text("Covo starts it").tag("run")
+                Text("I run it myself").tag("proxy")
+            }
+            .pickerStyle(.segmented)
+            if appMode == "run" {
+                TextField("Command", text: $command, prompt: Text("npm run dev"))
+                    .font(.system(.body, design: .monospaced))
+                if let d = detection, let fw = d.framework {
+                    LabeledContent("Recognised") { Text(Self.frameworkName(fw)) }
+                }
+            } else {
+                TextField("Port", text: $proxyPort, prompt: Text("3000"))
+            }
+        } header: {
+            Text("App")
+        } footer: {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(appMode == "run"
+                     ? "Runs in your login shell, in the project folder, as in Terminal. Covo gives it a free port from 41000 as $PORT; {port} in the command stands for it."
+                     : "Start the dev server in your terminal on this port: Covo puts the site's address and HTTPS in front of it.")
+                if appMode == "run" {
+                    ForEach(detection?.notes ?? [], id: \.self) { Text($0) }
+                }
+            }
+            .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    static func frameworkName(_ id: String) -> String {
+        [
+            "next": "Next.js", "nuxt": "Nuxt", "astro": "Astro", "sveltekit": "SvelteKit", "remix": "Remix / React Router",
+            "vite": "Vite", "create-react-app": "Create React App", "django": "Django", "fastapi": "FastAPI",
+            "flask": "Flask", "rails": "Rails", "laravel": "Laravel", "wordpress": "WordPress",
+        ][id] ?? id
     }
 
     private var databaseHelp: String {
@@ -370,7 +441,14 @@ struct NewSiteSheet: View {
                 result = try await model.newWordPress(req)
                 return
             }
-            var req = CovoAPI.NewSite(name: name, domain: dom, php: php, path: path.path)
+            var req = CovoAPI.NewSite(name: name, domain: dom, php: source == .app ? "" : php, path: path.path)
+            if source == .app {
+                if appMode == "run" {
+                    req.command = command.trimmingCharacters(in: .whitespaces)
+                } else {
+                    req.proxyPort = Int(proxyPort)
+                }
+            }
             req.force = force
             req.createFolder = source == .empty
             req.aliases = aliasList

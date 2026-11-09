@@ -44,8 +44,7 @@ published digest) and run with Covo's PHP 8.4 CLI, without php.ini. The code
 is only read. Errors break on the target version; warnings are deprecations.
 `node_modules`, `.git`, `wp-content/uploads` and `wp-content/cache` are
 skipped. PHPCompatibility 10 is still an alpha, but it is the only release
-that knows PHP 8. In the app: the site's Advanced section → PHP
-compatibility, or the button under the warning of an outdated PHP version.
+that knows PHP 8. In the app: the site's PHP Check tool, or the button under the warning of an outdated PHP version.
 
 API: `POST /v1/sites/{name}/php-check` with `target`, `all`.
 

@@ -101,7 +101,7 @@ func (a *app) agentSessionCmd() *cobra.Command {
 		Short: "Undo everything since the session started (files and database; .git untouched)",
 		Long: "Puts the site's files and database back to the session's starting snapshot. This also undoes\n" +
 			"changes you made yourself during the session: Covo does not know who changed what. .git and\n" +
-			"node_modules are never touched, and the current state is saved first (a pre-restore snapshot).",
+			"node_modules (and generated folders like .venv, .next) are never touched, and the current state is saved first (a pre-restore snapshot).",
 		Args: cobra.ExactArgs(1),
 		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
 			if !yes && !a.confirm("Undo every change to "+args[0]+" since the agent session started, yours included? The current state is saved first.") {

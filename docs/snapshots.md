@@ -11,16 +11,19 @@ covo snapshot keep 20                                # per site (default 10)
 A snapshot saves, under `data/snapshots/<site>/<id>/` in the Covo folder:
 
 - the **project folder** (the Laravel project, or the site's folder), cloned
-  with APFS `clonefile(2)`: it takes no space until files change. `.git` and
-  `node_modules` folders (at any depth) are left out, so a restore never
-  rewinds git history or installed packages. On a volume without clones
+  with APFS `clonefile(2)`: it takes no space until files change. `.git`,
+  `node_modules` and the folders dev servers generate (`.venv`, `venv`,
+  `__pycache__`, `.pytest_cache`, `.mypy_cache`, `.ruff_cache`, `.next`,
+  `.nuxt`, `.svelte-kit`, `.astro`, `.turbo`, `.parcel-cache`), at any
+  depth, are left out, so a restore never rewinds git history or installed
+  packages. On a volume without clones
   (not APFS, or another disk than the Covo folder's) the files are copied;
 - the **database**, if the site has one: `mysqldump --single-transaction`
   (gzip) or `pg_dump -Fc`.
 
 **Restore** first takes a `pre-restore` snapshot of the current state, then
-moves the project folder aside, clones the snapshot back, moves `.git` and
-`node_modules` back from the old folder, recreates the database and loads
+moves the project folder aside, clones the snapshot back, moves the folders
+left out back from the old folder, recreates the database and loads
 the dump (PostgreSQL objects are owned by the site's own role). If any step
 fails, the folder and the database are put back. If the restore is cut
 short (crash, kill, reboot), a journal in `data/restores` lets the next
@@ -35,7 +38,7 @@ before an SSH pull, and at the start of an AI agent's session and before
 its risky changes (`agents.md`): a session's snapshots do not count in the
 limit while it is open.
 
-In the app: the site's Advanced section → Snapshots; Settings → General →
+In the app: the site's Snapshots tool; Settings → General →
 Snapshots for how many to keep.
 
 API: `GET`, `POST /v1/sites/{name}/snapshots` (`note`),

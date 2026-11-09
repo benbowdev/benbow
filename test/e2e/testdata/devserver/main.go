@@ -50,6 +50,7 @@ func main() {
 		os.Exit(3)
 	})
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Println("devserver GET", r.URL.Path)
 		_ = json.NewEncoder(w).Encode(map[string]string{
 			"port":                os.Getenv("PORT"),
 			"flag_port":           *port,

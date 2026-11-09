@@ -41,14 +41,16 @@ type Open func(ctx context.Context) (*core.Core, error)
 
 // Instructions tell agents what Covo is and the recommended workflow.
 const Instructions = "Covo is a local PHP/WordPress/Laravel development environment on this Mac (like MAMP PRO): sites are folders " +
-	"served over HTTPS at local addresses (e.g. https://shop.localhost:8443), each with its own PHP version and database.\n\n" +
+	"served over HTTPS at local addresses (e.g. https://shop.localhost:8443), each with its own PHP version and database. " +
+	"A site can also be an app: a dev server in any language (Next.js, Vite, Django…) that Covo starts with the user's own " +
+	"command and tools (it never installs runtimes), behind the same kind of address; a PHP site can have a companion (e.g. Vite).\n\n" +
 	"Recommended workflow:\n" +
 	"1. covo_status, then agent_permissions: you can always read; you change a site only where the user allowed it " +
 	"(or while a \"Work with an agent\" session gives you the site).\n" +
 	"2. Work inside the site's agent session (session_status): Covo saved the site's files and database when the session " +
 	"started and the user will keep your changes or undo them all. Make changes with Covo's wp, composer and artisan tools " +
 	"(they use the site's PHP); Covo takes a checkpoint before risky ones. Use dry_run first when unsure.\n" +
-	"3. Check your work: fetch_page (the page, its redirects and the PHP errors of that very request), site_logs, " +
+	"3. Check your work: fetch_page (the page, its redirects and the PHP errors of that very request, or an app's output), site_logs, " +
 	"mail_messages and read_mail for mail PHP sent, query_database to read the database.\n" +
 	"4. Before saying you are done, call session_diff and show the user what changed (files and database tables), " +
 	"and remind them to keep or undo the changes in Covo.\n\n" +
@@ -99,13 +101,14 @@ func New(open Open) *mcp.Server {
 		Description: "A site's agent session: when it started, the snapshot of the starting state the user can go back to, " +
 			"and the checkpoints taken before risky changes. Only the user can keep or undo a session, in Covo."}, t.sessionStatus)
 	mcp.AddTool(s, &mcp.Tool{Name: "session_diff", Title: "What changed", Annotations: ro,
-		Description: "What changed since the site's agent session started: files added, modified and deleted (.git and node_modules left out), " +
+		Description: "What changed since the site's agent session started: files added, modified and deleted (.git, node_modules and generated folders such as .venv and .next left out), " +
 			"and database tables with rows inserted, updated and deleted. file gives one file's unified diff; secrets in .env, " +
 			"wp-config.php and key files are masked. Show this to the user before saying the work is done."}, t.sessionDiff)
 	mcp.AddTool(s, &mcp.Tool{Name: "fetch_page", Title: "Fetch a page", Annotations: ro,
 		Description: "Requests a page of a Covo site (GET or HEAD; never another address) like a browser and returns the status, main headers, " +
-			"redirects, title, the page's text, and the PHP errors, warnings, notices and deprecations that this very request produced. " +
-			"Use it to check your work."}, t.fetchPage)
+			"redirects, title, the page's text, and the PHP errors, warnings, notices and deprecations that this very request produced; " +
+			"for an app Covo starts, what its dev server printed meanwhile (app_output). Use it to check your work. " +
+			"After changing an app's code, its dev server usually reloads by itself; restart_app when it does not."}, t.fetchPage)
 	mcp.AddTool(s, &mcp.Tool{Name: "mail_messages", Title: "Mail sent", Annotations: ro,
 		Description: "The newest messages PHP sent, caught by Covo's Mailpit (nothing leaves the Mac); filter by recipient or subject words."}, t.mailMessages)
 	mcp.AddTool(s, &mcp.Tool{Name: "read_mail", Title: "Read a mail", Annotations: ro,
