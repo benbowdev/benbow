@@ -50,6 +50,10 @@ func TestPlistGolden(t *testing.T) {
 	if !strings.Contains(string(got), "<key>KeepAlive</key>\n\t<true/>") {
 		t.Error("KeepAlive must default to always")
 	}
+	once, err := Plist(Agent{Label: "x", Program: "/x", StdoutLog: "/o", StderrLog: "/e", NoKeepAlive: true})
+	if err != nil || !strings.Contains(string(once), "<key>KeepAlive</key>\n\t<false/>") {
+		t.Errorf("NoKeepAlive plist: %v\n%s", err, once)
+	}
 	onFailure, err := Plist(Agent{Label: "x", Program: "/x", StdoutLog: "/o", StderrLog: "/e", RestartOnFailure: true})
 	if err != nil {
 		t.Fatal(err)
@@ -85,6 +89,8 @@ func TestParseList(t *testing.T) {
 // fakeLaunchctl simulates launchd for Apply/StopAll.
 type fakeLaunchctl struct {
 	loaded map[string]bool
+	// exited are loaded agents whose program has ended.
+	exited map[string]bool
 	calls  []string
 }
 
@@ -95,12 +101,17 @@ func (f *fakeLaunchctl) run(_ context.Context, args ...string) (string, error) {
 		var b strings.Builder
 		b.WriteString("PID\tStatus\tLabel\n1\t0\tcom.other.service\n")
 		for label := range f.loaded {
+			if f.exited[label] {
+				b.WriteString("-\t1\t" + label + "\n")
+				continue
+			}
 			b.WriteString("42\t0\t" + label + "\n")
 		}
 		return b.String(), nil
 	case "bootstrap":
 		label := strings.TrimSuffix(filepath.Base(args[2]), ".plist")
 		f.loaded[label] = true
+		delete(f.exited, label)
 	case "bootout":
 		f.loaded[args[1][strings.LastIndex(args[1], "/")+1:]] = false
 		delete(f.loaded, args[1][strings.LastIndex(args[1], "/")+1:])
@@ -207,5 +218,32 @@ func TestEnsure(t *testing.T) {
 	}
 	if !f.loaded["dev.getcovo.php81"] {
 		t.Fatal("Ensure stopped another agent")
+	}
+}
+
+func TestApplyLeavesAnExitedNoKeepAliveAgentAlone(t *testing.T) {
+	dir := t.TempDir()
+	f := &fakeLaunchctl{loaded: map[string]bool{}, exited: map[string]bool{}}
+	l := &Launchctl{Prefix: "dev.getcovo", Run: f.run}
+	agents := []Agent{
+		{Label: "dev.getcovo.caddy", Program: "/c"},
+		{Label: "dev.getcovo.app-shop", Program: "/covo", NoKeepAlive: true},
+	}
+	if _, err := l.Apply(context.Background(), dir, agents); err != nil {
+		t.Fatal(err)
+	}
+	f.exited["dev.getcovo.caddy"], f.exited["dev.getcovo.app-shop"] = true, true
+	changes, err := l.Apply(context.Background(), dir, agents)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Change{{"dev.getcovo.caddy", "restarted"}, {"dev.getcovo.app-shop", "unchanged"}}
+	if !reflect.DeepEqual(changes, want) {
+		t.Fatalf("Apply = %v, want %v", changes, want)
+	}
+	// A changed plist starts it again.
+	agents[1].Args = []string{"app", "run", "shop"}
+	if changes, err = l.Apply(context.Background(), dir, agents); err != nil || changes[1].Action != "restarted" {
+		t.Fatalf("changed plist: %v %v", changes, err)
 	}
 }

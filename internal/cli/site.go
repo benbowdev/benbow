@@ -22,7 +22,7 @@ func (a *app) siteCmd() *cobra.Command {
 		Use:   "site",
 		Short: "Manage sites",
 	}
-	cmd.AddCommand(a.siteAddCmd(), a.siteSetCmd(), a.siteToggleCmd(true), a.siteToggleCmd(false), a.siteArchiveCmd(true), a.siteArchiveCmd(false), a.siteLogsCmd(), a.sitePHPCmd(), a.siteListCmd(), a.siteRemoveCmd(), a.siteDetectCmd())
+	cmd.AddCommand(a.siteAddCmd(), a.siteSetCmd(), a.siteToggleCmd(true), a.siteToggleCmd(false), a.siteArchiveCmd(true), a.siteArchiveCmd(false), a.siteLogsCmd(), a.sitePHPCmd(), a.siteListCmd(), a.siteRemoveCmd(), a.siteDetectCmd(), a.siteRestartCmd())
 	return cmd
 }
 
@@ -253,11 +253,11 @@ func (r siteLogResult) Text(w io.Writer) {
 }
 
 func (a *app) siteLogsCmd() *cobra.Command {
-	var php, empty bool
+	var php, appOut, empty bool
 	var lines int
 	cmd := &cobra.Command{
 		Use:   "logs <name>",
-		Short: "Show the end of a site's access log (or --php for PHP errors)",
+		Short: "Show the end of a site's access log (--php for PHP errors, --app for an app's output)",
 		Args:  cobra.ExactArgs(1),
 		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
 			if empty {
@@ -265,8 +265,13 @@ func (a *app) siteLogsCmd() *cobra.Command {
 				return siteLogResult(res), err
 			}
 			kind := core.LogAccess
-			if php {
+			switch {
+			case php && appOut:
+				return nil, errcode.Errorf(errcode.InvalidInput, "choose --php or --app")
+			case php:
 				kind = core.LogPHP
+			case appOut:
+				kind = core.LogApp
 			}
 			res, err := c.SiteLogs(ctx, args[0], kind, lines)
 			return siteLogResult(res), err
@@ -274,7 +279,8 @@ func (a *app) siteLogsCmd() *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&php, "php", false, "PHP errors, warnings and notices instead of requests")
 	cmd.Flags().IntVarP(&lines, "lines", "n", 50, "number of lines (max 2000)")
-	cmd.Flags().BoolVar(&empty, "clear", false, "empty both logs of the site")
+	cmd.Flags().BoolVar(&appOut, "app", false, "an app's output (what its command prints)")
+	cmd.Flags().BoolVar(&empty, "clear", false, "empty all the logs of the site")
 	return cmd
 }
 
@@ -362,7 +368,45 @@ func (r siteListResult) Text(w io.Writer) {
 		case !s.Enabled:
 			off = "  (disabled)"
 		}
+		if off == "" && s.App != nil && s.App.State != core.AppRunning {
+			off = "  (" + s.App.State + ")"
+		}
 		fmt.Fprintf(w, "%-14s %-10s %-36s %s%s\n", s.Name, runtimeLabel(s.Site), s.URL, s.Path, off)
+	}
+}
+
+type appStatusResult struct {
+	Site string `json:"site"`
+	core.AppStatus
+}
+
+func (r appStatusResult) Text(w io.Writer) {
+	fmt.Fprintf(w, "%s: %s on port %d\n", r.Site, r.State, r.Port)
+	writeAppDetail(w, r.AppStatus, "")
+}
+
+// writeAppDetail prints an app's message and the end of its output.
+func writeAppDetail(w io.Writer, st core.AppStatus, indent string) {
+	if st.Message != "" {
+		fmt.Fprintf(w, "%s%s\n", indent, st.Message)
+	}
+	if len(st.LogTail) > 0 {
+		fmt.Fprintf(w, "%sLast lines of %s:\n", indent, st.Log)
+		for _, l := range st.LogTail {
+			fmt.Fprintf(w, "%s  %s\n", indent, l)
+		}
+	}
+}
+
+func (a *app) siteRestartCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "restart <name>",
+		Short: "Stop an app's command (all its processes) and start it again",
+		Args:  cobra.ExactArgs(1),
+		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
+			st, err := c.RestartApp(ctx, args[0])
+			return appStatusResult{Site: args[0], AppStatus: st}, err
+		}),
 	}
 }
 

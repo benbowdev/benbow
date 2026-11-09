@@ -82,7 +82,7 @@ func New(open Open) *mcp.Server {
 	mcp.AddTool(s, &mcp.Tool{Name: "list_sites", Title: "List sites", Annotations: ro,
 		Description: "Every site: name, folder, framework, PHP version, address, domain and aliases, database, on/off, group."}, t.listSites)
 	mcp.AddTool(s, &mcp.Tool{Name: "site_logs", Title: "Site logs", Annotations: ro,
-		Description: "The end of a site's PHP error log (kind \"php\") or request log (kind \"access\")."}, t.siteLogs)
+		Description: "The end of a site's PHP error log (kind \"php\"), request log (kind \"access\") or, for an app, its dev server's output (kind \"app\")."}, t.siteLogs)
 	mcp.AddTool(s, &mcp.Tool{Name: "detect_app", Title: "Detect an app's command", Annotations: ro,
 		Description: "For a folder with a dev server in any language (package.json, manage.py, FastAPI, Flask, Rails), the command Covo proposes " +
 			"to start it, with {port} for its port. Covo never installs Node, Python or packages: the command runs with the user's own tools. " +
@@ -119,6 +119,8 @@ func New(open Open) *mcp.Server {
 		Description: "Which sites AI agents may change (set by the user in Covo; agents cannot change it)."}, t.permissions)
 
 	// Changes: permission, snapshot, log.
+	mcp.AddTool(s, &mcp.Tool{Name: "restart_app", Title: "Restart an app's dev server", Annotations: change,
+		Description: "Stops an app site's dev server (every process its command started) and starts it again; returns its state (starting, running, error with a message). Its output: site_logs with kind \"app\"."}, t.restartApp)
 	mcp.AddTool(s, &mcp.Tool{Name: "start", Title: "Start Covo", Annotations: change,
 		Description: "Starts every enabled site and Covo's services. Needs permission for everything."}, t.start)
 	mcp.AddTool(s, &mcp.Tool{Name: "stop", Title: "Stop Covo", Annotations: change,
@@ -344,16 +346,35 @@ func (t tools) permissions(ctx context.Context, _ *mcp.CallToolRequest, _ empty)
 
 type siteLogsIn struct {
 	Site  string `json:"site" jsonschema:"the site's name"`
-	Kind  string `json:"kind,omitempty" jsonschema:"php (errors, the default) or access (requests)"`
+	Kind  string `json:"kind,omitempty" jsonschema:"php (errors, the default for PHP sites), access (requests) or app (an app's output, the default for apps)"`
 	Lines int    `json:"lines,omitempty" jsonschema:"number of lines from the end (default 50, max 2000)"`
 }
 
 func (t tools) siteLogs(ctx context.Context, _ *mcp.CallToolRequest, in siteLogsIn) (*mcp.CallToolResult, any, error) {
-	kind := in.Kind
-	if kind == "" {
-		kind = core.LogPHP
-	}
-	return readSite(ctx, t, in.Site, func(c *core.Core) (core.SiteLog, error) { return c.SiteLogs(ctx, in.Site, kind, in.Lines) })
+	return readSite(ctx, t, in.Site, func(c *core.Core) (core.SiteLog, error) {
+		kind := in.Kind
+		if kind == "" {
+			kind = core.LogPHP
+			if s, err := c.Store.Site(ctx, in.Site); err == nil && s.IsApp() {
+				kind = core.LogApp
+			}
+		}
+		return c.SiteLogs(ctx, in.Site, kind, in.Lines)
+	})
+}
+
+type restartAppIn struct {
+	Site   string `json:"site" jsonschema:"the app site's name"`
+	DryRun bool   `json:"dry_run,omitempty" jsonschema:"only say what would happen"`
+}
+
+func (t tools) restartApp(ctx context.Context, _ *mcp.CallToolRequest, in restartAppIn) (*mcp.CallToolResult, any, error) {
+	return change(ctx, t, "restart_app", in.Site, in, in.DryRun, false, func(c *core.Core) (any, error) {
+		if in.DryRun {
+			return "would restart the dev server of " + in.Site, nil
+		}
+		return c.RestartApp(ctx, in.Site)
+	})
 }
 
 func (t tools) listPHP(ctx context.Context, _ *mcp.CallToolRequest, _ empty) (*mcp.CallToolResult, any, error) {

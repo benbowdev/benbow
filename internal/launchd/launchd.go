@@ -60,6 +60,11 @@ type Agent struct {
 	// that exits 0 on purpose (nothing to do) is not started again every
 	// few seconds.
 	RestartOnFailure bool
+	// NoKeepAlive runs the program once per load: launchd never starts it
+	// again when it exits, and Apply leaves an exited agent alone while
+	// its plist is unchanged (a user's dev server that crashed stays down
+	// until they restart it).
+	NoKeepAlive bool
 }
 
 type envVar struct{ Key, Value string }
@@ -98,7 +103,9 @@ var plistTmpl = template.Must(template.New("plist").Funcs(template.FuncMap{"x": 
 	<key>RunAtLoad</key>
 	<true/>
 	<key>KeepAlive</key>
-{{- if .RestartOnFailure}}
+{{- if .NoKeepAlive}}
+	<false/>
+{{- else if .RestartOnFailure}}
 	<dict>
 		<key>SuccessfulExit</key>
 		<false/>
@@ -334,7 +341,7 @@ func (l *Launchctl) applyOne(ctx context.Context, dir string, a Agent, loaded ma
 	}
 	st, isLoaded := loaded[a.Label]
 	changed := !bytes.Equal(old, body)
-	if isLoaded && !changed && st.Running {
+	if isLoaded && !changed && (st.Running || a.NoKeepAlive) {
 		return "unchanged", nil
 	}
 	if changed {

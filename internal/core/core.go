@@ -51,6 +51,10 @@ type Core struct {
 	// work in-process.
 	Detach func(args ...string) (int, error)
 
+	// Executable is the covo binary the agents of apps run (`covo app
+	// run`); empty when this is not the covo binary (a test).
+	Executable string
+
 	// adminerLogins are one-time Adminer logins (see adminer.go); they only
 	// live in the daemon's memory.
 	adminerMu     sync.Mutex
@@ -90,6 +94,7 @@ func Open(ctx context.Context) (*Core, error) {
 		resolver:  newResolverManager(layout.Root, layout.Tmp),
 	}
 	c.Detach = detachCovo(layout)
+	c.Executable = covoExecutable()
 	// A newer signed manifest accepted earlier (covo update check) adds
 	// versions; a bad or older one is ignored and the embedded one used.
 	c.loadSignedManifest()

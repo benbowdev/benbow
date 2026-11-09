@@ -358,6 +358,9 @@ func (c *Core) Start(ctx context.Context, httpsPort int) (StartResult, error) {
 		if err := c.Store.SetSetting(ctx, settingRunning, "1"); err != nil {
 			return err
 		}
+		if err := c.restartExitedApps(ctx); err != nil {
+			return err
+		}
 		var err error
 		res, err = c.reconcile(ctx)
 		return err
@@ -419,8 +422,12 @@ func (c *Core) reconcile(ctx context.Context) (StartResult, error) {
 		minors = append(minors, adminerPHP)
 	}
 	slices.Sort(minors)
+	appAgents, err := c.appAgents(sites)
+	if err != nil {
+		return StartResult{}, err
+	}
 	var bundleHash string
-	if len(minors) > 0 {
+	if len(minors) > 0 || len(appAgents) > 0 {
 		if bundleHash, err = c.ensureCABundle(ctx); err != nil {
 			return StartResult{}, err
 		}
@@ -487,6 +494,7 @@ func (c *Core) reconcile(ctx context.Context) (StartResult, error) {
 	agents = append(agents, pgAgents...)
 	agents = append(agents, redisAgents...)
 	agents = append(agents, phoneAgents...)
+	agents = append(agents, appAgents...)
 
 	rotated := c.rotateLogs()
 	changes, err := c.launchctl.Apply(ctx, c.Layout.Launchd, agents)
@@ -601,6 +609,8 @@ type SiteStatus struct {
 	// Migration is set when Covo migrated the site from another tool (it
 	// can be undone).
 	Migration *store.Migration `json:"migration,omitempty"`
+	// App is the state of an app's dev server (apps only).
+	App *AppStatus `json:"app,omitempty"`
 }
 
 // CAStatus describes the local certificate authority.
@@ -660,7 +670,7 @@ func (c *Core) Status(ctx context.Context) (Status, error) {
 		if svc := phpService(s.PHPMinor); s.Enabled && !s.IsApp() && !slices.Contains(services, svc) {
 			services = append(services, svc)
 		}
-		st.Sites = append(st.Sites, SiteStatus{Site: s, URL: siteURL(s, st.HTTPSPort)})
+		st.Sites = append(st.Sites, SiteStatus{Site: s, URL: siteURL(s, st.HTTPSPort), App: c.appStatus(s, loaded)})
 	}
 	if migs, err := c.Store.ListMigrations(ctx); err == nil {
 		for i := range st.Sites {
@@ -722,6 +732,11 @@ func (c *Core) Status(ctx context.Context) (Status, error) {
 		ls := loaded[label]
 		st.Services = append(st.Services, ServiceStatus{Name: svc, Label: label, Running: ls.Running, PID: ls.PID})
 		st.Running = st.Running && ls.Running
+	}
+	for _, s := range sites {
+		if startsApp(s) {
+			expected[c.appLabel(s.Name)] = true
+		}
 	}
 	for label := range loaded {
 		if !expected[label] && !slices.Contains(c.launchctl.Keep, label) {
@@ -802,6 +817,16 @@ func (c *Core) rotateLogs() []string {
 	for _, p := range logs {
 		if info, err := os.Stat(p); err == nil && info.Size() > maxLogSize {
 			_ = os.Rename(p, p+".1")
+		}
+	}
+	// App logs stay open in the running app (launchd opened them in
+	// append mode): copy, then truncate in place.
+	logs, _ = filepath.Glob(filepath.Join(c.Layout.Logs, "sites", "*", "app.log"))
+	for _, p := range logs {
+		if info, err := os.Stat(p); err == nil && info.Size() > maxLogSize {
+			if b, err := os.ReadFile(p); err == nil && os.WriteFile(p+".1", b, 0o600) == nil {
+				_ = os.Truncate(p, 0)
+			}
 		}
 	}
 	return rotated

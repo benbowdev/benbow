@@ -31,6 +31,15 @@ Format: **decision** (date) — why. *Not chosen:* alternatives.
   frontend next to it without becoming a runtime manager. The website,
   README and announcements stay PHP-first. *Not chosen:* managing Node and
   Python versions (FlyEnv's road), Docker, production builds.
+- **Apps run through the login shell, are never restarted, stop as a
+  whole tree** (2026-11-09) — each start runs `$SHELL -l -i -c` so every
+  version manager works as in a terminal without Covo knowing about any of
+  them; a crashed dev server stays down with a clear message, because
+  restarting a broken command in a loop hides the error and fills the log;
+  stopping follows the process group, descendants and an environment
+  marker, because dev servers leave workers behind. *Not chosen:* reading
+  the PATH once and running the command directly (breaks per-folder
+  versions), launchd `KeepAlive`, killing only the main process.
 - **Pre-beta block** (2026-11-03): Laravel, PostgreSQL/Redis, Open on
   phone, importers with assisted migration, snapshots, SSH/FTP sync, MCP
   agent safety, blueprints — moved before the beta because they are what

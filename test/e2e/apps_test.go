@@ -12,14 +12,17 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -163,4 +166,197 @@ func TestAppProxy(t *testing.T) {
 		t.Errorf("php check on an app = %+v", env.Error)
 	}
 	h.mustCovo("site", "remove", "front")
+}
+
+type appState struct {
+	State    string   `json:"state"`
+	Port     int      `json:"port"`
+	PID      int      `json:"pid"`
+	ExitCode *int     `json:"exit_code"`
+	Message  string   `json:"message"`
+	LogTail  []string `json:"log_tail"`
+}
+
+// appState reads a site's app state from covo site list.
+func (h *harness) appState(site string) appState {
+	h.t.Helper()
+	var sites []struct {
+		Name string    `json:"name"`
+		App  *appState `json:"app"`
+	}
+	if err := json.Unmarshal(h.mustCovo("site", "list"), &sites); err != nil {
+		h.t.Fatal(err)
+	}
+	for _, s := range sites {
+		if s.Name == site && s.App != nil {
+			return *s.App
+		}
+	}
+	h.t.Fatalf("no app state for %s", site)
+	return appState{}
+}
+
+// waitApp waits until the app reaches state.
+func (h *harness) waitApp(site, state string) appState {
+	h.t.Helper()
+	var st appState
+	for range 120 {
+		if st = h.appState(site); st.State == state {
+			return st
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	b, _ := os.ReadFile(filepath.Join(h.home(), "logs", "sites", site, "app.log"))
+	h.t.Fatalf("%s never became %s: %+v\napp.log:\n%s", site, state, st, b)
+	return st
+}
+
+// readPids waits for the dev server's pid file (server, child, grandchild)
+// to be written anew.
+func readPids(t *testing.T, path string, old []int) []int {
+	t.Helper()
+	for range 100 {
+		b, err := os.ReadFile(path)
+		if err == nil {
+			var pids []int
+			for _, f := range strings.Fields(string(b)) {
+				n, _ := strconv.Atoi(f)
+				pids = append(pids, n)
+			}
+			if len(pids) == 3 && (len(old) == 0 || pids[0] != old[0]) {
+				return pids
+			}
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatalf("no new pids in %s", path)
+	return nil
+}
+
+func alive(pid int) bool {
+	err := syscall.Kill(pid, 0)
+	return err == nil || errors.Is(err, syscall.EPERM)
+}
+
+func checkAllGone(t *testing.T, when string, pids []int) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for _, p := range pids {
+		for alive(p) && time.Now().Before(deadline) {
+			time.Sleep(100 * time.Millisecond)
+		}
+		if alive(p) {
+			t.Errorf("%s: pid %d still running", when, p)
+		}
+	}
+}
+
+// TestAppRun lets Covo start a dev server: through the login shell, on the
+// port Covo gave it, restarted on request, never restarted after a crash,
+// and stopped with every process it started.
+func TestAppRun(t *testing.T) {
+	h := newHarness(t)
+	tmp := t.TempDir()
+	server := filepath.Join(tmp, "devserver")
+	if out, err := exec.Command("go", "build", "-o", server, "./testdata/devserver").CombinedOutput(); err != nil {
+		t.Fatalf("build devserver: %v\n%s", err, out)
+	}
+	project := filepath.Join(tmp, "my app")
+	if err := os.Mkdir(project, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	pidFile := filepath.Join(tmp, "pids")
+	t.Cleanup(func() {
+		if t.Failed() {
+			b, _ := os.ReadFile(filepath.Join(h.home(), "logs", "sites", "svc", "app.log"))
+			t.Logf("app.log:\n%s", b)
+		}
+	})
+
+	h.mustCovo("start")
+	var added struct {
+		AppMode string `json:"app_mode"`
+		AppPort int    `json:"app_port"`
+		URL     string `json:"url"`
+	}
+	cmd := fmt.Sprintf("'%s' --pids '%s' --port {port}", server, pidFile)
+	if err := json.Unmarshal(h.mustCovo("site", "add", "svc", "--path", project, "--command", cmd), &added); err != nil {
+		t.Fatal(err)
+	}
+	if added.AppMode != "run" || added.AppPort < 41000 {
+		t.Fatalf("added = %+v", added)
+	}
+	h.waitApp("svc", "running")
+	pids := readPids(t, pidFile, nil)
+	st := h.status()
+	var seen struct {
+		Port, FlagPort, CA, CovoVars string
+	}
+	var got map[string]string
+	if err := json.Unmarshal([]byte(h.get(added.URL+"/", st.CA.CertPath)), &got); err != nil {
+		t.Fatal(err)
+	}
+	seen.Port, seen.FlagPort, seen.CA, seen.CovoVars = got["port"], got["flag_port"], got["node_extra_ca_certs"], got["covo_vars"]
+	want := strconv.Itoa(added.AppPort)
+	if seen.Port != want || seen.FlagPort != want || seen.CA != st.CA.CertPath || seen.CovoVars != "" {
+		t.Errorf("app saw %+v, want port %s and CA %s", seen, want, st.CA.CertPath)
+	}
+	if len(st.Orphans) != 0 {
+		t.Errorf("the app's agent is reported as an orphan: %v", st.Orphans)
+	}
+
+	// Restart: every old process goes, a new server comes.
+	h.mustCovo("site", "restart", "svc")
+	checkAllGone(t, "after restart", pids)
+	pids = readPids(t, pidFile, pids)
+	h.waitApp("svc", "running")
+
+	// A crash: the state says so, nothing restarts it, nothing is left.
+	resp, err := (&http.Client{Timeout: 5 * time.Second}).Get("http://127.0.0.1:" + want + "/crash")
+	if err == nil {
+		resp.Body.Close()
+	}
+	crashed := h.waitApp("svc", "error")
+	if crashed.ExitCode == nil || *crashed.ExitCode != 3 || len(crashed.LogTail) == 0 {
+		t.Errorf("after the crash: %+v", crashed)
+	}
+	checkAllGone(t, "after the crash", pids)
+	time.Sleep(7 * time.Second) // longer than launchd's ThrottleInterval
+	if st := h.appState("svc"); st.State != "error" {
+		t.Errorf("the app was restarted after a crash: %+v", st)
+	}
+
+	// covo start brings an exited app back.
+	h.mustCovo("start")
+	pids = readPids(t, pidFile, pids)
+	h.waitApp("svc", "running")
+
+	// A program the login shell cannot find.
+	h.mustCovo("site", "add", "broken", "--path", project, "--command", "covo-no-such-program --port {port}")
+	broken := h.waitApp("broken", "error")
+	if !strings.Contains(broken.Message, "covo-no-such-program was not found") {
+		t.Errorf("missing program: %+v", broken)
+	}
+	h.mustCovo("site", "remove", "broken")
+
+	// Stop: every process ends and the port is free again.
+	h.mustCovo("stop")
+	checkAllGone(t, "after stop", pids)
+	if st := h.appState("svc"); st.State != "stopped" {
+		t.Errorf("after stop: %+v", st)
+	}
+	if l, err := net.Listen("tcp", "127.0.0.1:"+want); err != nil {
+		t.Errorf("port %s still taken after stop: %v", want, err)
+	} else {
+		l.Close()
+	}
+	var logs struct {
+		Lines []string `json:"lines"`
+	}
+	if err := json.Unmarshal(h.mustCovo("site", "logs", "svc", "--app"), &logs); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(strings.Join(logs.Lines, "\n"), "devserver listening on "+want) {
+		t.Errorf("app log: %q", logs.Lines)
+	}
 }

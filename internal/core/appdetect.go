@@ -132,7 +132,7 @@ func detectNode(dir string, d *AppDetection) {
 		d.Notes = append(d.Notes, "The dev server should read the port from $PORT; if it does not, add its port option with {port}.")
 	}
 	d.Command = cmd
-	if !dirExists(filepath.Join(dir, "node_modules")) {
+	if len(pkg.Dependencies)+len(pkg.DevDependencies) > 0 && !dirExists(filepath.Join(dir, "node_modules")) {
 		d.Notes = append(d.Notes, "node_modules is missing: run "+d.PackageManager+" install first.")
 	}
 }

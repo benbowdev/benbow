@@ -92,6 +92,10 @@ func (f *fake) SiteLogs(_ context.Context, name, kind string, lines int) (core.S
 	return core.SiteLog{}, f.record(fmt.Sprintf("logs %s %s %d", name, kind, lines))
 }
 
+func (f *fake) RestartApp(context.Context, string) (core.AppStatus, error) {
+	return core.AppStatus{State: core.AppStarting, Port: 41000}, nil
+}
+
 func (f *fake) ClearSiteLogs(_ context.Context, name string) (core.SiteLog, error) {
 	return core.SiteLog{}, f.record("clear logs " + name)
 }

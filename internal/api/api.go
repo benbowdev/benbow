@@ -75,6 +75,7 @@ type Backend interface {
 	RollbackUpdate(ctx context.Context, name string) (core.UpdatesStatus, error)
 	SiteLogs(ctx context.Context, name, kind string, lines int) (core.SiteLog, error)
 	ClearSiteLogs(ctx context.Context, name string) (core.SiteLog, error)
+	RestartApp(ctx context.Context, name string) (core.AppStatus, error)
 	ListPHP(ctx context.Context) (core.PHPList, error)
 	InstallPHP(ctx context.Context, spec string) (core.PHPInstall, error)
 	GetPHPSettings(ctx context.Context, minor string) (core.PHPSettings, error)
@@ -433,6 +434,9 @@ func Handler(b Backend) http.Handler {
 	// ?drop=true also deletes the database and the site's own user.
 	post("DELETE", "/v1/sites/{name}/database", func(r *http.Request, _ []byte) (any, error) {
 		return b.UnlinkSiteDatabase(r.Context(), r.PathValue("name"), r.URL.Query().Get("drop") == "true")
+	})
+	post("POST", "/v1/sites/{name}/restart", func(r *http.Request, _ []byte) (any, error) {
+		return b.RestartApp(r.Context(), r.PathValue("name"))
 	})
 	post("DELETE", "/v1/sites/{name}/logs", func(r *http.Request, _ []byte) (any, error) {
 		return b.ClearSiteLogs(r.Context(), r.PathValue("name"))

@@ -17,6 +17,8 @@ covo site add shop --path ~/Code/shop --command "npm run dev -- --port {port} --
 covo site add api --path ~/Code/api --proxy-port 3000   # you run the server yourself
 covo site set shop --command "pnpm dev"            # also --port, --proxy-port
 covo site set api --host-header localhost          # "" for the site's domain
+covo site restart shop                             # stop every process, start again
+covo site logs shop --app                          # what the command printed
 ```
 
 ## Two modes
@@ -31,6 +33,75 @@ covo site set api --host-header localhost          # "" for the site's domain
 
 A started app's port must be free when it is chosen; a proxied app's port
 is normally taken (by your server). Two Covo sites never share a port.
+
+## How Covo runs the command
+
+Each started app is a launchd agent (`dev.getcovo.app-<name>`) whose program
+is Covo itself (`covo app run <name>`, hidden). It runs the command the way
+a new Terminal window would:
+
+```sh
+$SHELL -l -i -c 'cd "$COVO_APP_DIR" || exit 1
+<your command>'
+```
+
+- `$SHELL` is your login shell (from your user record: launchd sets none).
+  `-l -i` reads `.zprofile` and `.zshrc` (or bash's and fish's files), so
+  nvm, pyenv, rbenv, asdf, volta, Homebrew's PATH and the like work as in
+  your terminal. The `cd` happens after your profile, so tools that switch
+  versions on entering a folder (fnm `--use-on-cd`, mise, direnv) see the
+  project's `.nvmrc`, `.node-version`, `.tool-versions` or `.envrc`.
+- The environment adds `PORT`, `COVO_APP_DIR` (the folder),
+  `NODE_EXTRA_CA_CERTS` (Covo's CA, so Node trusts `https://*.localhost`
+  sites), `SSL_CERT_FILE` and `REQUESTS_CA_BUNDLE` (Mozilla's roots plus
+  Covo's, for Python), `NO_COLOR=1`, `TERM=dumb`, `BROWSER=none` (no browser
+  tab opened on start), `PYTHONUNBUFFERED=1` and `COVO_APP_RUN` (a marker
+  Covo uses to find the command's processes). Covo's own variables are
+  removed.
+- stdin is empty: a command that asks a question gets no answer.
+- The output goes to `logs/sites/<name>/app.log` (`covo site logs <name>
+  --app`, the Logs window), copied to `app.log.1` and emptied past 10 MB.
+
+Before starting, Covo checks the folder exists and the port is still free.
+The address the server listens on is the server's choice, as in your
+terminal: most listen on localhost only, some (Node's `listen(port)`) on
+every interface.
+
+### Stopping
+
+Stopping the app (Stop, turning the site off, removing it, changing its
+command, port or folder, `covo site restart`) stops every process the
+command started: its process group, the processes started under it (seen
+every 2 seconds) and any process carrying its `COVO_APP_RUN` marker, which
+finds workers that left the group with `setsid`. They get SIGTERM, then
+SIGKILL after 5 seconds.
+
+### No automatic restart
+
+launchd never restarts an app. When the command ends, the processes it left
+behind are stopped and the site shows the state below until you restart it
+(`covo site restart`, Restart in the app) or press Start, which starts every
+app that has ended. Other changes (a new site, a PHP setting) do not start
+an app that has ended.
+
+### State
+
+`covo status`, `covo site list` and the API give each app an `app` object:
+
+| `state` | Meaning |
+|---|---|
+| `starting` | the command runs, its port does not answer yet (up to 90 s) |
+| `running` | the port answers |
+| `error` | the command ended with an error, or ran 90 s without opening its port |
+| `exited` | the command ended with status 0 (a dev server should not) |
+| `stopped` | Covo or the site is off |
+| `waiting` | a proxied app: nothing listens on its port |
+
+With `error` and `exited` come `exit_code`, `message` and `log_tail` (the
+last 20 lines printed since the start). The message names a missing program
+(`node was not found by your login shell. Install it with your version
+manager (nvm, fnm, mise, volta…)`), a port in use, or a signal. Covo never
+installs runtimes or packages.
 
 ## Detecting the command
 
@@ -72,9 +143,13 @@ redirects it builds are right. `--host-header localhost` sends
   (its folder is never touched) and add it again with `--command`.
 - Open on Phone does not support apps yet.
 
-API: `POST /v1/sites` takes `command`, `port`, `proxy_port`, `app_host`;
+API: `POST /v1/sites/{name}/restart` restarts an app and returns its state;
+`GET /v1/sites/{name}/logs/app` is its output.
+`POST /v1/sites` takes `command`, `port`, `proxy_port`, `app_host`;
 `PATCH /v1/sites/{name}` takes `command`, `port`, `proxy_port`, `app_host`;
 `GET /v1/detect?path=` returns `{path, framework, command, package_manager,
 notes}`. Sites carry `kind` (`php` or `app`), `app_mode` (`run` or `proxy`),
-`command`, `app_port` and `app_host`. MCP: `detect_app`, and `add_site` /
-`update_site` with `command`, `port`, `proxy_port`.
+`command`, `app_port`, `app_host` and, in status, `app` (the state above).
+MCP: `detect_app`, `restart_app`, `site_logs` with kind `app` (the default
+for apps), and `add_site` / `update_site` with `command`, `port`,
+`proxy_port`.

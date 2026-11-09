@@ -58,7 +58,7 @@ Every change tool:
 |---|---|---|
 | `covo_status` | no | running, services, sites with addresses, databases, mail |
 | `list_sites` | no | every site |
-| `site_logs` | no | end of a site's PHP error log or request log |
+| `site_logs` | no | end of a site's PHP error log, request log or app output (kind `app`, the default for apps) |
 | `detect_app` | no | the command Covo proposes for a dev server's folder (`apps.md`) |
 | `list_php_versions` | no | installed and available versions, php.net support status |
 | `php_compatibility_check` | no | what would break on another PHP version (`php.md`) |
@@ -71,6 +71,7 @@ Every change tool:
 | `mail_messages`, `read_mail` | no | the mail PHP sent, caught by Mailpit: list, one message's text and links |
 | `query_database` | no | one read-only SQL statement on a site's database (500 rows, 10 s) |
 | `session_diff` | no | files and database tables changed since the session started; one file's diff (secrets masked) |
+| `restart_app` | yes | the app site (`apps.md`) |
 | `start`, `stop` | yes | all sites and services |
 | `add_site` | yes | folder, PHP, domain, aliases, new folder, database, php.ini values; an app with `command` or `proxy_port` (`apps.md`) |
 | `update_site` | yes | PHP version, folder, domain, aliases, on/off; an app's command, port or proxied port |

@@ -43,6 +43,18 @@
       "url_to": "x",
       "at": "2026-11-04T10:30:00Z"
     },
+    "app": {
+      "state": "x",
+      "port": 1,
+      "pid": 1,
+      "exit_code": 1,
+      "message": "x",
+      "since": "2026-11-04T10:30:00Z",
+      "log": "x",
+      "log_tail": [
+        "x"
+      ]
+    },
     "laravel": "x",
     "database": "x"
   }

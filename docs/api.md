@@ -66,6 +66,7 @@ up as a diff of those files: adding a field is fine (rerun the Go test with
 | `POST /v1/sites` | `{name, domain, php, path, force, create_folder, aliases, group_id, php_settings, new_database, link_database}`; apps: `{command, port, proxy_port, app_host}` (`apps.md`) | `covo site add` |
 | `PATCH /v1/sites/{name}` | any of `{php, path, domain, enabled, archived, aliases, group_id, title, force}` (`group_id` 0: top level); apps: `{command, port, proxy_port, app_host}` | `covo site set`, `enable`, `disable`, `archive`, `unarchive` |
 | `GET /v1/detect?path=` | | `covo site detect` |
+| `POST /v1/sites/{name}/restart` | | `covo site restart` (apps, `apps.md`) |
 | `POST /v1/laravel` | `{name, path, php, database, domain, aliases, group_id, php_settings}` | `covo laravel` |
 | `POST /v1/sites/{name}/run` | `{tool, args}` (`wp`, `composer`, `artisan`) | `covo wp`, `covo composer`, `covo artisan` |
 | `POST /v1/sites/{name}/php-check` | `{target, all}` | `covo php check` |
@@ -88,7 +89,7 @@ up as a diff of those files: adding a field is fine (rerun the Go test with
 | `POST /v1/groups/{id}/enabled` | `{enabled}` | `covo group enable`, `disable` |
 | `PUT /v1/list-order` | `{group, items}` (group 0: top level; items `group:<id>` / `site:<name>`, mixed, in order) | `covo group order` |
 | `DELETE /v1/sites/{name}` | `?drop_database=true` | `covo site remove [--drop-database]` |
-| `GET /v1/sites/{name}/logs/{access\|php}` | `?lines=N` | `covo site logs` |
+| `GET /v1/sites/{name}/logs/{access\|php\|app}` | `?lines=N` | `covo site logs` (`--php`, `--app`) |
 | `DELETE /v1/sites/{name}/logs` | | `covo site logs --clear` |
 | `GET`, `PATCH /v1/sites/{name}/php-settings` | `{"memory_limit": "1G"}`, `""` resets | `covo site php` |
 | `GET /v1/sites/{name}/database` | | `covo db show` |

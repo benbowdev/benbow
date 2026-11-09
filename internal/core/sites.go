@@ -601,6 +601,7 @@ func (c *Core) RemoveSite(ctx context.Context, name string) (SiteResult, error) 
 		// never touched.
 		_ = os.RemoveAll(c.siteLogDir(name))
 		_ = os.RemoveAll(c.snapshotDir(name))
+		c.removeAppState(name)
 		res.Applied = applied
 		return nil
 	})

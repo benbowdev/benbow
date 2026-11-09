@@ -51,6 +51,8 @@ public struct Site: Codable, Sendable, Identifiable, Hashable {
     /// A command started and stopped with a PHP site (e.g. Vite).
     public var companionCommand: String?
     public var companionPort: Int?
+    /// Apps: the dev server's state.
+    public var app: AppStatus?
 
     public var isApp: Bool { kind == "app" }
 
@@ -666,6 +668,20 @@ public struct DaemonInfo: Codable, Sendable, Hashable {
     public var socket: String
     public var answering: Bool
     public var pid: Int?
+}
+
+/// The state of an app's dev server (Site.app, POST /v1/sites/{name}/restart).
+public struct AppStatus: Codable, Sendable, Hashable {
+    /// starting, running, exited, error, stopped, or waiting (a proxied
+    /// app with nothing on its port).
+    public var state: String
+    public var port: Int
+    public var pid: Int?
+    public var exitCode: Int?
+    public var message: String?
+    public var since: Date?
+    public var log: String?
+    public var logTail: [String]?
 }
 
 /// The command Covo proposes for an app's folder (GET /v1/detect).
