@@ -611,6 +611,8 @@ type SiteStatus struct {
 	Migration *store.Migration `json:"migration,omitempty"`
 	// App is the state of an app's dev server (apps only).
 	App *AppStatus `json:"app,omitempty"`
+	// Companion is the state of a PHP site's companion, if it has one.
+	Companion *AppStatus `json:"companion,omitempty"`
 }
 
 // CAStatus describes the local certificate authority.
@@ -670,7 +672,7 @@ func (c *Core) Status(ctx context.Context) (Status, error) {
 		if svc := phpService(s.PHPMinor); s.Enabled && !s.IsApp() && !slices.Contains(services, svc) {
 			services = append(services, svc)
 		}
-		st.Sites = append(st.Sites, SiteStatus{Site: s, URL: siteURL(s, st.HTTPSPort), App: c.appStatus(s, loaded)})
+		st.Sites = append(st.Sites, SiteStatus{Site: s, URL: siteURL(s, st.HTTPSPort), App: c.appStatus(s, loaded), Companion: c.companionStatus(s, loaded)})
 	}
 	if migs, err := c.Store.ListMigrations(ctx); err == nil {
 		for i := range st.Sites {
@@ -734,8 +736,8 @@ func (c *Core) Status(ctx context.Context) (Status, error) {
 		st.Running = st.Running && ls.Running
 	}
 	for _, s := range sites {
-		if startsApp(s) {
-			expected[c.appLabel(s.Name)] = true
+		for _, p := range siteProcs(s) {
+			expected[c.procLabel(p)] = true
 		}
 	}
 	for label := range loaded {
@@ -822,7 +824,8 @@ func (c *Core) rotateLogs() []string {
 	// App logs stay open in the running app (launchd opened them in
 	// append mode): copy, then truncate in place.
 	logs, _ = filepath.Glob(filepath.Join(c.Layout.Logs, "sites", "*", "app.log"))
-	for _, p := range logs {
+	more, _ := filepath.Glob(filepath.Join(c.Layout.Logs, "sites", "*", "companion.log"))
+	for _, p := range append(logs, more...) {
 		if info, err := os.Stat(p); err == nil && info.Size() > maxLogSize {
 			if b, err := os.ReadFile(p); err == nil && os.WriteFile(p+".1", b, 0o600) == nil {
 				_ = os.Truncate(p, 0)

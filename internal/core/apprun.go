@@ -37,8 +37,12 @@ import (
 // all when the agent is unloaded. launchd never restarts it: a dev server
 // that crashed stays down, with a clear message, until the user restarts it.
 
-// LogApp is an app's output (stdout and stderr of its command).
-const LogApp = "app"
+// Logs of the processes Covo runs: an app's output, a PHP site's
+// companion's output (stdout and stderr of the command).
+const (
+	LogApp       = "app"
+	LogCompanion = "companion"
+)
 
 const (
 	// appStartTimeout is how long an app may take to open its port before
@@ -92,30 +96,96 @@ type appRunState struct {
 	Message string `json:"message,omitempty"`
 }
 
-func (c *Core) appLabel(site string) string { return c.launchctl.Prefix + ".app-" + site }
-
-func (c *Core) appStatePath(site string) string {
-	return filepath.Join(c.Layout.Data, "apps", site+".json")
+// devProc is a dev server Covo runs for a site: an app's command, or the
+// companion of a PHP site (e.g. Vite next to Laravel).
+type devProc struct {
+	Site      store.Site
+	Companion bool
 }
 
-func (c *Core) readAppState(site string) (appRunState, bool) {
+func (p devProc) command() string {
+	if p.Companion {
+		return p.Site.CompanionCommand
+	}
+	return p.Site.Command
+}
+
+func (p devProc) port() int {
+	if p.Companion {
+		return p.Site.CompanionPort
+	}
+	return p.Site.AppPort
+}
+
+// dir is where the command runs: an app's folder, or a PHP site's project
+// root (the Laravel folder, not public/).
+func (p devProc) dir() string {
+	if p.Companion && p.Site.AppRoot != "" {
+		return p.Site.AppRoot
+	}
+	return p.Site.Path
+}
+
+func (p devProc) logKind() string {
+	if p.Companion {
+		return LogCompanion
+	}
+	return LogApp
+}
+
+// what names the process in messages.
+func (p devProc) what() string {
+	if p.Companion {
+		return "companion"
+	}
+	return "app"
+}
+
+// sitePrcs are the processes Covo runs for a site now.
+func siteProcs(s store.Site) []devProc {
+	switch {
+	case !s.Enabled:
+		return nil
+	case s.IsApp() && s.AppMode == store.AppRun:
+		return []devProc{{Site: s}}
+	case !s.IsApp() && s.CompanionCommand != "":
+		return []devProc{{Site: s, Companion: true}}
+	}
+	return nil
+}
+
+func (c *Core) procLabel(p devProc) string {
+	if p.Companion {
+		return c.launchctl.Prefix + ".companion-" + p.Site.Name
+	}
+	return c.appLabel(p.Site.Name)
+}
+
+func (c *Core) appLabel(site string) string { return c.launchctl.Prefix + ".app-" + site }
+
+func (c *Core) procStatePath(p devProc) string {
+	name := p.Site.Name
+	if p.Companion {
+		name += ".companion"
+	}
+	return filepath.Join(c.Layout.Data, "apps", name+".json")
+}
+
+func (c *Core) readAppState(p devProc) (appRunState, bool) {
 	var st appRunState
-	b, err := os.ReadFile(c.appStatePath(site))
+	b, err := os.ReadFile(c.procStatePath(p))
 	if err != nil || json.Unmarshal(b, &st) != nil {
 		return appRunState{}, false
 	}
 	return st, true
 }
 
-func (c *Core) writeAppState(site string, st appRunState) {
+func (c *Core) writeAppState(p devProc, st appRunState) {
 	b, _ := json.Marshal(st)
-	if err := os.MkdirAll(filepath.Dir(c.appStatePath(site)), 0o700); err == nil {
-		_, _ = fsutil.WriteAtomic(c.appStatePath(site), b, 0o600)
+	if err := os.MkdirAll(filepath.Dir(c.procStatePath(p)), 0o700); err == nil {
+		_, _ = fsutil.WriteAtomic(c.procStatePath(p), b, 0o600)
 	}
 }
-
-// startsApp reports whether Covo runs a process for the site.
-func startsApp(s store.Site) bool { return s.Enabled && s.IsApp() && s.AppMode == store.AppRun }
 
 // covoExecutable is the covo binary apps' agents run (the one running now).
 func covoExecutable() string {
@@ -129,33 +199,34 @@ func covoExecutable() string {
 	return exe
 }
 
-// appAgents returns the launchd agents of the apps Covo starts.
+// appAgents returns the launchd agents of the apps and companions Covo
+// starts.
 func (c *Core) appAgents(ctx context.Context, sites []store.Site) ([]launchd.Agent, error) {
 	var agents []launchd.Agent
 	services := ""
 	for _, s := range sites {
-		if !startsApp(s) {
-			continue
+		for _, p := range siteProcs(s) {
+			if c.Executable == "" {
+				return nil, errcode.Errorf(errcode.Service, "cannot start apps: this program is not the covo binary")
+			}
+			if services == "" {
+				services = c.appServicesHash(ctx) + ";"
+			}
+			agents = append(agents, c.appAgent(p, services))
 		}
-		if c.Executable == "" {
-			return nil, errcode.Errorf(errcode.Service, "cannot start apps: this program is not the covo binary")
-		}
-		if services == "" {
-			services = c.appServicesHash(ctx) + ";"
-		}
-		agents = append(agents, c.appAgent(s, services))
 	}
 	return agents, nil
 }
 
-// appAgent is the agent of one app. services fingerprints the Covo
+// appAgent is the agent of one process. services fingerprints the Covo
 // services its environment comes from (appServicesHash).
-func (c *Core) appAgent(s store.Site, services string) launchd.Agent {
+func (c *Core) appAgent(p devProc, services string) launchd.Agent {
+	s := p.Site
 	// The wrapper reads the site from the store; the hash makes a changed
-	// command, port, folder, database or service change the plist, which
-	// restarts the app. It holds no secret.
-	sum := sha256.Sum256([]byte(strings.Join([]string{s.Path, s.Command, strconv.Itoa(s.AppPort),
-		s.Database, s.DBUser, s.DBEngine, services}, "\x00")))
+	// command, port, folder, database, domain or service change the plist,
+	// which restarts the process. It holds no secret.
+	sum := sha256.Sum256([]byte(strings.Join([]string{p.dir(), p.command(), strconv.Itoa(p.port()),
+		s.Database, s.DBUser, s.DBEngine, s.Domain, strings.Join(s.Aliases, ","), s.Framework, services}, "\x00")))
 	env := map[string]string{"COVO_CONFIG_HASH": hex.EncodeToString(sum[:8])}
 	// The wrapper must find the same Covo home and keychain items.
 	for _, k := range []string{paths.EnvHome, launchd.EnvLabelPrefix} {
@@ -163,12 +234,16 @@ func (c *Core) appAgent(s store.Site, services string) launchd.Agent {
 			env[k] = v
 		}
 	}
+	args := []string{"app", "run", s.Name}
+	if p.Companion {
+		args = append(args, "--companion")
+	}
 	home, _ := os.UserHomeDir()
-	log := c.siteLogPath(s.Name, LogApp)
+	log := c.siteLogPath(s.Name, p.logKind())
 	return launchd.Agent{
-		Label:       c.appLabel(s.Name),
+		Label:       c.procLabel(p),
 		Program:     c.Executable,
-		Args:        []string{"app", "run", s.Name},
+		Args:        args,
 		Env:         env,
 		WorkDir:     home,
 		StdoutLog:   log,
@@ -178,9 +253,9 @@ func (c *Core) appAgent(s store.Site, services string) launchd.Agent {
 	}
 }
 
-// restartExitedApps unloads the apps whose command has ended, so the next
-// reconcile starts them again (Start is the user asking for everything to
-// run). Callers hold the lock.
+// restartExitedApps unloads the apps and companions whose command has
+// ended, so the next reconcile starts them again (Start is the user asking
+// for everything to run). Callers hold the lock.
 func (c *Core) restartExitedApps(ctx context.Context) error {
 	sites, err := c.Store.ListSites(ctx)
 	if err != nil {
@@ -191,37 +266,42 @@ func (c *Core) restartExitedApps(ctx context.Context) error {
 		return err
 	}
 	for _, s := range sites {
-		if st, ok := loaded[c.appLabel(s.Name)]; ok && !st.Running {
-			if err := c.launchctl.Bootout(ctx, c.appLabel(s.Name)); err != nil {
-				return err
+		for _, p := range []devProc{{Site: s}, {Site: s, Companion: true}} {
+			label := c.procLabel(p)
+			if st, ok := loaded[label]; ok && !st.Running {
+				if err := c.launchctl.Bootout(ctx, label); err != nil {
+					return err
+				}
 			}
 		}
 	}
 	return nil
 }
 
-// RestartApp stops an app's command (all its processes) and starts it again.
+// RestartApp stops an app's command, or a PHP site's companion, with all
+// its processes, and starts it again.
 func (c *Core) RestartApp(ctx context.Context, name string) (AppStatus, error) {
-	var site store.Site
+	var p devProc
 	err := c.locked(ctx, func() error {
-		var err error
-		if site, err = c.Store.Site(ctx, name); err != nil {
+		site, err := c.Store.Site(ctx, name)
+		if err != nil {
 			return err
 		}
 		switch {
-		case !site.IsApp():
-			return errcode.Newf(errcode.InvalidInput, "%s is a PHP site: only apps have a command to restart", name)
-		case site.AppMode != store.AppRun:
+		case !site.IsApp() && site.CompanionCommand == "":
+			return errcode.Newf(errcode.InvalidInput, "%s is a PHP site without a companion: there is no command to restart", name)
+		case site.IsApp() && site.AppMode != store.AppRun:
 			return errcode.Newf(errcode.InvalidInput, "%s only proxies to port %d: restart the dev server where you started it", name, site.AppPort)
 		case !site.Enabled:
 			return errcode.Newf(errcode.InvalidInput, "%s is turned off: turn it on to start it", name)
 		}
+		p = devProc{Site: site, Companion: !site.IsApp()}
 		if on, _, err := c.Store.Setting(ctx, settingRunning); err != nil {
 			return err
 		} else if on != "1" {
-			return errcode.Errorf(errcode.InvalidInput, "Covo is stopped: start it to run the app")
+			return errcode.Errorf(errcode.InvalidInput, "Covo is stopped: start it to run the "+p.what())
 		}
-		if err := c.launchctl.Bootout(ctx, c.appLabel(name)); err != nil {
+		if err := c.launchctl.Bootout(ctx, c.procLabel(p)); err != nil {
 			return err
 		}
 		_, err = c.reconcile(ctx)
@@ -234,7 +314,7 @@ func (c *Core) RestartApp(ctx context.Context, name string) (AppStatus, error) {
 	if err != nil {
 		return AppStatus{}, err
 	}
-	return *c.appStatus(site, loaded), nil
+	return *c.procStatus(p, loaded), nil
 }
 
 // appStatus is the state of an app site's dev server (nil for PHP sites).
@@ -242,36 +322,48 @@ func (c *Core) appStatus(s store.Site, loaded map[string]launchd.Status) *AppSta
 	if !s.IsApp() {
 		return nil
 	}
-	st := &AppStatus{Port: s.AppPort}
 	if s.AppMode == store.AppProxy {
-		st.State = AppRunning
+		st := &AppStatus{Port: s.AppPort, State: AppRunning}
 		if !portAnswers(s.AppPort) {
 			st.State = AppWaiting
 			st.Message = fmt.Sprintf("Nothing answers on port %d: start your dev server on it.", s.AppPort)
 		}
 		return st
 	}
-	st.Log = c.siteLogPath(s.Name, LogApp)
-	ls, loadedNow := loaded[c.appLabel(s.Name)]
-	if !s.Enabled || !loadedNow {
+	return c.procStatus(devProc{Site: s}, loaded)
+}
+
+// companionStatus is the state of a PHP site's companion (nil without one).
+func (c *Core) companionStatus(s store.Site, loaded map[string]launchd.Status) *AppStatus {
+	if s.IsApp() || s.CompanionCommand == "" {
+		return nil
+	}
+	return c.procStatus(devProc{Site: s, Companion: true}, loaded)
+}
+
+// procStatus is the state of a process Covo runs.
+func (c *Core) procStatus(p devProc, loaded map[string]launchd.Status) *AppStatus {
+	st := &AppStatus{Port: p.port(), Log: c.siteLogPath(p.Site.Name, p.logKind())}
+	ls, loadedNow := loaded[c.procLabel(p)]
+	if !p.Site.Enabled || !loadedNow {
 		st.State = AppStopped
 		return st
 	}
-	run, ok := c.readAppState(s.Name)
+	run, ok := c.readAppState(p)
 	if ls.Running {
 		st.PID = ls.PID
 		if ok && run.PID == ls.PID {
 			st.Since = run.Started
 		}
 		switch {
-		case portAnswers(s.AppPort):
+		case portAnswers(p.port()):
 			st.State = AppRunning
 		case st.Since.IsZero() || time.Since(st.Since) < appStartTimeout:
 			st.State = AppStarting
 		default:
 			st.State = AppError
-			st.Message = fmt.Sprintf("The command is running but nothing answers on port %d: make the dev server listen on $PORT, or put {port} in the command where it takes its port.", s.AppPort)
-			st.LogTail = c.appLogTail(s.Name)
+			st.Message = fmt.Sprintf("The command is running but nothing answers on port %d: make the dev server listen on $PORT, or put {port} in the command where it takes its port.", p.port())
+			st.LogTail = c.appLogTail(p)
 		}
 		return st
 	}
@@ -281,17 +373,17 @@ func (c *Core) appStatus(s store.Site, loaded map[string]launchd.Status) *AppSta
 		st.Since = run.Ended
 	}
 	st.ExitCode = &code
-	st.LogTail = c.appLogTail(s.Name)
-	st.State, st.Message = AppError, diagnoseApp(code, st.LogTail, s, run.Message)
+	st.LogTail = c.appLogTail(p)
+	st.State, st.Message = AppError, diagnoseApp(code, st.LogTail, p.port(), run.Message)
 	if code == 0 && run.Message == "" {
 		st.State = AppExited
 	}
 	return st
 }
 
-// appLogTail is the app's output since its last start.
-func (c *Core) appLogTail(site string) []string {
-	lines, _, _ := tailLines(c.siteLogPath(site, LogApp), 200)
+// appLogTail is the process's output since its last start.
+func (c *Core) appLogTail(p devProc) []string {
+	lines, _, _ := tailLines(c.siteLogPath(p.Site.Name, p.logKind()), 200)
 	for i := len(lines) - 1; i >= 0; i-- {
 		if strings.HasPrefix(lines[i], appStartMarker) && strings.Contains(lines[i], appStartWord) {
 			lines = lines[i+1:]
@@ -326,7 +418,7 @@ var versionManagers = map[string]string{
 }
 
 // diagnoseApp explains why an app's command ended.
-func diagnoseApp(code int, tail []string, s store.Site, recorded string) string {
+func diagnoseApp(code int, tail []string, port int, recorded string) string {
 	if recorded != "" {
 		return recorded
 	}
@@ -344,7 +436,7 @@ func diagnoseApp(code int, tail []string, s store.Site, recorded string) string 
 		}
 	}
 	if reInUse.MatchString(text) {
-		return fmt.Sprintf("The port is already in use. Covo gave the app port %d: if the dev server picks its own port, make it use $PORT or put {port} in the command.", s.AppPort)
+		return fmt.Sprintf("The port is already in use. Covo gave the command port %d: if the dev server picks its own port, make it use $PORT or put {port} in the command.", port)
 	}
 	switch {
 	case code == 0:
@@ -407,8 +499,8 @@ func isExecutable(p string) bool {
 // shell reads the user's profile (nvm, pyenv, PATH…), changes to the
 // project folder (which fires the directory hooks of fnm, mise, direnv…)
 // and runs the command with {port} replaced.
-func appCommand(shell string, s store.Site) []string {
-	cmd := strings.ReplaceAll(s.Command, "{port}", strconv.Itoa(s.AppPort))
+func appCommand(shell string, p devProc) []string {
+	cmd := strings.ReplaceAll(p.command(), "{port}", strconv.Itoa(p.port()))
 	script := `cd "$COVO_APP_DIR" || exit 1` + "\n" + cmd
 	return []string{shell, "-l", "-i", "-c", script}
 }
@@ -416,7 +508,7 @@ func appCommand(shell string, s store.Site) []string {
 // appEnv is the environment of the command: the wrapper's own, without
 // Covo's variables, plus the port and Covo's CA for HTTPS calls to other
 // Covo sites.
-func (c *Core) appEnv(s store.Site, shell string) []string {
+func (c *Core) appEnv(p devProc, shell string) []string {
 	var env []string
 	for _, kv := range os.Environ() {
 		k, _, _ := strings.Cut(kv, "=")
@@ -434,8 +526,8 @@ func (c *Core) appEnv(s store.Site, shell string) []string {
 		"NO_COLOR=1",
 		"BROWSER=none",       // dev servers that open a browser tab on start
 		"PYTHONUNBUFFERED=1", // Python's output reaches the log at once
-		"PORT="+strconv.Itoa(s.AppPort),
-		"COVO_APP_DIR="+s.Path,
+		"PORT="+strconv.Itoa(p.port()),
+		"COVO_APP_DIR="+p.dir(),
 		"NODE_EXTRA_CA_CERTS="+c.CACertPath(),
 	)
 	if _, err := os.Stat(c.caBundlePath()); err == nil {
@@ -444,10 +536,10 @@ func (c *Core) appEnv(s store.Site, shell string) []string {
 	return env
 }
 
-// RunApp is the program of an app's launchd agent: it runs the site's
-// command until it exits or the agent is unloaded, and returns the exit
-// status for the agent. Its output is the app log.
-func (c *Core) RunApp(ctx context.Context, name string) int {
+// RunApp is the program of an app's (or a companion's) launchd agent: it
+// runs the command until it exits or the agent is unloaded, and returns
+// the exit status for the agent. Its output is the app (companion) log.
+func (c *Core) RunApp(ctx context.Context, name string, companion bool) int {
 	say := func(format string, a ...any) {
 		fmt.Printf(appStartMarker+time.Now().Format("2006-01-02 15:04:05")+" "+format+"\n", a...)
 	}
@@ -456,40 +548,53 @@ func (c *Core) RunApp(ctx context.Context, name string) int {
 		say("%v", err)
 		return 1
 	}
-	run := appRunState{PID: os.Getpid(), Port: s.AppPort, Started: time.Now()}
+	p := devProc{Site: s, Companion: companion}
+	run := appRunState{PID: os.Getpid(), Port: p.port(), Started: time.Now()}
 	fail := func(msg string) int {
 		say("%s", msg)
 		code := 1
 		run.Ended, run.ExitCode, run.Message = time.Now(), &code, msg
-		c.writeAppState(name, run)
+		c.writeAppState(p, run)
 		return code
 	}
-	if !s.IsApp() || s.AppMode != store.AppRun {
+	switch {
+	case companion && (s.IsApp() || s.CompanionCommand == ""):
+		return fail(name + " has no companion command.")
+	case !companion && (!s.IsApp() || s.AppMode != store.AppRun):
 		return fail(name + " is not an app Covo starts.")
 	}
 	shell := loginShell(ctx)
-	say(strings.TrimSpace(appStartWord)+" %q in %s with %s, port %d", s.Command, s.Path, shell, s.AppPort)
-	if fi, err := os.Stat(s.Path); err != nil || !fi.IsDir() {
-		return fail(fmt.Sprintf("The folder %s is missing.", s.Path))
+	say(strings.TrimSpace(appStartWord)+" %q in %s with %s, port %d", p.command(), p.dir(), shell, p.port())
+	if fi, err := os.Stat(p.dir()); err != nil || !fi.IsDir() {
+		return fail(fmt.Sprintf("The folder %s is missing.", p.dir()))
 	}
-	if !ports.Free(s.AppPort) {
-		return fail(fmt.Sprintf("Port %d is in use by %s: stop it, or give the app another port (covo site set %s --port N).",
-			s.AppPort, ports.Describe(ports.Owners(ctx, s.AppPort)), name))
+	if !ports.Free(p.port()) {
+		flag := "--port"
+		if companion {
+			flag = "--companion-port"
+		}
+		return fail(fmt.Sprintf("Port %d is in use by %s: stop it, or give the %s another port (covo site set %s %s N).",
+			p.port(), ports.Describe(ports.Owners(ctx, p.port())), p.what(), name, flag))
 	}
-	extra, names, warnings := c.appEnvironment(ctx, s)
+	var extra, names, warnings []string
+	if companion {
+		extra, names, warnings = c.companionEnvironment(ctx, s)
+	} else {
+		extra, names, warnings = c.appEnvironment(ctx, s)
+	}
 	if line := describeEnv(names); line != "" {
 		say("%s", line)
 	}
 	for _, w := range warnings {
 		say("%s", w)
 	}
-	argv := appCommand(shell, s)
+	argv := appCommand(shell, p)
 	cmd := exec.Command(argv[0], argv[1:]...)
 	home, _ := os.UserHomeDir()
 	// Every process the command starts inherits the tag, which finds the
 	// ones that leave the process tree too fast to be seen in it.
-	tag := "COVO_APP_RUN=" + name + "-" + strconv.FormatInt(run.Started.UnixNano(), 36)
-	cmd.Dir, cmd.Env = home, append(append(c.appEnv(s, shell), extra...), tag)
+	tag := "COVO_APP_RUN=" + name + "-" + p.what() + "-" + strconv.FormatInt(run.Started.UnixNano(), 36)
+	cmd.Dir, cmd.Env = home, append(append(c.appEnv(p, shell), extra...), tag)
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
@@ -499,7 +604,7 @@ func (c *Core) RunApp(ctx context.Context, name string) int {
 	if err := cmd.Start(); err != nil {
 		return fail(fmt.Sprintf("Could not start %s: %v", shell, err))
 	}
-	c.writeAppState(name, run)
+	c.writeAppState(p, run)
 	tree := proctree.New(cmd.Process.Pid, tag)
 	stopWatch := make(chan struct{})
 	go tree.Watch(2*time.Second, stopWatch)
@@ -519,7 +624,7 @@ func (c *Core) RunApp(ctx context.Context, name string) int {
 		}
 		code := 0
 		run.Ended, run.ExitCode, run.Stopped = time.Now(), &code, true
-		c.writeAppState(name, run)
+		c.writeAppState(p, run)
 		return 0
 	case waitErr = <-done:
 		close(stopWatch)
@@ -528,7 +633,7 @@ func (c *Core) RunApp(ctx context.Context, name string) int {
 	tree.Stop(appStopGrace)
 	code := exitCode(waitErr)
 	run.Ended, run.ExitCode = time.Now(), &code
-	c.writeAppState(name, run)
+	c.writeAppState(p, run)
 	say("the command exited with status %d", code)
 	return code
 }
@@ -548,5 +653,12 @@ func exitCode(err error) int {
 	return 1
 }
 
-// removeAppState forgets a removed site's last run.
-func (c *Core) removeAppState(site string) { _ = os.Remove(c.appStatePath(site)) }
+// removeAppState forgets a removed site's last runs.
+func (c *Core) removeAppState(s store.Site) {
+	for _, p := range []devProc{{Site: s}, {Site: s, Companion: true}} {
+		_ = os.Remove(c.procStatePath(p))
+	}
+	cert, key := c.companionCertPaths(s.Name)
+	_ = os.Remove(cert)
+	_ = os.Remove(key)
+}

@@ -234,6 +234,9 @@ func Handler(b Backend) http.Handler {
 			Port     int       `json:"port"`
 			Proxy    int       `json:"proxy_port"`
 			AppHost  *string   `json:"app_host"`
+			// Companion: a PHP site's dev server ("" removes it).
+			Companion     *string `json:"companion_command"`
+			CompanionPort int     `json:"companion_port"`
 		}
 		if err := decode(body, &req); err != nil {
 			return nil, err
@@ -242,6 +245,7 @@ func Handler(b Backend) http.Handler {
 			Name: r.PathValue("name"), PHP: req.PHP, Path: req.Path, Domain: req.Domain, Enabled: req.Enabled,
 			Archived: req.Archived, Aliases: req.Aliases, Group: req.GroupID, Title: req.Title, Force: req.Force,
 			Command: req.Command, Port: req.Port, ProxyPort: req.Proxy, AppHost: req.AppHost,
+			Companion: req.Companion, CompanionPort: req.CompanionPort,
 		})
 	})
 	// The command Covo proposes for an app's folder (it changes nothing).

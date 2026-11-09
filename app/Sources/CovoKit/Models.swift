@@ -53,6 +53,8 @@ public struct Site: Codable, Sendable, Identifiable, Hashable {
     public var companionPort: Int?
     /// Apps: the dev server's state.
     public var app: AppStatus?
+    /// PHP sites with a companion: its state.
+    public var companion: AppStatus?
 
     public var isApp: Bool { kind == "app" }
 

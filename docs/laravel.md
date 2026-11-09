@@ -24,6 +24,17 @@ mail is on. With a database it runs `artisan migrate`. If any step fails,
 everything created is removed. Laravel needs PHP 8.2 or newer. No queue
 worker or scheduler is started. In the app: + → New Site… → Laravel.
 
+## Vite (npm run dev)
+
+Give the site a companion and Covo starts Vite with it, over HTTPS on the
+site's own domain:
+
+```sh
+covo site set shop --companion "npm run dev -- --port {port} --strictPort"
+```
+
+See "A companion next to a PHP site" in `apps.md`.
+
 ## Composer and Artisan
 
 ```sh

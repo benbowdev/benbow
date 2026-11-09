@@ -59,10 +59,17 @@ func main() {
 			"database_url":        os.Getenv("DATABASE_URL"),
 			"smtp_port":           os.Getenv("SMTP_PORT"),
 			"my_secret":           os.Getenv("MY_SECRET"),
+			"dir":                 mustWd(),
 			"host":                r.Host,
 		})
 	})
 	srv := &http.Server{Addr: "127.0.0.1:" + *port, ReadHeaderTimeout: 5 * time.Second}
+	// Like laravel-vite-plugin: HTTPS with the certificate it is given.
+	if cert, key := os.Getenv("VITE_DEV_SERVER_CERT"), os.Getenv("VITE_DEV_SERVER_KEY"); cert != "" {
+		fmt.Println("devserver serving HTTPS for", os.Getenv("APP_URL"))
+		fmt.Println(srv.ListenAndServeTLS(cert, key))
+		os.Exit(1)
+	}
 	fmt.Println(srv.ListenAndServe())
 	os.Exit(1)
 }
@@ -78,4 +85,9 @@ func covoVars() string {
 		}
 	}
 	return strings.Join(out, ",")
+}
+
+func mustWd() string {
+	wd, _ := os.Getwd()
+	return wd
 }

@@ -356,6 +356,10 @@ type UpdateSiteRequest struct {
 	ProxyPort int
 	Port      int
 	AppHost   *string
+	// PHP sites only: Companion (when set) is the command of a dev server
+	// started with the site ("" removes it); CompanionPort fixes its port.
+	Companion     *string
+	CompanionPort int
 }
 
 // maxAliases keeps the certificate and /etc/hosts block reasonable.
@@ -425,6 +429,9 @@ func (c *Core) UpdateSite(ctx context.Context, req UpdateSiteRequest) (SiteResul
 		}
 		site := old
 		if err := c.updateAppFields(ctx, req, &site); err != nil {
+			return err
+		}
+		if err := c.updateCompanion(ctx, req, &site); err != nil {
 			return err
 		}
 		if req.PHP != "" && site.IsApp() {
@@ -601,7 +608,7 @@ func (c *Core) RemoveSite(ctx context.Context, name string) (SiteResult, error) 
 		// never touched.
 		_ = os.RemoveAll(c.siteLogDir(name))
 		_ = os.RemoveAll(c.snapshotDir(name))
-		c.removeAppState(name)
+		c.removeAppState(site)
 		if site.IsApp() {
 			c.removeAppEnv(ctx, name)
 		}

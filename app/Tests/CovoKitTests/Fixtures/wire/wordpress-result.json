@@ -55,6 +55,18 @@
         "x"
       ]
     },
+    "companion": {
+      "state": "x",
+      "port": 1,
+      "pid": 1,
+      "exit_code": 1,
+      "message": "x",
+      "since": "2026-11-04T10:30:00Z",
+      "log": "x",
+      "log_tail": [
+        "x"
+      ]
+    },
     "wordpress": "x",
     "database": "x",
     "admin_url": "x",

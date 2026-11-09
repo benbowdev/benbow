@@ -164,6 +164,49 @@ Two sites: the WordPress one (PHP) and the front end as an app. The front
 end calls `https://wp.localhost:8443/wp-json/…` and trusts it, because
 `NODE_EXTRA_CA_CERTS` points at Covo's CA.
 
+## A companion next to a PHP site
+
+A PHP site can have one companion: a dev server Covo starts and stops with
+the site, without a domain of its own. The usual one is Vite next to
+Laravel:
+
+```sh
+covo site set shop --companion "npm run dev -- --port {port} --strictPort"
+covo site set shop --companion-port 5173      # a fixed port
+covo site logs shop --companion
+covo site restart shop                        # restarts the companion
+covo site set shop --companion ""             # no companion
+```
+
+It runs like an app's command (login shell, `PORT` and `{port}` from 41000,
+no automatic restart, the whole process tree stopped, state in `covo
+status` as `companion`), in the project folder (Laravel's, not `public/`).
+It gets none of the app variables (`DATABASE_URL`, your own).
+
+### Laravel and Vite over HTTPS
+
+A page on `https://shop.localhost:8443` cannot load scripts from
+`http://localhost:5173`: browsers block it as mixed content. So when the
+site is Laravel and `package.json` has `laravel-vite-plugin`, Covo also
+gives the companion:
+
+- `VITE_DEV_SERVER_CERT`, `VITE_DEV_SERVER_KEY`: a certificate for the
+  site's domain and aliases, signed by Covo's CA (the intermediate Caddy
+  uses; the CA and its name constraints are unchanged). It lives in
+  `data/certs/<site>.crt` and `.key` (0600), lasts 90 days and is made
+  again at a start when less than 30 days are left, or when the domain or
+  aliases change.
+- `APP_URL=https://shop.localhost`, without the port: the plugin listens on
+  APP_URL's host. It wins over `.env` for Vite only, PHP keeps `.env`.
+
+Vite then serves `https://shop.localhost:<port>` and writes that address
+in `public/hot` (Laravel's own file, ignored by git), so `@vite` loads the
+scripts over trusted HTTPS and hot reload works. The page's origin
+(`https://shop.localhost:8443`) is allowed by Vite's CORS rules for
+`localhost` and `.test` names; with `.local` domains add it to
+`server.cors` in `vite.config.js`. Checked on 2026-11-09 with Laravel 13,
+laravel-vite-plugin 3.2 and Vite 8.
+
 ## Detecting the command
 
 `covo site detect [folder]` (and New Site in the app) reads the project and
@@ -203,9 +246,12 @@ redirects it builds are right. `--host-header localhost` sends
   check) refuse apps. A PHP site cannot become an app in place: remove it
   (its folder is never touched) and add it again with `--command`.
 - Open on Phone does not support apps yet.
+- One companion per PHP site; apps have none (start a second app).
 
 API: `GET /v1/sites/{name}/env` (names), `PATCH /v1/sites/{name}/env`
-`{set: {NAME: value}, unset: [NAME]}`;
+`{set: {NAME: value}, unset: [NAME]}`; `PATCH /v1/sites/{name}` takes
+`companion_command` ("" removes it) and `companion_port`;
+`GET /v1/sites/{name}/logs/companion`;
 `POST /v1/sites/{name}/restart` restarts an app and returns its state;
 `GET /v1/sites/{name}/logs/app` is its output.
 `POST /v1/sites` takes `command`, `port`, `proxy_port`, `app_host`;
@@ -214,5 +260,5 @@ API: `GET /v1/sites/{name}/env` (names), `PATCH /v1/sites/{name}/env`
 notes}`. Sites carry `kind` (`php` or `app`), `app_mode` (`run` or `proxy`),
 `command`, `app_port`, `app_host` and, in status, `app` (the state above).
 MCP: `detect_app`, `app_env` (names only), `restart_app`, `site_logs` with kind `app` (the default
-for apps), and `add_site` / `update_site` with `command`, `port`,
-`proxy_port`.
+for apps; `companion`), and `add_site` / `update_site` with `command`,
+`port`, `proxy_port`; `update_site` with `companion_command`.

@@ -7,6 +7,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
@@ -209,5 +210,56 @@ func TestBundle(t *testing.T) {
 	b := string(Bundle([]byte("MOZILLA\n\n"), m.RootCert, "Covo Test CA"))
 	if !strings.HasPrefix(b, "MOZILLA\n\nCovo Test CA (added by Covo)\n-----BEGIN CERTIFICATE-----") {
 		t.Fatalf("unexpected bundle:\n%s", b)
+	}
+}
+
+func TestLeaf(t *testing.T) {
+	d := Dir(t.TempDir())
+	if _, err := Ensure(d, "Covo Test CA", now); err != nil {
+		t.Fatal(err)
+	}
+	before, err := Load(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := []string{"shop.localhost", "shop.test"}
+	chain, key, err := Leaf(d, names, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The CA is untouched: Leaf only reads it.
+	after, _ := Load(d)
+	if string(before.RootCert) != string(after.RootCert) || string(before.IntermediateCert) != string(after.IntermediateCert) {
+		t.Fatal("Leaf changed the CA")
+	}
+	if strings.Count(string(chain), "BEGIN CERTIFICATE") != 2 || !strings.Contains(string(key), "EC PRIVATE KEY") {
+		t.Fatalf("chain/key shape:\n%s", chain)
+	}
+	if _, err := tls.X509KeyPair(chain, key); err != nil {
+		t.Fatalf("key does not match: %v", err)
+	}
+	c, err := parseCert(chain)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.IsCA || c.NotAfter.Sub(now) > LeafValidity+time.Minute {
+		t.Errorf("leaf IsCA=%v until %v", c.IsCA, c.NotAfter)
+	}
+	if !LeafCurrent(d, chain, []string{"shop.test", "shop.localhost"}, now) {
+		t.Error("a new leaf is not current")
+	}
+	for name, ok := range map[string]bool{
+		"names changed": LeafCurrent(d, chain, []string{"shop.localhost"}, now),
+		"near expiry":   LeafCurrent(d, chain, names, now.Add(LeafValidity-LeafRenewBefore+time.Hour)),
+		"other CA":      LeafCurrent(Dir(t.TempDir()), chain, names, now),
+	} {
+		if ok {
+			t.Errorf("%s: still current", name)
+		}
+	}
+	for _, bad := range [][]string{{"example.com"}, {"shop.localhost", "evil.dev"}, nil} {
+		if _, _, err := Leaf(d, bad, now); err == nil {
+			t.Errorf("Leaf(%v) signed", bad)
+		}
 	}
 }

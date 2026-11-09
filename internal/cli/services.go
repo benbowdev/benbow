@@ -46,6 +46,12 @@ func (s statusResult) Text(w io.Writer) {
 		if site.App != nil && site.App.State == core.AppError {
 			writeAppDetail(w, *site.App, "    ")
 		}
+		if co := site.Companion; co != nil && site.Enabled {
+			fmt.Fprintf(w, "    companion :%d  %s\n", co.Port, co.State)
+			if co.State == core.AppError {
+				writeAppDetail(w, *co, "    ")
+			}
+		}
 	}
 	if s.MySQL.Enabled {
 		writeMySQLLine(w, s.MySQL)

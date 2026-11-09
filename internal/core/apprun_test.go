@@ -18,7 +18,7 @@ import (
 
 func TestAppCommand(t *testing.T) {
 	s := store.Site{Path: "/Users/me/Code/my shop", Command: "npm run dev -- --port {port} --strictPort", AppPort: 41002}
-	got := appCommand("/bin/zsh", s)
+	got := appCommand("/bin/zsh", devProc{Site: s})
 	want := []string{"/bin/zsh", "-l", "-i", "-c", "cd \"$COVO_APP_DIR\" || exit 1\nnpm run dev -- --port 41002 --strictPort"}
 	if strings.Join(got, "|") != strings.Join(want, "|") {
 		t.Errorf("appCommand = %q, want %q", got, want)
@@ -27,7 +27,7 @@ func TestAppCommand(t *testing.T) {
 	c := runCore(t)
 	t.Setenv("COVO_HOME", "/somewhere")
 	t.Setenv("PORT", "1")
-	env := strings.Join(c.appEnv(s, "/bin/zsh"), "\n")
+	env := strings.Join(c.appEnv(devProc{Site: s}, "/bin/zsh"), "\n")
 	for _, kv := range []string{"PORT=41002", "COVO_APP_DIR=" + s.Path, "SHELL=/bin/zsh", "NO_COLOR=1", "BROWSER=none", "NODE_EXTRA_CA_CERTS=" + c.CACertPath()} {
 		if !strings.Contains(env, kv+"\n") && !strings.HasSuffix(env, kv) {
 			t.Errorf("env lacks %s", kv)
@@ -48,7 +48,7 @@ func TestDiagnoseApp(t *testing.T) {
 		{127, []string{"zsh:2: command not found: node"}, "node was not found by your login shell. Install it with your version manager (nvm"},
 		{127, []string{"bash: line 2: pnpm: command not found"}, "pnpm was not found"},
 		{127, []string{"env: node: No such file or directory"}, "node was not found"},
-		{1, []string{"Error: listen EADDRINUSE: address already in use :::41000"}, "already in use. Covo gave the app port 41000"},
+		{1, []string{"Error: listen EADDRINUSE: address already in use :::41000"}, "already in use. Covo gave the command port 41000"},
 		{1, []string{"error when starting dev server:", "Error: Port 41000 is already in use"}, "already in use"},
 		{127, nil, "A program in the command was not found"},
 		{0, nil, "The command finished"},
@@ -56,11 +56,11 @@ func TestDiagnoseApp(t *testing.T) {
 		{2, []string{"boom"}, "exited with status 2"},
 	}
 	for _, tt := range tests {
-		if got := diagnoseApp(tt.code, tt.tail, s, ""); !strings.Contains(got, tt.want) {
+		if got := diagnoseApp(tt.code, tt.tail, s.AppPort, ""); !strings.Contains(got, tt.want) {
 			t.Errorf("diagnoseApp(%d, %q) = %q, want it to contain %q", tt.code, tt.tail, got, tt.want)
 		}
 	}
-	if got := diagnoseApp(1, []string{"x"}, s, "Port 41000 is in use by node"); got != "Port 41000 is in use by node" {
+	if got := diagnoseApp(1, []string{"x"}, s.AppPort, "Port 41000 is in use by node"); got != "Port 41000 is in use by node" {
 		t.Errorf("recorded message lost: %q", got)
 	}
 }
@@ -108,11 +108,11 @@ func TestAppStatus(t *testing.T) {
 	}
 	starting := run
 	starting.AppPort = closed
-	c.writeAppState("shop", appRunState{PID: 7, Started: time.Now()})
+	c.writeAppState(devProc{Site: run}, appRunState{PID: 7, Started: time.Now()})
 	if st := c.appStatus(starting, map[string]launchd.Status{label: {Running: true, PID: 7}}); st.State != AppStarting {
 		t.Errorf("starting: %+v", st)
 	}
-	c.writeAppState("shop", appRunState{PID: 7, Started: time.Now().Add(-2 * appStartTimeout)})
+	c.writeAppState(devProc{Site: run}, appRunState{PID: 7, Started: time.Now().Add(-2 * appStartTimeout)})
 	if st := c.appStatus(starting, map[string]launchd.Status{label: {Running: true, PID: 7}}); st.State != AppError || !strings.Contains(st.Message, "nothing answers") {
 		t.Errorf("never opened its port: %+v", st)
 	}
@@ -126,13 +126,13 @@ func TestAppStatus(t *testing.T) {
 		t.Fatal(err)
 	}
 	code := 127
-	c.writeAppState("shop", appRunState{PID: 7, Started: time.Now(), Ended: time.Now(), ExitCode: &code})
+	c.writeAppState(devProc{Site: run}, appRunState{PID: 7, Started: time.Now(), Ended: time.Now(), ExitCode: &code})
 	st := c.appStatus(run, map[string]launchd.Status{label: {LastExit: 127}})
 	if st.State != AppError || *st.ExitCode != 127 || !strings.HasPrefix(st.Message, "node was not found") || len(st.LogTail) != 1 {
 		t.Errorf("exited: %+v", st)
 	}
 	zero := 0
-	c.writeAppState("shop", appRunState{ExitCode: &zero})
+	c.writeAppState(devProc{Site: run}, appRunState{ExitCode: &zero})
 	if st := c.appStatus(run, map[string]launchd.Status{label: {}}); st.State != AppExited {
 		t.Errorf("exit 0: %+v", st)
 	}
@@ -170,7 +170,7 @@ func TestAppAgent(t *testing.T) {
 	}
 	other := sites[0]
 	other.Command = "pnpm dev"
-	if c.appAgent(other, "").Env["COVO_CONFIG_HASH"] == a.Env["COVO_CONFIG_HASH"] {
+	if c.appAgent(devProc{Site: other}, "").Env["COVO_CONFIG_HASH"] == a.Env["COVO_CONFIG_HASH"] {
 		t.Error("a new command does not change the plist")
 	}
 }

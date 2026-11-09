@@ -7,6 +7,7 @@ package e2e
 
 import (
 	"bufio"
+	"context"
 	"crypto/sha1"
 	"crypto/tls"
 	"crypto/x509"
@@ -459,4 +460,134 @@ func TestAppEnv(t *testing.T) {
 	if h.keychainAccountIn(".appenv", "envapp") {
 		t.Error("the removed app's variables are still in the keychain")
 	}
+}
+
+// TestCompanion runs a dev server next to a Laravel site: started and
+// stopped with it, in the project root, and serving HTTPS with a
+// certificate from Covo's CA for the site's domain, as laravel-vite-plugin
+// does with VITE_DEV_SERVER_CERT and APP_URL.
+func TestCompanion(t *testing.T) {
+	h := newHarness(t)
+	tmp := t.TempDir()
+	server := filepath.Join(tmp, "devserver")
+	if out, err := exec.Command("go", "build", "-o", server, "./testdata/devserver").CombinedOutput(); err != nil {
+		t.Fatalf("build devserver: %v\n%s", err, out)
+	}
+	project := filepath.Join(tmp, "lara")
+	for name, body := range map[string]string{
+		"artisan": "", "composer.json": `{"require":{"laravel/framework":"^12.0"}}`, "public/index.php": "<?php echo 'php ok';",
+		"package.json": `{"scripts":{"dev":"vite"},"devDependencies":{"vite":"7","laravel-vite-plugin":"2"}}`,
+	} {
+		p := filepath.Join(project, name)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Cleanup(func() {
+		if t.Failed() {
+			b, _ := os.ReadFile(filepath.Join(h.home(), "logs", "sites", "lara", "companion.log"))
+			t.Logf("companion.log:\n%s", b)
+		}
+	})
+	h.mustCovo("start")
+	h.mustCovo("site", "add", "lara", "--php", "8.4", "--path", project)
+	var set struct {
+		CompanionPort int `json:"companion_port"`
+	}
+	if err := json.Unmarshal(h.mustCovo("site", "set", "lara", "--companion", "'"+server+"' --port {port}"), &set); err != nil {
+		t.Fatal(err)
+	}
+	if set.CompanionPort < 41000 {
+		t.Fatalf("companion port %d", set.CompanionPort)
+	}
+	waitCompanion := func(state string) {
+		t.Helper()
+		var co *appState
+		for range 120 {
+			var sites []struct {
+				Name      string    `json:"name"`
+				Companion *appState `json:"companion"`
+			}
+			if err := json.Unmarshal(h.mustCovo("site", "list"), &sites); err != nil {
+				t.Fatal(err)
+			}
+			for _, s := range sites {
+				if s.Name == "lara" {
+					co = s.Companion
+				}
+			}
+			if co != nil && co.State == state {
+				return
+			}
+			time.Sleep(500 * time.Millisecond)
+		}
+		t.Fatalf("companion never became %s: %+v", state, co)
+	}
+	waitCompanion("running")
+
+	// The PHP site is served as usual.
+	st := h.status()
+	if body := h.get("https://lara.localhost:"+strconv.Itoa(h.port)+"/", st.CA.CertPath); body != "php ok" {
+		t.Errorf("PHP page = %q", body)
+	}
+	// The companion answers HTTPS for the site's domain, trusted through
+	// Covo's root alone.
+	pem, err := os.ReadFile(st.CA.CertPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pool := x509.NewCertPool()
+	pool.AppendCertsFromPEM(pem)
+	client := &http.Client{Timeout: 5 * time.Second, Transport: &http.Transport{
+		TLSClientConfig: &tls.Config{RootCAs: pool, ServerName: "lara.localhost"},
+		DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
+			return (&net.Dialer{}).DialContext(ctx, network, "127.0.0.1:"+strconv.Itoa(set.CompanionPort))
+		},
+	}}
+	resp, err := client.Get("https://lara.localhost:" + strconv.Itoa(set.CompanionPort) + "/")
+	if err != nil {
+		t.Fatalf("companion over HTTPS: %v", err)
+	}
+	var got map[string]string
+	_ = json.NewDecoder(resp.Body).Decode(&got)
+	resp.Body.Close()
+	realProject, _ := filepath.EvalSymlinks(project)
+	if got["app_url"] != "https://lara.localhost" || got["port"] != strconv.Itoa(set.CompanionPort) || (got["dir"] != project && got["dir"] != realProject) {
+		t.Errorf("the companion saw %+v", got)
+	}
+	key := filepath.Join(h.home(), "data", "certs", "lara.key")
+	if fi, err := os.Stat(key); err != nil || fi.Mode().Perm() != 0o600 {
+		t.Errorf("certificate key: %v %v", fi, err)
+	}
+
+	// Turning the site off stops the companion; removing the companion
+	// stops it for good.
+	h.mustCovo("site", "disable", "lara")
+	waitCompanion("stopped")
+	h.mustCovo("site", "enable", "lara")
+	waitCompanion("running")
+	h.mustCovo("site", "set", "lara", "--companion", "")
+	for range 50 {
+		if !portOpen(set.CompanionPort) {
+			break
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	if portOpen(set.CompanionPort) {
+		t.Error("the companion still runs after it was removed")
+	}
+	if labels := strings.Join(h.loadedLabels(), " "); strings.Contains(labels, "companion-lara") {
+		t.Errorf("companion agent still loaded: %s", labels)
+	}
+}
+
+func portOpen(port int) bool {
+	c, err := net.DialTimeout("tcp", "127.0.0.1:"+strconv.Itoa(port), 300*time.Millisecond)
+	if err == nil {
+		c.Close()
+	}
+	return err == nil
 }

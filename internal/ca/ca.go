@@ -28,6 +28,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/getcovo/covo/internal/errcode"
@@ -290,4 +291,105 @@ func Bundle(mozilla, rootPEM []byte, name string) []byte {
 	fmt.Fprintf(&b, "\n\n%s (added by Covo)\n", name)
 	b.Write(rootPEM)
 	return b.Bytes()
+}
+
+// LeafValidity is how long a certificate from Leaf lasts; Covo makes a new
+// one well before (LeafRenewBefore).
+const (
+	LeafValidity    = 90 * 24 * time.Hour
+	LeafRenewBefore = 30 * 24 * time.Hour
+)
+
+// Leaf signs a server certificate for names with the intermediate in d, for
+// a dev server Covo runs that serves HTTPS itself (Vite next to Laravel).
+// The CA and its name constraints are unchanged: names must be under the
+// suffixes the CA may sign for. It returns the certificate followed by the
+// intermediate, and the new private key, in PEM.
+func Leaf(d Dir, names []string, now time.Time) (chain, key []byte, err error) {
+	if len(names) == 0 {
+		return nil, nil, errcode.Errorf(errcode.InvalidInput, "a certificate needs a name")
+	}
+	for _, n := range names {
+		if !underSuffixes(n) {
+			return nil, nil, errcode.Newf(errcode.InvalidInput, "%s is outside the names Covo's CA signs for (.localhost, .test, .local)", n)
+		}
+	}
+	m, err := Load(d)
+	if err != nil {
+		return nil, nil, err
+	}
+	inter, err := parseCert(m.IntermediateCert)
+	if err != nil {
+		return nil, nil, err
+	}
+	block, _ := pem.Decode(m.IntermediateKey)
+	if block == nil {
+		return nil, nil, errors.New("read CA: intermediate key is not PEM")
+	}
+	interKey, err := x509.ParseECPrivateKey(block.Bytes)
+	if err != nil {
+		return nil, nil, fmt.Errorf("read CA: intermediate key: %w", err)
+	}
+	leafKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return nil, nil, fmt.Errorf("generate key: %w", err)
+	}
+	notAfter := now.Add(LeafValidity)
+	if notAfter.After(inter.NotAfter) {
+		notAfter = inter.NotAfter
+	}
+	tmpl := &x509.Certificate{
+		SerialNumber: serial(),
+		Subject:      pkix.Name{CommonName: names[0], Organization: []string{"Covo"}},
+		NotBefore:    now.Add(-time.Hour).UTC(),
+		NotAfter:     notAfter.UTC(),
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		DNSNames:     slices.Clone(names),
+	}
+	der, err := x509.CreateCertificate(rand.Reader, tmpl, inter, &leafKey.PublicKey, interKey)
+	if err != nil {
+		return nil, nil, fmt.Errorf("sign certificate: %w", err)
+	}
+	keyDER, err := x509.MarshalECPrivateKey(leafKey)
+	if err != nil {
+		return nil, nil, fmt.Errorf("encode key: %w", err)
+	}
+	chain = append(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), m.IntermediateCert...)
+	return chain, pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER}), nil
+}
+
+// LeafCurrent reports whether chainPEM is a certificate from Leaf for
+// exactly names, signed by the CA in d, valid for more than
+// LeafRenewBefore after now.
+func LeafCurrent(d Dir, chainPEM []byte, names []string, now time.Time) bool {
+	leaf, err := parseCert(chainPEM)
+	if err != nil || now.Add(LeafRenewBefore).After(leaf.NotAfter) {
+		return false
+	}
+	got, want := slices.Clone(leaf.DNSNames), slices.Clone(names)
+	slices.Sort(got)
+	slices.Sort(want)
+	if !slices.Equal(got, want) {
+		return false
+	}
+	m, err := Load(d)
+	if err != nil {
+		return false
+	}
+	roots, inters := x509.NewCertPool(), x509.NewCertPool()
+	if !roots.AppendCertsFromPEM(m.RootCert) || !inters.AppendCertsFromPEM(m.IntermediateCert) {
+		return false
+	}
+	_, err = leaf.Verify(x509.VerifyOptions{Roots: roots, Intermediates: inters, DNSName: names[0], CurrentTime: now})
+	return err == nil
+}
+
+func underSuffixes(name string) bool {
+	for _, s := range Suffixes {
+		if name == s || strings.HasSuffix(name, "."+s) {
+			return true
+		}
+	}
+	return false
 }

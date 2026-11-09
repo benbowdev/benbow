@@ -173,17 +173,20 @@ func iniFlags(flags []string) (map[string]string, error) {
 }
 
 func (a *app) siteSetCmd() *cobra.Command {
-	var phpVersion, path, domain, group, title, command, hostHeader string
+	var phpVersion, path, domain, group, title, command, hostHeader, companion string
 	var aliases []string
 	var force bool
-	var port, proxyPort int
+	var port, proxyPort, companionPort int
 	var cmd *cobra.Command
 	cmd = &cobra.Command{
 		Use:   "set <name>",
 		Short: "Change a site's PHP version or command, folder, domain, aliases, group or title",
 		Args:  cobra.ExactArgs(1),
 		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
-			req := core.UpdateSiteRequest{Name: args[0], PHP: phpVersion, Domain: domain, Force: force, Command: command, Port: port, ProxyPort: proxyPort}
+			req := core.UpdateSiteRequest{Name: args[0], PHP: phpVersion, Domain: domain, Force: force, Command: command, Port: port, ProxyPort: proxyPort, CompanionPort: companionPort}
+			if cmd.Flags().Changed("companion") {
+				req.Companion = &companion
+			}
 			if cmd.Flags().Changed("host-header") {
 				req.AppHost = &hostHeader
 			}
@@ -226,6 +229,8 @@ func (a *app) siteSetCmd() *cobra.Command {
 	cmd.Flags().IntVar(&port, "port", 0, "app: new fixed port for the command")
 	cmd.Flags().IntVar(&proxyPort, "proxy-port", 0, "app: only proxy to a dev server you run on this port")
 	cmd.Flags().StringVar(&hostHeader, "host-header", "", `app: "localhost" sends Host: localhost:<port>; "" the site's domain`)
+	cmd.Flags().StringVar(&companion, "companion", "", `PHP site: a dev server started with the site, e.g. "npm run dev -- --port {port}" ("" removes it)`)
+	cmd.Flags().IntVar(&companionPort, "companion-port", 0, "PHP site: fixed port for the companion")
 	return cmd
 }
 
@@ -254,7 +259,7 @@ func (r siteLogResult) Text(w io.Writer) {
 }
 
 func (a *app) siteLogsCmd() *cobra.Command {
-	var php, appOut, empty bool
+	var php, appOut, companionOut, empty bool
 	var lines int
 	cmd := &cobra.Command{
 		Use:   "logs <name>",
@@ -267,12 +272,14 @@ func (a *app) siteLogsCmd() *cobra.Command {
 			}
 			kind := core.LogAccess
 			switch {
-			case php && appOut:
-				return nil, errcode.Errorf(errcode.InvalidInput, "choose --php or --app")
+			case btoi(php)+btoi(appOut)+btoi(companionOut) > 1:
+				return nil, errcode.Errorf(errcode.InvalidInput, "choose one of --php, --app and --companion")
 			case php:
 				kind = core.LogPHP
 			case appOut:
 				kind = core.LogApp
+			case companionOut:
+				kind = core.LogCompanion
 			}
 			res, err := c.SiteLogs(ctx, args[0], kind, lines)
 			return siteLogResult(res), err
@@ -281,6 +288,7 @@ func (a *app) siteLogsCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&php, "php", false, "PHP errors, warnings and notices instead of requests")
 	cmd.Flags().IntVarP(&lines, "lines", "n", 50, "number of lines (max 2000)")
 	cmd.Flags().BoolVar(&appOut, "app", false, "an app's output (what its command prints)")
+	cmd.Flags().BoolVar(&companionOut, "companion", false, "a PHP site's companion's output")
 	cmd.Flags().BoolVar(&empty, "clear", false, "empty all the logs of the site")
 	return cmd
 }
@@ -372,6 +380,9 @@ func (r siteListResult) Text(w io.Writer) {
 		if off == "" && s.App != nil && s.App.State != core.AppRunning {
 			off = "  (" + s.App.State + ")"
 		}
+		if off == "" && s.Companion != nil && s.Companion.State != core.AppRunning {
+			off = "  (companion " + s.Companion.State + ")"
+		}
 		fmt.Fprintf(w, "%-14s %-10s %-36s %s%s\n", s.Name, runtimeLabel(s.Site), s.URL, s.Path, off)
 	}
 }
@@ -402,7 +413,7 @@ func writeAppDetail(w io.Writer, st core.AppStatus, indent string) {
 func (a *app) siteRestartCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "restart <name>",
-		Short: "Stop an app's command (all its processes) and start it again",
+		Short: "Stop an app's command, or a PHP site's companion (all its processes), and start it again",
 		Args:  cobra.ExactArgs(1),
 		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
 			st, err := c.RestartApp(ctx, args[0])
@@ -542,4 +553,11 @@ func (a *app) envAssignments(args []string) (map[string]string, error) {
 		vars[k] = v
 	}
 	return vars, nil
+}
+
+func btoi(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }

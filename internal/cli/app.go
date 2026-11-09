@@ -21,7 +21,8 @@ func (a *app) appCmd() *cobra.Command {
 		Short:  "Run app sites' dev servers (used by Covo's launchd agents)",
 		Hidden: true,
 	}
-	cmd.AddCommand(&cobra.Command{
+	var companion bool
+	run := &cobra.Command{
 		Use:   "run <site>",
 		Short: "Run a site's command until it exits or the agent is unloaded",
 		Args:  cobra.ExactArgs(1),
@@ -34,11 +35,13 @@ func (a *app) appCmd() *cobra.Command {
 				fmt.Fprintln(os.Stderr, "[covo]", err)
 				os.Exit(1)
 			}
-			code := c.RunApp(ctx, args[0])
+			code := c.RunApp(ctx, args[0], companion)
 			_ = c.Close()
 			os.Exit(code)
 			return nil
 		},
-	})
+	}
+	run.Flags().BoolVar(&companion, "companion", false, "run the PHP site's companion")
+	cmd.AddCommand(run)
 	return cmd
 }

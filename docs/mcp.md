@@ -75,7 +75,7 @@ Every change tool:
 | `restart_app` | yes | the app site (`apps.md`) |
 | `start`, `stop` | yes | all sites and services |
 | `add_site` | yes | folder, PHP, domain, aliases, new folder, database, php.ini values; an app with `command` or `proxy_port` (`apps.md`) |
-| `update_site` | yes | PHP version, folder, domain, aliases, on/off; an app's command, port or proxied port |
+| `update_site` | yes | PHP version, folder, domain, aliases, on/off; an app's command, port or proxied port; a PHP site's companion |
 | `create_site_database` | yes | database with its own user (password returned once) |
 | `new_wordpress`, `new_laravel` | yes | new project in one step (WordPress: optional `blueprint`) |
 | `apply_blueprint` | yes | `blueprints.md`; a changed download stops it, and only the user can accept the change |

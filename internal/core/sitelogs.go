@@ -50,6 +50,8 @@ func (c *Core) siteLogPath(name, kind string) string {
 		file = "php-error.log"
 	case LogApp:
 		file = "app.log"
+	case LogCompanion:
+		file = "companion.log"
 	}
 	return filepath.Join(c.siteLogDir(name), file)
 }
@@ -57,8 +59,8 @@ func (c *Core) siteLogPath(name, kind string) string {
 // SiteLogs returns the last lines (default 200) of a site's access or PHP
 // error log. Access lines are condensed from Caddy's JSON.
 func (c *Core) SiteLogs(ctx context.Context, name, kind string, lines int) (SiteLog, error) {
-	if kind != LogAccess && kind != LogPHP && kind != LogApp {
-		return SiteLog{}, errcode.Newf(errcode.InvalidInput, "log kind must be %s, %s or %s, got %q", LogAccess, LogPHP, LogApp, kind)
+	if kind != LogAccess && kind != LogPHP && kind != LogApp && kind != LogCompanion {
+		return SiteLog{}, errcode.Newf(errcode.InvalidInput, "log kind must be %s, %s, %s or %s, got %q", LogAccess, LogPHP, LogApp, LogCompanion, kind)
 	}
 	if lines <= 0 {
 		lines = defaultLogLines
@@ -87,7 +89,7 @@ func (c *Core) ClearSiteLogs(ctx context.Context, name string) (SiteLog, error) 
 	if _, err := c.Store.Site(ctx, name); err != nil {
 		return SiteLog{}, err
 	}
-	for _, kind := range []string{LogAccess, LogPHP, LogApp} {
+	for _, kind := range []string{LogAccess, LogPHP, LogApp, LogCompanion} {
 		// Truncate rather than delete: Caddy keeps the access log open.
 		if err := os.Truncate(c.siteLogPath(name, kind), 0); err != nil && !errors.Is(err, fs.ErrNotExist) {
 			return SiteLog{}, fmt.Errorf("clear %s log of %s: %w", kind, name, err)

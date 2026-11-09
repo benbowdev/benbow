@@ -40,6 +40,15 @@ Format: **decision** (date) — why. *Not chosen:* alternatives.
   marker, because dev servers leave workers behind. *Not chosen:* reading
   the PATH once and running the command directly (breaks per-folder
   versions), launchd `KeepAlive`, killing only the main process.
+- **Vite next to Laravel gets a leaf certificate from Covo's CA**
+  (2026-11-09) — a companion of a Laravel site with laravel-vite-plugin
+  gets a 90-day certificate for the site's names, signed with the
+  intermediate Caddy already uses, so `@vite` scripts load over trusted
+  HTTPS from the page's own domain. The CA and its name constraints do not
+  change (the leaf can only name `.localhost`, `.test`, `.local`). *Not
+  chosen:* proxying Vite through Caddy (a second public port per site and
+  `server.hmr` settings in the project), plain HTTP Vite (mixed content),
+  editing `vite.config.js` (no Covo files in clients' projects).
 - **Pre-beta block** (2026-11-03): Laravel, PostgreSQL/Redis, Open on
   phone, importers with assisted migration, snapshots, SSH/FTP sync, MCP
   agent safety, blueprints — moved before the beta because they are what

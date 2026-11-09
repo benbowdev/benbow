@@ -82,7 +82,7 @@ func New(open Open) *mcp.Server {
 	mcp.AddTool(s, &mcp.Tool{Name: "list_sites", Title: "List sites", Annotations: ro,
 		Description: "Every site: name, folder, framework, PHP version, address, domain and aliases, database, on/off, group."}, t.listSites)
 	mcp.AddTool(s, &mcp.Tool{Name: "site_logs", Title: "Site logs", Annotations: ro,
-		Description: "The end of a site's PHP error log (kind \"php\"), request log (kind \"access\") or, for an app, its dev server's output (kind \"app\")."}, t.siteLogs)
+		Description: "The end of a site's PHP error log (kind \"php\"), request log (kind \"access\"), an app's dev server output (kind \"app\") or a PHP site's companion output (kind \"companion\")."}, t.siteLogs)
 	mcp.AddTool(s, &mcp.Tool{Name: "detect_app", Title: "Detect an app's command", Annotations: ro,
 		Description: "For a folder with a dev server in any language (package.json, manage.py, FastAPI, Flask, Rails), the command Covo proposes " +
 			"to start it, with {port} for its port. Covo never installs Node, Python or packages: the command runs with the user's own tools. " +
@@ -122,7 +122,7 @@ func New(open Open) *mcp.Server {
 	mcp.AddTool(s, &mcp.Tool{Name: "app_env", Title: "An app's environment variables", Annotations: ro,
 		Description: "The names of the variables an app gets: the ones Covo sets (APP_URL, DATABASE_URL, REDIS_URL, SMTP_*) and the user's own. Values are never shown to agents: ask the user to set one with `covo site env <site> set NAME`."}, t.appEnv)
 	mcp.AddTool(s, &mcp.Tool{Name: "restart_app", Title: "Restart an app's dev server", Annotations: change,
-		Description: "Stops an app site's dev server (every process its command started) and starts it again; returns its state (starting, running, error with a message). Its output: site_logs with kind \"app\"."}, t.restartApp)
+		Description: "Stops an app site's dev server, or a PHP site's companion (every process its command started), and starts it again; returns its state (starting, running, error with a message). Its output: site_logs with kind \"app\"."}, t.restartApp)
 	mcp.AddTool(s, &mcp.Tool{Name: "start", Title: "Start Covo", Annotations: change,
 		Description: "Starts every enabled site and Covo's services. Needs permission for everything."}, t.start)
 	mcp.AddTool(s, &mcp.Tool{Name: "stop", Title: "Stop Covo", Annotations: change,
@@ -564,7 +564,9 @@ type updateSiteIn struct {
 	Command string    `json:"command,omitempty" jsonschema:"apps: new command Covo starts"`
 	Port    int       `json:"port,omitempty" jsonschema:"apps: new fixed port for the command"`
 	Proxy   int       `json:"proxy_port,omitempty" jsonschema:"apps: only proxy to a dev server the user runs on this port"`
-	DryRun  bool      `json:"dry_run,omitempty" jsonschema:"only say what would change"`
+	// Companion is a pointer: "" removes it.
+	Companion *string `json:"companion_command,omitempty" jsonschema:"PHP sites: a dev server started with the site, e.g. npm run dev -- --port {port} (empty removes it)"`
+	DryRun    bool    `json:"dry_run,omitempty" jsonschema:"only say what would change"`
 }
 
 func (t tools) updateSite(ctx context.Context, _ *mcp.CallToolRequest, in updateSiteIn) (*mcp.CallToolResult, any, error) {
@@ -572,7 +574,7 @@ func (t tools) updateSite(ctx context.Context, _ *mcp.CallToolRequest, in update
 		return toolError(errcode.Errorf(errcode.InvalidInput, "path must be absolute")), nil, nil
 	}
 	req := core.UpdateSiteRequest{Name: in.Name, PHP: in.PHP, Domain: in.Domain, Aliases: in.Aliases, Enabled: in.Enabled, Force: in.Force,
-		Command: in.Command, Port: in.Port, ProxyPort: in.Proxy}
+		Command: in.Command, Port: in.Port, ProxyPort: in.Proxy, Companion: in.Companion}
 	if in.Path != "" {
 		req.Path = filepath.Clean(in.Path)
 	}
