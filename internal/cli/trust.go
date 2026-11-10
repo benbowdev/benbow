@@ -8,24 +8,34 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/benbowdev/benbow/internal/ca"
 	"github.com/benbowdev/benbow/internal/core"
 	"github.com/spf13/cobra"
 )
 
 type trustResult core.TrustResult
 
+// name is the CA's name: the certificate's own when known, else the name in
+// effect (BENBOW_CA_NAME or the default).
+func (r trustResult) name() string {
+	if r.Cert != nil && r.Cert.CommonName != "" {
+		return r.Cert.CommonName
+	}
+	return ca.Name()
+}
+
 func (r trustResult) Text(w io.Writer) {
 	switch {
 	case r.Trusted && r.Changed:
-		fmt.Fprintln(w, "Benbow Local CA is now trusted: https://*.localhost sites open without warnings.")
+		fmt.Fprintf(w, "%s is now trusted: https://*.localhost sites open without warnings.\n", r.name())
 	case r.Trusted:
-		fmt.Fprintln(w, "Benbow Local CA is already trusted.")
+		fmt.Fprintf(w, "%s is already trusted.\n", r.name())
 	case r.Changed:
 		for _, c := range r.Removed {
 			fmt.Fprintf(w, "Removed %s (SHA-1 %s) from the login keychain.\n", c.CommonName, c.SHA1)
 		}
 	default:
-		fmt.Fprintln(w, "Benbow Local CA was not in the login keychain.")
+		fmt.Fprintf(w, "%s was not in the login keychain.\n", r.name())
 	}
 }
 
@@ -39,7 +49,7 @@ No sudo, nothing system-wide. Undo with: benbow untrust`,
 		Args: cobra.NoArgs,
 		RunE: a.withCore(func(ctx context.Context, c *core.Core, _ []string) (Result, error) {
 			res, err := c.Trust(ctx, func() {
-				fmt.Fprintln(a.stderr, "macOS will now ask for your password or Touch ID to trust \"Benbow Local CA\" for your user.")
+				fmt.Fprintf(a.stderr, "macOS will now ask for your password or Touch ID to trust %q for your user.\n", ca.Name())
 			})
 			return trustResult(res), err
 		}),
