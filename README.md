@@ -1,3 +1,5 @@
+<img src="docs/brand/source/benbow-icon-1024.png" width="96" height="96" alt="The Benbow icon: a pixel-art ship's lantern with a lit flame">
+
 # Benbow
 
 **Local PHP development on your Mac, without breaking it.**
@@ -5,7 +7,7 @@
 Benbow is a free, open source Mac app that runs WordPress, Laravel, Symfony,
 Drupal or plain PHP, each site on its own PHP version from 5.6 to 8.5, all
 at once, with trusted HTTPS, MySQL or PostgreSQL, Redis and a mail catcher
-on board. Bring your AI agent too: Benbow saves the site's files and database
+on board, plus the Vite or Next.js front end next door. Bring your AI agent too: Benbow saves the site's files and database
 first, and you keep or undo whatever it did.
 
 It never touches Homebrew, installs nothing system-wide and runs next to
@@ -71,6 +73,28 @@ For Claude Code, the Benbow plugin connects Benbow and teaches the workflow:
   your phone** with a QR code
 - **A CLI** where every command supports `--json`, and an **MCP server**
 
+## The front end next door
+
+Not every project is all PHP. A Next.js, Vite, Astro, Nuxt or SvelteKit
+front end, or a Django or FastAPI service, can be a Benbow site too: its own
+domain with trusted HTTPS, logs, a database and an on/off switch, like the
+PHP sites beside it ([docs/apps.md](docs/apps.md)).
+
+```sh
+benbow site add shop --path ~/Code/shop --command "npm run dev -- --port {port} --strictPort"
+benbow site add api --path ~/Code/api --proxy-port 3000   # you start the server, Benbow adds the address
+```
+
+- Benbow runs your command through your login shell, so nvm, fnm, mise,
+  volta or pyenv work as they do in your terminal. It never installs Node
+  or Python
+- `APP_URL`, `DATABASE_URL`, `REDIS_URL` and the mail settings reach the app
+  on their own; your own variables live in the keychain
+- Laravel with Vite gets a companion dev server and a certificate for the
+  site's domain, so hot reload works over HTTPS
+- A dev server that crashes stays down and shows its last lines, instead of
+  restarting in a loop
+
 ## How it stays out of the way
 
 - Its own local CA, limited by Name Constraints to `.localhost`, `.test` and
@@ -89,7 +113,8 @@ The reasons behind each choice are in [docs/decisions.md](docs/decisions.md).
 
 ## Build from source
 
-Requires Go (from go.dev) and Xcode's command line tools.
+Requires Go (from go.dev) and Xcode. With only the command line tools the
+app still builds, but macOS 26 shows its icon on a grey plate.
 
 ```sh
 go build -o benbow ./cmd/benbow && go build -o benbow-hostshelper ./cmd/benbow-hostshelper
