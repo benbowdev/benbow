@@ -45,6 +45,7 @@ type Backend interface {
 	Stop(ctx context.Context) (core.StopResult, error)
 	ListSites(ctx context.Context) ([]core.SiteStatus, error)
 	AddSite(ctx context.Context, req core.AddSiteRequest) (core.SiteResult, error)
+	CloneSite(ctx context.Context, req core.CloneRequest) (core.CloneResult, error)
 	UpdateSite(ctx context.Context, req core.UpdateSiteRequest) (core.SiteResult, error)
 	RemoveSite(ctx context.Context, name string) (core.SiteResult, error)
 	RemoveSiteAndDatabase(ctx context.Context, name string) (core.SiteResult, error)
@@ -564,6 +565,18 @@ func Handler(b Backend) http.Handler {
 			return nil, err
 		}
 		return b.CheckPHP(r.Context(), r.PathValue("name"), req.Target, req.All)
+	})
+	post("POST", "/v1/sites/{name}/clone", func(r *http.Request, body []byte) (any, error) {
+		var req struct {
+			Name       string `json:"name"`
+			PHP        string `json:"php"`
+			Folder     string `json:"folder"`
+			SameFolder bool   `json:"same_folder"`
+		}
+		if err := decode(body, &req); err != nil {
+			return nil, err
+		}
+		return b.CloneSite(r.Context(), core.CloneRequest{Source: r.PathValue("name"), Name: req.Name, PHP: req.PHP, Folder: req.Folder, SameFolder: req.SameFolder})
 	})
 	mux.HandleFunc("GET /v1/sites/{name}/snapshots", func(w http.ResponseWriter, r *http.Request) {
 		v, err := b.ListSnapshots(r.Context(), r.PathValue("name"))

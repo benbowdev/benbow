@@ -66,6 +66,7 @@ up as a diff of those files: adding a field is fine (rerun the Go test with
 | `POST /v1/sites` | `{name, domain, php, path, force, create_folder, aliases, group_id, php_settings, new_database, link_database}`; apps: `{command, port, proxy_port, app_host}` (`apps.md`) | `benbow site add` |
 | `PATCH /v1/sites/{name}` | any of `{php, path, domain, enabled, archived, aliases, group_id, title, force}` (`group_id` 0: top level); apps: `{command, port, proxy_port, app_host}`; PHP sites: `{companion_command, companion_port}` | `benbow site set`, `enable`, `disable`, `archive`, `unarchive` |
 | `GET /v1/detect?path=` | | `benbow site detect` |
+| `POST /v1/sites/{name}/clone` | `{name, php, folder, same_folder}` | `benbow site clone` |
 | `POST /v1/sites/{name}/restart` | | `benbow site restart` (apps, `apps.md`) |
 | `GET`, `PATCH /v1/sites/{name}/env` | `{set: {NAME: value}, unset: [NAME]}`; answers names only | `benbow site env` |
 | `POST /v1/laravel` | `{name, path, php, database, domain, aliases, group_id, php_settings}` | `benbow laravel` |

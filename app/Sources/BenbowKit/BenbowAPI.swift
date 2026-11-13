@@ -344,6 +344,19 @@ public struct BenbowAPI: Sendable {
         try await call("POST", "/v1/sites", site)
     }
 
+    struct CloneRequest: Encodable {
+        let name: String
+        let php: String
+        let folder: String?
+        let sameFolder: Bool
+    }
+
+    /// Copies a site under a new name (folder, database, address), or with
+    /// sameFolder serves the same folder under the new name.
+    public func cloneSite(_ site: String, name: String, php: String, folder: String?, sameFolder: Bool) async throws -> CloneResult {
+        try await call("POST", "/v1/sites/\(escape(site))/clone", CloneRequest(name: name, php: php, folder: folder, sameFolder: sameFolder))
+    }
+
     public func addSite(name: String, domain: String? = nil, php: String, path: String, force: Bool = false) async throws -> SiteResult {
         var s = NewSite(name: name, domain: domain, php: php, path: path)
         s.force = force

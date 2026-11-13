@@ -601,6 +601,16 @@ public struct SiteResult: Codable, Sendable, Hashable {
     public var applied: Bool
 }
 
+/// The result of cloning a site (POST /v1/sites/{name}/clone).
+public struct CloneResult: Codable, Sendable, Hashable {
+    public var name: String
+    public var url: String
+    public var folder: String?
+    public var database: String?
+    public var urlFrom: String?
+    public var warnings: [String]?
+}
+
 public struct MAMPHost: Codable, Sendable, Hashable {
     public var serverName: String
     public var documentRoot: String

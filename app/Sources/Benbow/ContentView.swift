@@ -83,7 +83,7 @@ struct ContentView: View {
         .sheet(item: $model.removing) { site in RemoveSiteSheet(site: site) }
         .sheet(item: $phoneSite) { site in PhoneSheet(site: site) }
         .sheet(item: $duplicating) { site in
-            DuplicateSheet(site: site) { name in selection = name }
+            CloneSheet(site: site) { name in selection = name }
         }
     }
 
@@ -548,8 +548,10 @@ struct SiteRow: View {
             } label: {
                 Label("Edit Title…", systemImage: "pencil")
             }
-            Button(action: duplicate) {
-                Label("Duplicate…", systemImage: "plus.square.on.square")
+            if !site.isApp {
+                Button(action: duplicate) {
+                    Label("Clone…", systemImage: "plus.square.on.square")
+                }
             }
             MoveToMenu(current: site.groupId) { target in
                 Task { await model.moveSite(site, into: target) }

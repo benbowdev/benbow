@@ -162,6 +162,20 @@ final class AppModel {
         }
     }
 
+    func cloneSite(_ site: Site, name: String, php: String, folder: String?, sameFolder: Bool) async throws -> CloneResult? {
+        guard let api else { return nil }
+        busy = sameFolder ? "Adding \(name)…" : "Cloning \(site.name)…"
+        defer { busy = nil }
+        do {
+            let res = try await api.cloneSite(site.name, name: name, php: php, folder: folder, sameFolder: sameFolder)
+            try? await refreshAll()
+            return res
+        } catch {
+            try? await refreshAll()
+            throw error
+        }
+    }
+
     var groups: [SiteGroup] { status?.groups ?? [] }
 
     /// Creates a group and returns it (nil on error, shown in the alert).

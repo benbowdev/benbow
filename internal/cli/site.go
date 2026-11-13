@@ -23,7 +23,7 @@ func (a *app) siteCmd() *cobra.Command {
 		Use:   "site",
 		Short: "Manage sites",
 	}
-	cmd.AddCommand(a.siteAddCmd(), a.siteSetCmd(), a.siteToggleCmd(true), a.siteToggleCmd(false), a.siteArchiveCmd(true), a.siteArchiveCmd(false), a.siteLogsCmd(), a.sitePHPCmd(), a.siteListCmd(), a.siteRemoveCmd(), a.siteDetectCmd(), a.siteRestartCmd(), a.siteEnvCmd())
+	cmd.AddCommand(a.siteAddCmd(), a.siteSetCmd(), a.siteToggleCmd(true), a.siteToggleCmd(false), a.siteArchiveCmd(true), a.siteArchiveCmd(false), a.siteLogsCmd(), a.sitePHPCmd(), a.siteListCmd(), a.siteRemoveCmd(), a.siteCloneCmd(), a.siteDetectCmd(), a.siteRestartCmd(), a.siteEnvCmd())
 	return cmd
 }
 
@@ -560,4 +560,54 @@ func btoi(b bool) int {
 		return 1
 	}
 	return 0
+}
+
+type siteCloneResult core.CloneResult
+
+func (r siteCloneResult) Text(w io.Writer) {
+	siteResult(r.SiteResult).Text(w)
+	if r.Folder != "" {
+		fmt.Fprintf(w, "Cloned the folder into %s\n", r.Folder)
+	}
+	if r.Database != "" {
+		fmt.Fprintf(w, "Copied the database into %s\n", r.Database)
+	}
+	if r.URLFrom != "" && r.URLFrom != r.URL {
+		fmt.Fprintf(w, "Replaced %s with %s in the database\n", r.URLFrom, r.URL)
+	}
+	for _, s := range r.Warnings {
+		fmt.Fprintf(w, "Check: %s\n", s)
+	}
+}
+
+func (a *app) siteCloneCmd() *cobra.Command {
+	var req core.CloneRequest
+	cmd := &cobra.Command{
+		Use:   "clone <site> <new-name>",
+		Short: "Copy a site under a new name: folder (APFS clone), database and address",
+		Long: `Copy a site under a new name. The project folder is cloned with APFS
+(instant, no space until files change), the database is copied into a new
+one with its own user, wp-config.php or .env is pointed at it, and
+WordPress's address is replaced in the database.
+
+--same-folder serves the same folder under the new name instead, without
+copying anything: handy to try another PHP version.`,
+		Args: cobra.ExactArgs(2),
+		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
+			req.Source, req.Name = args[0], args[1]
+			if req.Folder != "" {
+				abs, err := filepath.Abs(req.Folder)
+				if err != nil {
+					return nil, fmt.Errorf("resolve %s: %w", req.Folder, err)
+				}
+				req.Folder = abs
+			}
+			res, err := c.CloneSite(ctx, req)
+			return siteCloneResult(res), err
+		}),
+	}
+	cmd.Flags().StringVar(&req.PHP, "php", "", "PHP version of the new site (default: the source's)")
+	cmd.Flags().StringVar(&req.Folder, "folder", "", "new project folder (default: next to the source's, named after the new site)")
+	cmd.Flags().BoolVar(&req.SameFolder, "same-folder", false, "serve the source's folder under the new name, copying nothing")
+	return cmd
 }

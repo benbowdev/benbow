@@ -133,6 +133,10 @@ func New(open Open) *mcp.Server {
 	mcp.AddTool(s, &mcp.Tool{Name: "add_site", Title: "Add a site", Annotations: change,
 		Description: "Adds a site for a folder (absolute path). Optional: domain, aliases, create_folder, database (\"new\" or an existing name), " +
 			"database_engine, php.ini values. Needs permission for everything."}, t.addSite)
+	mcp.AddTool(s, &mcp.Tool{Name: "clone_site", Title: "Clone a site", Annotations: change,
+		Description: "Copies a site under a new name: folder (APFS clone), database into a new one with its own user, wp-config.php or .env, " +
+			"WordPress's address. The source is only read. Handy to try a risky change on a copy. same_folder only adds a name for the same folder " +
+			"(e.g. another PHP version). Needs permission for everything."}, t.cloneSite)
 	mcp.AddTool(s, &mcp.Tool{Name: "update_site", Title: "Change a site", Annotations: change,
 		Description: "Changes a site's PHP version, folder, domain or aliases, or turns it on or off. Snapshot first."}, t.updateSite)
 	mcp.AddTool(s, &mcp.Tool{Name: "create_site_database", Title: "Create a site database", Annotations: change,
@@ -541,6 +545,28 @@ func (t tools) addSite(ctx context.Context, _ *mcp.CallToolRequest, in addSiteIn
 				"command": req.Command, "proxy_port": req.ProxyPort}, nil
 		}
 		return c.AddSite(ctx, req)
+	})
+}
+
+type cloneSiteIn struct {
+	Site       string `json:"site" jsonschema:"the site to copy"`
+	Name       string `json:"name" jsonschema:"name of the new site"`
+	PHP        string `json:"php,omitempty" jsonschema:"PHP version of the new site (default: the source's)"`
+	Folder     string `json:"folder,omitempty" jsonschema:"absolute path of the new folder (default: next to the source's)"`
+	SameFolder bool   `json:"same_folder,omitempty" jsonschema:"serve the source's folder under the new name, copying nothing"`
+	DryRun     bool   `json:"dry_run,omitempty"`
+}
+
+func (t tools) cloneSite(ctx context.Context, _ *mcp.CallToolRequest, in cloneSiteIn) (*mcp.CallToolResult, any, error) {
+	if in.Folder != "" && !filepath.IsAbs(in.Folder) {
+		return toolError(errcode.Errorf(errcode.InvalidInput, "folder must be absolute")), nil, nil
+	}
+	req := core.CloneRequest{Source: in.Site, Name: in.Name, PHP: in.PHP, Folder: in.Folder, SameFolder: in.SameFolder}
+	return change(ctx, t, "clone_site", "", in, in.DryRun, false, func(c *core.Core) (any, error) {
+		if in.DryRun {
+			return map[string]any{"would_clone": in.Site, "into": in.Name, "folder": in.Folder, "same_folder": in.SameFolder}, nil
+		}
+		return c.CloneSite(ctx, req)
 	})
 }
 

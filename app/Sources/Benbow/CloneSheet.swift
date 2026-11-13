@@ -4,16 +4,23 @@
 import BenbowKit
 import SwiftUI
 
-/// Duplicate Site: the same folder and PHP version under a new name, e.g.
-/// to try a branch on another PHP version.
-struct DuplicateSheet: View {
+/// Clone Site: a full copy under a new name (folder as an APFS clone,
+/// database, address), or with "Same folder" just a new name and PHP version
+/// on the same folder, e.g. to try a branch on another PHP version.
+struct CloneSheet: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     let site: Site
     let created: (String) -> Void
     @State private var name = ""
     @State private var php = ""
+    @State private var sameFolder = false
     @State private var error: String?
+
+    private var folder: String {
+        let root = URL(fileURLWithPath: site.projectRoot)
+        return root.deletingLastPathComponent().appendingPathComponent(name.isEmpty ? "—" : name).path
+    }
 
     var body: some View {
         Form {
@@ -23,18 +30,31 @@ struct DuplicateSheet: View {
                     ForEach(model.php?.minors ?? [site.php], id: \.self) { Text(model.phpLabel($0)).tag($0) }
                 }
                 PHPSupportNote(minor: php)
+                Toggle("Same folder", isOn: $sameFolder)
                 LabeledContent("Folder") {
-                    Text(site.path).lineLimit(1).truncationMode(.middle).foregroundStyle(.secondary)
+                    Text(sameFolder ? site.path : folder).lineLimit(1).truncationMode(.middle).foregroundStyle(.secondary)
                 }
                 LabeledContent("Address") {
                     Text(name.isEmpty ? "—" : model.address("\(name).localhost"))
                         .foregroundStyle(.secondary)
                 }
             } header: {
-                Text("Duplicate \(site.name)")
-            } footer: {
-                Text("Same folder, new address. The database, aliases and PHP settings are not copied.")
-                    .font(.caption).foregroundStyle(.secondary)
+                Text("Clone \(site.name)")
+            }
+            Section {
+                if sameFolder {
+                    ExplainBox(title: "A new address for the same folder", steps: [
+                        "Serves \(site.path) at the new address, with the PHP version you pick.",
+                        "Nothing is copied: files and database stay shared with \(site.name).",
+                    ])
+                } else {
+                    ExplainBox(title: "What Benbow will do", steps: [
+                        "Clone the project folder into \(folder) (APFS: instant, no space until files change).",
+                        site.database.isEmpty ? "The site has no database: nothing else to copy."
+                            : "Copy the database \(site.database) into a new one with its own user.",
+                        site.database.isEmpty ? nil : "Point wp-config.php or .env of the copy at it, and replace the address in WordPress's database.",
+                    ].compactMap { $0 }, caution: "\(site.name) is only read, never changed.")
+                }
             }
             if let error {
                 Text(error).foregroundStyle(.red).font(.callout)
@@ -42,14 +62,14 @@ struct DuplicateSheet: View {
         }
         .formStyle(.grouped)
         .toggleStyle(.benbowSwitch)
-        .frame(width: 460)
+        .frame(width: 500)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
             ToolbarItem(placement: .confirmationAction) {
-                Button("Duplicate") {
+                Button(sameFolder ? "Add" : "Clone") {
                     Task {
                         do {
-                            try await model.addSite(name: name, php: php, path: site.path, force: true)
+                            _ = try await model.cloneSite(site, name: name, php: php, folder: nil, sameFolder: sameFolder)
                             created(name)
                             dismiss()
                         } catch {

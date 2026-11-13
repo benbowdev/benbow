@@ -322,6 +322,16 @@ Format: **decision** (date) — why. *Not chosen:* alternatives.
   removed)** (2026-11-03) — shared hosting is common among the users.
 - **SSH passwords in the keychain, given to ssh through `benbow askpass`**
   (2026-11-03).
+- **Clone replaces Duplicate: whole folder as one APFS clone (`.git` and
+  `node_modules` included), database into a new one with its own user,
+  config and WordPress address rewritten in the copy only; "same folder"
+  kept as an option** (2026-11-13) — Reddit feedback: cloning a reference
+  site and debugging on a copy are weekly tasks for agencies, and the old
+  Duplicate (same folder, nothing copied) surprised people. Unlike a
+  snapshot, a clone is a working project, so nothing is left out.
+  *Not chosen:* the snapshot exclusions (a clone without `node_modules`
+  does not run), copying aliases (they would clash), a `wp-config.php`
+  above the folder (shared between source and copy, refused).
 
 ## Phone
 

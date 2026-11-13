@@ -22,6 +22,8 @@ benbow site archive shop                             # put it away: off, listed 
 benbow site unarchive shop                           # back, and served again
 benbow site remove shop                              # the folder is never touched
 benbow site remove shop --drop-database --yes        # also delete its database
+benbow site clone shop shop-copy                     # folder + database + address
+benbow site clone shop shop-82 --same-folder --php 8.2   # same folder, new name
 ```
 
 Changes apply at once when Benbow is running; if applying fails, the previous
@@ -38,6 +40,32 @@ empty folder (it must be missing or empty), `--aliases`, `--group`,
 `--database new` (own database and user) or `--database <existing>`
 (connects as root), and repeated `--ini name=value` for its php.ini values.
 If any part fails, everything is undone, including the folder it created.
+
+## Clone
+
+`benbow site clone <site> <new>` copies a site under a new name:
+
+1. The project folder is cloned with APFS into `--folder` (default: next to
+   the source's, named after the new site; it must not exist). Everything is
+   copied, `.git` and `node_modules` included; a clone takes no space until
+   files change (another file system: a plain copy).
+2. The database is dumped and loaded into a new one with its own user
+   (MySQL or PostgreSQL).
+3. The copy's `wp-config.php` (database constants, and `WP_HOME`/`WP_SITEURL`
+   when it sets them) or `.env` (`APP_URL`, `DB_DATABASE`, `DB_USERNAME`,
+   `DB_PASSWORD`) points at it. Without either, the result says which
+   database to use.
+4. WordPress: the source's address is replaced with the new one in the
+   copied database (`wp search-replace`, serialized data safe).
+
+The new site gets the source's PHP version (`--php` to change it), group and
+php.ini values. The source is only read. If any step fails, the new site, its
+database and the folder are removed. Apps cannot be cloned yet. A
+`wp-config.php` above the site's folder (which WordPress allows) is refused:
+the copy would share it.
+
+`--same-folder` copies nothing: the source's folder is served under the new
+name too, e.g. to try another PHP version. Files and database stay shared.
 
 ## Groups
 
