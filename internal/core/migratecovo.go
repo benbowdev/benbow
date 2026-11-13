@@ -441,6 +441,29 @@ func (c *Core) covoStatePath() string {
 	return filepath.Join(c.Layout.Data, covoMigrationDir, "state.json")
 }
 
+// tidyMigratedInstall removes what a finished migration left behind.
+func (c *Core) tidyMigratedInstall() { c.removeCovoBinary() }
+
+// removeCovoBinary deletes bin/covo, Covo's own copy of its CLI (for its DNS
+// agent), once a migration is finished: nothing uses it any more, and a
+// rollback is no longer possible. Installs migrated before this cleanup lose
+// it the next time Benbow opens.
+func (c *Core) removeCovoBinary() {
+	dir := filepath.Join(c.Layout.Bin, "covo")
+	if !fileExists(dir) {
+		return
+	}
+	b, err := os.ReadFile(c.covoStatePath())
+	if err != nil {
+		return
+	}
+	var s covoMigrationState
+	if json.Unmarshal(b, &s) != nil || !s.Finished {
+		return
+	}
+	_ = os.RemoveAll(dir)
+}
+
 func (c *Core) writeCovoState(s covoMigrationState) error {
 	b, _ := json.MarshalIndent(s, "", "  ")
 	_, err := fsutil.WriteAtomic(c.covoStatePath(), b, 0o600)
@@ -666,6 +689,7 @@ func (c *Core) finishCovo(ctx context.Context, state covoMigrationState, res Cov
 	if err := c.writeCovoState(state); err != nil {
 		return res, err
 	}
+	c.removeCovoBinary()
 	res.Finished = true
 	res.step("finish", "done", "Covo.app can go to the Trash")
 	return res, nil

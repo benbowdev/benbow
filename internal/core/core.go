@@ -104,6 +104,7 @@ func Open(ctx context.Context) (*Core, error) {
 	// versions; a bad or older one is ignored and the embedded one used.
 	c.loadSignedManifest()
 	c.backfillFrameworks(ctx)
+	c.tidyMigratedInstall()
 	return c, nil
 }
 

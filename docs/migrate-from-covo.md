@@ -59,4 +59,6 @@ and CA stay until you run `benbow migrate covo --finish`.
 - The migration refuses to run when Benbow already has sites.
 
 Covo's database as it was and its CA root stay in
-`data/covo-migration/` until the finish step.
+`data/covo-migration/` until the finish step, which also deletes `bin/covo`
+(Covo's copy of its CLI, for its DNS agent). Installs migrated before this
+clean-up lose it the next time Benbow opens.

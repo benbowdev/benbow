@@ -85,3 +85,32 @@ func TestMarkCovoComponents(t *testing.T) {
 		t.Errorf("no bin folder: %v", err)
 	}
 }
+
+func TestRemoveCovoBinary(t *testing.T) {
+	c := runCore(t)
+	bin := filepath.Join(c.Layout.Bin, "covo", "covo")
+	if err := os.MkdirAll(filepath.Dir(bin), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(bin, []byte("x"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	c.removeCovoBinary()
+	if !fileExists(bin) {
+		t.Fatal("removed without a migration")
+	}
+	if err := c.writeCovoState(covoMigrationState{From: "/x"}); err != nil {
+		t.Fatal(err)
+	}
+	c.removeCovoBinary()
+	if !fileExists(bin) {
+		t.Fatal("removed before the migration finished")
+	}
+	if err := c.writeCovoState(covoMigrationState{From: "/x", Finished: true}); err != nil {
+		t.Fatal(err)
+	}
+	c.removeCovoBinary()
+	if fileExists(filepath.Dir(bin)) {
+		t.Fatal("bin/covo kept after a finished migration")
+	}
+}
