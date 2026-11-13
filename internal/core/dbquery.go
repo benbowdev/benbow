@@ -103,7 +103,7 @@ func (c *Core) QueryDatabase(ctx context.Context, name, sql string) (QueryResult
 	if engineOf(site) == EnginePostgres {
 		out, err = c.queryPostgresReadOnly(ctx, site.Name, stmt)
 	} else {
-		out, err = c.queryMySQLReadOnly(ctx, site.Database, stmt)
+		out, err = c.queryMySQLReadOnly(ctx, mysqlFor(engineOf(site)), site.Database, stmt)
 	}
 	if err != nil {
 		return res, err
@@ -133,13 +133,13 @@ func readOnlyUser(db string) string {
 	return "benbow_ro_" + hex.EncodeToString(h[:6])
 }
 
-func (c *Core) queryMySQLReadOnly(ctx context.Context, db, stmt string) (string, error) {
-	client, port, _, err := c.mysqlRoot(ctx)
+func (c *Core) queryMySQLReadOnly(ctx context.Context, s mysqlServer, db, stmt string) (string, error) {
+	client, port, _, err := c.mysqlRootOf(ctx, s)
 	if err != nil {
 		return "", err
 	}
 	user := readOnlyUser(db)
-	kc, err := mysqlKeychain(c.launchctl.Prefix)
+	kc, err := mysqlKeychainOf(c.launchctl.Prefix, s)
 	if err != nil {
 		return "", err
 	}
@@ -157,7 +157,7 @@ func (c *Core) queryMySQLReadOnly(ctx context.Context, db, stmt string) (string,
 			sql += fmt.Sprintf("ALTER USER '%s'@'%s' IDENTIFIED BY '%s';\n", user, host, pw)
 			sql += fmt.Sprintf("GRANT SELECT, SHOW VIEW ON `%s`.* TO '%s'@'%s';\n", db, user, host)
 		}
-		if _, err := c.rootQuery(ctx, sql); err != nil {
+		if _, err := c.rootQueryOf(ctx, s, sql); err != nil {
 			_, _ = kc.Delete(ctx)
 			return "", err
 		}
@@ -166,7 +166,15 @@ func (c *Core) queryMySQLReadOnly(ctx context.Context, db, stmt string) (string,
 	// timeout only stops SELECTs in MySQL, so the client stops too.
 	sql := "SET SESSION max_execution_time = " + fmt.Sprint(queryTimeout.Milliseconds()) + ";\n" +
 		"START TRANSACTION READ ONLY;\n" + stmt + ";\nROLLBACK;\n"
-	return mysql.QueryAs(ctx, client, port, user, pw, db, sql, queryTimeout+5*time.Second)
+	if s.legacy {
+		// 5.7's client cannot turn off its own commands (system, source…),
+		// which it only reads at the start of a line: the statement goes on
+		// one line (it has no backslash and no ; already).
+		stmt = strings.Join(strings.Fields(stmt), " ")
+		sql = "SET SESSION max_execution_time = " + fmt.Sprint(queryTimeout.Milliseconds()) +
+			"; START TRANSACTION READ ONLY; " + stmt + "; ROLLBACK;\n"
+	}
+	return mysql.QueryAs(ctx, client, port, user, pw, db, sql, queryTimeout+5*time.Second, s.legacy)
 }
 
 func (c *Core) queryPostgresReadOnly(ctx context.Context, name, stmt string) (string, error) {

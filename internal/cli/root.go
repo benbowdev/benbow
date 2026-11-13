@@ -70,7 +70,7 @@ func (a *app) rootCmd() *cobra.Command {
 		SilenceErrors: true,
 	}
 	root.PersistentFlags().BoolVar(&a.json, "json", false, "output JSON with a stable schema")
-	root.AddCommand(a.versionCmd(), a.startCmd(), a.stopCmd(), a.statusCmd(), a.siteCmd(), a.trustCmd(), a.untrustCmd(), a.uninstallCmd(), a.phpCmd(), a.caddyCmd(), a.domainsCmd(), a.dnsCmd(), a.mysqlCmd(), a.importCmd(), a.daemonCmd(), a.dbCmd(), a.wpCmd(), a.wordpressCmd(), a.mailCmd(), a.updateCmd(), a.groupCmd(), a.portsCmd(), a.mcpCmd(), a.composerCmd(), a.artisanCmd(), a.laravelCmd(), a.postgresCmd(), a.redisCmd(), a.phoneCmd(), a.snapshotCmd(), a.remoteCmd(), a.pullCmd(), a.pushCmd(), a.askpassCmd(), a.blueprintCmd(), a.agentCmd(), a.fetchCmd(), a.appCmd(), a.migrateCmd())
+	root.AddCommand(a.versionCmd(), a.startCmd(), a.stopCmd(), a.statusCmd(), a.siteCmd(), a.trustCmd(), a.untrustCmd(), a.uninstallCmd(), a.phpCmd(), a.caddyCmd(), a.domainsCmd(), a.dnsCmd(), a.mysqlCmd(), a.mysql57Cmd(), a.importCmd(), a.daemonCmd(), a.dbCmd(), a.wpCmd(), a.wordpressCmd(), a.mailCmd(), a.updateCmd(), a.groupCmd(), a.portsCmd(), a.mcpCmd(), a.composerCmd(), a.artisanCmd(), a.laravelCmd(), a.postgresCmd(), a.redisCmd(), a.phoneCmd(), a.snapshotCmd(), a.remoteCmd(), a.pullCmd(), a.pushCmd(), a.askpassCmd(), a.blueprintCmd(), a.agentCmd(), a.fetchCmd(), a.appCmd(), a.migrateCmd())
 	return root
 }
 

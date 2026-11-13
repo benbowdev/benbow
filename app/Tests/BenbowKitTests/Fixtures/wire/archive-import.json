@@ -68,6 +68,7 @@
     "php": "x",
     "php_reason": "x",
     "sql": "x",
+    "engine": "x",
     "database": "x",
     "url_from": "x",
     "warnings": [

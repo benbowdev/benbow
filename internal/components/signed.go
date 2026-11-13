@@ -35,6 +35,10 @@ func ParseKeys(encoded []string) ([]ed25519.PublicKey, error) {
 	return out, nil
 }
 
+// AllowLoopbackHTTP lets a signed manifest point at http://127.0.0.1 too.
+// Only end-to-end test builds (tag benbowtest) set it, with their own key.
+var AllowLoopbackHTTP = false
+
 // pathPartRe is a component, version or architecture name: one folder
 // name, never "." or "..".
 var pathPartRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+-]*$`)
@@ -70,7 +74,7 @@ func VerifySigned(body, sig []byte, keys []ed25519.PublicKey) (Manifest, error) 
 				return Manifest{}, errcode.Newf(errcode.Checksum, "signed manifest: %q is not a valid name", part)
 			}
 		}
-		if !strings.HasPrefix(a.URL, "https://") {
+		if !strings.HasPrefix(a.URL, "https://") && (!AllowLoopbackHTTP || !strings.HasPrefix(a.URL, "http://127.0.0.1:")) {
 			return Manifest{}, errcode.Newf(errcode.Checksum, "signed manifest: %s %s is not served over HTTPS", a.Component, a.Version)
 		}
 	}

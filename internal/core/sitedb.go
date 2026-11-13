@@ -32,27 +32,33 @@ type SiteDatabase struct {
 	Dedicated bool `json:"dedicated"`
 	// Dropped is true when unlink also deleted the database.
 	Dropped bool `json:"dropped,omitempty"`
-	// Engine is "mysql" or "pgsql".
+	// Engine is "mysql", "mysql57" or "pgsql".
 	Engine string `json:"engine"`
 }
 
-// mysqlRoot returns how to run SQL as root. MySQL must be running.
+// mysqlRoot returns how to run SQL as root on MySQL 8.4, which must be
+// running.
 func (c *Core) mysqlRoot(ctx context.Context) (client string, port int, password string, err error) {
-	st, err := c.mysqlStatus(ctx)
+	return c.mysqlRootOf(ctx, mysqlMain)
+}
+
+// mysqlRootOf is mysqlRoot for one server.
+func (c *Core) mysqlRootOf(ctx context.Context, s mysqlServer) (client string, port int, password string, err error) {
+	st, err := c.mysqlStatusOf(ctx, s)
 	if err != nil {
 		return "", 0, "", err
 	}
 	if !st.Enabled {
-		return "", 0, "", errcode.Errorf(errcode.Unsupported, "MySQL is off: turn it on first (benbow mysql enable)")
+		return "", 0, "", errcode.Errorf(errcode.Unsupported, s.title+" is off: turn it on first ("+s.cli()+" enable)")
 	}
 	if !st.Running {
-		return "", 0, "", errcode.Errorf(errcode.Conflict, "MySQL is not running: start Benbow first (benbow start)")
+		return "", 0, "", errcode.Errorf(errcode.Conflict, s.title+" is not running: start Benbow first (benbow start)")
 	}
-	dir, _, err := c.ensureMySQL(ctx)
+	dir, _, err := c.ensureMySQLOf(ctx, s)
 	if err != nil {
 		return "", 0, "", err
 	}
-	kc, err := mysqlKeychain(c.launchctl.Prefix)
+	kc, err := mysqlKeychainOf(c.launchctl.Prefix, s)
 	if err != nil {
 		return "", 0, "", err
 	}
@@ -63,7 +69,11 @@ func (c *Core) mysqlRoot(ctx context.Context) (client string, port int, password
 }
 
 func (c *Core) rootQuery(ctx context.Context, sql string) ([]string, error) {
-	client, port, pw, err := c.mysqlRoot(ctx)
+	return c.rootQueryOf(ctx, mysqlMain, sql)
+}
+
+func (c *Core) rootQueryOf(ctx context.Context, s mysqlServer, sql string) ([]string, error) {
+	client, port, pw, err := c.mysqlRootOf(ctx, s)
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +92,20 @@ func (c *Core) rootQuery(ctx context.Context, sql string) ([]string, error) {
 
 // Databases lists the user databases on Benbow's MySQL.
 func (c *Core) Databases(ctx context.Context) ([]string, error) {
-	rows, err := c.rootQuery(ctx, "SHOW DATABASES;")
+	return c.databasesOf(ctx, mysqlMain)
+}
+
+// DatabasesOf lists the user databases on one MySQL server (mysql, mysql57).
+func (c *Core) DatabasesOf(ctx context.Context, engine string) ([]string, error) {
+	s, err := mysqlServerOf(engine)
+	if err != nil {
+		return nil, err
+	}
+	return c.databasesOf(ctx, s)
+}
+
+func (c *Core) databasesOf(ctx context.Context, s mysqlServer) ([]string, error) {
+	rows, err := c.rootQueryOf(ctx, s, "SHOW DATABASES;")
 	if err != nil {
 		return nil, err
 	}
@@ -121,6 +144,7 @@ func (c *Core) CreateSiteDatabase(ctx context.Context, name, db string) (SiteDat
 // Database engines.
 const (
 	EngineMySQL    = "mysql"
+	EngineMySQL57  = "mysql57"
 	EnginePostgres = "pgsql"
 )
 
@@ -128,10 +152,12 @@ func checkEngine(engine string) (string, error) {
 	switch engine {
 	case "", EngineMySQL:
 		return EngineMySQL, nil
+	case EngineMySQL57, "mysql5.7", "5.7":
+		return EngineMySQL57, nil
 	case EnginePostgres, "postgres", "postgresql":
 		return EnginePostgres, nil
 	}
-	return "", errcode.Newf(errcode.InvalidInput, "database engine must be mysql or pgsql, got %q", engine)
+	return "", errcode.Newf(errcode.InvalidInput, "database engine must be mysql, mysql57 or pgsql, got %q", engine)
 }
 
 // CreateSiteDatabaseOn creates a site database on MySQL or PostgreSQL.
@@ -146,15 +172,15 @@ func (c *Core) CreateSiteDatabaseOn(ctx context.Context, name, db, engine string
 	var res SiteDatabase
 	err = c.locked(ctx, func() error {
 		var err error
-		res, err = c.createMySQLSiteDatabase(ctx, name, db)
+		res, err = c.createMySQLSiteDatabase(ctx, mysqlFor(engine), name, db)
 		return err
 	})
 	return res, err
 }
 
-// createMySQLSiteDatabase is CreateSiteDatabase on MySQL; the caller holds
-// the lock.
-func (c *Core) createMySQLSiteDatabase(ctx context.Context, name, db string) (SiteDatabase, error) {
+// createMySQLSiteDatabase is CreateSiteDatabase on a MySQL server; the
+// caller holds the lock.
+func (c *Core) createMySQLSiteDatabase(ctx context.Context, s mysqlServer, name, db string) (SiteDatabase, error) {
 	var res SiteDatabase
 	err := func() error {
 		site, err := c.Store.Site(ctx, name)
@@ -174,14 +200,14 @@ func (c *Core) createMySQLSiteDatabase(ctx context.Context, name, db string) (Si
 		if user == mysql.User {
 			return errcode.Errorf(errcode.InvalidInput, "the database cannot be called root")
 		}
-		dbs, err := c.Databases(ctx)
+		dbs, err := c.databasesOf(ctx, s)
 		if err != nil {
 			return err
 		}
 		if slices.Contains(dbs, db) {
 			return errcode.Newf(errcode.Conflict, "database %s already exists: link it instead", db)
 		}
-		users, err := c.rootQuery(ctx, "SELECT DISTINCT user FROM mysql.user WHERE user = '"+user+"';")
+		users, err := c.rootQueryOf(ctx, s, "SELECT DISTINCT user FROM mysql.user WHERE user = '"+user+"';")
 		if err != nil {
 			return err
 		}
@@ -189,7 +215,7 @@ func (c *Core) createMySQLSiteDatabase(ctx context.Context, name, db string) (Si
 			return errcode.Newf(errcode.Conflict, "MySQL user %s already exists", user)
 		}
 
-		kc, err := mysqlKeychain(c.launchctl.Prefix)
+		kc, err := mysqlKeychainOf(c.launchctl.Prefix, s)
 		if err != nil {
 			return err
 		}
@@ -204,14 +230,14 @@ func (c *Core) createMySQLSiteDatabase(ctx context.Context, name, db string) (Si
 			sql += fmt.Sprintf("GRANT ALL PRIVILEGES ON `%s`.* TO '%s'@'%s';\n", db, user, host)
 		}
 		undo := func() {
-			_, _ = c.rootQuery(ctx, dropSQL(db, user))
+			_, _ = c.rootQueryOf(ctx, s, dropSQL(db, user))
 			_, _ = kc.Delete(ctx)
 		}
-		if _, err := c.rootQuery(ctx, sql); err != nil {
+		if _, err := c.rootQueryOf(ctx, s, sql); err != nil {
 			undo()
 			return err
 		}
-		site.Database, site.DBUser = db, user
+		site.Database, site.DBUser, site.DBEngine = db, user, s.engine
 		if err := c.Store.UpdateSite(ctx, site); err != nil {
 			undo()
 			return err
@@ -258,14 +284,15 @@ func (c *Core) LinkSiteDatabaseOn(ctx context.Context, name, db, engine string) 
 		if err := checkDatabaseName(db); err != nil {
 			return err
 		}
-		dbs, err := c.Databases(ctx)
+		s := mysqlFor(engine)
+		dbs, err := c.databasesOf(ctx, s)
 		if err != nil {
 			return err
 		}
 		if !slices.Contains(dbs, db) {
-			return errcode.Newf(errcode.NotFound, "database %s does not exist", db)
+			return errcode.Newf(errcode.NotFound, "database %s does not exist on %s", db, s.title)
 		}
-		site.Database, site.DBUser = db, ""
+		site.Database, site.DBUser, site.DBEngine = db, "", s.engine
 		if err := c.Store.UpdateSite(ctx, site); err != nil {
 			return err
 		}
@@ -295,11 +322,12 @@ func (c *Core) UnlinkSiteDatabase(ctx context.Context, name string, drop bool) (
 			}
 			res.Dropped = true
 		} else if drop {
-			if _, err := c.rootQuery(ctx, dropSQL(site.Database, site.DBUser)); err != nil {
+			s := mysqlFor(engineOf(site))
+			if _, err := c.rootQueryOf(ctx, s, dropSQL(site.Database, site.DBUser)); err != nil {
 				return err
 			}
 			if site.DBUser != "" {
-				kc, err := mysqlKeychain(c.launchctl.Prefix)
+				kc, err := mysqlKeychainOf(c.launchctl.Prefix, s)
 				if err != nil {
 					return err
 				}
@@ -328,8 +356,9 @@ func (c *Core) GetSiteDatabase(ctx context.Context, name string) (SiteDatabase, 
 }
 
 func engineOf(s store.Site) string {
-	if s.DBEngine == EnginePostgres {
-		return EnginePostgres
+	switch s.DBEngine {
+	case EnginePostgres, EngineMySQL57:
+		return s.DBEngine
 	}
 	return EngineMySQL
 }
@@ -338,15 +367,16 @@ func (c *Core) siteDatabase(ctx context.Context, site store.Site) (SiteDatabase,
 	if engineOf(site) == EnginePostgres {
 		return c.postgresSiteDatabase(ctx, site)
 	}
-	st, err := c.mysqlStatus(ctx)
+	s := mysqlFor(engineOf(site))
+	st, err := c.mysqlStatusOf(ctx, s)
 	if err != nil {
 		return SiteDatabase{}, err
 	}
 	res := SiteDatabase{
 		Site: site.Name, Database: site.Database, User: mysql.User,
-		Host: st.Host, Port: st.Port, Socket: c.mysqlSocketPath(), Engine: EngineMySQL,
+		Host: st.Host, Port: st.Port, Socket: c.mysqlSocketPathOf(s), Engine: s.engine,
 	}
-	kc, err := mysqlKeychain(c.launchctl.Prefix)
+	kc, err := mysqlKeychainOf(c.launchctl.Prefix, s)
 	if err != nil {
 		return res, err
 	}

@@ -358,6 +358,7 @@ struct MySQLSettings: View {
                     }
                 }
             }
+            MySQL57Section()
         }
         .formStyle(.grouped)
         .toggleStyle(.benbowSwitch)
@@ -824,5 +825,52 @@ struct BlueprintsSettings: View {
         } catch {
             self.error = error.localizedDescription
         }
+    }
+}
+
+/// Settings → MySQL: the optional MySQL 5.7 server, to test old sites
+/// against the server they ran on.
+struct MySQL57Section: View {
+    @Environment(AppModel.self) private var model
+    @State private var credentials: MySQLCredentials?
+
+    private var m: MySQLStatus? { model.status?.mysql57 }
+
+    var body: some View {
+        Section {
+            Toggle(isOn: Binding(
+                get: { m?.enabled ?? false },
+                set: { on in Task { await model.setMySQL57(enabled: on) } }
+            )) {
+                Text("MySQL \(m?.version ?? "5.7")")
+                Text(statusText).foregroundStyle(.secondary)
+            }
+            .disabled(model.busy != nil)
+            if m?.enabled == true {
+                if let c = credentials {
+                    LabeledContent("Host") { Text("\(c.host):\(c.port)").textSelection(.enabled) }
+                    LabeledContent("User") { Text(c.user).textSelection(.enabled) }
+                    LabeledContent("Password") {
+                        Button("Copy") { copyToClipboard(c.password) }
+                    }
+                    LabeledContent("Adminer") {
+                        Button("Open") { Task { await model.openAdminer(engine: "mysql57") } }
+                    }
+                } else {
+                    Button("Show Connection Details") { Task { credentials = await model.mysql57Credentials() } }
+                }
+            }
+        } header: {
+            Text("MySQL 5.7 for old sites")
+        } footer: {
+            Text("Runs next to MySQL 8.4, off until you turn it on. Pick it for a site's database when an old site needs the server it ran on. MySQL 5.7 has had no fixes since October 2023: use it locally, for old sites only.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private var statusText: String {
+        guard let m, m.enabled else { return "Off" }
+        let at = "\(m.host ?? "127.0.0.1"):\(m.port ?? 3308)"
+        return m.running ? "Running on \(at)" : "On, starts with Benbow (\(at))"
     }
 }

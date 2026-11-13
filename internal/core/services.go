@@ -471,6 +471,10 @@ func (c *Core) reconcile(ctx context.Context) (StartResult, error) {
 	if err != nil {
 		return StartResult{}, err
 	}
+	legacyAgents, legacyPort, err := c.mysqlAgentsOf(ctx, mysqlLegacy, loaded)
+	if err != nil {
+		return StartResult{}, err
+	}
 	mailAgents, mailSMTP, mailUI, err := c.mailAgents(ctx, loaded)
 	if err != nil {
 		return StartResult{}, err
@@ -490,6 +494,7 @@ func (c *Core) reconcile(ctx context.Context) (StartResult, error) {
 	agents = append([]launchd.Agent{c.caddyAgent(bin)}, agents...)
 	agents = append(agents, dnsAgents...)
 	agents = append(agents, mysqlAgents...)
+	agents = append(agents, legacyAgents...)
 	agents = append(agents, mailAgents...)
 	agents = append(agents, pgAgents...)
 	agents = append(agents, redisAgents...)
@@ -505,6 +510,9 @@ func (c *Core) reconcile(ctx context.Context) (StartResult, error) {
 		return StartResult{}, err
 	}
 	var extra []readyCheck
+	if legacyPort != 0 {
+		extra = append(extra, readyCheck{mysqlLegacy.service, "tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(legacyPort))})
+	}
 	if pgPort != 0 {
 		extra = append(extra, readyCheck{postgresService, "tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(pgPort))})
 	}
@@ -634,6 +642,8 @@ type Status struct {
 	CA       CAStatus        `json:"ca"`
 	Domains  []DomainStatus  `json:"domains"`
 	MySQL    MySQLStatus     `json:"mysql"`
+	// MySQL57 is the optional MySQL 5.7 server, for old sites.
+	MySQL57 MySQLStatus `json:"mysql57"`
 	// AdminerURL is set while MySQL is enabled.
 	AdminerURL string         `json:"adminer_url,omitempty"`
 	Mail       MailStatus     `json:"mail"`
@@ -685,6 +695,10 @@ func (c *Core) Status(ctx context.Context) (Status, error) {
 	if err != nil {
 		return Status{}, err
 	}
+	legacyOn, err := c.mysqlEnabledOf(ctx, mysqlLegacy)
+	if err != nil {
+		return Status{}, err
+	}
 	pgOn, err := c.postgresEnabled(ctx)
 	if err != nil {
 		return Status{}, err
@@ -693,7 +707,7 @@ func (c *Core) Status(ctx context.Context) (Status, error) {
 	if err != nil {
 		return Status{}, err
 	}
-	if svc := phpService(adminerPHP); (mysqlOn || pgOn) && !slices.Contains(services, svc) {
+	if svc := phpService(adminerPHP); (mysqlOn || legacyOn || pgOn) && !slices.Contains(services, svc) {
 		services = append(services, svc) // for Adminer
 	}
 	slices.Sort(services[1:])
@@ -709,6 +723,9 @@ func (c *Core) Status(ctx context.Context) (Status, error) {
 	if mysqlOn {
 		services = append(services, mysqlService)
 	}
+	if legacyOn {
+		services = append(services, mysqlLegacy.service)
+	}
 	if pgOn {
 		services = append(services, postgresService)
 	}
@@ -720,7 +737,7 @@ func (c *Core) Status(ctx context.Context) (Status, error) {
 	} else if share != nil {
 		services = append(services, phoneService)
 	}
-	if mysqlOn || pgOn {
+	if mysqlOn || legacyOn || pgOn {
 		st.AdminerURL = httpsURL(caddy.AdminerDomain, st.HTTPSPort) + "/"
 	}
 	if mailOn {
@@ -750,6 +767,9 @@ func (c *Core) Status(ctx context.Context) (Status, error) {
 		return Status{}, err
 	}
 	if st.MySQL, err = c.mysqlStatus(ctx); err != nil {
+		return Status{}, err
+	}
+	if st.MySQL57, err = c.mysqlStatusOf(ctx, mysqlLegacy); err != nil {
 		return Status{}, err
 	}
 	if st.Mail, err = c.mailStatus(ctx, st.HTTPSPort); err != nil {
@@ -891,6 +911,9 @@ func localTimezone() string {
 // databasesEnabled reports whether MySQL or PostgreSQL is on (Adminer).
 func (c *Core) databasesEnabled(ctx context.Context) (bool, error) {
 	if on, err := c.mysqlEnabled(ctx); err != nil || on {
+		return on, err
+	}
+	if on, err := c.mysqlEnabledOf(ctx, mysqlLegacy); err != nil || on {
 		return on, err
 	}
 	return c.postgresEnabled(ctx)

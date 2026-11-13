@@ -102,6 +102,20 @@
       }
     ],
     "mysql": {
+      "engine": "x",
+      "enabled": true,
+      "version": "x",
+      "host": "x",
+      "port": 1,
+      "socket": "x",
+      "user": "x",
+      "data_dir": "x",
+      "initialized": true,
+      "password_stored": true,
+      "running": true
+    },
+    "mysql57": {
+      "engine": "x",
       "enabled": true,
       "version": "x",
       "host": "x",

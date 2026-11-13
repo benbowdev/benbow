@@ -150,7 +150,7 @@ func (c *Core) CloneSite(ctx context.Context, req CloneRequest) (CloneResult, er
 		dump = filepath.Join(tmp, "database.dump")
 		err = c.dumpPostgres(ctx, src.Database, dump)
 	} else {
-		err = c.dumpMySQL(ctx, src.Database, dump)
+		err = c.dumpMySQLOf(ctx, mysqlFor(engine), src.Database, dump)
 	}
 	if err != nil {
 		return fail(err)
@@ -172,7 +172,7 @@ func (c *Core) CloneSite(ctx context.Context, req CloneRequest) (CloneResult, er
 			{Key: "DB_DATABASE", Value: db.Database}, {Key: "DB_USERNAME", Value: db.User}, {Key: "DB_PASSWORD", Value: db.Password},
 		})
 	case FrameworkWordPress:
-		home, _ := c.wpHome(ctx, db.Database, cfg.prefix)
+		home, _ := c.wpHomeOf(ctx, mysqlFor(engine), db.Database, cfg.prefix)
 		res.URLFrom = home
 		var w []string
 		if w, err = pointWPConfig(cfg.path, db, home, add.URL); err == nil {

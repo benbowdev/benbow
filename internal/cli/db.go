@@ -44,11 +44,11 @@ func (a *app) dbListCmd() *cobra.Command {
 				res, err := c.PostgresDatabases(ctx)
 				return dbListResult(res), err
 			}
-			res, err := c.Databases(ctx)
+			res, err := c.DatabasesOf(ctx, engine)
 			return dbListResult(res), err
 		}),
 	}
-	cmd.Flags().StringVar(&engine, "engine", "mysql", "mysql or pgsql")
+	cmd.Flags().StringVar(&engine, "engine", "mysql", "mysql (8.4), mysql57 or pgsql")
 	return cmd
 }
 
@@ -63,7 +63,7 @@ func (r siteDBResult) Text(w io.Writer) {
 		fmt.Fprintf(w, "%s no longer uses database %s (the database is kept)\n", r.Site, r.Database)
 		return
 	}
-	engine := "MySQL"
+	engine := mysqlTitle(r.Engine)
 	if r.Engine == core.EnginePostgres {
 		engine = "PostgreSQL"
 	}
@@ -95,7 +95,7 @@ func (a *app) dbCreateCmd() *cobra.Command {
 		}),
 	}
 	cmd.Flags().StringVar(&name, "name", "", "database name (default: the site name with underscores)")
-	cmd.Flags().StringVar(&engine, "engine", "mysql", "mysql or pgsql")
+	cmd.Flags().StringVar(&engine, "engine", "mysql", "mysql (8.4), mysql57 or pgsql")
 	return cmd
 }
 
@@ -110,7 +110,7 @@ func (a *app) dbLinkCmd() *cobra.Command {
 			return siteDBResult(res), err
 		}),
 	}
-	cmd.Flags().StringVar(&engine, "engine", "mysql", "mysql or pgsql")
+	cmd.Flags().StringVar(&engine, "engine", "mysql", "mysql (8.4), mysql57 or pgsql")
 	return cmd
 }
 

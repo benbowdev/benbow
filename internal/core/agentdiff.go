@@ -133,13 +133,16 @@ func (c *Core) dbStats(ctx context.Context, site store.Site) (dbStats, error) {
 	if st.Engine == EnginePostgres {
 		return st, c.pgStats(ctx, &st)
 	}
-	return st, c.mysqlStats(ctx, &st)
+	return st, c.mysqlStats(ctx, mysqlFor(st.Engine), &st)
 }
 
-func (c *Core) mysqlStats(ctx context.Context, st *dbStats) error {
+func (c *Core) mysqlStats(ctx context.Context, s mysqlServer, st *dbStats) error {
 	db := strings.ReplaceAll(st.Database, "'", "''")
-	rows, err := c.rootQuery(ctx, `SET SESSION information_schema_stats_expiry = 0;
-SELECT 'start', UNIX_TIMESTAMP() - VARIABLE_VALUE, '', '', '', ''
+	expiry := "SET SESSION information_schema_stats_expiry = 0;\n" // 8.0+: fresh row counts
+	if s.legacy {
+		expiry = ""
+	}
+	rows, err := c.rootQueryOf(ctx, s, expiry+`SELECT 'start', UNIX_TIMESTAMP() - VARIABLE_VALUE, '', '', '', ''
   FROM performance_schema.global_status WHERE VARIABLE_NAME = 'Uptime';
 SELECT t.TABLE_NAME, IFNULL(t.TABLE_ROWS, 0), IFNULL(DATE_FORMAT(t.UPDATE_TIME, '%Y-%m-%d %H:%i:%s'), ''),
   IFNULL((SELECT SHA2(GROUP_CONCAT(CONCAT(c.COLUMN_NAME, ' ', c.COLUMN_TYPE) ORDER BY c.ORDINAL_POSITION SEPARATOR ','), 256)

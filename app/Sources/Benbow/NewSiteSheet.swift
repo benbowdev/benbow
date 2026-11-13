@@ -108,13 +108,14 @@ struct NewSiteSheet: View {
 
     /// The database server the choice needs is running.
     private var serverReady: Bool {
-        source != .wordpress && engine == "pgsql" ? model.postgresReady : model.mysqlReady
+        source == .wordpress ? model.mysqlReady : model.ready(engine)
     }
 
-    /// PostgreSQL is offered when it is on.
+    /// PostgreSQL and MySQL 5.7 are offered when they are on.
     private var enginePicker: some View {
         Picker("Engine", selection: $engine) {
             Text("MySQL").tag("mysql")
+            if model.mysql57Ready && source != .laravel { Text("MySQL 5.7").tag("mysql57") }
             Text("PostgreSQL").tag("pgsql")
         }
         .pickerStyle(.segmented)
@@ -225,7 +226,7 @@ struct NewSiteSheet: View {
                         Text("New database").tag(DatabaseChoice.new)
                         Text("Existing database").tag(DatabaseChoice.existing)
                     }
-                    if database != .none && model.status?.postgres?.enabled == true {
+                    if database != .none && (model.status?.postgres?.enabled == true || model.mysql57Ready) {
                         enginePicker
                     }
                     if database == .existing {
@@ -311,7 +312,11 @@ struct NewSiteSheet: View {
         .task(id: "\(database)-\(engine)") {
             if database == .existing {
                 existingDB = ""
-                databases = engine == "pgsql" ? await model.postgresDatabases() : (model.mysqlReady ? await model.databases() : [])
+                switch engine {
+                case "pgsql": databases = await model.postgresDatabases()
+                case "mysql57": databases = await model.mysql57Databases()
+                default: databases = model.mysqlReady ? await model.databases() : []
+                }
             }
         }
     }
@@ -388,7 +393,7 @@ struct NewSiteSheet: View {
 
     private var databaseHelp: String {
         if needsMySQL && !serverReady {
-            let name = engine == "pgsql" && source != .wordpress ? "PostgreSQL" : "MySQL"
+            let name = source == .wordpress ? "MySQL" : engineTitle(engine)
             return "Turn \(name) on in Settings and start Benbow first."
         }
         switch database {

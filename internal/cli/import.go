@@ -229,6 +229,7 @@ replaced. Without --php, an old WordPress gets a PHP version it runs on.`,
 	cmd.Flags().StringVar(&req.Name, "name", "", "site name (default: from the archive's file name)")
 	cmd.Flags().StringVar(&req.PHP, "php", "", "PHP version (default: one the WordPress inside runs on, else 8.4)")
 	cmd.Flags().StringVar(&req.Folder, "folder", "", "where the site's folder goes (default ~/Sites/<name>)")
+	cmd.Flags().StringVar(&req.Engine, "engine", "mysql", "MySQL server for the dump: mysql (8.4) or mysql57 (benbow mysql57 enable)")
 	cmd.Flags().BoolVar(&req.DryRun, "dry-run", false, "only show what would be created")
 	return cmd
 }

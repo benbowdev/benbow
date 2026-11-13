@@ -369,13 +369,14 @@ public struct BenbowAPI: Sendable {
         let name: String?
         let php: String?
         let folder: String?
+        let engine: String?
         let dryRun: Bool
     }
 
     /// Creates a site from a .zip/.tar.gz with its folder and a .sql dump,
     /// or with dryRun shows what Benbow found in it.
-    public func importArchive(file: String, name: String?, php: String?, folder: String?, dryRun: Bool) async throws -> ArchiveImportResult {
-        try await call("POST", "/v1/import/archive", ArchiveRequest(file: file, name: name, php: php, folder: folder, dryRun: dryRun))
+    public func importArchive(file: String, name: String?, php: String?, folder: String?, engine: String? = nil, dryRun: Bool) async throws -> ArchiveImportResult {
+        try await call("POST", "/v1/import/archive", ArchiveRequest(file: file, name: name, php: php, folder: folder, engine: engine, dryRun: dryRun))
     }
 
     struct CloneRequest: Encodable {
@@ -744,6 +745,23 @@ public struct BenbowAPI: Sendable {
 
     public func mysqlCredentials() async throws -> MySQLCredentials {
         try await call("GET", "/v1/mysql/credentials")
+    }
+
+    /// The optional MySQL 5.7 server.
+    public func enableMySQL57(port: Int? = nil) async throws {
+        let _: Ignored = try await call("POST", "/v1/mysql57/enable", PortRequest(port: port))
+    }
+
+    public func disableMySQL57() async throws {
+        let _: Ignored = try await call("POST", "/v1/mysql57/disable")
+    }
+
+    public func mysql57Credentials() async throws -> MySQLCredentials {
+        try await call("GET", "/v1/mysql57/credentials")
+    }
+
+    public func mysql57Databases() async throws -> [String] {
+        try await call("GET", "/v1/mysql57/databases")
     }
 
     struct ImportRequest: Encodable {

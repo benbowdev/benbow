@@ -140,7 +140,7 @@ func New(open Open) *mcp.Server {
 	mcp.AddTool(s, &mcp.Tool{Name: "update_site", Title: "Change a site", Annotations: change,
 		Description: "Changes a site's PHP version, folder, domain or aliases, or turns it on or off. Snapshot first."}, t.updateSite)
 	mcp.AddTool(s, &mcp.Tool{Name: "create_site_database", Title: "Create a site database", Annotations: change,
-		Description: "Creates a database with its own user for a site (engine mysql or pgsql); the password stays in the keychain."}, t.createDatabase)
+		Description: "Creates a database with its own user for a site (engine mysql, mysql57 for the optional MySQL 5.7 server, or pgsql); the password stays in the keychain."}, t.createDatabase)
 	mcp.AddTool(s, &mcp.Tool{Name: "new_wordpress", Title: "New WordPress site", Annotations: network,
 		Description: "Creates a WordPress site in one step; returns the admin password once. Needs permission for everything."}, t.newWordPress)
 	mcp.AddTool(s, &mcp.Tool{Name: "new_laravel", Title: "New Laravel project", Annotations: network,
@@ -175,6 +175,7 @@ type importArchiveIn struct {
 	Name   string `json:"name,omitempty" jsonschema:"site name (default: from the file name)"`
 	PHP    string `json:"php,omitempty" jsonschema:"PHP version (default: one the WordPress inside runs on)"`
 	Folder string `json:"folder,omitempty" jsonschema:"absolute path of the new site's folder (default ~/Sites/<name>)"`
+	Engine string `json:"engine,omitempty" jsonschema:"MySQL server for the dump: mysql (8.4, default) or mysql57"`
 	DryRun *bool  `json:"dry_run,omitempty" jsonschema:"only show what would be created (default true)"`
 }
 
@@ -183,7 +184,7 @@ func (t tools) importArchive(ctx context.Context, _ *mcp.CallToolRequest, in imp
 		return toolError(errcode.Errorf(errcode.InvalidInput, "file and folder must be absolute paths")), nil, nil
 	}
 	dry := in.DryRun == nil || *in.DryRun
-	req := core.ArchiveImportRequest{File: in.File, Name: in.Name, PHP: in.PHP, Folder: in.Folder, DryRun: dry}
+	req := core.ArchiveImportRequest{File: in.File, Name: in.Name, PHP: in.PHP, Folder: in.Folder, Engine: in.Engine, DryRun: dry}
 	return change(ctx, t, "import_archive", "", in, dry, false, func(c *core.Core) (any, error) {
 		return c.ImportArchive(ctx, req)
 	})

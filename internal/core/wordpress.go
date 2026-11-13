@@ -137,6 +137,16 @@ func (c *Core) wpCommand(ctx context.Context, site store.Site, args ...string) (
 	if i := slices.Index(cmd.Args, script); i > 0 {
 		cmd.Args = slices.Insert(cmd.Args, i, "-d", "auto_prepend_file="+launch)
 	}
+	if engineOf(site) == EngineMySQL57 {
+		// wp db export/import with MySQL 5.7's own client tools (8.4's
+		// mysqldump asks 5.7 for tables it does not have).
+		if dir, _, err := c.ensureMySQLOf(ctx, mysqlLegacy); err == nil {
+			cmd.Env = append(cmd.Env, "PATH="+filepath.Join(dir, "bin")+":"+os.Getenv("PATH"))
+		}
+		if port, err := c.mysqlPortOf(ctx, mysqlLegacy); err == nil {
+			cmd.Env = append(cmd.Env, "MYSQL_UNIX_PORT="+c.mysqlSocketPathOf(mysqlLegacy), "MYSQL_TCP_PORT="+strconv.Itoa(port))
+		}
+	}
 	cmd.Env = append(cmd.Env,
 		"WP_CLI_CACHE_DIR="+filepath.Join(data, "cache"),
 		"WP_CLI_PACKAGES_DIR="+filepath.Join(data, "packages"),

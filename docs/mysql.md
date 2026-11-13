@@ -116,3 +116,39 @@ large imports. On the usual case-insensitive APFS volume MySQL itself sets
 - Tests use the test launchd prefix as keychain service, so they never see
   the real password; the e2e inventory checks the login keychain for leftover
   Benbow items.
+
+## MySQL 5.7 for old sites
+
+```sh
+benbow mysql57 enable              # off until enabled; 127.0.0.1, port 3308 by default
+benbow mysql57 password
+benbow db create shop --engine mysql57
+benbow import archive old-site.zip --engine mysql57
+benbow mysql57 disable             # databases are kept
+```
+
+An optional second server, to test an old site against the server it ran
+on. It runs next to 8.4 with its own data folder (`data/mysql57`), port,
+socket, launchd agent (`<prefix>.mysql57`) and root password (keychain
+service `<prefix>.mysql57`, site users under the same service). The two
+servers never share a port: each skips the other's.
+
+Oracle never shipped 5.7 for Apple Silicon. Benbow's build comes from
+`benbowdev/benbow-binaries` (`mysql57/build.sh`: Oracle's mysql-boost source,
+OpenSSL 3.0 from source and linked statically, macOS's own zlib), through
+the signed manifest as component `mysql57`; until a manifest lists it,
+`benbow mysql57 enable` says there is no build yet. MySQL 5.7 has had no
+fixes since October 2023: use it locally, for old sites only.
+
+A site's database goes on it with `--engine mysql57` (`benbow db create`,
+`db link`, `site add --database`, `import archive`, the New Site sheet and the
+site's database row in the app). Everything that works with a site's
+database follows its engine: snapshots and restores, clone, pull and push,
+`benbow db query` (5.7's client cannot turn off its own commands, so the
+statement is sent on one line), agent session diffs, Adminer
+(`127.0.0.1:<port>`), wp-cli (5.7's own `mysqldump` first on PATH). New
+Laravel projects and WordPress sites made by Benbow use 8.4; the importers'
+`--migrate` copies into 8.4.
+
+Settings → MySQL → MySQL 5.7 for old sites: on/off, connection details,
+Adminer.

@@ -107,6 +107,7 @@ up as a diff of those files: adding a field is fine (rerun the Go test with
 | `GET /v1/domains`, `POST /v1/domains/{zone}/enable\|disable` | | `benbow domains` |
 | `GET /v1/mysql`, `POST /v1/mysql/enable\|disable` | `{port}` | `benbow mysql` |
 | `GET /v1/mysql/credentials` | | `benbow mysql password` |
+| `GET /v1/mysql57`, `POST /v1/mysql57/enable\|disable`, `GET /v1/mysql57/credentials`, `GET /v1/mysql57/databases` | `{port}` | `benbow mysql57` (the optional MySQL 5.7 server) |
 | `GET /v1/mail`, `POST /v1/mail/enable\|disable` | | `benbow mail` |
 | `GET /v1/updates`, `POST /v1/updates/check\|apply\|rollback`, `PUT /v1/updates/auto` | `{components}`, `{component}`, `{on}` | `benbow update`, `check`, `apply`, `rollback`, `auto on\|off` |
 | `POST /v1/adminer/login` | `{site}` (empty: root) | (app only) |

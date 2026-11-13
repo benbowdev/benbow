@@ -94,6 +94,11 @@ type Backend interface {
 	EnableMySQL(ctx context.Context, port int) (core.MySQLResult, error)
 	DisableMySQL(ctx context.Context) (core.MySQLResult, error)
 	MySQLCredentials(ctx context.Context) (core.MySQLCredentials, error)
+	MySQLOf(ctx context.Context, engine string) (core.MySQLStatus, error)
+	EnableMySQLOf(ctx context.Context, engine string, port int) (core.MySQLResult, error)
+	DisableMySQLOf(ctx context.Context, engine string) (core.MySQLResult, error)
+	MySQLCredentialsOf(ctx context.Context, engine string) (core.MySQLCredentials, error)
+	DatabasesOf(ctx context.Context, engine string) ([]string, error)
 	Trust(ctx context.Context, beforePrompt func()) (core.TrustResult, error)
 	Untrust(ctx context.Context) (core.TrustResult, error)
 	Import(ctx context.Context, opts core.ImportOptions) (core.ImportPlan, error)
@@ -901,6 +906,21 @@ func Handler(b Backend) http.Handler {
 		return b.DisableMySQL(r.Context())
 	})
 	get("/v1/mysql/credentials", func(ctx context.Context) (any, error) { return b.MySQLCredentials(ctx) })
+	get("/v1/mysql57", func(ctx context.Context) (any, error) { return b.MySQLOf(ctx, core.EngineMySQL57) })
+	post("POST", "/v1/mysql57/enable", func(r *http.Request, body []byte) (any, error) {
+		var req struct {
+			Port int `json:"port"`
+		}
+		if err := decode(body, &req); err != nil {
+			return nil, err
+		}
+		return b.EnableMySQLOf(r.Context(), core.EngineMySQL57, req.Port)
+	})
+	post("POST", "/v1/mysql57/disable", func(r *http.Request, _ []byte) (any, error) {
+		return b.DisableMySQLOf(r.Context(), core.EngineMySQL57)
+	})
+	get("/v1/mysql57/credentials", func(ctx context.Context) (any, error) { return b.MySQLCredentialsOf(ctx, core.EngineMySQL57) })
+	get("/v1/mysql57/databases", func(ctx context.Context) (any, error) { return b.DatabasesOf(ctx, core.EngineMySQL57) })
 
 	get("/v1/postgres", func(ctx context.Context) (any, error) { return b.Postgres(ctx) })
 	post("POST", "/v1/postgres/enable", func(r *http.Request, body []byte) (any, error) {
@@ -941,6 +961,7 @@ func Handler(b Backend) http.Handler {
 			Name   string `json:"name"`
 			PHP    string `json:"php"`
 			Folder string `json:"folder"`
+			Engine string `json:"engine"`
 			DryRun bool   `json:"dry_run"`
 		}
 		if err := decode(body, &req); err != nil {
@@ -949,7 +970,7 @@ func Handler(b Backend) http.Handler {
 		if !filepath.IsAbs(req.File) || (req.Folder != "" && !filepath.IsAbs(req.Folder)) {
 			return nil, errcode.Errorf(errcode.InvalidInput, "file and folder must be absolute paths")
 		}
-		return b.ImportArchive(r.Context(), core.ArchiveImportRequest{File: req.File, Name: req.Name, PHP: req.PHP, Folder: req.Folder, DryRun: req.DryRun})
+		return b.ImportArchive(r.Context(), core.ArchiveImportRequest{File: req.File, Name: req.Name, PHP: req.PHP, Folder: req.Folder, Engine: req.Engine, DryRun: req.DryRun})
 	})
 	post("POST", "/v1/import/{source}", func(r *http.Request, body []byte) (any, error) {
 		var req struct {

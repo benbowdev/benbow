@@ -150,9 +150,18 @@ func (c *Core) NewAdminerLogin(ctx context.Context, site, engine string) (Admine
 			return AdminerLogin{}, err
 		}
 		creds = AdminerCredentials{Server: "localhost", Username: db.User, Password: db.Password, DB: db.Database, Driver: "server"}
-		if db.Engine == EnginePostgres {
+		switch db.Engine {
+		case EnginePostgres:
 			creds.Server, creds.Driver = "127.0.0.1:"+strconv.Itoa(db.Port), "pgsql"
+		case EngineMySQL57:
+			creds.Server = "127.0.0.1:" + strconv.Itoa(db.Port)
 		}
+	case engine == EngineMySQL57:
+		root, err := c.MySQLCredentialsOf(ctx, EngineMySQL57)
+		if err != nil {
+			return AdminerLogin{}, err
+		}
+		creds = AdminerCredentials{Server: "127.0.0.1:" + strconv.Itoa(root.Port), Username: mysql.User, Password: root.Password, Driver: "server"}
 	case engine == EnginePostgres || (engine == "" && !st.MySQL.Enabled):
 		root, err := c.PostgresCredentials(ctx)
 		if err != nil {

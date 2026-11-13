@@ -204,6 +204,8 @@ public struct Status: Codable, Sendable, Hashable {
     public var ca: CAStatus
     public var domains: [Domain]
     public var mysql: MySQLStatus
+    /// The optional MySQL 5.7 server, for old sites.
+    public var mysql57: MySQLStatus?
     /// Set while MySQL is enabled.
     public var adminerUrl: String?
     public var mail: MailStatus?

@@ -335,6 +335,18 @@ Format: **decision** (date) — why. *Not chosen:* alternatives.
   removed)** (2026-11-03) — shared hosting is common among the users.
 - **SSH passwords in the keychain, given to ssh through `benbow askpass`**
   (2026-11-03).
+- **MySQL 5.7 as an optional second server, chosen per site like
+  PostgreSQL** (2026-11-13) — Reddit feedback: old client sites are tested
+  against the server they ran on. Oracle never shipped 5.7 for Apple
+  Silicon, so benbow-binaries builds it from source (OpenSSL 3.0 static,
+  system zlib, three fixes for today's SDK). Own port (3308), data folder,
+  agent and keychain service; every site-database feature follows the
+  site's engine. Tested end to end with a local build served by a signed
+  test manifest (loopback HTTP allowed only in `benbowtest` builds).
+  *Not chosen:* switching the one MySQL between 8.4 and 5.7 (data folders
+  are not compatible both ways, sites on the other version would break),
+  MariaDB as a stand-in (not what the sites ran on), Oracle's x86_64
+  builds under Rosetta.
 - **Site archives: any zip/tar.gz with the site's folder and a .sql
   anywhere, found by rules, not by format** (2026-11-13) — Reddit feedback:
   old ServerPress and Local "file open" any such zip, which covers Local,

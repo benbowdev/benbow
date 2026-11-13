@@ -30,7 +30,7 @@ struct DatabaseRow: View {
     }
 
     @ViewBuilder private var none: some View {
-        if model.mysqlReady || model.postgresReady {
+        if model.mysqlReady || model.postgresReady || model.mysql57Ready {
             HStack {
                 Text("None").foregroundStyle(.secondary)
                 Menu("Add") {
@@ -38,8 +38,12 @@ struct DatabaseRow: View {
                         Button("Create MySQL Database \(defaultName)") { Task { await model.createDatabase(site) } }
                         Button("Link Existing MySQL Database…") { linking = true }
                     }
-                    if model.postgresReady {
+                    if model.mysql57Ready {
                         if model.mysqlReady { Divider() }
+                        Button("Create MySQL 5.7 Database \(defaultName)") { Task { await model.createDatabase(site, engine: "mysql57") } }
+                    }
+                    if model.postgresReady {
+                        if model.mysqlReady || model.mysql57Ready { Divider() }
                         Button("Create PostgreSQL Database \(defaultName)") { Task { await model.createDatabase(site, engine: "pgsql") } }
                     }
                 }
@@ -56,12 +60,12 @@ struct DatabaseRow: View {
         HStack {
             VStack(alignment: .trailing, spacing: 1) {
                 Text(site.database).textSelection(.enabled)
-                Text("\(site.databaseEngine == "pgsql" ? "PostgreSQL" : "MySQL") · user \(site.databaseUser ?? (site.databaseEngine == "pgsql" ? "postgres" : "root"))")
+                Text("\(engineTitle(site.databaseEngine)) · user \(site.databaseUser ?? (site.databaseEngine == "pgsql" ? "postgres" : "root"))")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Button("Adminer") { Task { await model.openAdminer(site) } }
                 .help("Open this database in Adminer, already logged in")
-                .disabled(!(site.databaseEngine == "pgsql" ? model.postgresReady : model.mysqlReady) || !model.running)
+                .disabled(!model.ready(site.databaseEngine) || !model.running)
             Menu {
                 Button("Show Credentials…") { Task { credentials = await model.siteDatabase(site) } }
                 Button("Copy Password") {
@@ -166,4 +170,13 @@ struct CredentialsView: View {
 
 extension SiteDatabase: Identifiable {
     public var id: String { site }
+}
+
+/// The name of a database engine as people know it.
+func engineTitle(_ engine: String?) -> String {
+    switch engine {
+    case "pgsql": "PostgreSQL"
+    case "mysql57": "MySQL 5.7"
+    default: "MySQL"
+    }
 }

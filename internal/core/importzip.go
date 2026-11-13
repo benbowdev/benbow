@@ -46,6 +46,9 @@ type ArchiveImportRequest struct {
 	// Folder is the new site's folder (default ~/Sites/<name>); it must be
 	// missing or empty.
 	Folder string
+	// Engine is the MySQL server the dump goes to: mysql (8.4, default) or
+	// mysql57.
+	Engine string
 	// DryRun only reads the archive's list of files.
 	DryRun bool
 }
@@ -65,6 +68,7 @@ type ArchiveImportResult struct {
 	PHPReason string `json:"php_reason,omitempty"`
 	// SQL is the dump loaded, as named in the archive ("" when none).
 	SQL      string   `json:"sql,omitempty"`
+	Engine   string   `json:"engine"`
 	Database string   `json:"database,omitempty"`
 	URLFrom  string   `json:"url_from,omitempty"`
 	Warnings []string `json:"warnings"`
@@ -83,6 +87,11 @@ type archiveEntry struct {
 // only read. If any step fails, everything is undone.
 func (c *Core) ImportArchive(ctx context.Context, req ArchiveImportRequest) (ArchiveImportResult, error) {
 	res := ArchiveImportResult{DryRun: req.DryRun, Warnings: []string{}}
+	srv, err := mysqlServerOf(req.Engine)
+	if err != nil {
+		return res, err
+	}
+	res.Engine = srv.engine
 	kind, err := archiveKind(req.File)
 	if err != nil {
 		return res, err
@@ -171,7 +180,7 @@ func (c *Core) ImportArchive(ctx context.Context, req ArchiveImportRequest) (Arc
 		return res, err
 	}
 
-	add, err := c.AddSite(ctx, AddSiteRequest{Name: req.Name, PHP: res.PHP, Path: res.Folder, Force: true, NewDatabase: dump != ""})
+	add, err := c.AddSite(ctx, AddSiteRequest{Name: req.Name, PHP: res.PHP, Path: res.Folder, Force: true, NewDatabase: dump != "", DatabaseEngine: srv.engine})
 	if err != nil {
 		return fail(err)
 	}
@@ -192,7 +201,7 @@ func (c *Core) ImportArchive(ctx context.Context, req ArchiveImportRequest) (Arc
 		return fail(err)
 	}
 	res.Database = db.Database
-	client, port, rootPW, err := c.mysqlRoot(ctx)
+	client, port, rootPW, err := c.mysqlRootOf(ctx, srv)
 	if err != nil {
 		return fail(err)
 	}
@@ -245,7 +254,7 @@ func (c *Core) pointImportedWordPress(ctx context.Context, site store.Site, db S
 		return nil, fmt.Errorf("read %s: %w", cfg, err)
 	}
 	prefix := wpconfig.Read(string(b)).TablePrefix
-	old, _ := c.wpHome(ctx, db.Database, prefix)
+	old, _ := c.wpHomeOf(ctx, mysqlFor(engineOf(site)), db.Database, prefix)
 	w, err := c.pointConfigAt(projectDB{framework: FrameworkWordPress, configPath: cfg}, db, host, url, old)
 	if err != nil {
 		return nil, err

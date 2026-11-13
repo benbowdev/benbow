@@ -131,5 +131,6 @@ archive is only read.
   temporary folder. If any step fails, the site, its database and the folder
   are removed.
 
-`--dry-run` reads only the list of files (and WordPress's version) and says
-what would be created.
+`--engine mysql57` loads the dump into the optional MySQL 5.7 server
+(`mysql.md`) instead of 8.4. `--dry-run` reads only the list of files (and
+WordPress's version) and says what would be created.

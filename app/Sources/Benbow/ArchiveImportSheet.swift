@@ -25,6 +25,7 @@ struct ArchiveImportSheet: View {
     @State private var plan: ArchiveImportResult?
     @State private var name = ""
     @State private var php = ""
+    @State private var engine = "mysql"
     @State private var error: String?
     @State private var done: ArchiveImportResult?
 
@@ -49,6 +50,13 @@ struct ArchiveImportSheet: View {
                     }
                     if let reason = plan.phpReason { Text("Suggested: PHP \(plan.php), \(reason).").font(.caption).foregroundStyle(.secondary) }
                     PHPSupportNote(minor: php)
+                    if plan.sql != nil && model.mysql57Ready {
+                        Picker("Database", selection: $engine) {
+                            Text("MySQL 8.4").tag("mysql")
+                            Text("MySQL 5.7").tag("mysql57")
+                        }
+                        .pickerStyle(.segmented)
+                    }
                     LabeledContent("Folder") {
                         Text(folder).lineLimit(1).truncationMode(.middle).foregroundStyle(.secondary)
                     }
@@ -111,7 +119,7 @@ struct ArchiveImportSheet: View {
     private func run() async {
         error = nil
         do {
-            done = try await model.importArchive(url, name: name, php: php, folder: nil, dryRun: false)
+            done = try await model.importArchive(url, name: name, php: php, folder: nil, engine: engine, dryRun: false)
             if let done { created(done.name) }
         } catch {
             self.error = error.localizedDescription

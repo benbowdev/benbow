@@ -483,11 +483,15 @@ func (c *Core) backupDatabase(ctx context.Context, site, db string) (string, err
 
 // restoreDatabaseBackup loads a backupDatabase file into db (recreated).
 func (c *Core) restoreDatabaseBackup(ctx context.Context, db, path string) error {
-	client, port, pw, err := c.mysqlRoot(ctx)
+	return c.restoreDatabaseBackupOf(ctx, mysqlMain, db, path)
+}
+
+func (c *Core) restoreDatabaseBackupOf(ctx context.Context, s mysqlServer, db, path string) error {
+	client, port, pw, err := c.mysqlRootOf(ctx, s)
 	if err != nil {
 		return err
 	}
-	if _, err := c.rootQuery(ctx, "DROP DATABASE IF EXISTS `"+db+"`; CREATE DATABASE `"+db+"` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"); err != nil {
+	if _, err := c.rootQueryOf(ctx, s, "DROP DATABASE IF EXISTS `"+db+"`; CREATE DATABASE `"+db+"` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"); err != nil {
 		return err
 	}
 	return c.loadIntoDatabase(ctx, projectDB{}, db, path, client, port, pw)
@@ -600,10 +604,14 @@ func rebaseURL(v, oldHome, newHome string) (string, bool) {
 
 // wpHome reads WordPress's home address from a database on Benbow's server.
 func (c *Core) wpHome(ctx context.Context, db, prefix string) (string, error) {
+	return c.wpHomeOf(ctx, mysqlMain, db, prefix)
+}
+
+func (c *Core) wpHomeOf(ctx context.Context, s mysqlServer, db, prefix string) (string, error) {
 	if !mysql.ValidName(strings.TrimSuffix(prefix, "_"), 64) && prefix != "" {
 		prefix = "wp_"
 	}
-	rows, err := c.rootQuery(ctx, "SELECT option_value FROM `"+db+"`.`"+prefix+"options` WHERE option_name = 'home';")
+	rows, err := c.rootQueryOf(ctx, s, "SELECT option_value FROM `"+db+"`.`"+prefix+"options` WHERE option_name = 'home';")
 	if err != nil || len(rows) == 0 {
 		return "", err
 	}

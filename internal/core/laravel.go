@@ -185,6 +185,9 @@ func (c *Core) NewLaravel(ctx context.Context, req LaravelRequest) (LaravelResul
 	if err != nil {
 		return res, err
 	}
+	if engine == EngineMySQL57 {
+		return res, errcode.Errorf(errcode.Unsupported, "new Laravel projects use MySQL 8.4 or PostgreSQL: Laravel needs MySQL 8 or newer")
+	}
 	req.Engine = engine
 	if req.Database == "" {
 		req.Database = "sqlite"

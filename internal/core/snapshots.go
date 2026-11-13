@@ -168,7 +168,7 @@ func (c *Core) dumpSnapshotDB(ctx context.Context, site store.Site, sn *store.Sn
 		err = c.dumpPostgres(ctx, site.Database, sn.DBFile)
 	} else {
 		sn.DBFile = filepath.Join(dir, "database.sql.gz")
-		err = c.dumpMySQL(ctx, site.Database, sn.DBFile)
+		err = c.dumpMySQLOf(ctx, mysqlFor(sn.DBEngine), site.Database, sn.DBFile)
 	}
 	if err != nil {
 		_ = os.Remove(sn.DBFile)
@@ -395,11 +395,11 @@ func (c *Core) restoreSnapshotDB(ctx context.Context, site store.Site, engine, d
 		}
 		return postgres.Restore(ctx, filepath.Join(dir, "bin"), port, pw, db, role, file, c.Layout.Tmp)
 	}
-	return c.restoreDatabaseBackup(ctx, db, file)
+	return c.restoreDatabaseBackupOf(ctx, mysqlFor(engine), db, file)
 }
 
-func (c *Core) dumpMySQL(ctx context.Context, db, path string) error {
-	client, port, pw, err := c.mysqlRoot(ctx)
+func (c *Core) dumpMySQLOf(ctx context.Context, s mysqlServer, db, path string) error {
+	client, port, pw, err := c.mysqlRootOf(ctx, s)
 	if err != nil {
 		return err
 	}
@@ -409,7 +409,7 @@ func (c *Core) dumpMySQL(ctx context.Context, db, path string) error {
 	}
 	gz := gzip.NewWriter(f)
 	err = mysql.Dump(ctx, filepath.Join(filepath.Dir(client), "mysqldump"),
-		mysql.Server{Host: "127.0.0.1", Port: port, User: mysql.User, Password: pw}, db, gz)
+		mysql.Server{Host: "127.0.0.1", Port: port, User: mysql.User, Password: pw, Client57: s.legacy}, db, gz)
 	if cerr := gz.Close(); err == nil {
 		err = cerr
 	}

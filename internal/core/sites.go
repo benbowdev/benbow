@@ -112,7 +112,7 @@ func (c *Core) AddSite(ctx context.Context, req AddSiteRequest) (SiteResult, err
 		if engine == EnginePostgres {
 			_, _, _, err = c.postgresRoot(ctx)
 		} else {
-			_, _, _, err = c.mysqlRoot(ctx)
+			_, _, _, err = c.mysqlRootOf(ctx, mysqlFor(engine))
 		}
 		if err != nil {
 			return SiteResult{}, err

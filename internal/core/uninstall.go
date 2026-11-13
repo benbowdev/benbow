@@ -256,13 +256,15 @@ func benbowKeychains(prefix string) ([]struct {
 	if err != nil {
 		return nil, err
 	}
-	remote, github, appEnv := my, my, my
+	remote, github, appEnv, legacy := my, my, my, my
 	remote.Service, github.Service, appEnv.Service = prefix+".remote", prefix+".github", prefix+"."+appEnvService
+	legacy.Service = prefix + "." + mysqlLegacy.service
 	return []struct {
 		what string
 		kc   mysql.Keychain
 	}{
 		{"MySQL passwords: root, site users and read-only users", my},
+		{"MySQL 5.7 passwords: root, site users and read-only users", legacy},
 		{"PostgreSQL passwords: superuser and site users", pg},
 		{"Passwords of production and staging servers", remote},
 		{"GitHub token for blueprints", github},

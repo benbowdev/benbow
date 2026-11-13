@@ -262,7 +262,7 @@ func (c *Core) pull(ctx context.Context, name, remoteName string, opts SyncOptio
 			return res, errcode.Errorf(errcode.Unsupported, "pulling PostgreSQL databases is not supported yet")
 		}
 		if site.Database == "" && !opts.DryRun {
-			if _, err := c.createMySQLSiteDatabase(ctx, name, ""); err != nil {
+			if _, err := c.createMySQLSiteDatabase(ctx, mysqlMain, name, ""); err != nil {
 				return res, err
 			}
 			if site, err = c.Store.Site(ctx, name); err != nil {
@@ -281,7 +281,7 @@ func (c *Core) pull(ctx context.Context, name, remoteName string, opts SyncOptio
 		if site.Framework == FrameworkWordPress && r.URL != localURL {
 			res.URLFrom, res.URLTo = r.URL, localURL
 			if !opts.DryRun {
-				if home, err := c.wpHome(ctx, site.Database, c.tablePrefix(site)); err == nil && home != "" {
+				if home, err := c.wpHomeOf(ctx, mysqlFor(engineOf(site)), site.Database, c.tablePrefix(site)); err == nil && home != "" {
 					res.URLFrom = home
 				}
 				if err := c.replaceURL(ctx, site, res.URLFrom, localURL); err != nil {
@@ -440,11 +440,12 @@ func remoteClientOptions(s mysql.Server) string {
 
 // pullDatabase replaces the site's database with the remote one.
 func (c *Core) pullDatabase(ctx context.Context, srv remote.Server, r store.Remote, site store.Site) error {
-	client, port, rootPW, err := c.mysqlRoot(ctx)
+	s := mysqlFor(engineOf(site))
+	client, port, rootPW, err := c.mysqlRootOf(ctx, s)
 	if err != nil {
 		return err
 	}
-	if _, err := c.rootQuery(ctx, "DROP DATABASE IF EXISTS `"+site.Database+"`; CREATE DATABASE `"+site.Database+"` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"); err != nil {
+	if _, err := c.rootQueryOf(ctx, s, "DROP DATABASE IF EXISTS `"+site.Database+"`; CREATE DATABASE `"+site.Database+"` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"); err != nil {
 		return err
 	}
 	pr, pw := io.Pipe()
@@ -676,7 +677,8 @@ func (c *Core) pushDatabase(ctx context.Context, srv remote.Server, r store.Remo
 			return errcode.Errorf(errcode.Service, "wp search-replace --export failed: "+lastChars(res.Output+res.Errors, 1000))
 		}
 	} else {
-		client, port, pw, err := c.mysqlRoot(ctx)
+		s := mysqlFor(engineOf(site))
+		client, port, pw, err := c.mysqlRootOf(ctx, s)
 		if err != nil {
 			return err
 		}
@@ -684,7 +686,7 @@ func (c *Core) pushDatabase(ctx context.Context, srv remote.Server, r store.Remo
 		if err != nil {
 			return fmt.Errorf("create %s: %w", sqlFile, err)
 		}
-		err = mysql.Dump(ctx, filepath.Join(filepath.Dir(client), "mysqldump"), mysql.Server{Host: "127.0.0.1", Port: port, User: mysql.User, Password: pw}, site.Database, f)
+		err = mysql.Dump(ctx, filepath.Join(filepath.Dir(client), "mysqldump"), mysql.Server{Host: "127.0.0.1", Port: port, User: mysql.User, Password: pw, Client57: s.legacy}, site.Database, f)
 		if cerr := f.Close(); err == nil {
 			err = cerr
 		}

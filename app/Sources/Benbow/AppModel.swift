@@ -166,12 +166,12 @@ final class AppModel {
         }
     }
 
-    func importArchive(_ url: URL, name: String?, php: String?, folder: String?, dryRun: Bool) async throws -> ArchiveImportResult? {
+    func importArchive(_ url: URL, name: String?, php: String?, folder: String?, engine: String? = nil, dryRun: Bool) async throws -> ArchiveImportResult? {
         guard let api else { return nil }
         if !dryRun { busy = "Importing \(url.lastPathComponent)…" }
         defer { if !dryRun { busy = nil } }
         do {
-            let res = try await api.importArchive(file: url.path, name: name, php: php, folder: folder, dryRun: dryRun)
+            let res = try await api.importArchive(file: url.path, name: name, php: php, folder: folder, engine: engine, dryRun: dryRun)
             if !dryRun { try? await refreshAll() }
             return res
         } catch {
@@ -334,6 +334,37 @@ final class AppModel {
 
     var mysqlReady: Bool { status?.mysql.enabled == true && status?.mysql.running == true }
     var postgresReady: Bool { status?.postgres?.enabled == true && status?.postgres?.running == true }
+    var mysql57Ready: Bool { status?.mysql57?.enabled == true && status?.mysql57?.running == true }
+
+    /// Whether the server of a database engine (mysql, mysql57, pgsql) runs.
+    func ready(_ engine: String?) -> Bool {
+        switch engine {
+        case "pgsql": postgresReady
+        case "mysql57": mysql57Ready
+        default: mysqlReady
+        }
+    }
+
+    func setMySQL57(enabled: Bool, port: Int? = nil) async {
+        await perform(enabled ? "Starting MySQL 5.7…" : "Stopping MySQL 5.7…") { api in
+            if enabled { try await api.enableMySQL57(port: port) } else { try await api.disableMySQL57() }
+        }
+    }
+
+    func mysql57Credentials() async -> MySQLCredentials? {
+        guard let api else { return nil }
+        do {
+            return try await api.mysql57Credentials()
+        } catch {
+            self.error = error.localizedDescription
+            return nil
+        }
+    }
+
+    func mysql57Databases() async -> [String] {
+        guard let api else { return [] }
+        return (try? await api.mysql57Databases()) ?? []
+    }
 
     /// Turns PostgreSQL or Redis on or off (server: "postgres" or "redis").
     func setServer(_ server: String, enabled: Bool, port: Int? = nil) async {

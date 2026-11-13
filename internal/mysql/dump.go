@@ -26,6 +26,9 @@ type Server struct {
 	Socket   string
 	User     string
 	Password string
+	// Client57 is set when the client tools are MySQL 5.7's, which lack
+	// 8.0's options (--skip-column-statistics).
+	Client57 bool
 }
 
 // optionFile is the [client] section for s, handed to the client through
@@ -85,9 +88,13 @@ func startWithFD3(cmd *exec.Cmd, body string) (func() error, error) {
 // transaction, no locks on InnoDB tables).
 func Dump(ctx context.Context, mysqldump string, src Server, db string, w io.Writer) error {
 	var errOut bytes.Buffer
-	cmd := exec.CommandContext(ctx, mysqldump, "--defaults-extra-file=/dev/fd/3",
-		"--single-transaction", "--quick", "--routines", "--triggers", "--no-tablespaces", "--hex-blob",
-		"--skip-column-statistics", "--set-gtid-purged=OFF", "--default-character-set=utf8mb4", "--databases", db)
+	args := []string{"--defaults-extra-file=/dev/fd/3",
+		"--single-transaction", "--quick", "--routines", "--triggers", "--no-tablespaces", "--hex-blob"}
+	if !src.Client57 {
+		args = append(args, "--skip-column-statistics")
+	}
+	args = append(args, "--set-gtid-purged=OFF", "--default-character-set=utf8mb4", "--databases", db)
+	cmd := exec.CommandContext(ctx, mysqldump, args...)
 	cmd.Stdout, cmd.Stderr = w, &errOut
 	wait, err := startWithFD3(cmd, src.optionFile())
 	if err != nil {
