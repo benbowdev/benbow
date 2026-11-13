@@ -55,6 +55,7 @@ var wireTypes = map[string]any{
 	"snapshots":         []store.Snapshot{},
 	"restore-result":    core.RestoreResult{},
 	"snapshot-usage":    core.SnapshotsUsage{},
+	"disk":              core.DiskReport{},
 	"prune-result":      core.PruneResult{},
 	"clone-result":      core.CloneResult{},
 	"archive-import":    core.ArchiveImportResult{},

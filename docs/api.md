@@ -76,6 +76,7 @@ up as a diff of those files: adding a field is fine (rerun the Go test with
 | `GET /v1/postgres`, `POST /v1/postgres/{enable,disable}`, `GET /v1/postgres/{credentials,databases}` | `{port}` | `benbow postgres`, `benbow db list --engine pgsql` |
 | `GET /v1/redis`, `POST /v1/redis/{enable,disable}` | `{port}` | `benbow redis` |
 | `GET`, `POST /v1/sites/{name}/snapshots`, `POST …/snapshots/{id}/restore`, `DELETE …/snapshots/{id}`, `GET`, `PUT /v1/snapshots/keep`, `GET /v1/snapshots/usage?site=`, `POST /v1/snapshots/prune` | `{note}`, restore `{php}`, `{keep}`, prune `{site, older_than_days, dry_run}` | `benbow snapshot` |
+| `GET /v1/disk` | | `benbow disk` |
 | `GET /v1/agent/sessions`, `GET /v1/sites/{name}/agent-session`, `POST …/agent-session/keep`, `…/revert`, `GET …/agent-session/diff`, `GET`, `PUT /v1/agent/idle` | `?all=1`, `?file=`, `{hours}` | `benbow agent session`, `benbow agent diff`, `benbow agent idle` (`agents.md`) |
 | `GET /v1/agent/tools`, `POST /v1/agent/tools/{id}/connect`, `POST /v1/sites/{name}/agent/start` | `{tool, terminal, connect}` | `benbow agent tools`, `connect`, `start` |
 | `POST /v1/sites/{name}/fetch`, `POST /v1/sites/{name}/query`, `GET /v1/mail/messages`, `GET /v1/mail/messages/{id}` | `{path, method, html}`, `{sql}`, `?to=&subject=&limit=` | `benbow fetch`, `benbow db query`, `benbow mail list`, `show` |

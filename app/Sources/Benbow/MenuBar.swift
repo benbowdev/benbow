@@ -92,17 +92,7 @@ extension MenuBarContent {
         return anyRunning ? .systemRed : .systemGray
     }
 
-    static func title(_ service: String) -> String {
-        switch service {
-        case "caddy": return "Web server"
-        case "mysql": return "MySQL"
-        case "mailpit": return "Mailpit"
-        case "dns": return "DNS for .test"
-        default:
-            if let v = service.split(separator: "-").last, service.hasPrefix("php-") { return "PHP \(v)" }
-            return service
-        }
-    }
+    static func title(_ service: String) -> String { AppModel.serviceTitle(service) }
 }
 
 /// A coloured dot for menu items (not a template image, so macOS keeps the

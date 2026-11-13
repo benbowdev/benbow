@@ -185,6 +185,7 @@ extension Result where Failure == Error {
         "snapshots": { try check("snapshots", [Snapshot].self) },
         "restore-result": { try check("restore-result", RestoreResult.self) },
         "snapshot-usage": { try check("snapshot-usage", SnapshotsUsage.self) },
+        "disk": { try check("disk", DiskReport.self) },
         "prune-result": { try check("prune-result", PruneResult.self) },
         "clone-result": { try check("clone-result", CloneResult.self) },
         "archive-import": { try check("archive-import", ArchiveImportResult.self) },

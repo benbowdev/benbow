@@ -784,3 +784,21 @@ public struct AppDetection: Codable, Sendable, Hashable {
     public var packageManager: String?
     public var notes: [String]
 }
+
+/// One line of the disk report (GET /v1/disk).
+public struct DiskPart: Codable, Sendable, Hashable, Identifiable {
+    public var name: String
+    public var title: String
+    public var bytes: Int64
+    public var parts: [DiskPart]?
+    public var id: String { name }
+}
+
+/// The disk space Benbow's home takes. Snapshots count only what deleting
+/// them gives back; `snapshotsShared` is still shared with the sites.
+public struct DiskReport: Codable, Sendable, Hashable {
+    public var home: String
+    public var total: Int64
+    public var parts: [DiskPart]
+    public var snapshotsShared: Int64?
+}

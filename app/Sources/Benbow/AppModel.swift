@@ -745,6 +745,11 @@ final class AppModel {
         await perform("Restoring \(site.name)…") { _ = try await $0.restoreSnapshot(site.name, id: snap.id, php: php) }
     }
 
+    func diskUsage() async -> DiskReport? {
+        guard let api else { return nil }
+        return try? await api.diskUsage()
+    }
+
     func snapshotUsage(_ site: Site? = nil) async -> SnapshotsUsage? {
         guard let api else { return nil }
         return try? await api.snapshotUsage(site?.name)

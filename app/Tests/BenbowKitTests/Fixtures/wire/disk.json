@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "ok": true,
+  "data": {
+    "home": "x",
+    "total": 1,
+    "parts": [
+      {
+        "name": "x",
+        "title": "x",
+        "bytes": 1,
+        "parts": [
+          {
+            "name": "x",
+            "title": "x",
+            "bytes": 1
+          }
+        ]
+      }
+    ],
+    "snapshots_shared": 1
+  }
+}

@@ -135,6 +135,7 @@ type Backend interface {
 	RestoreSnapshot(ctx context.Context, name, id string, opts core.RestoreOptions) (core.RestoreResult, error)
 	ImportArchive(ctx context.Context, req core.ArchiveImportRequest) (core.ArchiveImportResult, error)
 	SnapshotUsage(ctx context.Context, name string) (core.SnapshotsUsage, error)
+	DiskUsage(ctx context.Context) (core.DiskReport, error)
 	PruneSnapshots(ctx context.Context, req core.PruneRequest) (core.PruneResult, error)
 	DeleteSnapshot(ctx context.Context, name, id string) error
 	SnapshotKeep(ctx context.Context) (int, error)
@@ -615,6 +616,10 @@ func Handler(b Backend) http.Handler {
 	})
 	post("DELETE", "/v1/sites/{name}/snapshots/{id}", func(r *http.Request, _ []byte) (any, error) {
 		return struct{}{}, b.DeleteSnapshot(r.Context(), r.PathValue("name"), r.PathValue("id"))
+	})
+	mux.HandleFunc("GET /v1/disk", func(w http.ResponseWriter, r *http.Request) {
+		v, err := b.DiskUsage(r.Context())
+		reply(w, v, err)
 	})
 	mux.HandleFunc("GET /v1/snapshots/usage", func(w http.ResponseWriter, r *http.Request) {
 		v, err := b.SnapshotUsage(r.Context(), r.URL.Query().Get("site"))

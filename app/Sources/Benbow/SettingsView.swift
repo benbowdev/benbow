@@ -102,6 +102,7 @@ struct GeneralSettings: View {
                         if let home = model.status?.home { NSWorkspace.shared.open(URL(fileURLWithPath: home)) }
                     }
                 }
+                DiskUsageRows()
             }
         }
         .formStyle(.grouped)
@@ -873,4 +874,63 @@ struct MySQL57Section: View {
         let at = "\(m.host ?? "127.0.0.1"):\(m.port ?? 3308)"
         return m.running ? "Running on \(at)" : "On, starts with Benbow (\(at))"
     }
+}
+
+/// The space Benbow takes, measured when Settings opens.
+struct DiskUsageRows: View {
+    @Environment(AppModel.self) private var model
+    @State private var report: DiskReport?
+    @State private var measuring = false
+
+    var body: some View {
+        Group {
+            if let report {
+                LabeledContent("Disk space used") {
+                    HStack {
+                        Text(bytes(report.total)).monospacedDigit()
+                        Button {
+                            Task { await measure() }
+                        } label: {
+                            Image(systemName: "arrow.clockwise")
+                        }
+                        .buttonStyle(.borderless)
+                        .help("Measure again")
+                        .disabled(measuring)
+                    }
+                }
+                ForEach(report.parts.filter { $0.bytes > 0 || $0.name == "snapshots" }) { part in
+                    LabeledContent {
+                        Text(bytes(part.bytes)).monospacedDigit().foregroundStyle(.secondary)
+                    } label: {
+                        Text(part.title)
+                        if let note = note(part, report) {
+                            Text(note)
+                        }
+                    }
+                }
+            } else {
+                LabeledContent("Disk space used") {
+                    ProgressView().controlSize(.small)
+                }
+            }
+        }
+        .task { await measure() }
+    }
+
+    private func measure() async {
+        measuring = true
+        if let r = await model.diskUsage() { report = r }
+        measuring = false
+    }
+
+    private func note(_ part: DiskPart, _ report: DiskReport) -> String? {
+        if part.name == "snapshots", let shared = report.snapshotsShared, shared > 0 {
+            return "Only what deleting them gives back: the rest (\(bytes(shared))) is shared with your sites."
+        }
+        let subs = (part.parts ?? []).filter { $0.bytes > 0 }
+        guard !subs.isEmpty else { return nil }
+        return subs.map { "\($0.title) \(bytes($0.bytes))" }.joined(separator: " · ")
+    }
+
+    private func bytes(_ n: Int64) -> String { n.formatted(.byteCount(style: .file)) }
 }

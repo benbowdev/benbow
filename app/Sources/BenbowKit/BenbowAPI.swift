@@ -249,6 +249,10 @@ public struct BenbowAPI: Sendable {
     }
 
     /// The space snapshots take, of one site or (nil) all.
+    public func diskUsage() async throws -> DiskReport {
+        try await call("GET", "/v1/disk")
+    }
+
     public func snapshotUsage(_ site: String? = nil) async throws -> SnapshotsUsage {
         var path = "/v1/snapshots/usage"
         if let site { path += "?site=" + escape(site) }

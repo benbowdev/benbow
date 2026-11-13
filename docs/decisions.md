@@ -261,6 +261,13 @@ Format: **decision** (date) — why. *Not chosen:* alternatives.
   installation** (2026-11-02) — a client site must not change under the
   user's feet; rollback keeps the previous version.
 
+- **Two builds per component on disk** (2026-11-13) — after an update
+  Benbow keeps the version in use and the previous one (rollback goes back
+  one step) and deletes older builds and PHP patches. Before, every update
+  left its old folder in `bin/` forever. MySQL 5.7 follows updates in its
+  own series like 8.4. *Not chosen:* keeping every version (disk grows with
+  each update), keeping only the current one (no rollback).
+
 ## App
 
 - **One window, sidebar + detail, global Start/Stop, menu bar extra, badge
@@ -285,6 +292,14 @@ Format: **decision** (date) — why. *Not chosen:* alternatives.
   look for (snapshots, phone, production sync, commands), which got lost.
   Tiles keep the detail short. *Not chosen:* two collapsed sections (tools
   stay hidden), a Tools menu in the header (no room for descriptions).
+
+- **Services and disk space in the app** (2026-11-13) — a "N Services"
+  button next to Start/Stop opens the list of what runs (web server, each
+  PHP version with its sites, databases with version and port, mail) and
+  what is off; Settings → General → Data shows the space Benbow takes by
+  kind, snapshots counted by what deleting them gives back. Measured on
+  demand (`GET /v1/disk`), never in the status the app polls. *Not
+  chosen:* one coloured dot per service in the toolbar (hard to read).
 
 ## Import and migration
 

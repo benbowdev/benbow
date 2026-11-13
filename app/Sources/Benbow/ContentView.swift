@@ -188,6 +188,9 @@ struct ContentView: View {
             ToolbarItem(placement: .navigation) {
                 StartStopButton()
             }
+            ToolbarItem(placement: .navigation) {
+                ServicesButton()
+            }
         }
         .hidingWindowTitle()
         .onChange(of: model.sites) { _, sites in
