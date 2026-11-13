@@ -10,8 +10,10 @@ at once, with trusted HTTPS, MySQL or PostgreSQL, Redis and a mail catcher
 on board, plus the Vite or Next.js front end next door. Bring your AI agent too: Benbow saves the site's files and database
 first, and you keep or undo whatever it did.
 
-It never touches Homebrew, installs nothing system-wide and runs next to
-MAMP, Valet, Herd or anything else you already have. Everything lives in
+It never touches Homebrew, needs no Docker, installs nothing system-wide and
+runs next to MAMP, Valet, Herd or anything else you already have. Each PHP
+version is a native binary of about 200 MB, so there are no images to clean
+up. Everything lives in
 `~/Library/Application Support/benbow/`, and `benbow uninstall` puts your Mac
 back the way it was. A modern alternative to MAMP PRO, Local and Herd.
 
