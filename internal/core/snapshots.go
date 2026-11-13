@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -126,6 +127,9 @@ func (c *Core) snapshot(ctx context.Context, o snapOpts) (store.Snapshot, error)
 		ID: now.Format("20060102-150405.000"), Site: name, CreatedAt: now, Kind: kind, Note: o.note, Root: projectRoot(site),
 		SessionID: o.session,
 	}
+	if !site.IsApp() {
+		sn.PHPMinor, sn.PHPSettings = site.PHPMinor, maps.Clone(site.PHPSettings)
+	}
 	if _, err := c.Store.Snapshot(ctx, name, sn.ID); err == nil {
 		time.Sleep(time.Millisecond)
 		return c.snapshot(ctx, o)
@@ -199,6 +203,7 @@ func (c *Core) pruneSnapshots(ctx context.Context, name, spare string) {
 }
 
 func (c *Core) removeSnapshot(ctx context.Context, sn store.Snapshot) error {
+	forgetUsage(filepath.Dir(sn.FilesDir))
 	if err := os.RemoveAll(filepath.Dir(sn.FilesDir)); err != nil {
 		return fmt.Errorf("remove snapshot %s: %w", sn.ID, err)
 	}
@@ -229,19 +234,70 @@ type RestoreResult struct {
 	Restored store.Snapshot `json:"restored"`
 	// Before is the state just before the restore: restoring it undoes it.
 	Before store.Snapshot `json:"before"`
+	// PHPRestored is set when the site's PHP version and php.ini values
+	// were brought back too; PHPDiffers when they differ from the
+	// snapshot's but were left as they are.
+	PHPRestored bool `json:"php_restored,omitempty"`
+	PHPDiffers  bool `json:"php_differs,omitempty"`
+}
+
+// RestoreOptions are the choices of a restore.
+type RestoreOptions struct {
+	// PHP also brings back the site's PHP version and php.ini values saved
+	// in the snapshot.
+	PHP bool
+}
+
+// snapshotPHPDiffers reports whether a site's PHP differs from what a
+// snapshot saved (false for snapshots without PHP).
+func snapshotPHPDiffers(sn store.Snapshot, site store.Site) bool {
+	if sn.PHPMinor == "" || site.IsApp() {
+		return false
+	}
+	return sn.PHPMinor != site.PHPMinor || !maps.Equal(sn.PHPSettings, site.PHPSettings)
 }
 
 // RestoreSnapshot puts a site's files and database back as they were in a
 // snapshot. The current state is saved first (a pre-restore snapshot), and
 // if any step fails it is put back.
-func (c *Core) RestoreSnapshot(ctx context.Context, name, id string) (RestoreResult, error) {
+func (c *Core) RestoreSnapshot(ctx context.Context, name, id string, opts RestoreOptions) (RestoreResult, error) {
 	var res RestoreResult
 	err := c.locked(ctx, func() error {
 		var err error
 		res, err = c.restoreSnapshot(ctx, name, id)
 		return err
 	})
-	return res, err
+	if err != nil {
+		return res, err
+	}
+	site, err := c.Store.Site(ctx, name)
+	if err != nil {
+		return res, err
+	}
+	if !snapshotPHPDiffers(res.Restored, site) {
+		return res, nil
+	}
+	if !opts.PHP {
+		res.PHPDiffers = true
+		return res, nil
+	}
+	if res.Restored.PHPMinor != site.PHPMinor {
+		if _, err := c.UpdateSite(ctx, UpdateSiteRequest{Name: name, PHP: res.Restored.PHPMinor}); err != nil {
+			return res, fmt.Errorf("files and database restored, but not PHP %s: %w", res.Restored.PHPMinor, err)
+		}
+	}
+	if !maps.Equal(res.Restored.PHPSettings, site.PHPSettings) {
+		values := map[string]string{}
+		for k := range site.PHPSettings {
+			values[k] = "" // cleared unless the snapshot has it
+		}
+		maps.Copy(values, res.Restored.PHPSettings)
+		if _, err := c.SetSitePHPSettings(ctx, name, values); err != nil {
+			return res, fmt.Errorf("files, database and PHP version restored, but not the php.ini values: %w", err)
+		}
+	}
+	res.PHPRestored = true
+	return res, nil
 }
 
 // restoreSnapshot is RestoreSnapshot; the caller holds the lock.

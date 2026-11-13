@@ -30,7 +30,11 @@
         "files_dir": "x",
         "root": "x",
         "bytes": 1,
-        "session_id": "x"
+        "session_id": "x",
+        "php": "x",
+        "php_settings": {
+          "x": "x"
+        }
       },
       "before": {
         "id": "x",
@@ -44,8 +48,14 @@
         "files_dir": "x",
         "root": "x",
         "bytes": 1,
-        "session_id": "x"
-      }
+        "session_id": "x",
+        "php": "x",
+        "php_settings": {
+          "x": "x"
+        }
+      },
+      "php_restored": true,
+      "php_differs": true
     }
   }
 }

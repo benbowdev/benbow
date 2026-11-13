@@ -242,8 +242,28 @@ public struct BenbowAPI: Sendable {
         try await call("POST", "/v1/sites/\(escape(site))/snapshots", NoteRequest(note: note))
     }
 
-    public func restoreSnapshot(_ site: String, id: String) async throws -> RestoreResult {
-        try await call("POST", "/v1/sites/\(escape(site))/snapshots/\(escape(id))/restore")
+    struct RestoreRequest: Encodable { let php: Bool }
+
+    public func restoreSnapshot(_ site: String, id: String, php: Bool = false) async throws -> RestoreResult {
+        try await call("POST", "/v1/sites/\(escape(site))/snapshots/\(escape(id))/restore", RestoreRequest(php: php))
+    }
+
+    /// The space snapshots take, of one site or (nil) all.
+    public func snapshotUsage(_ site: String? = nil) async throws -> SnapshotsUsage {
+        var path = "/v1/snapshots/usage"
+        if let site { path += "?site=" + escape(site) }
+        return try await call("GET", path)
+    }
+
+    struct PruneRequest: Encodable {
+        let site: String?
+        let olderThanDays: Int
+        let dryRun: Bool
+    }
+
+    /// Deletes (or with dryRun lists) snapshots older than the given days.
+    public func pruneSnapshots(site: String? = nil, olderThanDays: Int, dryRun: Bool) async throws -> PruneResult {
+        try await call("POST", "/v1/snapshots/prune", PruneRequest(site: site, olderThanDays: olderThanDays, dryRun: dryRun))
     }
 
     public func deleteSnapshot(_ site: String, id: String) async throws {

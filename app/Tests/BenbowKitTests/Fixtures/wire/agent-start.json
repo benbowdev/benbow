@@ -29,7 +29,11 @@
         "files_dir": "x",
         "root": "x",
         "bytes": 1,
-        "session_id": "x"
+        "session_id": "x",
+        "php": "x",
+        "php_settings": {
+          "x": "x"
+        }
       },
       "checkpoints": [
         {
@@ -44,7 +48,11 @@
           "files_dir": "x",
           "root": "x",
           "bytes": 1,
-          "session_id": "x"
+          "session_id": "x",
+          "php": "x",
+          "php_settings": {
+            "x": "x"
+          }
         }
       ],
       "idle_hours": 1

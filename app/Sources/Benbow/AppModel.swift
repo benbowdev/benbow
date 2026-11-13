@@ -692,8 +692,26 @@ final class AppModel {
         await perform("Taking a snapshot…") { _ = try await $0.createSnapshot(site.name, note: note) }
     }
 
-    func restoreSnapshot(_ site: Site, _ snap: Snapshot) async {
-        await perform("Restoring \(site.name)…") { _ = try await $0.restoreSnapshot(site.name, id: snap.id) }
+    func restoreSnapshot(_ site: Site, _ snap: Snapshot, php: Bool = false) async {
+        await perform("Restoring \(site.name)…") { _ = try await $0.restoreSnapshot(site.name, id: snap.id, php: php) }
+    }
+
+    func snapshotUsage(_ site: Site? = nil) async -> SnapshotsUsage? {
+        guard let api else { return nil }
+        return try? await api.snapshotUsage(site?.name)
+    }
+
+    func deleteSnapshot(site: String, id: String) async {
+        await perform("Deleting the snapshot…") { try await $0.deleteSnapshot(site, id: id) }
+    }
+
+    /// Lists (dryRun) or deletes snapshots older than days.
+    func pruneSnapshots(olderThanDays days: Int, dryRun: Bool) async -> PruneResult? {
+        guard let api else { return nil }
+        if dryRun { return try? await api.pruneSnapshots(olderThanDays: days, dryRun: true) }
+        var res: PruneResult?
+        await perform("Deleting old snapshots…") { res = try await $0.pruneSnapshots(olderThanDays: days, dryRun: false) }
+        return res
     }
 
     func deleteSnapshot(_ site: Site, _ snap: Snapshot) async {

@@ -15,6 +15,7 @@ struct SettingsView: View {
             MySQLSettings().tabItem { Label("MySQL", systemImage: "cylinder.split.1x2") }
             ServerSettings(server: "postgres").tabItem { Label("PostgreSQL", systemImage: "cylinder") }
             ServerSettings(server: "redis").tabItem { Label("Redis", systemImage: "bolt.horizontal") }
+            SnapshotsSettings().tabItem { Label("Snapshots", systemImage: "clock.arrow.circlepath") }
             BlueprintsSettings().tabItem { Label("Blueprints", systemImage: "square.stack.3d.up") }
             AgentsSettings().tabItem { Label("AI Agents", systemImage: "sparkles") }
             MailSettings().tabItem { Label("Mail", systemImage: "envelope") }
@@ -80,7 +81,6 @@ struct GeneralSettings: View {
                 ComponentAutoRow()
                 UpdatesList()
             }
-            SnapshotKeepRow()
             Section("Certificate") {
                 LabeledContent("Benbow local CA") {
                     if model.status?.ca.trusted == true {

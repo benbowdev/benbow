@@ -23,6 +23,8 @@ public struct Site: Codable, Sendable, Identifiable, Hashable {
     public var database: String
     /// The site's own MySQL user, when Benbow created the database.
     public var databaseUser: String?
+    /// The site's own php.ini values, on top of its PHP version's.
+    public var phpSettings: [String: String]?
     /// The group the site is listed in; nil at the top level.
     public var groupId: Int64?
     /// Order among the groups and sites of its level (nil/0: by name).
@@ -437,11 +439,59 @@ public struct Snapshot: Codable, Sendable, Hashable, Identifiable {
     public var note: String?
     public var database: String?
     public var bytes: Int64
+    /// The site's PHP version and own php.ini values when it was taken
+    /// (nil in older snapshots).
+    public var php: String?
+    public var phpSettings: [String: String]?
 }
 
 public struct RestoreResult: Codable, Sendable, Hashable {
     public var restored: Snapshot
     public var before: Snapshot
+    public var phpRestored: Bool?
+    public var phpDiffers: Bool?
+}
+
+/// A snapshot and the space it takes (GET /v1/snapshots/usage).
+public struct SnapshotUsage: Codable, Sendable, Hashable, Identifiable {
+    public var id: String
+    public var site: String
+    public var createdAt: Date
+    public var kind: String
+    public var note: String?
+    public var database: String?
+    public var php: String?
+    /// What du reports: mostly APFS clones shared with the site.
+    public var apparent: Int64
+    /// What deleting the snapshot gives back.
+    public var privateBytes: Int64
+    /// Used by an open agent session: never pruned.
+    public var protected: Bool?
+
+    public var key: String { site + "/" + id }
+
+    enum CodingKeys: String, CodingKey {
+        case id, site, createdAt, kind, note, database, php, apparent, protected
+        case privateBytes = "private"
+    }
+}
+
+public struct SnapshotsUsage: Codable, Sendable, Hashable {
+    public var snapshots: [SnapshotUsage]
+    public var apparent: Int64
+    public var privateBytes: Int64
+
+    enum CodingKeys: String, CodingKey {
+        case snapshots, apparent
+        case privateBytes = "private"
+    }
+}
+
+public struct PruneResult: Codable, Sendable, Hashable {
+    public var removed: [SnapshotUsage]
+    public var freed: Int64
+    public var kept: Int
+    public var dryRun: Bool
 }
 
 /// A new Laravel project.

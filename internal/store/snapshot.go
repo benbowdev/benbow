@@ -6,6 +6,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -33,13 +34,23 @@ type Snapshot struct {
 	Bytes int64 `json:"bytes"`
 	// SessionID links a session's starting snapshot and checkpoints to it.
 	SessionID string `json:"session_id,omitempty"`
+	// PHPMinor and PHPSettings are the site's PHP version and own php.ini
+	// values when the snapshot was taken (empty in older snapshots).
+	PHPMinor    string            `json:"php,omitempty"`
+	PHPSettings map[string]string `json:"php_settings,omitempty"`
 }
 
 // AddSnapshot records a snapshot.
 func (s *Store) AddSnapshot(ctx context.Context, sn Snapshot) error {
-	_, err := s.db.ExecContext(ctx, `INSERT INTO snapshots (id, site, created_at, kind, note, db_engine, db_name, db_file, files_dir, root, bytes, session_id)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		sn.ID, sn.Site, sn.CreatedAt.UTC().Format(time.RFC3339Nano), sn.Kind, sn.Note, sn.DBEngine, sn.DBName, sn.DBFile, sn.FilesDir, sn.Root, sn.Bytes, sn.SessionID)
+	settings := ""
+	if len(sn.PHPSettings) > 0 {
+		b, _ := json.Marshal(sn.PHPSettings)
+		settings = string(b)
+	}
+	_, err := s.db.ExecContext(ctx, `INSERT INTO snapshots (id, site, created_at, kind, note, db_engine, db_name, db_file, files_dir, root, bytes, session_id, php_minor, php_settings)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		sn.ID, sn.Site, sn.CreatedAt.UTC().Format(time.RFC3339Nano), sn.Kind, sn.Note, sn.DBEngine, sn.DBName, sn.DBFile, sn.FilesDir, sn.Root, sn.Bytes, sn.SessionID,
+		sn.PHPMinor, settings)
 	if err != nil {
 		return fmt.Errorf("record snapshot %s of %s: %w", sn.ID, sn.Site, err)
 	}
@@ -48,13 +59,17 @@ func (s *Store) AddSnapshot(ctx context.Context, sn Snapshot) error {
 
 func scanSnapshot(sc interface{ Scan(...any) error }) (Snapshot, error) {
 	var sn Snapshot
-	var at string
-	err := sc.Scan(&sn.ID, &sn.Site, &at, &sn.Kind, &sn.Note, &sn.DBEngine, &sn.DBName, &sn.DBFile, &sn.FilesDir, &sn.Root, &sn.Bytes, &sn.SessionID)
+	var at, settings string
+	err := sc.Scan(&sn.ID, &sn.Site, &at, &sn.Kind, &sn.Note, &sn.DBEngine, &sn.DBName, &sn.DBFile, &sn.FilesDir, &sn.Root, &sn.Bytes, &sn.SessionID,
+		&sn.PHPMinor, &settings)
 	sn.CreatedAt, _ = time.Parse(time.RFC3339Nano, at)
+	if settings != "" {
+		_ = json.Unmarshal([]byte(settings), &sn.PHPSettings)
+	}
 	return sn, err
 }
 
-const snapshotCols = `id, site, created_at, kind, note, db_engine, db_name, db_file, files_dir, root, bytes, session_id`
+const snapshotCols = `id, site, created_at, kind, note, db_engine, db_name, db_file, files_dir, root, bytes, session_id, php_minor, php_settings`
 
 // ListSnapshots returns a site's snapshots, newest first.
 func (s *Store) ListSnapshots(ctx context.Context, site string) ([]Snapshot, error) {

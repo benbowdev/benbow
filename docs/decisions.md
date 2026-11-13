@@ -314,6 +314,19 @@ Format: **decision** (date) — why. *Not chosen:* alternatives.
   (2026-11-03) — clones cost no space until files change; a restore never
   rewinds git or installed packages; every restore can be undone.
 - **Keep 10 per site by default** (2026-11-03).
+- **Snapshot sizes are APFS private bytes; prune by age only on request**
+  (2026-11-13) — `du` showed 143 GB for snapshots that really took about
+  0.9 GB, which scares people into deleting what they need. The real size
+  comes from `getattrlist` `ATTR_CMNEXT_PRIVATESIZE` (a raw syscall: x/sys
+  has no wrapper). Deleting by age is a button with a list of what goes,
+  never automatic: the snapshot "before the disaster" is often the old one.
+  *Not chosen:* automatic age-based pruning, comparing files with the live
+  site (misses blocks shared between snapshots).
+- **Snapshots record the PHP version and php.ini values; a restore brings
+  them back only when asked** (2026-11-13) — feedback from a tweet: after a
+  failed PHP upgrade the user wants the old version back with the files.
+  Asking keeps the common case (undo a plugin update) from silently moving
+  the site to another PHP version.
 - **Production sync over the system's ssh/rsync; push only to staging;
   snapshot before pull** (2026-11-03) — never install tools; never let a
   click overwrite production.

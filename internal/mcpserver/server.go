@@ -735,7 +735,7 @@ func (t tools) restoreSnapshot(ctx context.Context, _ *mcp.CallToolRequest, in r
 		if in.DryRun {
 			return c.Store.Snapshot(ctx, in.Site, in.ID)
 		}
-		return c.RestoreSnapshot(ctx, in.Site, in.ID)
+		return c.RestoreSnapshot(ctx, in.Site, in.ID, core.RestoreOptions{})
 	})
 }
 

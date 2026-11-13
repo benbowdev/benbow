@@ -129,7 +129,10 @@ func TestDestructiveOperationsTakeTheLock(t *testing.T) {
 	defer func() { _ = held.Unlock() }()
 
 	ops := map[string]func(ctx context.Context) error{
-		"RestoreSnapshot": func(ctx context.Context) error { _, err := c.RestoreSnapshot(ctx, "shop", "x"); return err },
+		"RestoreSnapshot": func(ctx context.Context) error {
+			_, err := c.RestoreSnapshot(ctx, "shop", "x", RestoreOptions{})
+			return err
+		},
 		"CreateSnapshot": func(ctx context.Context) error {
 			_, err := c.CreateSnapshot(ctx, "shop", SnapshotManual, "")
 			return err

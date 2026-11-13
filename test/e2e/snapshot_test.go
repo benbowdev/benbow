@@ -123,4 +123,51 @@ $r = @$m->query('SELECT v FROM t'); echo $r ? $r->fetch_row()[0] : 'none';`
 	if err := json.Unmarshal(h.mustBenbow("snapshot", "list", "snap"), &list); err != nil || len(list) != 2 {
 		t.Fatalf("snapshots after keep 2 = %+v, %v", list, err)
 	}
+
+	// The PHP version and php.ini values come back only when asked.
+	var withPHP struct {
+		ID  string `json:"id"`
+		PHP string `json:"php"`
+	}
+	h.mustBenbow("site", "php", "snap", "memory_limit=300M")
+	if err := json.Unmarshal(h.mustBenbow("snapshot", "create", "snap"), &withPHP); err != nil || withPHP.PHP != "8.4" {
+		t.Fatalf("snapshot PHP = %+v, %v", withPHP, err)
+	}
+	h.mustBenbow("site", "set", "snap", "--php", "8.2")
+	h.mustBenbow("site", "php", "snap", "memory_limit=")
+	var r struct {
+		PHPDiffers  bool `json:"php_differs"`
+		PHPRestored bool `json:"php_restored"`
+	}
+	if err := json.Unmarshal(h.mustBenbow("snapshot", "restore", "snap", withPHP.ID, "--yes"), &r); err != nil || !r.PHPDiffers || r.PHPRestored {
+		t.Fatalf("restore without --php = %+v, %v", r, err)
+	}
+	if err := json.Unmarshal(h.mustBenbow("snapshot", "restore", "snap", withPHP.ID, "--yes", "--php"), &r); err != nil || !r.PHPRestored {
+		t.Fatalf("restore --php = %+v, %v", r, err)
+	}
+	var site []struct {
+		Name        string            `json:"name"`
+		PHP         string            `json:"php"`
+		PHPSettings map[string]string `json:"php_settings"`
+	}
+	if err := json.Unmarshal(h.mustBenbow("site", "list"), &site); err != nil || site[0].PHP != "8.4" || site[0].PHPSettings["memory_limit"] != "300M" {
+		t.Fatalf("site after restore --php = %+v, %v", site, err)
+	}
+
+	var usage struct {
+		Snapshots []struct {
+			Private  int64 `json:"private"`
+			Apparent int64 `json:"apparent"`
+		} `json:"snapshots"`
+	}
+	if err := json.Unmarshal(h.mustBenbow("snapshot", "usage"), &usage); err != nil || len(usage.Snapshots) == 0 || usage.Snapshots[0].Apparent == 0 {
+		t.Fatalf("usage = %+v, %v", usage, err)
+	}
+	var pruned struct {
+		Removed []struct{} `json:"removed"`
+		DryRun  bool       `json:"dry_run"`
+	}
+	if err := json.Unmarshal(h.mustBenbow("snapshot", "prune", "--older-than", "1h", "--dry-run"), &pruned); err != nil || !pruned.DryRun || len(pruned.Removed) != 0 {
+		t.Fatalf("prune dry run = %+v, %v", pruned, err)
+	}
 }

@@ -126,7 +126,9 @@ type Backend interface {
 	Push(ctx context.Context, site, remote string, opts core.SyncOptions) (core.SyncResult, error)
 	ListSnapshots(ctx context.Context, name string) ([]store.Snapshot, error)
 	CreateSnapshot(ctx context.Context, name, kind, note string) (store.Snapshot, error)
-	RestoreSnapshot(ctx context.Context, name, id string) (core.RestoreResult, error)
+	RestoreSnapshot(ctx context.Context, name, id string, opts core.RestoreOptions) (core.RestoreResult, error)
+	SnapshotUsage(ctx context.Context, name string) (core.SnapshotsUsage, error)
+	PruneSnapshots(ctx context.Context, req core.PruneRequest) (core.PruneResult, error)
 	DeleteSnapshot(ctx context.Context, name, id string) error
 	SnapshotKeep(ctx context.Context) (int, error)
 	SetSnapshotKeep(ctx context.Context, n int) error
@@ -595,11 +597,32 @@ func Handler(b Backend) http.Handler {
 		}
 		return b.CreateSnapshot(r.Context(), r.PathValue("name"), core.SnapshotManual, req.Note)
 	})
-	post("POST", "/v1/sites/{name}/snapshots/{id}/restore", func(r *http.Request, _ []byte) (any, error) {
-		return b.RestoreSnapshot(r.Context(), r.PathValue("name"), r.PathValue("id"))
+	post("POST", "/v1/sites/{name}/snapshots/{id}/restore", func(r *http.Request, body []byte) (any, error) {
+		var req struct {
+			PHP bool `json:"php"`
+		}
+		if err := decode(body, &req); err != nil {
+			return nil, err
+		}
+		return b.RestoreSnapshot(r.Context(), r.PathValue("name"), r.PathValue("id"), core.RestoreOptions{PHP: req.PHP})
 	})
 	post("DELETE", "/v1/sites/{name}/snapshots/{id}", func(r *http.Request, _ []byte) (any, error) {
 		return struct{}{}, b.DeleteSnapshot(r.Context(), r.PathValue("name"), r.PathValue("id"))
+	})
+	mux.HandleFunc("GET /v1/snapshots/usage", func(w http.ResponseWriter, r *http.Request) {
+		v, err := b.SnapshotUsage(r.Context(), r.URL.Query().Get("site"))
+		reply(w, v, err)
+	})
+	post("POST", "/v1/snapshots/prune", func(r *http.Request, body []byte) (any, error) {
+		var req struct {
+			Site      string `json:"site"`
+			OlderThan int64  `json:"older_than_days"`
+			DryRun    bool   `json:"dry_run"`
+		}
+		if err := decode(body, &req); err != nil {
+			return nil, err
+		}
+		return b.PruneSnapshots(r.Context(), core.PruneRequest{Site: req.Site, OlderThan: time.Duration(req.OlderThan) * 24 * time.Hour, DryRun: req.DryRun})
 	})
 	get("/v1/snapshots/keep", func(ctx context.Context) (any, error) {
 		n, err := b.SnapshotKeep(ctx)
