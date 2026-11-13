@@ -88,7 +88,12 @@ func trustedKeys() ([]ed25519.PublicKey, error) {
 
 // loadSignedManifest merges the stored signed manifest, if valid and newer.
 func (c *Core) loadSignedManifest() {
-	body, err := os.ReadFile(filepath.Join(c.manifestDir(), "manifest.json"))
+	path := filepath.Join(c.manifestDir(), "manifest.json")
+	fi, err := os.Stat(path)
+	if err != nil {
+		return
+	}
+	body, err := os.ReadFile(path)
 	if err != nil {
 		return
 	}
@@ -100,13 +105,30 @@ func (c *Core) loadSignedManifest() {
 	if err != nil {
 		return
 	}
+	// Read again only after a change; a manifest caught between the two
+	// writes of a check (new body, old signature) is tried again.
 	m, err := components.VerifySigned(body, sig, keys)
-	if err != nil || m.Serial <= c.Manifest.Serial {
+	if err != nil {
+		return
+	}
+	c.manifestStamp = fi.ModTime()
+	if m.Serial <= c.Manifest.Serial {
 		return
 	}
 	if merged, err := c.Manifest.Merge(m); err == nil {
 		c.Manifest = merged
 	}
+}
+
+// reloadSignedManifest reads the stored signed manifest again when it
+// changed since it was last read: `benbow update check` from the CLI
+// stores it while the daemon keeps running with its own copy.
+func (c *Core) reloadSignedManifest() {
+	fi, err := os.Stat(filepath.Join(c.manifestDir(), "manifest.json"))
+	if err != nil || fi.ModTime().Equal(c.manifestStamp) {
+		return
+	}
+	c.loadSignedManifest()
 }
 
 var manifestClient = &http.Client{Transport: version.Transport{}}
@@ -302,6 +324,9 @@ func updateSeries(component, version string) string {
 	if component == "mysql" {
 		return mysqlSeries
 	}
+	if component == mysqlLegacy.component {
+		return mysqlLegacy.series
+	}
 	major, _, _ := strings.Cut(version, ".")
 	return major
 }
@@ -309,6 +334,7 @@ func updateSeries(component, version string) string {
 // Updates reports the updates available in the manifest Benbow has (it does
 // not go online: see CheckUpdates).
 func (c *Core) Updates(ctx context.Context) (UpdatesStatus, error) {
+	c.reloadSignedManifest()
 	st := UpdatesStatus{Serial: c.Manifest.Serial, Updates: []ComponentUpdate{}}
 	auto, err := c.autoUpdates(ctx)
 	if err != nil {
@@ -430,6 +456,8 @@ func (c *Core) ApplyUpdates(ctx context.Context, names []string) (UpdatesStatus,
 			applied = nil
 			return err
 		}
+		// The new versions run: older builds than the previous ones go.
+		c.pruneOldVersions(ctx)
 		return nil
 	})
 	if err != nil {

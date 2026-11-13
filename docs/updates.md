@@ -91,8 +91,18 @@ separate setting: Sparkle reads `benbow.dev/appcast.xml`, see
 | Xdebug | follows PHP; a PHP update waits while Xdebug is on and has no build for the new version yet |
 | CA bundle, WordPress for new sites | always the newest in the manifest |
 
-Updates stay within a series: Caddy 2.x, Mailpit 1.x, MySQL 8.4.x, PHP
-within its minor version. A failed update changes nothing.
+Updates stay within a series: Caddy 2.x, Mailpit 1.x, MySQL 8.4.x (and
+5.7.x for the optional MySQL 5.7), PHP within its minor version. A failed
+update changes nothing.
+
+After an update only two builds of each component stay on disk: the one in
+use and the previous one (for `rollback`). Older builds, and PHP patches
+older than the two newest of a minor version (with their CLI and Xdebug
+builds), are deleted. `benbow disk` shows the space Benbow takes.
+
+A manifest accepted by `benbow update check` from the command line reaches
+the running daemon too: the core reads the stored manifest again when it
+changes.
 
 The daemon checks once a day (a few minutes after it starts); it never
 installs anything by itself. The app shows a badge when updates are

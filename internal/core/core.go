@@ -47,6 +47,10 @@ type Core struct {
 	launchctl *launchd.Launchctl
 	resolver  resolver.Manager
 
+	// manifestStamp is the stored signed manifest's modification time when
+	// it was last read: another benbow (the CLI) may accept a newer one.
+	manifestStamp time.Time
+
 	// Detach starts `benbow <args>` as a process that outlives this one (an
 	// agent session's database dump) and returns its pid. Nil runs the
 	// work in-process.
@@ -122,6 +126,7 @@ func (c *Core) locked(ctx context.Context, fn func() error) error {
 		return err
 	}
 	defer func() { _ = l.Unlock() }()
+	c.reloadSignedManifest()
 	return fn()
 }
 
