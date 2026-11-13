@@ -6,11 +6,20 @@ every site on that version.
 ```sh
 benbow php list
 benbow php install 8.3                 # also happens when a site needs it
+benbow php remove 7.4                  # free the space of a version no site uses
 benbow php settings 8.4                # show php.ini settings
 benbow php settings 8.4 memory_limit=1G upload_max_filesize=256M max_execution_time=0 display_errors=off
 ```
 
 ## Versions
+
+`benbow php remove <minor>` (Settings → PHP → Remove) deletes a version's
+PHP-FPM and command-line builds, its Xdebug and its generated configuration,
+and reports the space freed (each version takes about 200 MB). It refuses
+while a site uses the version (archived ones included: move them first) and,
+for 8.4, while MySQL or PostgreSQL is on (Adminer runs on it). Its php.ini
+settings are kept. Benbow downloads the version again when something needs
+it.
 
 PHP 8.0 to 8.5 are offered as static-php-cli builds. PHP 5.6 to 7.4 (there
 was never a PHP 6) come from `benbowdev/benbow-binaries`' `legacy-php` workflow:

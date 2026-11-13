@@ -528,6 +528,10 @@ final class AppModel {
         php?.installed.contains { $0.minor == minor } ?? false
     }
 
+    func removePHP(_ minor: String) async {
+        await perform("Removing PHP \(minor)…") { try await $0.removePHP(minor) }
+    }
+
     func installPHP(_ minor: String) async {
         await perform("Downloading PHP \(minor)…") { try await $0.installPHP(minor) }
     }

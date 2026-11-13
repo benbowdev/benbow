@@ -100,6 +100,7 @@ up as a diff of those files: adding a field is fine (rerun the Go test with
 | `GET /v1/databases` | | `benbow db list` |
 | `POST /v1/wordpress` | `{name, path, php, title, admin_user, admin_email, domain, aliases, group_id, php_settings}` | `benbow wordpress` |
 | `GET`, `POST /v1/php` | `{version}` | `benbow php list`, `install` |
+| `DELETE /v1/php/{minor}` | | `benbow php remove` |
 | `GET`, `PATCH /v1/php/{minor}/settings` | `{memory_limit, upload_max_filesize, max_execution_time, display_errors}` | `benbow php settings` |
 | `GET /v1/xdebug`, `PUT /v1/xdebug/{php}` | `{enabled}` | `benbow php xdebug` |
 | `GET /v1/domains`, `POST /v1/domains/{zone}/enable\|disable` | | `benbow domains` |

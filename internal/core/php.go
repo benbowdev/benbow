@@ -8,12 +8,15 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io/fs"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"runtime"
 	"slices"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/benbowdev/benbow/internal/errcode"
@@ -179,4 +182,111 @@ func runQuiet(ctx context.Context, name string, args ...string) (string, error) 
 func firstLine(s string) string {
 	line, _, _ := strings.Cut(s, "\n")
 	return line
+}
+
+// PHPRemoved is the result of RemovePHP.
+type PHPRemoved struct {
+	Minor string `json:"minor"`
+	// Versions are the exact builds removed (an update keeps the previous
+	// patch for rollback).
+	Versions []string `json:"versions"`
+	// Freed is the disk space given back, in bytes.
+	Freed   int64 `json:"freed"`
+	Applied bool  `json:"applied"`
+}
+
+// RemovePHP uninstalls a PHP minor version: its PHP-FPM and command-line
+// builds, Xdebug and generated configuration. It refuses while a site
+// (archived ones included) or Adminer uses it. Benbow downloads it again
+// when something needs it.
+func (c *Core) RemovePHP(ctx context.Context, minor string) (PHPRemoved, error) {
+	if err := validMinor(minor); err != nil {
+		return PHPRemoved{}, err
+	}
+	res := PHPRemoved{Minor: minor, Versions: []string{}}
+	err := c.locked(ctx, func() error {
+		all, err := c.Store.ListPHP(ctx)
+		if err != nil {
+			return err
+		}
+		var versions []store.PHPVersion
+		for _, v := range all {
+			if v.Minor == minor {
+				versions = append(versions, v)
+			}
+		}
+		if len(versions) == 0 {
+			return errcode.Newf(errcode.NotFound, "PHP %s is not installed", minor)
+		}
+		sites, err := c.Store.ListSites(ctx)
+		if err != nil {
+			return err
+		}
+		var users []string
+		for _, s := range sites {
+			if !s.IsApp() && s.PHPMinor == minor {
+				users = append(users, s.Name)
+			}
+		}
+		if len(users) > 0 {
+			return errcode.Newf(errcode.Conflict, "PHP %s is used by %s: move them to another version first", minor, strings.Join(users, ", "))
+		}
+		if minor == adminerPHP {
+			if a, err := c.adminer(ctx); err != nil {
+				return err
+			} else if a != nil {
+				return errcode.Newf(errcode.Conflict, "Adminer runs on PHP %s while MySQL or PostgreSQL is on: turn them off first", minor)
+			}
+		}
+		for _, v := range versions {
+			if err := c.Store.RemovePHP(ctx, v.Version); err != nil {
+				return err
+			}
+		}
+		// Stop its PHP-FPM before deleting the files it runs from.
+		if res.Applied, err = c.applyIfRunning(ctx); err != nil {
+			for _, v := range versions {
+				_ = c.Store.PutPHP(context.WithoutCancel(ctx), v)
+			}
+			return err
+		}
+		dirs := []string{filepath.Join(c.Layout.Etc, "php", minor), filepath.Join(c.Layout.Data, "php", minor)}
+		for _, v := range versions {
+			res.Versions = append(res.Versions, v.Version)
+			dirs = append(dirs, v.Path)
+			for _, comp := range []string{"php-cli", "xdebug"} {
+				if art, err := c.Manifest.ResolveFor(comp, v.Version); err == nil {
+					dirs = append(dirs, c.Installer.Dir(art))
+				}
+			}
+		}
+		for _, d := range dirs {
+			if !within(d, c.Layout.Root) || d == c.Layout.Root {
+				continue
+			}
+			res.Freed += dirSize(d)
+			if err := os.RemoveAll(d); err != nil {
+				return fmt.Errorf("remove %s: %w", d, err)
+			}
+		}
+		return nil
+	})
+	return res, err
+}
+
+// dirSize is the disk space a folder takes (0 when missing).
+func dirSize(dir string) int64 {
+	var n int64
+	_ = filepath.WalkDir(dir, func(_ string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return nil //nolint:nilerr // best effort
+		}
+		if fi, err := d.Info(); err == nil {
+			if st, ok := fi.Sys().(*syscall.Stat_t); ok {
+				n += st.Blocks * 512
+			}
+		}
+		return nil
+	})
+	return n
 }

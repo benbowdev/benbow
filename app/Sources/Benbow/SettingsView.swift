@@ -218,6 +218,10 @@ struct PHPSettingsTab: View {
                                 let n = model.sites.filter { $0.php == minor }.count
                                 if n > 0 {
                                     Text("· \(n) site\(n == 1 ? "" : "s")").foregroundStyle(.secondary)
+                                } else {
+                                    Button("Remove") { Task { await model.removePHP(minor) } }
+                                        .disabled(model.busy != nil)
+                                        .help("Delete PHP \(minor)'s files. Benbow downloads it again when a site needs it.")
                                 }
                             }
                         } else {
@@ -253,7 +257,7 @@ struct PHPSettingsTab: View {
             } header: {
                 Text("Versions")
             } footer: {
-                Text("Versions are also downloaded when a site needs them. Change a site's version in its detail. Old versions are offered for old sites only: they no longer get security fixes from php.net.")
+                Text("Versions are also downloaded when a site needs them; Remove frees the space of one no site uses. Change a site's version in its detail. Old versions are offered for old sites only: they no longer get security fixes from php.net.")
                     .font(.caption).foregroundStyle(.secondary)
             }
 

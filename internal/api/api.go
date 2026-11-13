@@ -81,6 +81,7 @@ type Backend interface {
 	SetAppEnv(ctx context.Context, name string, set map[string]string, unset []string) (core.AppEnv, error)
 	ListPHP(ctx context.Context) (core.PHPList, error)
 	InstallPHP(ctx context.Context, spec string) (core.PHPInstall, error)
+	RemovePHP(ctx context.Context, minor string) (core.PHPRemoved, error)
 	GetPHPSettings(ctx context.Context, minor string) (core.PHPSettings, error)
 	SetPHPSettings(ctx context.Context, minor string, values map[string]string) (core.PHPSettingsResult, error)
 	Xdebug(ctx context.Context) ([]core.XdebugStatus, error)
@@ -480,6 +481,9 @@ func Handler(b Backend) http.Handler {
 			return nil, err
 		}
 		return b.InstallPHP(r.Context(), req.Version)
+	})
+	post("DELETE", "/v1/php/{minor}", func(r *http.Request, _ []byte) (any, error) {
+		return b.RemovePHP(r.Context(), r.PathValue("minor"))
 	})
 	mux.HandleFunc("GET /v1/php/{minor}/settings", func(w http.ResponseWriter, r *http.Request) {
 		v, err := b.GetPHPSettings(r.Context(), r.PathValue("minor"))

@@ -648,6 +648,10 @@ public struct BenbowAPI: Sendable {
 
     struct InstallRequest: Encodable { let version: String }
 
+    public func removePHP(_ minor: String) async throws {
+        let _: Ignored = try await call("DELETE", "/v1/php/\(escape(minor))")
+    }
+
     public func installPHP(_ version: String) async throws {
         let _: Ignored = try await call("POST", "/v1/php", InstallRequest(version: version))
     }

@@ -20,7 +20,7 @@ func (a *app) phpCmd() *cobra.Command {
 		Use:   "php",
 		Short: "Manage PHP versions",
 	}
-	cmd.AddCommand(a.phpInstallCmd(), a.phpListCmd(), a.phpXdebugCmd(), a.phpSettingsCmd(), a.phpCheckCmd())
+	cmd.AddCommand(a.phpInstallCmd(), a.phpRemoveCmd(), a.phpListCmd(), a.phpXdebugCmd(), a.phpSettingsCmd(), a.phpCheckCmd())
 	return cmd
 }
 
@@ -42,6 +42,25 @@ func (a *app) phpInstallCmd() *cobra.Command {
 		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
 			res, err := c.InstallPHP(ctx, args[0])
 			return phpInstallResult(res), err
+		}),
+	}
+}
+
+type phpRemoveResult core.PHPRemoved
+
+func (r phpRemoveResult) Text(w io.Writer) {
+	fmt.Fprintf(w, "Removed PHP %s (%s), %s freed\n", r.Minor, strings.Join(r.Versions, ", "), humanBytes(r.Freed))
+}
+
+func (a *app) phpRemoveCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:     "remove <minor>",
+		Aliases: []string{"uninstall"},
+		Short:   "Uninstall a PHP version no site uses (e.g. 7.4); Benbow downloads it again when needed",
+		Args:    cobra.ExactArgs(1),
+		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
+			res, err := c.RemovePHP(ctx, args[0])
+			return phpRemoveResult(res), err
 		}),
 	}
 }
