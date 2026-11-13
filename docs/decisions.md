@@ -335,6 +335,13 @@ Format: **decision** (date) — why. *Not chosen:* alternatives.
   removed)** (2026-11-03) — shared hosting is common among the users.
 - **SSH passwords in the keychain, given to ssh through `benbow askpass`**
   (2026-11-03).
+- **Site archives: any zip/tar.gz with the site's folder and a .sql
+  anywhere, found by rules, not by format** (2026-11-13) — Reddit feedback:
+  old ServerPress and Local "file open" any such zip, which covers Local,
+  cPanel, host backups, Duplicator and hand-made zips at once; people keep
+  years of them. tar.gz too because cPanel and most hosts make those.
+  *Not chosen:* per-format importers (Duplicator's installer, All-in-One's
+  .wpress) until someone asks, leaving the dump in the web folder.
 - **Clone replaces Duplicate: whole folder as one APFS clone (`.git` and
   `node_modules` included), database into a new one with its own user,
   config and WordPress address rewritten in the copy only; "same folder"

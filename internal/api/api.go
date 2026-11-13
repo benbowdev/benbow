@@ -19,6 +19,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -127,6 +128,7 @@ type Backend interface {
 	ListSnapshots(ctx context.Context, name string) ([]store.Snapshot, error)
 	CreateSnapshot(ctx context.Context, name, kind, note string) (store.Snapshot, error)
 	RestoreSnapshot(ctx context.Context, name, id string, opts core.RestoreOptions) (core.RestoreResult, error)
+	ImportArchive(ctx context.Context, req core.ArchiveImportRequest) (core.ArchiveImportResult, error)
 	SnapshotUsage(ctx context.Context, name string) (core.SnapshotsUsage, error)
 	PruneSnapshots(ctx context.Context, req core.PruneRequest) (core.PruneResult, error)
 	DeleteSnapshot(ctx context.Context, name, id string) error
@@ -933,6 +935,22 @@ func Handler(b Backend) http.Handler {
 
 	// source: mamp, local, herd, valet or xampp. The source's password is
 	// used for this request only.
+	post("POST", "/v1/import/archive", func(r *http.Request, body []byte) (any, error) {
+		var req struct {
+			File   string `json:"file"`
+			Name   string `json:"name"`
+			PHP    string `json:"php"`
+			Folder string `json:"folder"`
+			DryRun bool   `json:"dry_run"`
+		}
+		if err := decode(body, &req); err != nil {
+			return nil, err
+		}
+		if !filepath.IsAbs(req.File) || (req.Folder != "" && !filepath.IsAbs(req.Folder)) {
+			return nil, errcode.Errorf(errcode.InvalidInput, "file and folder must be absolute paths")
+		}
+		return b.ImportArchive(r.Context(), core.ArchiveImportRequest{File: req.File, Name: req.Name, PHP: req.PHP, Folder: req.Folder, DryRun: req.DryRun})
+	})
 	post("POST", "/v1/import/{source}", func(r *http.Request, body []byte) (any, error) {
 		var req struct {
 			DryRun         bool     `json:"dry_run"`

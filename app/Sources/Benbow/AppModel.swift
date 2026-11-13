@@ -33,6 +33,10 @@ final class AppModel {
     private(set) var busy: String?
     /// Set by File → Import from MAMP PRO… to show the import sheet.
     var importing = false
+    /// An archive dropped or picked, shown in the archive import sheet.
+    var archiveToImport: URL?
+    /// File → Import Site Archive… asks for a file.
+    var pickingArchive = false
     var error: String?
 
     private var api: BenbowAPI?
@@ -158,6 +162,20 @@ final class AppModel {
             try? await refreshAll()
         } catch {
             try? await refreshAll()
+            throw error
+        }
+    }
+
+    func importArchive(_ url: URL, name: String?, php: String?, folder: String?, dryRun: Bool) async throws -> ArchiveImportResult? {
+        guard let api else { return nil }
+        if !dryRun { busy = "Importing \(url.lastPathComponent)…" }
+        defer { if !dryRun { busy = nil } }
+        do {
+            let res = try await api.importArchive(file: url.path, name: name, php: php, folder: folder, dryRun: dryRun)
+            if !dryRun { try? await refreshAll() }
+            return res
+        } catch {
+            if !dryRun { try? await refreshAll() }
             throw error
         }
     }

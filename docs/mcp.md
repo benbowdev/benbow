@@ -37,7 +37,7 @@ benbow mcp log [-n 50]      # what agents did, refused attempts included
 
 The same switches are in Settings → AI Agents, with the recent actions.
 A refused change returns `forbidden: AI agents are read-only for …` and is
-logged. Tools that do not belong to one site (`start`, `stop`, `add_site`, `clone_site`,
+logged. Tools that do not belong to one site (`start`, `stop`, `add_site`, `clone_site`, `import_archive`,
 `new_wordpress`, `new_laravel`, `import_sites`) need `*`.
 
 Every change tool:
@@ -74,6 +74,7 @@ Every change tool:
 | `app_env` | no | names of an app's variables (Benbow's and the user's), never values |
 | `restart_app` | yes | the app site (`apps.md`) |
 | `start`, `stop` | yes | all sites and services |
+| `import_archive` | yes | a site from a .zip/.tar.gz with its folder and a .sql dump; `dry_run` defaults to true |
 | `clone_site` | yes | copy a site under a new name (folder, database, address), or `same_folder` |
 | `add_site` | yes | folder, PHP, domain, aliases, new folder, database, php.ini values; an app with `command` or `proxy_port` (`apps.md`) |
 | `update_site` | yes | PHP version, folder, domain, aliases, on/off; an app's command, port or proxied port; a PHP site's companion |

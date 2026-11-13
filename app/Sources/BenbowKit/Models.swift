@@ -661,6 +661,23 @@ public struct CloneResult: Codable, Sendable, Hashable {
     public var warnings: [String]?
 }
 
+/// A site created from an archive (POST /v1/import/archive).
+public struct ArchiveImportResult: Codable, Sendable, Hashable {
+    public var site: SiteResult?
+    public var name: String
+    public var root: String
+    public var folder: String
+    public var framework: String?
+    public var wordpress: String?
+    public var php: String
+    public var phpReason: String?
+    public var sql: String?
+    public var database: String?
+    public var urlFrom: String?
+    public var warnings: [String]
+    public var dryRun: Bool
+}
+
 public struct MAMPHost: Codable, Sendable, Hashable {
     public var serverName: String
     public var documentRoot: String

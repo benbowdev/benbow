@@ -80,6 +80,12 @@ struct ContentView: View {
             Text("Groups only organize the list: sites are served the same way.")
         }
         .sheet(isPresented: $model.importing) { ImportSheet() }
+        .sheet(item: $model.archiveToImport) { url in
+            ArchiveImportSheet(url: url) { name in selection = name }
+        }
+        .fileImporter(isPresented: $model.pickingArchive, allowedContentTypes: [.zip, .gzip, .archive]) { result in
+            if case .success(let url) = result { model.archiveToImport = url }
+        }
         .sheet(item: $model.removing) { site in RemoveSiteSheet(site: site) }
         .sheet(item: $phoneSite) { site in PhoneSheet(site: site) }
         .sheet(item: $duplicating) { site in
@@ -118,13 +124,18 @@ struct ContentView: View {
                     ContentUnavailableView {
                         Label("No Sites", systemImage: "folder.badge.plus")
                     } description: {
-                        Text("Drag a folder here, or click +.")
+                        Text("Drag a folder or a site archive (.zip) here, or click +.")
                     }
                 }
             }
             .navigationSplitViewColumnWidth(min: 200, ideal: 240)
             .dropDestination(for: URL.self) { urls, _ in
-                guard let url = urls.first, url.hasDirectoryPath else { return false }
+                guard let url = urls.first else { return false }
+                if isSiteArchive(url) {
+                    model.archiveToImport = url
+                    return true
+                }
+                guard url.hasDirectoryPath else { return false }
                 adding = NewSiteRequest(source: .existing, folder: url)
                 return true
             } isTargeted: { dropTargeted = $0 }
@@ -147,6 +158,7 @@ struct ContentView: View {
                             Button("New Group…") { askGroupName(.create(parent: nil)) }
                             Divider()
                             Button("Import from Another Tool…") { model.importing = true }
+                            Button("Import Site Archive…") { model.pickingArchive = true }
                         } label: {
                             Image(systemName: "plus").frame(width: 24, height: 20)
                         }

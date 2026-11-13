@@ -6,6 +6,7 @@ benbow import mamp               # keep .local names (needs `benbow domains enab
 benbow import mamp --localhost   # serve them as <name>.localhost instead
 benbow import local|herd|valet|xampp [--dry-run] [--site shop.local]…
 benbow import mamp --migrate --site shop.local          # also move the database (below)
+benbow import archive ~/Downloads/shop.zip [--name shop] [--php 7.4] [--dry-run]  # a site archive (below)
 benbow import undo shop
 ```
 
@@ -100,3 +101,35 @@ All sites of one import are created together: if one fails, none is kept.
 
 Old PHP versions are end of life upstream: `benbow php check <site>` lists what
 would break on a newer one.
+
+## Site archives
+
+`benbow import archive <file>` (File → Import Site Archive…, or drop a .zip
+on the window) creates a site from a `.zip`, `.tar.gz` or `.tar` holding the
+site's folder and, anywhere inside, a `.sql` or `.sql.gz` dump: Local's
+exports, cPanel and host backups, Duplicator archives, a zip you made. The
+archive is only read.
+
+- The site's folder is the shallowest one holding `wp-includes/version.php`
+  (WordPress), else `artisan` (Laravel), else `index.php` (or `index.html`).
+  It goes to `--folder`, default `~/Sites/<name>` (missing or empty). The
+  name comes from the archive's file name unless `--name` is given.
+- The largest dump is loaded into a new database with its own user
+  (`DEFINER` and `USE` lines removed); the others are listed. The dump never
+  lands in the site's folder, where anyone reaching the site could download
+  it.
+- WordPress: `wp-config.php` (made from `wp-config-sample.php` when the
+  archive has none) gets the database settings, and the old address read
+  from the dump is replaced (`wp search-replace`, serialized data safe).
+  Laravel: `.env` (or a copy of `.env.example`) gets `APP_URL` and `DB_*`.
+  Other sites: the result says which database to use.
+- Without `--php`, an old WordPress gets a version it runs on: before 4.0
+  PHP 5.6, before 5.3 PHP 7.4, before 6.3 PHP 8.1, else 8.4.
+- Names are checked (no absolute paths, no `..`), links and special files
+  are skipped, macOS metadata (`__MACOSX`, `.DS_Store`) is left out; at most
+  a million files and 100 GiB unpacked. Unpacking happens in Benbow's
+  temporary folder. If any step fails, the site, its database and the folder
+  are removed.
+
+`--dry-run` reads only the list of files (and WordPress's version) and says
+what would be created.

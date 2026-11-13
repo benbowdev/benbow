@@ -57,6 +57,7 @@ var wireTypes = map[string]any{
 	"snapshot-usage":    core.SnapshotsUsage{},
 	"prune-result":      core.PruneResult{},
 	"clone-result":      core.CloneResult{},
+	"archive-import":    core.ArchiveImportResult{},
 	"agent-sessions":    []core.SessionInfo{},
 	"close-session":     core.CloseResult{},
 	"session-diff":      core.SessionDiff{},

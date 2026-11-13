@@ -1,0 +1,78 @@
+{
+  "schema": 1,
+  "ok": true,
+  "data": {
+    "site": {
+      "name": "x",
+      "path": "x",
+      "php": "x",
+      "domain": "x",
+      "https": true,
+      "enabled": true,
+      "archived": true,
+      "aliases": [],
+      "database": "x",
+      "database_user": "x",
+      "php_settings": {},
+      "group_id": 1,
+      "framework": "x",
+      "app_root": "x",
+      "database_engine": "x",
+      "created_at": "2026-11-04T10:30:00Z",
+      "position": 1,
+      "title": "x",
+      "kind": "x",
+      "app_mode": "x",
+      "command": "x",
+      "app_port": 1,
+      "app_host": "x",
+      "companion_command": "x",
+      "companion_port": 1,
+      "url": "x",
+      "migration": {
+        "site": "x",
+        "source": "x",
+        "database": "x",
+        "database_user": "x",
+        "created_database": true,
+        "config_path": "x",
+        "backup_path": "x",
+        "url_from": "x",
+        "url_to": "x",
+        "at": "2026-11-04T10:30:00Z"
+      },
+      "app": {
+        "state": "x",
+        "port": 1,
+        "pid": 1,
+        "message": "x",
+        "since": "2026-11-04T10:30:00Z",
+        "log": "x"
+      },
+      "companion": {
+        "state": "x",
+        "port": 1,
+        "pid": 1,
+        "message": "x",
+        "since": "2026-11-04T10:30:00Z",
+        "log": "x"
+      },
+      "applied": true,
+      "warning": "x"
+    },
+    "name": "x",
+    "root": "x",
+    "folder": "x",
+    "framework": "x",
+    "wordpress": "x",
+    "php": "x",
+    "php_reason": "x",
+    "sql": "x",
+    "database": "x",
+    "url_from": "x",
+    "warnings": [
+      "x"
+    ],
+    "dry_run": true
+  }
+}

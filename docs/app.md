@@ -17,7 +17,7 @@ The app has no logic of its own: every change goes through the core.
 ## Window
 
 - Toolbar: one Start/Stop for all sites with its status; + (New Site,
-  New WordPress Site, New Group, Import from MAMP PRO); Mail (when on);
+  New WordPress Site, New Group, Import from Another Tool, Import Site Archive; a .zip dropped on the window opens the archive import too); Mail (when on);
   Adminer (every database, already logged in); Settings.
 - New Site sheet: start from an existing folder (Laravel and WordPress are
   recognised), a new empty folder, WordPress, Laravel or an App (a dev

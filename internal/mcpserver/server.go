@@ -163,7 +163,30 @@ func New(open Open) *mcp.Server {
 		Description: "Copies a remote's (production or staging) database and uploads into the site. dry_run shows what would change."}, t.pull)
 	mcp.AddTool(s, &mcp.Tool{Name: "import_sites", Title: "Import from another tool", Annotations: change,
 		Description: "Imports sites from mamp, local, herd, valet or xampp (read only); migrate also copies databases. dry_run (default true) changes nothing. Needs permission for everything."}, t.importSites)
+	mcp.AddTool(s, &mcp.Tool{Name: "import_archive", Title: "Import a site archive", Annotations: change,
+		Description: "Creates a site from a .zip, .tar.gz or .tar with the site's folder and a .sql dump (Local export, cPanel or host backup, Duplicator, a hand-made zip): " +
+			"folder to ~/Sites/<name>, dump into a new database, wp-config.php or .env pointed at it, WordPress's address replaced. The archive is only read. " +
+			"dry_run (default true) shows what was found. Needs permission for everything."}, t.importArchive)
 	return s
+}
+
+type importArchiveIn struct {
+	File   string `json:"file" jsonschema:"absolute path of the archive"`
+	Name   string `json:"name,omitempty" jsonschema:"site name (default: from the file name)"`
+	PHP    string `json:"php,omitempty" jsonschema:"PHP version (default: one the WordPress inside runs on)"`
+	Folder string `json:"folder,omitempty" jsonschema:"absolute path of the new site's folder (default ~/Sites/<name>)"`
+	DryRun *bool  `json:"dry_run,omitempty" jsonschema:"only show what would be created (default true)"`
+}
+
+func (t tools) importArchive(ctx context.Context, _ *mcp.CallToolRequest, in importArchiveIn) (*mcp.CallToolResult, any, error) {
+	if !filepath.IsAbs(in.File) || (in.Folder != "" && !filepath.IsAbs(in.Folder)) {
+		return toolError(errcode.Errorf(errcode.InvalidInput, "file and folder must be absolute paths")), nil, nil
+	}
+	dry := in.DryRun == nil || *in.DryRun
+	req := core.ArchiveImportRequest{File: in.File, Name: in.Name, PHP: in.PHP, Folder: in.Folder, DryRun: dry}
+	return change(ctx, t, "import_archive", "", in, dry, false, func(c *core.Core) (any, error) {
+		return c.ImportArchive(ctx, req)
+	})
 }
 
 func ptr[T any](v T) *T { return &v }

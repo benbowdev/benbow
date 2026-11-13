@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"path/filepath"
 
 	"github.com/benbowdev/benbow/internal/core"
 	"github.com/benbowdev/benbow/internal/errcode"
@@ -94,8 +95,9 @@ func (r undoResult) Text(w io.Writer) {
 func (a *app) importCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "import",
-		Short: "Import sites from another tool (MAMP PRO, Local, Herd, Valet, XAMPP)",
+		Short: "Import sites from another tool (MAMP PRO, Local, Herd, Valet, XAMPP) or from an archive",
 	}
+	cmd.AddCommand(a.importArchiveCmd())
 	for _, source := range importers.Names {
 		cmd.AddCommand(a.importSourceCmd(source))
 	}
@@ -157,5 +159,76 @@ database. ` + "`benbow import undo <site>`" + ` puts things back.`,
 	cmd.Flags().StringVar(&opts.Migration.DumpFile, "dump", "", "load this .sql or .sql.gz instead of reading the source's MySQL (one --site)")
 	cmd.Flags().StringVar(&opts.Migration.SourceUser, "source-user", "", "MySQL user on the source (default: the one in wp-config.php/.env)")
 	cmd.Flags().BoolVar(&askPassword, "source-password", false, "ask for the source user's password")
+	return cmd
+}
+
+type archiveImportResult core.ArchiveImportResult
+
+func (r archiveImportResult) Text(w io.Writer) {
+	root := r.Root
+	if root == "" {
+		root = "the top of the archive"
+	}
+	if r.DryRun {
+		fmt.Fprintf(w, "Would create %s from %s in %s\n", r.Name, root, r.Folder)
+	} else if r.Site != nil {
+		siteResult(*r.Site).Text(w)
+	}
+	php := "PHP " + r.PHP
+	if r.PHPReason != "" {
+		php += " (" + r.PHPReason + ")"
+	}
+	fmt.Fprintln(w, "  "+php)
+	switch {
+	case r.SQL == "":
+		fmt.Fprintln(w, "  no database dump in the archive")
+	case r.DryRun:
+		fmt.Fprintf(w, "  database: %s, into a new database with its own user\n", r.SQL)
+	default:
+		fmt.Fprintf(w, "  loaded %s into %s\n", r.SQL, r.Database)
+	}
+	if r.URLFrom != "" {
+		fmt.Fprintf(w, "  replaced %s with the new address\n", r.URLFrom)
+	}
+	for _, s := range r.Warnings {
+		fmt.Fprintf(w, "Check: %s\n", s)
+	}
+}
+
+func (a *app) importArchiveCmd() *cobra.Command {
+	var req core.ArchiveImportRequest
+	cmd := &cobra.Command{
+		Use:     "archive <file.zip|file.tar.gz>",
+		Aliases: []string{"zip"},
+		Short:   "Create a site from an archive with the site's folder and a .sql dump (Local export, cPanel, Duplicator, a zip)",
+		Long: `Creates a site from a .zip, .tar.gz or .tar holding the site's folder and,
+anywhere inside, a .sql or .sql.gz dump: Local's exports, cPanel and host
+backups, Duplicator archives, a zip you made. The archive is only read.
+
+The site's folder is the one with WordPress (wp-includes), a Laravel project
+(artisan) or the shallowest index.php; it goes to --folder (default
+~/Sites/<name>). The largest dump is loaded into a new database with its own
+user, wp-config.php or .env is pointed at it, and WordPress's old address is
+replaced. Without --php, an old WordPress gets a PHP version it runs on.`,
+		Args: cobra.ExactArgs(1),
+		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
+			file, err := filepath.Abs(args[0])
+			if err != nil {
+				return nil, fmt.Errorf("resolve %s: %w", args[0], err)
+			}
+			req.File = file
+			if req.Folder != "" {
+				if req.Folder, err = filepath.Abs(req.Folder); err != nil {
+					return nil, fmt.Errorf("resolve %s: %w", req.Folder, err)
+				}
+			}
+			res, err := c.ImportArchive(ctx, req)
+			return archiveImportResult(res), err
+		}),
+	}
+	cmd.Flags().StringVar(&req.Name, "name", "", "site name (default: from the archive's file name)")
+	cmd.Flags().StringVar(&req.PHP, "php", "", "PHP version (default: one the WordPress inside runs on, else 8.4)")
+	cmd.Flags().StringVar(&req.Folder, "folder", "", "where the site's folder goes (default ~/Sites/<name>)")
+	cmd.Flags().BoolVar(&req.DryRun, "dry-run", false, "only show what would be created")
 	return cmd
 }

@@ -25,6 +25,8 @@ struct BenbowApp: App {
             CommandGroup(after: .newItem) {
                 Button("Import from Another Tool…") { model.importing = true }
                     .disabled(model.phase != .ready || model.busy != nil)
+                Button("Import Site Archive…") { model.pickingArchive = true }
+                    .disabled(model.phase != .ready || model.busy != nil)
             }
         }
 

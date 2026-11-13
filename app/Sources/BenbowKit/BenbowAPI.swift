@@ -364,6 +364,20 @@ public struct BenbowAPI: Sendable {
         try await call("POST", "/v1/sites", site)
     }
 
+    struct ArchiveRequest: Encodable {
+        let file: String
+        let name: String?
+        let php: String?
+        let folder: String?
+        let dryRun: Bool
+    }
+
+    /// Creates a site from a .zip/.tar.gz with its folder and a .sql dump,
+    /// or with dryRun shows what Benbow found in it.
+    public func importArchive(file: String, name: String?, php: String?, folder: String?, dryRun: Bool) async throws -> ArchiveImportResult {
+        try await call("POST", "/v1/import/archive", ArchiveRequest(file: file, name: name, php: php, folder: folder, dryRun: dryRun))
+    }
+
     struct CloneRequest: Encodable {
         let name: String
         let php: String

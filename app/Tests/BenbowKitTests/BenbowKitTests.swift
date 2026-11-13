@@ -187,6 +187,7 @@ extension Result where Failure == Error {
         "snapshot-usage": { try check("snapshot-usage", SnapshotsUsage.self) },
         "prune-result": { try check("prune-result", PruneResult.self) },
         "clone-result": { try check("clone-result", CloneResult.self) },
+        "archive-import": { try check("archive-import", ArchiveImportResult.self) },
         "agent-sessions": { try check("agent-sessions", [AgentSession].self) },
         "close-session": { try check("close-session", CloseSessionResult.self) },
         "session-diff": { try check("session-diff", SessionDiff.self) },
