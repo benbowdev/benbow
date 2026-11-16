@@ -144,21 +144,37 @@ func (c *Core) ImportArchive(ctx context.Context, req ArchiveImportRequest) (Arc
 		return res, fmt.Errorf("create temporary folder: %w", err)
 	}
 	defer os.RemoveAll(tmp)
-	if err := extractArchive(req.File, kind, tmp); err != nil {
+	// Files unpack into their own folder so the dump, set aside next to it,
+	// never moves with a site that is the whole archive.
+	files := filepath.Join(tmp, "files")
+	if err := extractArchive(req.File, kind, files); err != nil {
 		return res, err
 	}
-	src := filepath.Join(tmp, filepath.FromSlash(plan.root))
+	src := filepath.Join(files, filepath.FromSlash(plan.root))
 	var dump string
-	if plan.sql != "" {
+	if len(plan.sqlParts) > 0 {
+		// Gzip members one after another are one gzip stream.
+		dump = filepath.Join(tmp, "benbow-dump.sql.gz")
+		if err := concatFiles(dump, files, plan.sqlParts); err != nil {
+			return res, err
+		}
+	} else if plan.sql != "" {
 		// Out of the site's folder first: a dump inside the web root could
 		// be downloaded by anyone who can reach the site.
 		dump = filepath.Join(tmp, "benbow-dump"+sqlExt(plan.sql))
-		if err := os.Rename(filepath.Join(tmp, filepath.FromSlash(plan.sql)), dump); err != nil {
+		if err := os.Rename(filepath.Join(files, filepath.FromSlash(plan.sql)), dump); err != nil {
 			return res, fmt.Errorf("move the dump aside: %w", err)
 		}
-		if within(filepath.Join(tmp, filepath.FromSlash(plan.sql)), src) {
+		if within(filepath.Join(files, filepath.FromSlash(plan.sql)), src) {
 			res.Warnings = append(res.Warnings, plan.sql+" was left out of the site's folder: anyone reaching the site could download it")
 		}
+	}
+	if plan.duplicator != "" {
+		w, err := unpackDuplicator(files, src, plan)
+		if err != nil {
+			return res, err
+		}
+		res.Warnings = append(res.Warnings, w...)
 	}
 	if res.WordPress = wordPressVersion(src); res.WordPress != "" {
 		res.Framework = FrameworkWordPress
@@ -299,7 +315,16 @@ func prepareEnv(root string, db SiteDatabase, host, url string) ([]string, error
 
 type archivePlan struct {
 	root, sql, framework string
-	warnings             []string
+	// sqlParts are the dumps loaded in order when the database comes in
+	// several files (Duplicator: schema first, then one file per table);
+	// sql then names their folder.
+	sqlParts []string
+	// duplicator is the folder of Duplicator's installer files
+	// (dup-installer), "" when the archive is not a Duplicator backup.
+	duplicator string
+	// wpConfig is the copy of wp-config.php Duplicator keeps apart.
+	wpConfig string
+	warnings []string
 }
 
 // planArchive finds the site's folder and the dump in an archive's files.
@@ -338,6 +363,9 @@ func planArchive(entries []archiveEntry) (archivePlan, error) {
 	} else {
 		return p, errcode.Errorf(errcode.InvalidInput, "no site found in the archive: it needs a folder with index.php (or WordPress, or a Laravel project)")
 	}
+	if p.planDuplicator(entries) {
+		return p, nil
+	}
 	var dumps []archiveEntry
 	for _, e := range entries {
 		if strings.HasSuffix(e.name, ".sql") || strings.HasSuffix(e.name, ".sql.gz") {
@@ -357,6 +385,70 @@ func planArchive(entries []archiveEntry) (archivePlan, error) {
 	}
 	return p, nil
 }
+
+// planDuplicator reads a Duplicator backup: its installer files sit in
+// dup-installer next to the site, wp-config.php is left out of the archive
+// (a copy without the database settings is kept in the installer files),
+// and since Duplicator 1.5 the database is a folder of gzip dumps,
+// schema.sql.gz plus one file per table. It reports whether the archive is
+// one.
+func (p *archivePlan) planDuplicator(entries []archiveEntry) bool {
+	// Next to the site, or at the top when WordPress sits in a subfolder.
+	inst := "dup-installer"
+	if p.root != "" {
+		for _, e := range entries {
+			if strings.HasPrefix(e.name, p.root+"/dup-installer/") {
+				inst = p.root + "/dup-installer"
+				break
+			}
+		}
+	}
+	found := false
+	var parts []string
+	partsDir := ""
+	for _, e := range entries {
+		rel, ok := strings.CutPrefix(e.name, inst+"/")
+		if !ok {
+			continue
+		}
+		found = true
+		base := path.Base(rel)
+		switch {
+		case base == "source_site_wpconfig" || dupWPConfigRe.MatchString(base):
+			if p.wpConfig == "" || len(e.name) < len(p.wpConfig) {
+				p.wpConfig = e.name
+			}
+		case path.Base(path.Dir(rel)) == "db_dumps" && strings.HasSuffix(base, ".sql.gz"):
+			if partsDir == "" || path.Dir(e.name) == partsDir {
+				partsDir = path.Dir(e.name)
+				parts = append(parts, e.name)
+			}
+		}
+	}
+	if !found {
+		return false
+	}
+	p.duplicator = inst
+	if len(parts) == 0 {
+		return false // an older backup: one dup-database__<hash>.sql
+	}
+	// Duplicator's installer loads them sorted by name; the schema goes
+	// first so every table exists before its rows.
+	slices.SortFunc(parts, func(a, b string) int {
+		as, bs := path.Base(a) == "schema.sql.gz", path.Base(b) == "schema.sql.gz"
+		switch {
+		case as && !bs:
+			return -1
+		case bs && !as:
+			return 1
+		}
+		return strings.Compare(a, b)
+	})
+	p.sql, p.sqlParts = partsDir, parts
+	return true
+}
+
+var dupWPConfigRe = regexp.MustCompile(`^dup-wp-config-arc__[0-9a-z_-]+\.txt$`)
 
 func pathDepth(dir string) int {
 	if dir == "" {
@@ -427,16 +519,25 @@ func archiveKind(file string) (string, error) {
 	case strings.HasSuffix(lower, ".tar"):
 		return "tar", nil
 	}
+	if strings.HasSuffix(lower, ".daf") {
+		return "", errcode.Errorf(errcode.Unsupported, "Benbow can't open Duplicator's .daf archives: build the backup as a zip (Duplicator → Settings → Backups → Archive engine: ZipArchive)")
+	}
 	return "", errcode.Errorf(errcode.Unsupported, "Benbow opens .zip, .tar.gz and .tar archives")
 }
 
-var nameJunkRe = regexp.MustCompile(`[^a-z0-9]+`)
+var (
+	nameJunkRe = regexp.MustCompile(`[^a-z0-9]+`)
+	dupNameRe  = regexp.MustCompile(`^(.+?)_[0-9a-z]{12,}_[0-9]{14}_archive$`)
+)
 
 // nameFromArchive makes a site name from an archive's file name.
 func nameFromArchive(file string) string {
 	base := strings.ToLower(filepath.Base(file))
 	for _, ext := range []string{".tar.gz", ".tgz", ".tar", ".zip"} {
 		base = strings.TrimSuffix(base, ext)
+	}
+	if m := dupNameRe.FindStringSubmatch(base); m != nil {
+		base = m[1] // Duplicator: <name>_<hash>_<date>_archive
 	}
 	name := strings.Trim(nameJunkRe.ReplaceAllString(base, "-"), "-")
 	if len(name) > 63 {
@@ -446,6 +547,61 @@ func nameFromArchive(file string) string {
 		name = "imported"
 	}
 	return name
+}
+
+// unpackDuplicator puts the wp-config.php Duplicator kept apart back in the
+// site's folder and removes its installer, which would otherwise be
+// reachable on the site.
+func unpackDuplicator(files, src string, plan archivePlan) ([]string, error) {
+	var warnings []string
+	if plan.wpConfig != "" && !fileExists(filepath.Join(src, "wp-config.php")) {
+		if err := copyFile(filepath.Join(files, filepath.FromSlash(plan.wpConfig)), filepath.Join(src, "wp-config.php")); err != nil {
+			return nil, err
+		}
+		warnings = append(warnings, "wp-config.php comes from Duplicator's copy of it")
+	}
+	removed := false
+	inst := filepath.Join(files, filepath.FromSlash(plan.duplicator))
+	if _, err := os.Stat(inst); err == nil && within(inst, src) {
+		if err := os.RemoveAll(inst); err != nil {
+			return nil, fmt.Errorf("remove Duplicator's installer: %w", err)
+		}
+		removed = true
+	}
+	for _, name := range []string{"installer.php", "installer-backup.php"} {
+		if err := os.Remove(filepath.Join(src, name)); err == nil {
+			removed = true
+		}
+	}
+	if removed {
+		warnings = append(warnings, "Duplicator's installer files (dup-installer, installer-backup.php) were left out of the site's folder")
+	}
+	return warnings, nil
+}
+
+// concatFiles writes the archive's files, in order, into dst.
+func concatFiles(dst, dir string, names []string) error {
+	out, err := os.Create(dst)
+	if err != nil {
+		return fmt.Errorf("create %s: %w", dst, err)
+	}
+	for _, n := range names {
+		in, err := os.Open(filepath.Join(dir, filepath.FromSlash(n)))
+		if err != nil {
+			_ = out.Close()
+			return fmt.Errorf("read %s: %w", n, err)
+		}
+		_, err = io.Copy(out, in)
+		_ = in.Close()
+		if err != nil {
+			_ = out.Close()
+			return fmt.Errorf("write %s: %w", dst, err)
+		}
+	}
+	if err := out.Close(); err != nil {
+		return fmt.Errorf("write %s: %w", dst, err)
+	}
+	return nil
 }
 
 func sqlExt(name string) string {

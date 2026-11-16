@@ -128,8 +128,26 @@ archive is only read.
 - Names are checked (no absolute paths, no `..`), links and special files
   are skipped, macOS metadata (`__MACOSX`, `.DS_Store`) is left out; at most
   a million files and 100 GiB unpacked. Unpacking happens in Benbow's
-  temporary folder. If any step fails, the site, its database and the folder
+  temporary folder, the dump set aside out of the unpacked files (an
+  archive with the site at its top would otherwise move the dump with it). If any step fails, the site, its database and the folder
   are removed.
+
+**Duplicator** backups (read from Duplicator 5.1's source): its installer
+files sit in `dup-installer/` next to the site. Since Duplicator 1.5 the
+database is a folder of gzip dumps, `dup_descriptors_<hash>/db_dumps/`
+with `schema.sql.gz` and one file per table: Benbow loads them all, schema
+first, as one dump (older backups have one `dup-database__<hash>.sql`).
+Duplicator leaves `wp-config.php` out of the zip and keeps a copy without
+the database settings (`orig_files/source_site_wpconfig`, or
+`dup-wp-config-arc__<hash>.txt` in old versions): Benbow puts it back as
+`wp-config.php`, so the table prefix and the rest of the site's settings
+survive. `dup-installer/` and `installer-backup.php` are left out of the
+site's folder, where they would be reachable. The name comes from the
+archive's `<name>_<hash>_<date>_archive.zip`. Duplicator's own `.daf`
+format is refused with a hint: build the backup with the ZipArchive engine.
+
+A snapshot exported with `benbow snapshot export` (`snapshots.md`) is a
+site archive too: the folder under `<site>/` and the dump as `<site>.sql`.
 
 `--engine mysql57` loads the dump into the optional MySQL 5.7 server
 (`mysql.md`) instead of 8.4. `--dry-run` reads only the list of files (and
