@@ -318,6 +318,15 @@ Format: **decision** (date) — why. *Not chosen:* alternatives.
   built by code, repeated, or pointing elsewhere are left alone with a
   warning. *Not chosen:* warning only (the fix is mechanical and the file
   is already backed up and being edited).
+- **Duplicator backups read as Duplicator writes them** (2026-11-16,
+  checked in Duplicator 5.1.1's source): since 1.5 the database is one
+  gzip dump per table plus `schema.sql.gz`, so loading "the largest .sql"
+  imported a single table; all of them are now loaded, schema first.
+  `wp-config.php` comes back from the copy Duplicator keeps apart (its
+  table prefix matters), and its installer files are left out of the web
+  folder. *Not chosen:* running Duplicator's installer (it is a web app
+  meant for the target host), `.daf` support (its own format; the zip
+  engine is the default).
 - **Old and new address replaced through a placeholder** (2026-11-04) — a
   MAMP address without a suffix (`http://site`) is the start of the new
   one, and replacing http and https variants in turn applied it twice.
@@ -388,6 +397,17 @@ Format: **decision** (date) — why. *Not chosen:* alternatives.
   onto a half-deleted folder (a real bug until then). *Not chosen:* hashing
   every file (slow on big sites, and the sizes catch a lost or truncated
   file), validating by a trial load of the dump (as slow as the restore).
+- **Snapshot export = a zip `benbow import archive` reads: folder under
+  `<site>/`, plain `<site>.sql`, `benbow-snapshot.json`** (2026-11-16) —
+  asked on Reddit by a former ServerPress user who kept zipped snapshots
+  as archives and moved sites with them. Plain SQL inside the zip so any
+  host or phpMyAdmin takes it. The snapshot is cloned under the lock and
+  zipped outside it, so a long export does not block other commands. From
+  the app the daemon writes into Benbow's tmp and the app moves the file:
+  a launchd agent writing to Desktop or Documents meets TCC. *Not chosen:*
+  the snapshot folder as is (database.sql.gz and files.tsv mean nothing to
+  other tools), tar.gz (Finder and hosts expect zip), holding the lock while
+  zipping (minutes on a big site).
 
 ## Phone
 

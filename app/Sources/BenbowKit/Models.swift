@@ -440,6 +440,8 @@ public struct Snapshot: Codable, Sendable, Hashable, Identifiable {
     public var kind: String
     public var note: String?
     public var database: String?
+    /// mysql, mysql57 or pgsql.
+    public var databaseEngine: String?
     /// The database server's version when the dump was taken (nil in
     /// older snapshots).
     public var databaseVersion: String?
@@ -664,6 +666,15 @@ public struct CloneResult: Codable, Sendable, Hashable {
     public var database: String?
     public var urlFrom: String?
     public var warnings: [String]?
+}
+
+/// A snapshot written as a zip (POST /v1/sites/{name}/snapshots/{id}/export).
+public struct SnapshotExport: Codable, Sendable, Hashable {
+    public var path: String
+    public var bytes: Int64
+    public var files: Int
+    public var database: String?
+    public var warnings: [String]
 }
 
 /// A site created from an archive (POST /v1/import/archive).

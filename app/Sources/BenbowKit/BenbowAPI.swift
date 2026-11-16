@@ -248,6 +248,14 @@ public struct BenbowAPI: Sendable {
         try await call("POST", "/v1/sites/\(escape(site))/snapshots/\(escape(id))/restore", RestoreRequest(php: php))
     }
 
+    struct ExportRequest: Encodable { let path: String }
+
+    /// Writes a snapshot as a zip; with path "" it goes to Benbow's
+    /// tmp/exports and the caller moves it.
+    public func exportSnapshot(_ site: String, id: String, path: String = "") async throws -> SnapshotExport {
+        try await call("POST", "/v1/sites/\(escape(site))/snapshots/\(escape(id))/export", ExportRequest(path: path))
+    }
+
     /// The space snapshots take, of one site or (nil) all.
     public func diskUsage() async throws -> DiskReport {
         try await call("GET", "/v1/disk")

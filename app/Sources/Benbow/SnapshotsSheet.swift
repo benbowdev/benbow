@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 Andrea Casali
 
+import AppKit
 import BenbowKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// A site's snapshots: take, restore (the current state is saved first),
 /// delete.
@@ -17,6 +19,7 @@ struct SnapshotsSheet: View {
     @State private var restorePHP = false
     /// Real size by snapshot id (what deleting it gives back).
     @State private var sizes: [String: Int64] = [:]
+    @State private var exported: SnapshotExport?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -38,7 +41,7 @@ struct SnapshotsSheet: View {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(s.createdAt.formatted(date: .abbreviated, time: .standard))
-                        Text([kindTitle(s.kind), s.note, s.database.map { "database \($0)" }, s.php.map { "PHP \($0)" }]
+                        Text([kindTitle(s.kind), s.note, databaseLine(s), s.php.map { "PHP \($0)" }]
                             .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · "))
                             .font(.caption).foregroundStyle(.secondary)
                     }
@@ -49,6 +52,12 @@ struct SnapshotsSheet: View {
                     }
                     Button("Restore…") { restoring = s }.disabled(model.busy != nil)
                     Button {
+                        export(s)
+                    } label: { Image(systemName: "square.and.arrow.up") }
+                    .buttonStyle(.borderless)
+                    .disabled(model.busy != nil)
+                    .help("Export as a zip: the folder, the database as .sql and a description. Benbow's Import → Archive reads it back")
+                    Button {
                         Task { await model.deleteSnapshot(site, s); await reload() }
                     } label: { Image(systemName: "trash") }
                     .buttonStyle(.borderless)
@@ -58,7 +67,16 @@ struct SnapshotsSheet: View {
             }
             .overlay { if list.isEmpty { Text("No snapshots yet").foregroundStyle(.secondary) } }
             HStack {
-                if let busy = model.busy { ProgressView().controlSize(.small); Text(busy).foregroundStyle(.secondary) }
+                if let busy = model.busy {
+                    ProgressView().controlSize(.small); Text(busy).foregroundStyle(.secondary)
+                } else if let exported {
+                    Text("Exported \(URL(fileURLWithPath: exported.path).lastPathComponent) (\(exported.bytes.formatted(.byteCount(style: .file))))")
+                        .foregroundStyle(.secondary)
+                    Button("Show in Finder") {
+                        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: exported.path)])
+                    }
+                    .buttonStyle(.link)
+                }
                 Spacer()
                 Button("Done") { dismiss() }.keyboardShortcut(.cancelAction)
             }
@@ -73,11 +91,27 @@ struct SnapshotsSheet: View {
         }
     }
 
+    private func export(_ s: Snapshot) {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "\(site.name)-\(s.id).zip"
+        panel.allowedContentTypes = [.zip]
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        Task { exported = await model.exportSnapshot(site, s, to: url) }
+    }
+
     private func reload() async {
         list = await model.snapshots(site)
         if let u = await model.snapshotUsage(site) {
             sizes = Dictionary(u.snapshots.map { ($0.id, $0.privateBytes) }, uniquingKeysWith: { a, _ in a })
         }
+    }
+
+    /// "database shop (MySQL 8.4.13)"; older snapshots have no version.
+    private func databaseLine(_ s: Snapshot) -> String? {
+        guard let db = s.database else { return nil }
+        guard let v = s.databaseVersion, !v.isEmpty else { return "database \(db)" }
+        let engine = s.databaseEngine == "pgsql" ? "PostgreSQL" : "MySQL"
+        return "database \(db) (\(engine) \(v))"
     }
 
     private func kindTitle(_ kind: String) -> String {

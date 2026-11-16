@@ -118,8 +118,8 @@ func (s *Store) DeleteSnapshot(ctx context.Context, site, id string) error {
 // UpdateSnapshotDB records a snapshot's database dump, saved after the
 // files (an agent session's starting snapshot).
 func (s *Store) UpdateSnapshotDB(ctx context.Context, sn Snapshot) error {
-	_, err := s.db.ExecContext(ctx, `UPDATE snapshots SET db_engine = ?, db_name = ?, db_file = ?, bytes = ? WHERE site = ? AND id = ?`,
-		sn.DBEngine, sn.DBName, sn.DBFile, sn.Bytes, sn.Site, sn.ID)
+	_, err := s.db.ExecContext(ctx, `UPDATE snapshots SET db_engine = ?, db_name = ?, db_file = ?, db_version = ?, bytes = ? WHERE site = ? AND id = ?`,
+		sn.DBEngine, sn.DBName, sn.DBFile, sn.DBVersion, sn.Bytes, sn.Site, sn.ID)
 	if err != nil {
 		return fmt.Errorf("update snapshot %s: %w", sn.ID, err)
 	}

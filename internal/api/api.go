@@ -133,6 +133,7 @@ type Backend interface {
 	ListSnapshots(ctx context.Context, name string) ([]store.Snapshot, error)
 	CreateSnapshot(ctx context.Context, name, kind, note string) (store.Snapshot, error)
 	RestoreSnapshot(ctx context.Context, name, id string, opts core.RestoreOptions) (core.RestoreResult, error)
+	ExportSnapshot(ctx context.Context, name, id, out string) (core.SnapshotExport, error)
 	ImportArchive(ctx context.Context, req core.ArchiveImportRequest) (core.ArchiveImportResult, error)
 	SnapshotUsage(ctx context.Context, name string) (core.SnapshotsUsage, error)
 	DiskUsage(ctx context.Context) (core.DiskReport, error)
@@ -613,6 +614,15 @@ func Handler(b Backend) http.Handler {
 			return nil, err
 		}
 		return b.RestoreSnapshot(r.Context(), r.PathValue("name"), r.PathValue("id"), core.RestoreOptions{PHP: req.PHP})
+	})
+	post("POST", "/v1/sites/{name}/snapshots/{id}/export", func(r *http.Request, body []byte) (any, error) {
+		var req struct {
+			Path string `json:"path"`
+		}
+		if err := decode(body, &req); err != nil {
+			return nil, err
+		}
+		return b.ExportSnapshot(r.Context(), r.PathValue("name"), r.PathValue("id"), req.Path)
 	})
 	post("DELETE", "/v1/sites/{name}/snapshots/{id}", func(r *http.Request, _ []byte) (any, error) {
 		return struct{}{}, b.DeleteSnapshot(r.Context(), r.PathValue("name"), r.PathValue("id"))

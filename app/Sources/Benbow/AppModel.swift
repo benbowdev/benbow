@@ -745,6 +745,29 @@ final class AppModel {
         await perform("Restoring \(site.name)…") { _ = try await $0.restoreSnapshot(site.name, id: snap.id, php: php) }
     }
 
+    /// Exports a snapshot as a zip to url: the daemon writes it in Benbow's
+    /// folder, the app moves it (the daemon has no access to Desktop or
+    /// Documents). Returns what was written, nil on error (shown).
+    @discardableResult
+    func exportSnapshot(_ site: Site, _ snap: Snapshot, to url: URL) async -> SnapshotExport? {
+        var res: SnapshotExport?
+        await perform("Exporting the snapshot…") { api in
+            var r = try await api.exportSnapshot(site.name, id: snap.id)
+            let fm = FileManager.default
+            let tmp = URL(fileURLWithPath: r.path)
+            do {
+                if fm.fileExists(atPath: url.path) { try fm.removeItem(at: url) }
+                try fm.moveItem(at: tmp, to: url)
+            } catch {
+                try? fm.removeItem(at: tmp)
+                throw error
+            }
+            r.path = url.path
+            res = r
+        }
+        return res
+    }
+
     func diskUsage() async -> DiskReport? {
         guard let api else { return nil }
         return try? await api.diskUsage()

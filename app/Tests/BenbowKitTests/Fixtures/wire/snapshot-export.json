@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "ok": true,
+  "data": {
+    "path": "x",
+    "bytes": 1,
+    "files": 1,
+    "database": "x",
+    "warnings": [
+      "x"
+    ]
+  }
+}

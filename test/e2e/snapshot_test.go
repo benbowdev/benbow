@@ -6,11 +6,13 @@
 package e2e
 
 import (
+	"archive/zip"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -103,6 +105,35 @@ $r = @$m->query('SELECT v FROM t'); echo $r ? $r->fetch_row()[0] : 'none';`
 	if matches, _ := filepath.Glob(dir + ".benbow-restore-*"); len(matches) != 0 {
 		t.Fatalf("left behind: %v", matches)
 	}
+
+	// Exported as a zip, the snapshot comes back with import archive as a
+	// new site with the same files and database.
+	zipPath := filepath.Join(t.TempDir(), "snap.zip")
+	var exp struct {
+		Path     string `json:"path"`
+		Database string `json:"database"`
+	}
+	if err := json.Unmarshal(h.mustBenbow("snapshot", "export", "snap", snap.ID, "--out", zipPath), &exp); err != nil || exp.Path != zipPath || exp.Database != "snap.sql" {
+		t.Fatalf("export = %+v, %v", exp, err)
+	}
+	if zr, err := zip.OpenReader(zipPath); err == nil {
+		for _, f := range zr.File {
+			if strings.HasPrefix(f.Name, "snap/.git/") || strings.HasPrefix(f.Name, "snap/node_modules/") {
+				t.Errorf("%s in the export", f.Name)
+			}
+		}
+		_ = zr.Close()
+	} else {
+		t.Fatal(err)
+	}
+	h.mustBenbow("import", "archive", zipPath, "--name", "snapcopy", "--folder", filepath.Join(t.TempDir(), "snapcopy"))
+	var rows struct {
+		Rows [][]string `json:"rows"`
+	}
+	if err := json.Unmarshal(h.mustBenbow("db", "query", "snapcopy", "SELECT v FROM t"), &rows); err != nil || len(rows.Rows) != 1 || rows.Rows[0][0] != "one" {
+		t.Fatalf("imported export: %+v, %v", rows, err)
+	}
+	h.mustBenbow("site", "remove", "snapcopy", "--drop-database", "--yes")
 
 	// A restore cut short between files and database comes back as a
 	// consistent pair: the state before the restore, files and database.

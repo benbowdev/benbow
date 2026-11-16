@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -106,7 +107,7 @@ func (a *app) snapshotCmd() *cobra.Command {
 	}
 	restore.Flags().BoolVar(&yes, "yes", false, "do not ask")
 	restore.Flags().BoolVar(&restorePHP, "php", false, "also bring back the site's PHP version and php.ini values saved in the snapshot")
-	cmd.AddCommand(a.snapshotUsageCmd(), a.snapshotPruneCmd())
+	cmd.AddCommand(a.snapshotUsageCmd(), a.snapshotPruneCmd(), a.snapshotExportCmd())
 	cmd.AddCommand(create, restore, &cobra.Command{
 		Use:   "list <site>",
 		Short: "List a site's snapshots, newest first",
@@ -141,6 +142,52 @@ func (a *app) snapshotCmd() *cobra.Command {
 			return snapshotKeepResult{n}, err
 		}),
 	})
+	return cmd
+}
+
+type snapshotExportResult core.SnapshotExport
+
+func (r snapshotExportResult) Text(w io.Writer) {
+	fmt.Fprintf(w, "Exported %d files", r.Files)
+	if r.Database != "" {
+		fmt.Fprintf(w, " and the database (%s)", r.Database)
+	}
+	fmt.Fprintf(w, " to %s (%s).\n", r.Path, humanBytes(r.Bytes))
+	for _, warn := range r.Warnings {
+		fmt.Fprintln(w, "  "+warn)
+	}
+}
+
+func (a *app) snapshotExportCmd() *cobra.Command {
+	var out string
+	cmd := &cobra.Command{
+		Use:   "export <site> [id]",
+		Short: "Write a snapshot (the newest if no id) as a zip: folder, .sql dump and benbow-snapshot.json",
+		Long: "The zip holds the project folder under <site>/, the database as <site>.sql\n" +
+			"(PostgreSQL: <site>.pgdump) and benbow-snapshot.json. `benbow import archive` reads it back.",
+		Args: cobra.RangeArgs(1, 2),
+		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
+			id := ""
+			if len(args) == 2 {
+				id = args[1]
+			}
+			path := out
+			if path == "" {
+				suffix := id
+				if suffix == "" {
+					suffix = time.Now().Format("20060102-150405")
+				}
+				path = args[0] + "-" + suffix + ".zip"
+			}
+			abs, err := filepath.Abs(path)
+			if err != nil {
+				return nil, fmt.Errorf("resolve %s: %w", path, err)
+			}
+			r, err := c.ExportSnapshot(ctx, args[0], id, abs)
+			return snapshotExportResult(r), err
+		}),
+	}
+	cmd.Flags().StringVar(&out, "out", "", "the zip to write (default <site>-<id>.zip in the current folder)")
 	return cmd
 }
 

@@ -9,6 +9,7 @@ benbow snapshot delete shop 20261103-124501.123
 benbow snapshot keep 20                                # per site (default 10)
 benbow snapshot usage [shop]                           # space really taken, one site or all
 benbow snapshot prune --older-than 30d [--site shop] [--dry-run]
+benbow snapshot export shop [20261103-124501.123] [--out shop.zip]  # newest if no id
 ```
 
 A snapshot saves, under `data/snapshots/<site>/<id>/` in the Benbow folder:
@@ -60,6 +61,33 @@ the site's, the result says so (`php_differs`) and `--php` (in the app, a
 switch in the restore dialog) brings the version and values back too.
 Older snapshots have no PHP saved.
 
+## Export
+
+`benbow snapshot export <site> [id]` writes a snapshot (the newest without
+an id) as a zip, to keep, send or move to another Mac or a host:
+
+- `<site>/`: the project folder as saved (without `.git`, `node_modules`
+  and generated folders); symlinks stay symlinks. Already compressed files
+  (images, video, archives, fonts) are stored, the rest deflated;
+- `<site>.sql`: the MySQL dump as plain SQL, ready for phpMyAdmin, `mysql`
+  or a host's import. PostgreSQL: `<site>.pgdump`, a `pg_dump` archive for
+  `pg_restore`;
+- `benbow-snapshot.json`: site, snapshot id, date, kind, note, PHP version
+  and php.ini values, database engine and server version.
+
+`benbow import archive` reads it back as a new site (`import.md`). The
+snapshot is checked first (as for a restore) and cloned under Benbow's lock,
+then zipped without it, so other commands do not wait and pruning cannot
+delete it halfway. The zip is written as `<name>.zip.partial` and renamed
+when complete; an existing file is never overwritten.
+
+In the app: the export button on each snapshot in the site's Snapshots
+tool, with a save panel. The daemon writes the zip in Benbow's
+`tmp/exports` and the app moves it where the panel points: the daemon,
+started by launchd, has no access to Desktop, Documents or Downloads
+without its own permission prompt. Exports nobody moved are deleted after
+an hour.
+
 ## Space
 
 Files in a snapshot are APFS clones of the site: they share its blocks until
@@ -85,6 +113,8 @@ many to keep.
 
 API: `GET`, `POST /v1/sites/{name}/snapshots` (`note`),
 `POST /v1/sites/{name}/snapshots/{id}/restore`,
+`POST /v1/sites/{name}/snapshots/{id}/export` (`path`: absolute, ending
+in `.zip`; empty = Benbow's `tmp/exports`),
 `DELETE /v1/sites/{name}/snapshots/{id}`, `GET`, `PUT /v1/snapshots/keep`
 (`keep`), `GET /v1/snapshots/usage?site=`, `POST /v1/snapshots/prune`
 (`site`, `older_than_days`, `dry_run`); restore takes `{php}`.
