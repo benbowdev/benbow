@@ -24,13 +24,20 @@ A snapshot saves, under `data/snapshots/<site>/<id>/` in the Benbow folder:
 - the **database**, if the site has one: `mysqldump --single-transaction`
   (gzip) or `pg_dump -Fc`.
 
-**Restore** first takes a `pre-restore` snapshot of the current state, then
+**Restore** first checks the snapshot is whole (its files are there, the
+gzip dump reads to the end with a good CRC, a PostgreSQL dump is a
+`pg_dump` archive) and refuses before touching the site if not. It then
+takes a `pre-restore` snapshot of the current state, then
 moves the project folder aside, clones the snapshot back, moves the folders
 left out back from the old folder, recreates the database and loads
 the dump (PostgreSQL objects are owned by the site's own role). If any step
 fails, the folder and the database are put back. If the restore is cut
 short (crash, kill, reboot), a journal in `data/restores` lets the next
 daemon start or restore put the folder and the database back the same way.
+Once files and database are restored the journal is marked done before the
+old folder is deleted, so a restore cut short at that point is finished
+(the rest of the old folder deleted), never rolled back onto a
+half-deleted folder.
 A restore holds Benbow's lock, so other commands wait for it. Restoring the
 pre-restore snapshot undoes a restore.
 

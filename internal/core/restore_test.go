@@ -4,12 +4,15 @@
 package core
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/benbowdev/benbow/internal/paths"
+	"github.com/benbowdev/benbow/internal/store"
 )
 
 func restoreCore(t *testing.T) *Core {
@@ -159,5 +162,74 @@ func TestCloneTreeAndMoveSkipped(t *testing.T) {
 	}
 	if got := readFile(t, filepath.Join(src, "wp-content", "themes", "t", "node_modules", "x.js")); got != "js" {
 		t.Fatalf("node_modules not moved back: %q", got)
+	}
+}
+
+// A restore killed while deleting the old folder had already finished:
+// recovery deletes what is left of the old folder and keeps the restored
+// one (it used to bring the half-deleted folder back).
+func TestRecoverRestoreDone(t *testing.T) {
+	c := restoreCore(t)
+	root := filepath.Join(t.TempDir(), "shop")
+	aside := root + ".benbow-restore-1"
+	writeFile(t, filepath.Join(root, "index.php"), "restored")
+	writeFile(t, filepath.Join(aside, "wp-content", "left.php"), "half deleted")
+	j := restoreJournal{Site: "shop", Root: root, Aside: aside, DBEngine: "mysql", DBName: "shop", DBFile: "/nonexistent.sql.gz", Done: true}
+	if err := c.writeRestoreJournal(j); err != nil {
+		t.Fatal(err)
+	}
+	sites, err := c.RecoverRestores(context.Background())
+	if err != nil || len(sites) != 0 {
+		t.Fatalf("RecoverRestores = %v, %v", sites, err)
+	}
+	if got := readFile(t, filepath.Join(root, "index.php")); got != "restored" {
+		t.Fatalf("index.php = %q", got)
+	}
+	for _, p := range []string{aside, c.restoreJournalPath("shop")} {
+		if _, err := os.Lstat(p); !os.IsNotExist(err) {
+			t.Errorf("%s still there: %v", p, err)
+		}
+	}
+}
+
+// A snapshot with missing files or a damaged dump is refused before the
+// site is touched.
+func TestCheckSnapshot(t *testing.T) {
+	dir := t.TempDir()
+	files := filepath.Join(dir, "files")
+	writeFile(t, filepath.Join(files, "index.php"), "x")
+
+	var dump bytes.Buffer
+	gz := gzip.NewWriter(&dump)
+	_, _ = gz.Write(bytes.Repeat([]byte("INSERT INTO wp_options VALUES (1);\n"), 2000))
+	_ = gz.Close()
+	good := filepath.Join(dir, "good.sql.gz")
+	cut := filepath.Join(dir, "cut.sql.gz")
+	writeFile(t, good, dump.String())
+	writeFile(t, cut, dump.String()[:dump.Len()/2])
+	pg := filepath.Join(dir, "database.pgdump")
+	writeFile(t, pg, "PGDMP\x01\x0e")
+	notPG := filepath.Join(dir, "other.pgdump")
+	writeFile(t, notPG, "-- plain SQL")
+
+	for _, tc := range []struct {
+		name string
+		sn   store.Snapshot
+		ok   bool
+	}{
+		{"files only", store.Snapshot{FilesDir: files}, true},
+		{"mysql", store.Snapshot{FilesDir: files, DBEngine: "mysql", DBFile: good}, true},
+		{"postgres", store.Snapshot{FilesDir: files, DBEngine: EnginePostgres, DBFile: pg}, true},
+		{"files missing", store.Snapshot{FilesDir: filepath.Join(dir, "gone")}, false},
+		{"dump missing", store.Snapshot{FilesDir: files, DBEngine: "mysql", DBFile: filepath.Join(dir, "gone.sql.gz")}, false},
+		{"dump truncated", store.Snapshot{FilesDir: files, DBEngine: "mysql", DBFile: cut}, false},
+		{"not a pg archive", store.Snapshot{FilesDir: files, DBEngine: EnginePostgres, DBFile: notPG}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := checkSnapshot(tc.sn)
+			if (err == nil) != tc.ok {
+				t.Fatalf("checkSnapshot = %v, want ok %v", err, tc.ok)
+			}
+		})
 	}
 }

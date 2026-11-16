@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"maps"
 	"os"
@@ -317,6 +318,9 @@ func (c *Core) restoreSnapshot(ctx context.Context, name, id string) (RestoreRes
 	if sn.Root != projectRoot(site) {
 		return res, errcode.Newf(errcode.Conflict, "the snapshot is of %s, the site is now in %s", sn.Root, projectRoot(site))
 	}
+	if err := checkSnapshot(sn); err != nil {
+		return res, err
+	}
 	before, err := c.createSnapshot(ctx, name, SnapshotPreRestore, "before restoring "+sn.ID, sn.ID)
 	if err != nil {
 		return res, err
@@ -362,10 +366,53 @@ func (c *Core) restoreSnapshot(ctx context.Context, name, id string) (RestoreRes
 			return res, err
 		}
 	}
+	// Done before the old folder goes: a restore cut short while deleting
+	// it must not bring the half-deleted folder back.
+	j.Done = true
+	if err := c.writeRestoreJournal(j); err != nil {
+		return res, fmt.Errorf("restored, but the old folder %s is still there: %w", aside, err)
+	}
 	if err := os.RemoveAll(aside); err != nil {
 		return res, fmt.Errorf("remove %s: %w", aside, err)
 	}
 	return res, nil
+}
+
+// checkSnapshot makes sure a snapshot is whole before a restore touches the
+// site: its files are there and its database dump reads to the end.
+func checkSnapshot(sn store.Snapshot) error {
+	broken := func(format string, a ...any) error {
+		return errcode.Newf(errcode.Conflict, "snapshot %s cannot be restored: "+format, append([]any{sn.ID}, a...)...)
+	}
+	if fi, err := os.Stat(sn.FilesDir); err != nil || !fi.IsDir() {
+		return broken("its files are missing (%s)", sn.FilesDir)
+	}
+	if sn.DBFile == "" {
+		return nil
+	}
+	f, err := os.Open(sn.DBFile)
+	if err != nil {
+		return broken("its database dump is missing (%s)", sn.DBFile)
+	}
+	defer func() { _ = f.Close() }()
+	if sn.DBEngine == EnginePostgres {
+		// pg_dump -Fc archives start with "PGDMP"; pg_restore reads the rest.
+		magic := make([]byte, 5)
+		if _, err := io.ReadFull(f, magic); err != nil || string(magic) != "PGDMP" {
+			return broken("its database dump is not a PostgreSQL archive (%s)", sn.DBFile)
+		}
+		return nil
+	}
+	// Reading the gzip stream to the end checks its CRC: a truncated or
+	// damaged dump fails here, before anything moves.
+	gz, err := gzip.NewReader(f)
+	if err == nil {
+		_, err = io.Copy(io.Discard, gz)
+	}
+	if err != nil {
+		return broken("its database dump is damaged (%s): %v", sn.DBFile, err)
+	}
+	return nil
 }
 
 // restoreSnapshotDB recreates db and loads a snapshot's dump into it.
@@ -512,6 +559,9 @@ type restoreJournal struct {
 	// FilesBack is set once the folder is back, when only the database
 	// is left to put back.
 	FilesBack bool `json:"files_back,omitempty"`
+	// Done is set once files and database are restored, when only the old
+	// folder is left to delete.
+	Done bool `json:"done,omitempty"`
 }
 
 func (c *Core) restoreJournalDir() string { return filepath.Join(c.Layout.Data, "restores") }
@@ -568,6 +618,16 @@ func (c *Core) recoverRestores(ctx context.Context) ([]string, error) {
 		var j restoreJournal
 		if err := json.Unmarshal(b, &j); err != nil || j.Site == "" || j.Root == "" || j.Aside == "" {
 			return sites, errcode.Newf(errcode.Internal, "unreadable restore journal %s: move it away and check the site by hand", path)
+		}
+		if j.Done {
+			// The restore had finished: only the old folder is left.
+			if err := os.RemoveAll(j.Aside); err != nil {
+				return sites, fmt.Errorf("remove %s: %w", j.Aside, err)
+			}
+			if err := os.Remove(path); err != nil {
+				return sites, fmt.Errorf("remove %s: %w", path, err)
+			}
+			continue
 		}
 		if !j.FilesBack {
 			if _, err := os.Lstat(j.Aside); err != nil {
