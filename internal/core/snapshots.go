@@ -147,6 +147,9 @@ func (c *Core) snapshot(ctx context.Context, o snapOpts) (store.Snapshot, error)
 	if err := cloneTree(sn.Root, sn.FilesDir); err != nil {
 		return fail(err)
 	}
+	if err := writeFileList(sn.FilesDir, fileListPath(sn)); err != nil {
+		return fail(err)
+	}
 	if site.Database != "" && !o.filesOnly {
 		if err := c.dumpSnapshotDB(ctx, site, &sn); err != nil {
 			return fail(err)
@@ -166,14 +169,17 @@ func (c *Core) dumpSnapshotDB(ctx context.Context, site store.Site, sn *store.Sn
 	var err error
 	if sn.DBEngine == EnginePostgres {
 		sn.DBFile = filepath.Join(dir, "database.pgdump")
+		sn.DBVersion = c.pinnedVersion(ctx, "postgres", postgresSeries)
 		err = c.dumpPostgres(ctx, site.Database, sn.DBFile)
 	} else {
+		s := mysqlFor(sn.DBEngine)
 		sn.DBFile = filepath.Join(dir, "database.sql.gz")
-		err = c.dumpMySQLOf(ctx, mysqlFor(sn.DBEngine), site.Database, sn.DBFile)
+		sn.DBVersion = c.pinnedVersion(ctx, s.component, s.series)
+		err = c.dumpMySQLOf(ctx, s, site.Database, sn.DBFile)
 	}
 	if err != nil {
 		_ = os.Remove(sn.DBFile)
-		sn.DBEngine, sn.DBName, sn.DBFile = "", "", ""
+		sn.DBEngine, sn.DBName, sn.DBFile, sn.DBVersion = "", "", "", ""
 		return err
 	}
 	if fi, err := os.Stat(sn.DBFile); err == nil {
@@ -355,13 +361,22 @@ func (c *Core) restoreSnapshot(ctx context.Context, name, id string) (RestoreRes
 		putBack()
 		return res, err
 	}
+	restoreStage("files")
 
 	// Database.
 	if sn.DBFile != "" {
 		if err := c.restoreSnapshotDB(ctx, site, sn.DBEngine, sn.DBName, sn.DBFile); err != nil {
 			putBack()
+			if sn.DBVersion != "" {
+				err = fmt.Errorf("%w (the dump came from %s %s)", err, sn.DBEngine, sn.DBVersion)
+			}
 			if before.DBFile != "" {
-				_ = c.restoreSnapshotDB(bg, site, before.DBEngine, before.DBName, before.DBFile)
+				if berr := c.restoreSnapshotDB(bg, site, before.DBEngine, before.DBName, before.DBFile); berr != nil {
+					// The one case to fix by hand: say where the data is.
+					return res, errcode.Newf(errcode.Internal,
+						"restore failed: %v; the files are back, but putting the database %s back failed too: %v. Its dump is %s",
+						err, before.DBName, berr, before.DBFile)
+				}
 			}
 			return res, err
 		}
@@ -372,6 +387,7 @@ func (c *Core) restoreSnapshot(ctx context.Context, name, id string) (RestoreRes
 	if err := c.writeRestoreJournal(j); err != nil {
 		return res, fmt.Errorf("restored, but the old folder %s is still there: %w", aside, err)
 	}
+	restoreStage("done")
 	if err := os.RemoveAll(aside); err != nil {
 		return res, fmt.Errorf("remove %s: %w", aside, err)
 	}
@@ -386,6 +402,9 @@ func checkSnapshot(sn store.Snapshot) error {
 	}
 	if fi, err := os.Stat(sn.FilesDir); err != nil || !fi.IsDir() {
 		return broken("its files are missing (%s)", sn.FilesDir)
+	}
+	if err := checkFileList(sn.FilesDir, fileListPath(sn)); err != nil {
+		return broken("%v", err)
 	}
 	if sn.DBFile == "" {
 		return nil

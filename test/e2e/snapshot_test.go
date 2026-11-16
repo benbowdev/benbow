@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"testing"
 )
 
@@ -103,6 +104,48 @@ $r = @$m->query('SELECT v FROM t'); echo $r ? $r->fetch_row()[0] : 'none';`
 		t.Fatalf("left behind: %v", matches)
 	}
 
+	// A restore cut short between files and database comes back as a
+	// consistent pair: the state before the restore, files and database.
+	h.mustBenbow("snapshot", "restore", "snap", res.Before.ID, "--yes")
+	h.crashRestore("files", snap.ID)
+	if b, _ := os.ReadFile(filepath.Join(dir, "index.php")); string(b) != "<?php echo 'v1';" {
+		t.Fatalf("files not restored before the crash: %q", b)
+	}
+	h.daemon("start") // recovers interrupted restores before answering
+	h.daemon("stop")
+	if got := h.get(url+"/", st.CA.CertPath); got != "v2" {
+		t.Fatalf("index after recovering a restore cut after the files = %q", got)
+	}
+	if got := h.get(url+"/db.php", st.CA.CertPath); got != "two" {
+		t.Fatalf("database after recovering a restore cut after the files = %q", got)
+	}
+	// Cut while deleting the old folder: the restore had finished, so the
+	// recovery keeps it and deletes what is left of the old folder.
+	h.crashRestore("done", snap.ID)
+	h.daemon("start")
+	h.daemon("stop")
+	if got := h.get(url+"/", st.CA.CertPath); got != "v1" {
+		t.Fatalf("index after recovering a finished restore = %q", got)
+	}
+	if got := h.get(url+"/db.php", st.CA.CertPath); got != "one" {
+		t.Fatalf("database after recovering a finished restore = %q", got)
+	}
+	if matches, _ := filepath.Glob(dir + ".benbow-restore-*"); len(matches) != 0 {
+		t.Fatalf("left behind after recovery: %v", matches)
+	}
+	var withVersion []struct {
+		DBVersion string `json:"database_version"`
+	}
+	if err := json.Unmarshal(h.mustBenbow("snapshot", "list", "snap"), &withVersion); err != nil || withVersion[0].DBVersion == "" {
+		t.Fatalf("snapshot database version = %+v, %v", withVersion, err)
+	}
+	// Undo the last restore again with the pre-restore snapshot of the run
+	// above, so the checks below start from the changed state.
+	h.mustBenbow("snapshot", "restore", "snap", res.Before.ID, "--yes")
+	if matches, _ := filepath.Glob(filepath.Join(h.home(), "data", "restores", "*.json")); len(matches) != 0 {
+		t.Fatalf("restore journals left: %v", matches)
+	}
+
 	// Undo the restore with the snapshot it took.
 	h.mustBenbow("snapshot", "restore", "snap", res.Before.ID, "--yes")
 	if got := h.get(url+"/", st.CA.CertPath); got != "v2" {
@@ -115,7 +158,9 @@ $r = @$m->query('SELECT v FROM t'); echo $r ? $r->fetch_row()[0] : 'none';`
 	var list []struct {
 		Kind string `json:"kind"`
 	}
-	if err := json.Unmarshal(h.mustBenbow("snapshot", "list", "snap"), &list); err != nil || len(list) != 3 {
+	// The snapshot, and one pre-restore snapshot per restore (six, the two
+	// cut short included).
+	if err := json.Unmarshal(h.mustBenbow("snapshot", "list", "snap"), &list); err != nil || len(list) != 7 {
 		t.Fatalf("snapshots = %+v, %v", list, err)
 	}
 	h.mustBenbow("snapshot", "keep", "2")
@@ -169,5 +214,16 @@ $r = @$m->query('SELECT v FROM t'); echo $r ? $r->fetch_row()[0] : 'none';`
 	}
 	if err := json.Unmarshal(h.mustBenbow("snapshot", "prune", "--older-than", "1h", "--dry-run"), &pruned); err != nil || !pruned.DryRun || len(pruned.Removed) != 0 {
 		t.Fatalf("prune dry run = %+v, %v", pruned, err)
+	}
+}
+
+// crashRestore runs a restore that exits at stage (benbowtest builds only).
+func (h *harness) crashRestore(stage, id string) {
+	h.t.Helper()
+	saved := h.env
+	h.env = append(slices.Clone(saved), "BENBOW_TEST_RESTORE_CRASH="+stage)
+	defer func() { h.env = saved }()
+	if out, code := h.raw("snapshot", "restore", "snap", id, "--yes"); code != 86 {
+		h.t.Fatalf("restore with a crash at %s exited %d: %s", stage, code, out)
 	}
 }

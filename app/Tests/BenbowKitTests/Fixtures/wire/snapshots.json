@@ -11,6 +11,7 @@
       "database_engine": "x",
       "database": "x",
       "database_file": "x",
+      "database_version": "x",
       "files_dir": "x",
       "root": "x",
       "bytes": 1,

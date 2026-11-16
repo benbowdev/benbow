@@ -21,12 +21,17 @@ A snapshot saves, under `data/snapshots/<site>/<id>/` in the Benbow folder:
   depth, are left out, so a restore never rewinds git history or installed
   packages. On a volume without clones
   (not APFS, or another disk than the Benbow folder's) the files are copied;
+- a **file list** (`files.tsv`): kind, size and path of every saved file
+  and symlink. Sizes, not hashes, so a snapshot of a big site stays quick;
 - the **database**, if the site has one: `mysqldump --single-transaction`
-  (gzip) or `pg_dump -Fc`.
+  (gzip) or `pg_dump -Fc`, with the server's version recorded
+  (`database_version`), so a dump that fails to load says where it came
+  from.
 
-**Restore** first checks the snapshot is whole (its files are there, the
-gzip dump reads to the end with a good CRC, a PostgreSQL dump is a
-`pg_dump` archive) and refuses before touching the site if not. It then
+**Restore** first checks the snapshot is whole (its files are there and
+match its file list, the gzip dump reads to the end with a good CRC, a
+PostgreSQL dump is a `pg_dump` archive; snapshots older than the file list
+skip that part) and refuses before touching the site if not. It then
 takes a `pre-restore` snapshot of the current state, then
 moves the project folder aside, clones the snapshot back, moves the folders
 left out back from the old folder, recreates the database and loads
@@ -37,7 +42,8 @@ daemon start or restore put the folder and the database back the same way.
 Once files and database are restored the journal is marked done before the
 old folder is deleted, so a restore cut short at that point is finished
 (the rest of the old folder deleted), never rolled back onto a
-half-deleted folder.
+half-deleted folder. If loading the database fails and putting the old one
+back fails too, the error says so and names the dump to load by hand.
 A restore holds Benbow's lock, so other commands wait for it. Restoring the
 pre-restore snapshot undoes a restore.
 

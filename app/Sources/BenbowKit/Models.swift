@@ -440,6 +440,9 @@ public struct Snapshot: Codable, Sendable, Hashable, Identifiable {
     public var kind: String
     public var note: String?
     public var database: String?
+    /// The database server's version when the dump was taken (nil in
+    /// older snapshots).
+    public var databaseVersion: String?
     public var bytes: Int64
     /// The site's PHP version and own php.ini values when it was taken
     /// (nil in older snapshots).

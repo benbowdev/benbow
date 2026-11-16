@@ -379,6 +379,15 @@ Format: **decision** (date) — why. *Not chosen:* alternatives.
   *Not chosen:* the snapshot exclusions (a clone without `node_modules`
   does not run), copying aliases (they would clash), a `wp-config.php`
   above the folder (shared between source and copy, refused).
+- **A restore checks the snapshot first; a file list with sizes, not
+  hashes; the journal is marked done before the old folder goes**
+  (2026-11-16) — from a Reddit review of the restore: a damaged dump or a
+  snapshot that lost files is refused before the site moves, the database
+  server's version is recorded to explain a failed load, and a restore cut
+  short while deleting the old folder is finished instead of rolled back
+  onto a half-deleted folder (a real bug until then). *Not chosen:* hashing
+  every file (slow on big sites, and the sizes catch a lost or truncated
+  file), validating by a trial load of the dump (as slow as the restore).
 
 ## Phone
 

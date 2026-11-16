@@ -9,6 +9,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/benbowdev/benbow/internal/paths"
@@ -231,5 +232,36 @@ func TestCheckSnapshot(t *testing.T) {
 				t.Fatalf("checkSnapshot = %v, want ok %v", err, tc.ok)
 			}
 		})
+	}
+}
+
+// The file list saved with a snapshot catches files lost or changed in the
+// snapshot's folder; snapshots without a list (older ones) pass.
+func TestSnapshotFileList(t *testing.T) {
+	dir := t.TempDir()
+	sn := store.Snapshot{FilesDir: filepath.Join(dir, "files")}
+	writeFile(t, filepath.Join(sn.FilesDir, "index.php"), "x")
+	writeFile(t, filepath.Join(sn.FilesDir, "wp-content", "plugins", "p\tq", "p.php"), "plugin")
+	if err := os.Symlink("index.php", filepath.Join(sn.FilesDir, "link.php")); err != nil {
+		t.Fatal(err)
+	}
+	if err := checkSnapshot(sn); err != nil {
+		t.Fatalf("no list yet: %v", err)
+	}
+	if err := writeFileList(sn.FilesDir, fileListPath(sn)); err != nil {
+		t.Fatal(err)
+	}
+	if err := checkSnapshot(sn); err != nil {
+		t.Fatalf("whole snapshot refused: %v", err)
+	}
+	writeFile(t, filepath.Join(sn.FilesDir, "wp-content", "plugins", "p\tq", "p.php"), "plugin, changed")
+	if err := checkSnapshot(sn); err == nil || !strings.Contains(err.Error(), "changed") {
+		t.Fatalf("changed file: %v", err)
+	}
+	if err := os.RemoveAll(filepath.Join(sn.FilesDir, "wp-content")); err != nil {
+		t.Fatal(err)
+	}
+	if err := checkSnapshot(sn); err == nil || !strings.Contains(err.Error(), "missing") {
+		t.Fatalf("missing file: %v", err)
 	}
 }

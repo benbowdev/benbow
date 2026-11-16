@@ -26,7 +26,10 @@ type Snapshot struct {
 	DBEngine string `json:"database_engine,omitempty"`
 	DBName   string `json:"database,omitempty"`
 	DBFile   string `json:"database_file,omitempty"`
-	FilesDir string `json:"files_dir"`
+	// DBVersion is the version of the server the dump came from (empty in
+	// older snapshots).
+	DBVersion string `json:"database_version,omitempty"`
+	FilesDir  string `json:"files_dir"`
 	// Root is the project folder the files came from.
 	Root string `json:"root"`
 	// Bytes is the size of the database dump (the files are clones, which
@@ -47,10 +50,10 @@ func (s *Store) AddSnapshot(ctx context.Context, sn Snapshot) error {
 		b, _ := json.Marshal(sn.PHPSettings)
 		settings = string(b)
 	}
-	_, err := s.db.ExecContext(ctx, `INSERT INTO snapshots (id, site, created_at, kind, note, db_engine, db_name, db_file, files_dir, root, bytes, session_id, php_minor, php_settings)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	_, err := s.db.ExecContext(ctx, `INSERT INTO snapshots (id, site, created_at, kind, note, db_engine, db_name, db_file, files_dir, root, bytes, session_id, php_minor, php_settings, db_version)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		sn.ID, sn.Site, sn.CreatedAt.UTC().Format(time.RFC3339Nano), sn.Kind, sn.Note, sn.DBEngine, sn.DBName, sn.DBFile, sn.FilesDir, sn.Root, sn.Bytes, sn.SessionID,
-		sn.PHPMinor, settings)
+		sn.PHPMinor, settings, sn.DBVersion)
 	if err != nil {
 		return fmt.Errorf("record snapshot %s of %s: %w", sn.ID, sn.Site, err)
 	}
@@ -61,7 +64,7 @@ func scanSnapshot(sc interface{ Scan(...any) error }) (Snapshot, error) {
 	var sn Snapshot
 	var at, settings string
 	err := sc.Scan(&sn.ID, &sn.Site, &at, &sn.Kind, &sn.Note, &sn.DBEngine, &sn.DBName, &sn.DBFile, &sn.FilesDir, &sn.Root, &sn.Bytes, &sn.SessionID,
-		&sn.PHPMinor, &settings)
+		&sn.PHPMinor, &settings, &sn.DBVersion)
 	sn.CreatedAt, _ = time.Parse(time.RFC3339Nano, at)
 	if settings != "" {
 		_ = json.Unmarshal([]byte(settings), &sn.PHPSettings)
@@ -69,7 +72,7 @@ func scanSnapshot(sc interface{ Scan(...any) error }) (Snapshot, error) {
 	return sn, err
 }
 
-const snapshotCols = `id, site, created_at, kind, note, db_engine, db_name, db_file, files_dir, root, bytes, session_id, php_minor, php_settings`
+const snapshotCols = `id, site, created_at, kind, note, db_engine, db_name, db_file, files_dir, root, bytes, session_id, php_minor, php_settings, db_version`
 
 // ListSnapshots returns a site's snapshots, newest first.
 func (s *Store) ListSnapshots(ctx context.Context, site string) ([]Snapshot, error) {
