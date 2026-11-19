@@ -27,7 +27,9 @@ type Config struct {
 	HTTPPort    int
 	PublicHTTPS int
 	// Phone, if set, serves one site on the private network addresses.
-	Phone      *Phone
+	Phone *Phone
+	// Tunnel, if set, serves one site on a Unix socket for cloudflared.
+	Tunnel     *Tunnel
 	StorageDir string
 	LogFile    string
 	CA         CA
@@ -219,6 +221,49 @@ var tmpl = template.Must(template.New("Caddyfile").Funcs(template.FuncMap{"q": q
 	file_server
 }
 {{end}}
+{{- with .Tunnel}}
+# tunnel: {{.Site}}
+http:// {
+	bind {{q (print "unix/" .Socket "|0600")}}
+	{{- if .PasswordHash}}
+	basic_auth {
+		{{.User}} {{q .PasswordHash}}
+	}
+	{{- end}}
+	# The internet sees this site: never its dotfiles (.git, .env), dumps,
+	# backups or logs.
+	@benbowhidden {
+		path */.* *.sql *.sql.gz *.bak *.log *.zip *.tar.gz
+		not path /.well-known/*
+		{{- if .Upstream}}
+		not path /node_modules/.vite/*
+		{{- end}}
+	}
+	respond @benbowhidden 404
+	header X-Robots-Tag "noindex, nofollow"
+	# cloudflared sends the public name as Host.
+	header >Location {{q .LocalURL}} "https://{host}"
+	{{- if .Upstream}}
+	reverse_proxy localhost:{{.Upstream}}
+	{{- if .UpstreamLocalHost}} {
+		header_up Host localhost:{{.Upstream}}
+	}
+	{{- end}}
+	{{- else}}
+	root * {{q .Root}}
+	php_fastcgi {{q (print "unix/" .FPMSocket)}} {
+		env PHP_VALUE {{q .PHPValue}}
+		env HTTPS on
+		env BENBOW_PHONE_URL "https://{host}"
+		env BENBOW_LOCAL_URL {{q .LocalURL}}
+		{{- if .Laravel}}
+		env APP_URL "https://{host}"
+		{{- end}}
+	}
+	file_server
+	{{- end}}
+}
+{{end}}
 {{- if .MailUIPort}}
 # mail
 {{q (print "https://mail.localhost:" $.HTTPSPort)}} {
@@ -253,6 +298,27 @@ type Phone struct {
 	// install on the phone) at PlainURL; 0 for none.
 	PlainPort int
 	PlainURL  string
+}
+
+// Tunnel is a site published by cloudflared: served on a Unix socket
+// (Socket) that only cloudflared talks to, under whatever public name it
+// sends as Host. Pages and redirects use that name instead of LocalURL.
+type Tunnel struct {
+	Site      string
+	Socket    string
+	Root      string
+	FPMSocket string
+	// PHPValue includes Benbow's auto_prepend_file for these requests.
+	PHPValue string
+	LocalURL string
+	Laravel  bool
+	// Upstream is an app's port (UpstreamLocalHost: with Host
+	// localhost:<port>).
+	Upstream          int
+	UpstreamLocalHost bool
+	// User and PasswordHash (bcrypt), when set, ask every visitor for a
+	// password.
+	User, PasswordHash string
 }
 
 // PhoneVariant is one address the phone's site answers on.
@@ -307,6 +373,25 @@ func Caddyfile(cfg Config) (string, error) {
 			}
 		}
 	}
+	if t := cfg.Tunnel; t != nil {
+		check = append(check, t.Socket)
+		if t.Upstream == 0 {
+			check = append(check, t.Root, t.FPMSocket)
+			for _, line := range strings.Split(t.PHPValue, "\n") {
+				if !phpValueRe.MatchString(line) {
+					return "", errcode.Newf(errcode.InvalidInput, "bad PHP value %q", line)
+				}
+			}
+		} else if t.Upstream < 1 || t.Upstream > 65535 {
+			return "", errcode.Newf(errcode.InvalidInput, "bad upstream port %d", t.Upstream)
+		}
+		if strings.ContainsAny(t.LocalURL, "\"\\{} \n") || t.LocalURL == "" {
+			return "", errcode.Newf(errcode.InvalidInput, "bad URL %q", t.LocalURL)
+		}
+		if t.PasswordHash != "" && (!userRe.MatchString(t.User) || !bcryptRe.MatchString(t.PasswordHash)) {
+			return "", errcode.Errorf(errcode.InvalidInput, "bad tunnel password")
+		}
+	}
 	for _, s := range cfg.Sites {
 		if s.Upstream != 0 {
 			if s.Upstream < 1 || s.Upstream > 65535 {
@@ -355,6 +440,11 @@ var hostRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$`)
 
 // phpValueRe is one PHP_VALUE line that can sit verbatim in a quoted
 // Caddyfile token.
+var (
+	userRe   = regexp.MustCompile(`^[a-z][a-z0-9]{0,31}$`)
+	bcryptRe = regexp.MustCompile(`^\$2[aby]\$\d\d\$[./A-Za-z0-9]{53}$`)
+)
+
 var phpValueRe = regexp.MustCompile(`^[a-z_.]+=[^"\\{}$\x00-\x1f]+$`)
 
 // quote wraps s in double quotes. CheckSafe guarantees s holds no quote,

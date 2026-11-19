@@ -122,6 +122,34 @@ auto_prepend_file=/Users/test/Library/Application Support/benbow/data/phone/prep
 	file_server
 }
 
+# tunnel: legacy
+http:// {
+	bind "unix//Users/test/Library/Application Support/benbow/run/tunnel.sock|0600"
+	basic_auth {
+		benbow "$2a$10$abcdefghijklmnopqrstuuJ3nBzG7cZ7L9oUVDd8KZnB1yvKcFq6e"
+	}
+	# The internet sees this site: never its dotfiles (.git, .env), dumps,
+	# backups or logs.
+	@benbowhidden {
+		path */.* *.sql *.sql.gz *.bak *.log *.zip *.tar.gz
+		not path /.well-known/*
+	}
+	respond @benbowhidden 404
+	header X-Robots-Tag "noindex, nofollow"
+	# cloudflared sends the public name as Host.
+	header >Location "https://legacy.localhost" "https://{host}"
+	root * "/Users/test/Sites/legacy"
+	php_fastcgi "unix//Users/test/Library/Application Support/benbow/run/php82.sock" {
+		env PHP_VALUE "memory_limit=256M
+auto_prepend_file=/Users/test/Library/Application Support/benbow/data/phone/prepend.php"
+		env HTTPS on
+		env BENBOW_PHONE_URL "https://{host}"
+		env BENBOW_LOCAL_URL "https://legacy.localhost"
+		env APP_URL "https://{host}"
+	}
+	file_server
+}
+
 # mail
 "https://mail.localhost:8443" {
 	tls internal

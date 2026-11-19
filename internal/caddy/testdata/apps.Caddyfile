@@ -72,3 +72,22 @@
 	header /benbow-ca.crt Content-Type application/x-x509-ca-cert
 	file_server
 }
+
+# tunnel: api
+http:// {
+	bind "unix//Users/test/Library/Application Support/benbow/run/tunnel.sock|0600"
+	# The internet sees this site: never its dotfiles (.git, .env), dumps,
+	# backups or logs.
+	@benbowhidden {
+		path */.* *.sql *.sql.gz *.bak *.log *.zip *.tar.gz
+		not path /.well-known/*
+		not path /node_modules/.vite/*
+	}
+	respond @benbowhidden 404
+	header X-Robots-Tag "noindex, nofollow"
+	# cloudflared sends the public name as Host.
+	header >Location "https://api.benbow.test:8443" "https://{host}"
+	reverse_proxy localhost:3000 {
+		header_up Host localhost:3000
+	}
+}

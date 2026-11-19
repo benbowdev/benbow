@@ -29,8 +29,9 @@ func TestCaddyfileGolden(t *testing.T) {
 		sites   []Site
 		adminer *Adminer
 		phone   *Phone
+		tunnel  *Tunnel
 	}{
-		{"no-sites", nil, nil, nil},
+		{"no-sites", nil, nil, nil, nil},
 		{"two-sites", []Site{
 			{Name: "demo", Domain: "demo.localhost", Aliases: []string{"shop.test", "www.demo.localhost"}, Root: "/Users/test/Sites/My Demo", FPMSocket: home + "/run/php84.sock",
 				AccessLog: home + "/logs/sites/demo/access.log",
@@ -42,14 +43,18 @@ func TestCaddyfileGolden(t *testing.T) {
 				Root: "/Users/test/Sites/My Demo", FPMSocket: home + "/run/php84.sock",
 				PHPValue: "memory_limit=1G\nauto_prepend_file=" + home + "/data/phone/prepend.php",
 				LocalURL: "https://demo.localhost", PhoneURL: "https://demo-mac.local:9443", CAPort: 9444, CADir: home + "/data/phone/ca",
-				PlainPort: 9445, PlainURL: "http://192.168.1.5:9445"}},
+				PlainPort: 9445, PlainURL: "http://192.168.1.5:9445"},
+			&Tunnel{Site: "legacy", Socket: home + "/run/tunnel.sock", Root: "/Users/test/Sites/legacy", FPMSocket: home + "/run/php82.sock",
+				PHPValue: "memory_limit=256M\nauto_prepend_file=" + home + "/data/phone/prepend.php", LocalURL: "https://legacy.localhost", Laravel: true,
+				User: "benbow", PasswordHash: "$2a$10$abcdefghijklmnopqrstuuJ3nBzG7cZ7L9oUVDd8KZnB1yvKcFq6e"}},
 		{"apps", []Site{
 			{Name: "shop", Domain: "shop.localhost", Aliases: []string{"www.shop.localhost"}, Upstream: 41000,
 				AccessLog: home + "/logs/sites/shop/access.log"},
 			{Name: "api", Domain: "api.benbow.test", Upstream: 3000, UpstreamLocalHost: true},
 		}, nil, &Phone{Site: "shop", Host: "shop-mac.local", Port: 9443, Binds: []string{"192.168.1.5"},
 			LocalURL: "https://shop.localhost:8443", PhoneURL: "https://shop-mac.local:9443", CAPort: 9444, CADir: home + "/data/phone/ca",
-			Upstream: 41000}},
+			Upstream: 41000},
+			&Tunnel{Site: "api", Socket: home + "/run/tunnel.sock", LocalURL: "https://api.benbow.test:8443", Upstream: 3000, UpstreamLocalHost: true}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -66,6 +71,7 @@ func TestCaddyfileGolden(t *testing.T) {
 				HTTPPort:    map[bool]int{true: 8080}[tt.adminer != nil],
 				PublicHTTPS: map[bool]int{true: 443}[tt.adminer != nil],
 				Phone:       tt.phone,
+				Tunnel:      tt.tunnel,
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -149,5 +155,30 @@ func golden(t *testing.T, path, got string) {
 	}
 	if got != string(want) {
 		t.Errorf("%s mismatch:\n--- got\n%s\n--- want\n%s", path, got, want)
+	}
+}
+
+func TestCaddyfileRejectsBadTunnel(t *testing.T) {
+	base := Tunnel{Site: "x", Socket: home + "/run/tunnel.sock", Root: "/Users/test/x", FPMSocket: home + "/run/php84.sock",
+		PHPValue: "memory_limit=1G", LocalURL: "https://x.localhost"}
+	for name, edit := range map[string]func(*Tunnel){
+		"url":    func(t *Tunnel) { t.LocalURL = "https://x.localhost\"}" },
+		"no url": func(t *Tunnel) { t.LocalURL = "" },
+		"hash":   func(t *Tunnel) { t.User, t.PasswordHash = "benbow", "plain" },
+		"user": func(t *Tunnel) {
+			t.User, t.PasswordHash = "a b", "$2a$10$abcdefghijklmnopqrstuuJ3nBzG7cZ7L9oUVDd8KZnB1yvKcFq6e"
+		},
+		"upstream": func(t *Tunnel) { t.Upstream = 70000 },
+		"socket":   func(t *Tunnel) { t.Socket = "relative.sock" },
+	} {
+		t.Run(name, func(t *testing.T) {
+			tun := base
+			edit(&tun)
+			_, err := Caddyfile(Config{AdminSocket: home + "/run/caddy-admin.sock", HTTPSPort: 8443, StorageDir: home + "/data/caddy",
+				LogFile: home + "/logs/caddy.log", CA: testCA, Tunnel: &tun})
+			if errcode.Code(err) != errcode.InvalidInput {
+				t.Fatalf("err = %v", err)
+			}
+		})
 	}
 }

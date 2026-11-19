@@ -102,6 +102,9 @@ func expirePhone(ctx context.Context, c *core.Core) {
 		if _, err := c.ExpirePhone(ctx); err != nil {
 			fmt.Fprintf(os.Stderr, "phone expiry: %v\n", err)
 		}
+		if _, err := c.ExpireTunnel(ctx); err != nil {
+			fmt.Fprintf(os.Stderr, "public link expiry: %v\n", err)
+		}
 		if closed, err := c.ExpireAgentSessions(ctx); err != nil {
 			fmt.Fprintf(os.Stderr, "agent sessions: %v\n", err)
 		} else if len(closed) > 0 {

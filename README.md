@@ -71,8 +71,9 @@ For Claude Code, the Benbow plugin connects Benbow and teaches the workflow:
 - **Moving in:** import from MAMP PRO, Local, Herd, Valet and XAMPP,
   database included, with undo
 - **Snapshots** of files and database (APFS clones), **pull from
-  production** over SSH, SFTP or FTP, push to staging, and **open a site on
-  your phone** with a QR code
+  production** over SSH, SFTP or FTP, push to staging, **open a site on
+  your phone** with a QR code, and a **public link** for webhooks or a
+  client
 - **A CLI** where every command supports `--json`, and an **MCP server**
 
 ## The front end next door

@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "ok": true,
+  "data": {
+    "site": "x",
+    "until": "2026-11-04T10:30:00Z",
+    "url": "x",
+    "ready": true,
+    "minutes_left": 1,
+    "protected": true,
+    "user": "x",
+    "password": "x",
+    "local_url": "x"
+  }
+}

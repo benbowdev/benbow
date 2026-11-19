@@ -424,6 +424,32 @@ Format: **decision** (date) — why. *Not chosen:* alternatives.
   a secure context. *Not chosen:* weakening or skipping the CA (never
   without asking), a public tunnel (sends the site outside the network).
 
+- **Public link through a Cloudflare quick tunnel, with Benbow's own
+  cloudflared** (2026-11-19) — asked for on r/WordPress to receive payment
+  providers' webhooks; it also lets a client see a site. This revisits the
+  public tunnel turned down for Open on phone: it is now a separate, opt-in
+  feature, one site at a time, with an explicit explanation before the first
+  link, auto-off (default 60 minutes, at most 8 hours), closed when Benbow
+  stops, 404 for dotfiles/dumps/logs, `noindex`, and an optional password.
+  cloudflared is pinned in the manifest and runs from Benbow's folder with
+  its own config and HOME, so a user's own cloudflared or `~/.cloudflared`
+  is never used or read (the user asked for this: Benbow keeps to its own
+  space). It reaches Caddy over a Unix socket, and the public name arrives as
+  Host, so Caddy needs no reload once Cloudflare assigns it. *Not chosen:*
+  using the user's cloudflared or ngrok (depends on what is installed and
+  how it is configured); ngrok as the default (closed source, needs an
+  account); a named tunnel with a fixed address (needs a Cloudflare account
+  and a domain: later, on the same binary); an MCP tool to open a link (an
+  agent must not put a site on the internet).
+- **The link is "ready" only once 1.1.1.1 resolves its name** (2026-11-19) —
+  a new trycloudflare name takes seconds to reach DNS; a lookup through the
+  Mac's resolver before that is cached as missing and the link would not
+  open for a while.
+- **The tunnel password is shown once and only its bcrypt hash is kept**
+  (2026-11-19) — no plain-text secret in Benbow's database or the keychain
+  for a link that lives at most 8 hours; more time on the same link keeps
+  the password, a new one needs a new link.
+
 ## Laravel and blueprints
 
 - **Laravel detected by `artisan` + `laravel/framework`, docroot

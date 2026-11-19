@@ -67,6 +67,7 @@ var wireTypes = map[string]any{
 	"agent-connect":     agents.ConnectResult{},
 	"agent-start":       core.StartAgentResult{},
 	"phone":             core.PhoneStatus{},
+	"tunnel":            core.TunnelStatus{},
 	"app-detection":     core.AppDetection{},
 	"app-status":        core.AppStatus{},
 	"app-env":           core.AppEnv{},

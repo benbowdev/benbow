@@ -84,6 +84,7 @@ up as a diff of those files: adding a field is fine (rerun the Go test with
 | `GET /v1/mcp/permissions`, `PUT` `{scope, write}`, `GET /v1/mcp/actions` | see `mcp.md` | `benbow mcp allow\|deny\|status\|log` |
 | `GET /v1/blueprints`, `GET\|PUT\|DELETE /v1/blueprints/{name}` (PUT body: the JSON, `?overwrite=1`), `POST /v1/blueprints/{name}/apply` `{site, dry_run, accept_changes}`, `POST /v1/sites/{name}/blueprint` `{name, overwrite}`, `GET /v1/blueprints/sources`, `GET\|PUT /v1/github-token` | see `blueprints.md`; `POST /v1/wordpress` takes `blueprint`, `accept_changes` | `benbow blueprint`, `benbow wordpress --blueprint` |
 | `GET /v1/phone`, `PUT /v1/sites/{name}/phone`, `DELETE /v1/phone` | `{minutes}` | `benbow phone` |
+| `GET /v1/tunnel`, `PUT /v1/sites/{name}/tunnel`, `DELETE /v1/tunnel` | `{minutes, password}` | `benbow tunnel` |
 | `POST /v1/import/{mamp,local,herd,valet,xampp}` | `{dry_run, localhost, sites, migrate, existing, dump_file, source_user, source_password}` | `benbow import <source>` |
 | `POST /v1/sites/{name}/migration/undo` | | `benbow import undo` |
 | `GET /v1/ports`, `PUT /v1/ports` | `{https_port, http_port}` (0: off) | `benbow ports` |

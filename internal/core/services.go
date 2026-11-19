@@ -136,7 +136,7 @@ func (c *Core) caddyBinary(inst CaddyInstall) caddy.Binary {
 func (c *Core) caddyfilePath() string { return filepath.Join(c.Layout.Etc, "caddy", "Caddyfile") }
 
 // renderCaddyfile needs the CA on disk (ensureCA).
-func (c *Core) renderCaddyfile(ctx context.Context, p Ports, sites []store.Site, adminer *caddy.Adminer, phone *caddy.Phone) (string, error) {
+func (c *Core) renderCaddyfile(ctx context.Context, p Ports, sites []store.Site, adminer *caddy.Adminer, phone *caddy.Phone, tunnel *caddy.Tunnel) (string, error) {
 	var mailUI int
 	if on, err := c.mailEnabled(ctx); err != nil {
 		return "", err
@@ -153,6 +153,7 @@ func (c *Core) renderCaddyfile(ctx context.Context, p Ports, sites []store.Site,
 		HTTPPort:    p.HTTPListen,
 		PublicHTTPS: p.HTTPS,
 		Phone:       phone,
+		Tunnel:      tunnel,
 		StorageDir:  filepath.Join(c.Layout.Data, "caddy"),
 		LogFile:     filepath.Join(c.Layout.Logs, "caddy.log"),
 		CA:          c.caddyCA(),
@@ -455,7 +456,11 @@ func (c *Core) reconcile(ctx context.Context) (StartResult, error) {
 	if err != nil {
 		return StartResult{}, err
 	}
-	body, err := c.renderCaddyfile(ctx, webPorts, sites, adminer, phone)
+	tunnel, tunnelAgents, err := c.tunnelConfig(ctx, sites, webPorts.HTTPS)
+	if err != nil {
+		return StartResult{}, err
+	}
+	body, err := c.renderCaddyfile(ctx, webPorts, sites, adminer, phone, tunnel)
 	if err != nil {
 		return StartResult{}, err
 	}
@@ -499,6 +504,7 @@ func (c *Core) reconcile(ctx context.Context) (StartResult, error) {
 	agents = append(agents, pgAgents...)
 	agents = append(agents, redisAgents...)
 	agents = append(agents, phoneAgents...)
+	agents = append(agents, tunnelAgents...)
 	agents = append(agents, appAgents...)
 
 	rotated := c.rotateLogs()
@@ -591,6 +597,10 @@ func (c *Core) Stop(ctx context.Context) (StopResult, error) {
 		if err := c.Store.DeleteSetting(ctx, settingRunning); err != nil {
 			return err
 		}
+		// A public link does not come back by itself on the next start.
+		if err := c.Store.DeleteSetting(ctx, settingTunnel); err != nil {
+			return err
+		}
 		changes, err := c.launchctl.StopAll(ctx)
 		res.Changes = changes
 		if err != nil {
@@ -651,6 +661,8 @@ type Status struct {
 	Redis      RedisStatus    `json:"redis"`
 	// Phone is the site open on the phone, if any.
 	Phone *PhoneStatus `json:"phone,omitempty"`
+	// Tunnel is the site with a public link, if any.
+	Tunnel *TunnelStatus `json:"tunnel,omitempty"`
 	// Groups organize the site list (see Site.GroupID).
 	Groups []GroupInfo `json:"groups"`
 	// Orphans are loaded Benbow agents that no site needs any more.
@@ -737,6 +749,11 @@ func (c *Core) Status(ctx context.Context) (Status, error) {
 	} else if share != nil {
 		services = append(services, phoneService)
 	}
+	if share, err := c.tunnelShare(ctx); err != nil {
+		return Status{}, err
+	} else if share != nil {
+		services = append(services, tunnelService)
+	}
 	if mysqlOn || legacyOn || pgOn {
 		st.AdminerURL = httpsURL(caddy.AdminerDomain, st.HTTPSPort) + "/"
 	}
@@ -782,6 +799,9 @@ func (c *Core) Status(ctx context.Context) (Status, error) {
 		return Status{}, err
 	}
 	if st.Phone, err = c.Phone(ctx); err != nil {
+		return Status{}, err
+	}
+	if st.Tunnel, err = c.Tunnel(ctx); err != nil {
 		return Status{}, err
 	}
 	st.CA.CertPath = c.CACertPath()

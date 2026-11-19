@@ -158,6 +158,9 @@ type Backend interface {
 	Phone(ctx context.Context) (*core.PhoneStatus, error)
 	SharePhone(ctx context.Context, name string, minutes int) (core.PhoneStatus, error)
 	StopPhone(ctx context.Context) error
+	Tunnel(ctx context.Context) (*core.TunnelStatus, error)
+	OpenTunnel(ctx context.Context, name string, minutes int, password bool) (core.TunnelStatus, error)
+	CloseTunnel(ctx context.Context) error
 	SetPorts(ctx context.Context, https, http int, beforePrompt func()) (core.PortsStatus, error)
 }
 
@@ -886,6 +889,22 @@ func Handler(b Backend) http.Handler {
 	})
 	post("DELETE", "/v1/phone", func(r *http.Request, _ []byte) (any, error) {
 		return struct{}{}, b.StopPhone(r.Context())
+	})
+	get("/v1/tunnel", func(ctx context.Context) (any, error) { return b.Tunnel(ctx) })
+	// Gives one site a public link (Cloudflare quick tunnel) for minutes
+	// (default 60); password asks visitors for one, returned only here.
+	post("PUT", "/v1/sites/{name}/tunnel", func(r *http.Request, body []byte) (any, error) {
+		var req struct {
+			Minutes  int  `json:"minutes"`
+			Password bool `json:"password"`
+		}
+		if err := decode(body, &req); err != nil {
+			return nil, err
+		}
+		return b.OpenTunnel(r.Context(), r.PathValue("name"), req.Minutes, req.Password)
+	})
+	post("DELETE", "/v1/tunnel", func(r *http.Request, _ []byte) (any, error) {
+		return struct{}{}, b.CloseTunnel(r.Context())
 	})
 	get("/v1/ports", func(ctx context.Context) (any, error) { return b.GetPorts(ctx) })
 	// 443 and 80 install Benbow's helper: macOS shows an administrator dialog.
