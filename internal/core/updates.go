@@ -327,6 +327,9 @@ func updateSeries(component, version string) string {
 	if component == mysqlLegacy.component {
 		return mysqlLegacy.series
 	}
+	if component == "cloudflared" {
+		return "" // versions are dates (2026.11.1): the year is no series
+	}
 	major, _, _ := strings.Cut(version, ".")
 	return major
 }

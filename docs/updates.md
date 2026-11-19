@@ -86,13 +86,14 @@ separate setting: Sparkle reads `benbow.dev/appcast.xml`, see
 
 | Component | How |
 |---|---|
-| Caddy, MySQL (8.4 LTS only), Mailpit, Adminer, wp-cli | fixed per installation; an update switches the version and restarts what uses it; the previous version stays for `rollback` |
+| Caddy, MySQL (8.4 LTS only), Mailpit, Adminer, wp-cli, cloudflared | fixed per installation; an update switches the version and restarts what uses it; the previous version stays for `rollback` |
 | PHP | per minor version: the new patch is installed next to the old one and the sites move to it; `rollback php-8.4` goes back |
 | Xdebug | follows PHP; a PHP update waits while Xdebug is on and has no build for the new version yet |
 | CA bundle, WordPress for new sites | always the newest in the manifest |
 
 Updates stay within a series: Caddy 2.x, Mailpit 1.x, MySQL 8.4.x (and
-5.7.x for the optional MySQL 5.7), PHP within its minor version. A failed
+5.7.x for the optional MySQL 5.7), PHP within its minor version.
+cloudflared's versions are dates (2026.11.1) and have no series. A failed
 update changes nothing.
 
 After an update only two builds of each component stay on disk: the one in

@@ -279,6 +279,26 @@
       ]
     },
     {
+      "component": "cloudflared",
+      "version": "2026.11.1",
+      "arch": "arm64",
+      "url": "https://github.com/cloudflare/cloudflared/releases/download/2026.11.1/cloudflared-darwin-arm64.tgz",
+      "sha256": "02fe4bcf08f2c09699cff30658228a739a0c47fb75f3653d1b8772a27ade4462",
+      "files": [
+        "cloudflared"
+      ]
+    },
+    {
+      "component": "cloudflared",
+      "version": "2026.11.1",
+      "arch": "amd64",
+      "url": "https://github.com/cloudflare/cloudflared/releases/download/2026.11.1/cloudflared-darwin-amd64.tgz",
+      "sha256": "5e0403b188dfee71fbd9b995e7dc9910d61b661c52371935ab6475d41185632f",
+      "files": [
+        "cloudflared"
+      ]
+    },
+    {
       "component": "php-cli",
       "version": "8.0.30",
       "for": "8.0.30",
