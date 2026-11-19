@@ -441,6 +441,17 @@ Format: **decision** (date) — why. *Not chosen:* alternatives.
   account); a named tunnel with a fixed address (needs a Cloudflare account
   and a domain: later, on the same binary); an MCP tool to open a link (an
   agent must not put a site on the internet).
+- **No named tunnel for now** (2026-11-19) — a fixed address needs a domain
+  whose DNS is on Cloudflare; the user has none to try it on, and the quick
+  tunnel covers webhooks and client previews. If it comes back: a tunnel
+  created from the dashboard with a token takes its ingress from Cloudflare
+  and ignores the local config (every hostname and service set by hand in
+  the dashboard), so the plan is a locally-managed tunnel instead:
+  `cloudflared tunnel login` in Benbow's HOME (browser, one zone), then
+  Benbow runs `tunnel create` and `tunnel route dns <site>.<domain>` itself
+  (refusing existing records), local ingress hostname → socket, cert.pem in
+  the keychain and written only for those commands. *Not chosen:* ngrok's
+  free fixed domain (closed source binary, account, warning page).
 - **The link is "ready" only once 1.1.1.1 resolves its name** (2026-11-19) —
   a new trycloudflare name takes seconds to reach DNS; a lookup through the
   Mac's resolver before that is cached as missing and the link would not
