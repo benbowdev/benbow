@@ -214,6 +214,8 @@ public struct Status: Codable, Sendable, Hashable {
     public var redis: MySQLStatus?
     /// The site open on the phone, if any.
     public var phone: PhoneStatus?
+    /// The site with a public link, if any.
+    public var tunnel: TunnelStatus?
     public var groups: [SiteGroup]?
     public var orphans: [String]?
 }
@@ -237,6 +239,22 @@ public struct PhoneStatus: Codable, Sendable, Hashable {
     /// "off", "on", "block-all" or "unknown".
     public var firewall: String
     public var minutesLeft: Int
+}
+
+/// A site on the internet through a Cloudflare quick tunnel.
+public struct TunnelStatus: Codable, Sendable, Hashable {
+    public var site: String
+    /// Empty until Cloudflare has given the link its address.
+    public var url: String
+    /// The address answers (connected and in DNS).
+    public var ready: Bool
+    public var minutesLeft: Int
+    /// Visitors need a password.
+    public var protected: Bool
+    /// Only in the answer that created the password: it is not stored.
+    public var user: String?
+    public var password: String?
+    public var localUrl: String
 }
 
 /// A saved WordPress blueprint.

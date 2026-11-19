@@ -197,6 +197,7 @@ extension Result where Failure == Error {
         "agent-connect": { try check("agent-connect", AgentConnectResult.self) },
         "agent-start": { try check("agent-start", AgentStartResult.self) },
         "phone": { try check("phone", PhoneStatus.self) },
+        "tunnel": { try check("tunnel", TunnelStatus.self) },
         "app-detection": { try check("app-detection", AppDetection.self) },
         "app-status": { try check("app-status", AppStatus.self) },
         "app-env": { try check("app-env", AppEnv.self) },

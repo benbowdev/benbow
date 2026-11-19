@@ -18,6 +18,7 @@ struct SiteDetail: View {
     @State private var checkingPHP = false
     @State private var runningTool = false
     @State private var phoneSheet = false
+    @State private var tunnelSheet = false
     @State private var undoingMigration = false
     @State private var snapshotsSheet = false
     @State private var blueprintSheet = false
@@ -203,6 +204,14 @@ struct SiteDetail: View {
                             .disabled(site.archived)
                     }
                     }
+                    GridRow {
+                        ToolTile(title: "Public Link", symbol: "globe",
+                                 help: "This site on the internet for a while, for webhooks or a client, through Cloudflare.",
+                                 active: model.status?.tunnel?.site == site.name) { tunnelSheet = true }
+                            .disabled(site.archived)
+                        Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+                        Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+                    }
                 }
                 .padding(.vertical, 2)
             }
@@ -321,6 +330,7 @@ struct SiteDetail: View {
         .sheet(isPresented: $checkingPHP) { PHPCheckSheet(site: site) }
         .sheet(isPresented: $runningTool) { ToolSheet(site: site) }
         .sheet(isPresented: $phoneSheet) { PhoneSheet(site: site) }
+        .sheet(isPresented: $tunnelSheet) { TunnelSheet(site: site) }
         .sheet(isPresented: $snapshotsSheet) { SnapshotsSheet(site: site) }
         .sheet(isPresented: $blueprintSheet) { BlueprintSheet(site: site) }
         .sheet(isPresented: $remoteSheet) { RemoteSheet(site: site) }

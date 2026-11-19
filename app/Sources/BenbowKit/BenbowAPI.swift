@@ -304,6 +304,21 @@ public struct BenbowAPI: Sendable {
         let _: Ignored = try await call("DELETE", "/v1/phone")
     }
 
+    struct TunnelRequest: Encodable {
+        let minutes: Int
+        let password: Bool
+    }
+
+    /// Gives a site a public link for minutes; for the same site, only
+    /// more time (the address and password stay).
+    public func openTunnel(_ site: String, minutes: Int, password: Bool) async throws -> TunnelStatus {
+        try await call("PUT", "/v1/sites/\(escape(site))/tunnel", TunnelRequest(minutes: minutes, password: password))
+    }
+
+    public func closeTunnel() async throws {
+        let _: Ignored = try await call("DELETE", "/v1/tunnel")
+    }
+
     struct PHPCheckRequest: Encodable {
         let target: String
         let all: Bool

@@ -19,6 +19,7 @@ struct ContentView: View {
     @State private var duplicating: Site?
     @State private var showArchived = false
     @State private var phoneSite: Site?
+    @State private var tunnelSite: Site?
 
     /// Sites whose name, domain, alias or folder match the search.
     private var filtered: [Site] {
@@ -88,6 +89,7 @@ struct ContentView: View {
         }
         .sheet(item: $model.removing) { site in RemoveSiteSheet(site: site) }
         .sheet(item: $phoneSite) { site in PhoneSheet(site: site) }
+        .sheet(item: $tunnelSite) { site in TunnelSheet(site: site) }
         .sheet(item: $duplicating) { site in
             CloneSheet(site: site) { name in selection = name }
         }
@@ -219,12 +221,23 @@ struct ContentView: View {
                 .help("\(phone.site) is open on your local network: \(phone.url)")
             }
         }
+        if let tunnel = model.status?.tunnel {
+            ToolbarItem(placement: .automatic) {
+                Button {
+                    tunnelSite = model.sites.first { $0.name == tunnel.site }
+                } label: {
+                    Label("\(tunnel.site) public (\(tunnel.minutesLeft) min)", systemImage: "globe")
+                }
+                .labelStyle(.titleAndIcon)
+                .help(tunnel.ready ? "\(tunnel.site) is on the internet: \(tunnel.url)" : "\(tunnel.site): waiting for Cloudflare")
+            }
+        }
         if UpdatesBadge.count(model, updater) > 0 {
             ToolbarItem(placement: .automatic) {
                 UpdatesBadge()
             }
         }
-        if model.status?.phone != nil || UpdatesBadge.count(model, updater) > 0, #available(macOS 26.0, *) {
+        if model.status?.phone != nil || model.status?.tunnel != nil || UpdatesBadge.count(model, updater) > 0, #available(macOS 26.0, *) {
             ToolbarSpacer(.fixed)
         }
         ToolbarItem(placement: .automatic) {

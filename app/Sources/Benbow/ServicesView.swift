@@ -67,6 +67,7 @@ extension AppModel {
         case "mailpit": return "Mail"
         case "dns": return "DNS for .test"
         case "phone": return "Open on phone"
+        case "tunnel": return "Public link"
         default:
             if service.hasPrefix("php-") { return "PHP \(service.dropFirst(4))" }
             return service
@@ -88,6 +89,7 @@ extension AppModel {
             return st.mail?.smtpPort.map { "SMTP port \($0)" } ?? ""
         case "dns": return ".test addresses"
         case "phone": return st.phone.map { $0.site } ?? ""
+        case "tunnel": return st.tunnel.map { $0.site } ?? ""
         default:
             guard service.hasPrefix("php-") else { return "" }
             let minor = String(service.dropFirst(4))

@@ -809,6 +809,18 @@ final class AppModel {
         await perform("Closing the phone access…") { try await $0.stopPhone() }
     }
 
+    /// Opens (or extends) a site's public link; the answer carries the
+    /// password the one time it is made.
+    func openTunnel(_ site: Site, minutes: Int, password: Bool) async -> TunnelStatus? {
+        var res: TunnelStatus?
+        await perform("Opening a public link for \(site.name)…") { res = try await $0.openTunnel(site.name, minutes: minutes, password: password) }
+        return res
+    }
+
+    func closeTunnel() async {
+        await perform("Closing the public link…") { try await $0.closeTunnel() }
+    }
+
     /// Changes the web ports; 443 or 80 make macOS ask for a password once.
     func setPorts(https: Int, http: Int) async {
         let standard = https < 1024 || (http != 0 && http < 1024)

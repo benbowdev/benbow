@@ -56,6 +56,17 @@ struct MenuBarContent: View {
                 Text("\(phone.site) on phone · \(phone.minutesLeft) min left")
                 Button("Stop Sharing \(phone.site)") { Task { await model.stopPhone() } }
             }
+            if let tunnel = model.status?.tunnel {
+                Divider()
+                Text("\(tunnel.site) on the internet · \(tunnel.minutesLeft) min left")
+                if tunnel.ready {
+                    Button("Copy Public Link") {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(tunnel.url, forType: .string)
+                    }
+                }
+                Button("Close Public Link") { Task { await model.closeTunnel() } }
+            }
             if let n = model.updates?.ready.count, n > 0 {
                 Divider()
                 Button("Install \(n) Update\(n == 1 ? "" : "s")") { Task { await model.applyUpdates() } }

@@ -36,14 +36,14 @@ The app has no logic of its own: every change goes through the core.
   it; a banner offers to trust the local certificate when needed.
 - Detail: name, folder, PHP version, HTTPS, database; a Tools row of tiles
   (Snapshots, Open on Phone, Production, wp-cli/Artisan/Composer, PHP Check,
-  Blueprints for WordPress; description on hover); a collapsed Advanced
+  Blueprints for WordPress, Public Link (`tunnel.md`); description on hover); a collapsed Advanced
   section with settings only (domain, aliases, PHP settings of the site,
   Xdebug, the companion, migration, archive, remove).
 - Apps (`apps.md`): the command (Edit… also switches to a server you run)
   and the dev server's state in place of the PHP version: a dot (running,
   starting, error, ended, stopped), Restart, and on error Benbow's message
   with the last lines of output; an orange triangle in the list when it
-  has stopped. Tools: Snapshots, Production, Open on Phone. Advanced:
+  has stopped. Tools: Snapshots, Production, Open on Phone, Public Link. Advanced:
   variables (names only; values go to the keychain) and "Send Host:
   localhost". PHP sites' Advanced: the companion's command, state and
   Restart.
