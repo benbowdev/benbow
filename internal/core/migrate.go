@@ -18,6 +18,7 @@ import (
 	"github.com/benbowdev/benbow/internal/dotenv"
 	"github.com/benbowdev/benbow/internal/errcode"
 	"github.com/benbowdev/benbow/internal/fsutil"
+	"github.com/benbowdev/benbow/internal/importers"
 	"github.com/benbowdev/benbow/internal/mamp"
 	"github.com/benbowdev/benbow/internal/mysql"
 	"github.com/benbowdev/benbow/internal/store"
@@ -46,6 +47,10 @@ type MigrationPlan struct {
 	Database string `json:"database,omitempty"`
 	// Server is where it is read from (host:port or socket).
 	Server string `json:"server,omitempty"`
+	// Target is the database the site gets on Benbow: the source's name,
+	// or the site's when that name is taken by another site (and always
+	// for Local, which names every database "local").
+	Target string `json:"target,omitempty"`
 	// Exists is true when Benbow already has a database of that name.
 	Exists bool `json:"exists"`
 	// Config is the file Benbow changes (wp-config.php or .env), if any.
@@ -162,7 +167,7 @@ func describeServer(s mysql.Server) string {
 
 // planMigration describes the migration of a site about to be (or just)
 // imported from h.
-func (c *Core) planMigration(ctx context.Context, site store.Site, h mamp.Host, url string, opts MigrateOptions) MigrationPlan {
+func (c *Core) planMigration(ctx context.Context, source string, site store.Site, h mamp.Host, url string, opts MigrateOptions) MigrationPlan {
 	plan := MigrationPlan{Framework: site.Framework, URLTo: url, Steps: []string{}}
 	p, err := readProjectDB(site, h)
 	if err != nil {
@@ -183,21 +188,31 @@ func (c *Core) planMigration(ctx context.Context, site store.Site, h mamp.Host, 
 		return plan
 	}
 	plan.Database, plan.Server = p.db, describeServer(p.server)
-	if dbs, err := c.Databases(ctx); err == nil && slices.Contains(dbs, migrationDBName(site, p)) {
+	target, err := c.migrationDBName(ctx, source, site, p)
+	if err != nil {
+		plan.Problem = err.Error()
+		return plan
+	}
+	plan.Target = target
+	if dbs, err := c.Databases(ctx); err == nil && slices.Contains(dbs, target) {
 		plan.Exists = true
+	}
+	into := ""
+	if target != p.db && p.db != "" {
+		into = " into a new database " + target
 	}
 	switch {
 	case opts.DumpFile != "":
-		plan.Steps = append(plan.Steps, "load "+opts.DumpFile+" into a new database "+migrationDBName(site, p))
+		plan.Steps = append(plan.Steps, "load "+opts.DumpFile+" into a new database "+target)
 	case plan.Exists && (opts.Existing == "" || opts.Existing == ExistingUse):
-		plan.Steps = append(plan.Steps, "use Benbow's existing database "+p.db+" (not copied again)")
+		plan.Steps = append(plan.Steps, "use Benbow's existing database "+target+" (not copied again)")
 	case plan.Exists && opts.Existing == ExistingRecopy:
-		plan.Steps = append(plan.Steps, "back up Benbow's database "+p.db+", then copy it again from "+plan.Server)
+		plan.Steps = append(plan.Steps, "back up Benbow's database "+target+", then copy it again from "+plan.Server)
 	case plan.Exists && opts.Existing == ExistingSkip:
-		plan.Problem = "Benbow already has database " + p.db + ": skipped as asked"
+		plan.Problem = "Benbow already has database " + target + ": skipped as asked"
 		return plan
 	default:
-		plan.Steps = append(plan.Steps, "copy database "+p.db+" from "+plan.Server+" (only read)")
+		plan.Steps = append(plan.Steps, "copy database "+p.db+" from "+plan.Server+" (only read)"+into)
 	}
 	plan.Steps = append(plan.Steps, "give the site its own MySQL user on that database")
 	plan.Steps = append(plan.Steps, "back up "+filepath.Base(p.configPath)+" in Benbow's folder, then set its database settings to Benbow's")
@@ -215,18 +230,44 @@ func (c *Core) planMigration(ctx context.Context, site store.Site, h mamp.Host, 
 }
 
 // migrationDBName is the database the migrated site uses on Benbow: the
-// source's name (valid MySQL names only), else the site's default.
-func migrationDBName(site store.Site, p projectDB) string {
-	if p.db != "" && mysql.ValidName(p.db, 64) {
-		return p.db
+// source's name (valid MySQL names only), so a site moved from MAMP keeps
+// it. The site's own name instead when another Benbow site already uses
+// that database, and always for Local, which names every site's database
+// "local" (issue #1: the second site was linked to the first one's). When
+// the site's name is taken by another site too, a number is added.
+func (c *Core) migrationDBName(ctx context.Context, source string, site store.Site, p projectDB) (string, error) {
+	sites, err := c.Store.ListSites(ctx)
+	if err != nil {
+		return "", err
 	}
-	return DefaultDatabaseName(site.Name)
+	usedByOther := func(db string) bool {
+		for _, s := range sites {
+			if s.Name != site.Name && s.Database == db && engineOf(s) == EngineMySQL {
+				return true
+			}
+		}
+		return false
+	}
+	if p.db != "" && mysql.ValidName(p.db, 64) && source != importers.Local && !usedByOther(p.db) {
+		return p.db, nil
+	}
+	base := DefaultDatabaseName(site.Name)
+	if !usedByOther(base) {
+		return base, nil
+	}
+	for i := 2; i < 100; i++ {
+		db := base[:min(len(base), 60)] + "_" + strconv.Itoa(i)
+		if !usedByOther(db) {
+			return db, nil
+		}
+	}
+	return "", errcode.Newf(errcode.Conflict, "no free database name for %s", site.Name)
 }
 
 // migrateSite runs a planned migration. On failure everything it did is
 // undone and the site stays as imported.
 func (c *Core) migrateSite(ctx context.Context, source string, site store.Site, h mamp.Host, url string, opts MigrateOptions) (MigrationPlan, error) {
-	plan := c.planMigration(ctx, site, h, url, opts)
+	plan := c.planMigration(ctx, source, site, h, url, opts)
 	if plan.Problem != "" {
 		return plan, errcode.Errorf(errcode.Unsupported, plan.Problem)
 	}
@@ -241,7 +282,13 @@ func (c *Core) migrateSite(ctx context.Context, source string, site store.Site, 
 	if err != nil {
 		return plan, err
 	}
-	dbName := migrationDBName(site, p)
+	dbName := plan.Target
+	// Never load into, or replace addresses in, another site's database.
+	if others, err := c.sitesUsingDatabase(ctx, site.Name, dbName, EngineMySQL); err != nil {
+		return plan, err
+	} else if len(others) > 0 {
+		return plan, errcode.Newf(errcode.Conflict, "%s already uses database %s", strings.Join(others, ", "), dbName)
+	}
 	mig := store.Migration{Site: site.Name, Source: source, DBName: dbName, ConfigPath: p.configPath, URLTo: url, At: time.Now()}
 	var undo []func()
 	rollback := func() {

@@ -40,6 +40,7 @@
           "framework": "x",
           "database": "x",
           "server": "x",
+          "target": "x",
           "exists": true,
           "config": "x",
           "url_from": "x",

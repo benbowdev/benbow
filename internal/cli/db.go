@@ -101,16 +101,18 @@ func (a *app) dbCreateCmd() *cobra.Command {
 
 func (a *app) dbLinkCmd() *cobra.Command {
 	var engine string
+	var share bool
 	cmd := &cobra.Command{
 		Use:   "link <site> <database>",
 		Short: "Link an existing database to a site (connects as root or postgres)",
 		Args:  cobra.ExactArgs(2),
 		RunE: a.withCore(func(ctx context.Context, c *core.Core, args []string) (Result, error) {
-			res, err := c.LinkSiteDatabaseOn(ctx, args[0], args[1], engine)
+			res, err := c.LinkSiteDatabaseOn(ctx, args[0], args[1], engine, share)
 			return siteDBResult(res), err
 		}),
 	}
 	cmd.Flags().StringVar(&engine, "engine", "mysql", "mysql (8.4), mysql57 or pgsql")
+	cmd.Flags().BoolVar(&share, "share", false, "allow a database another site already uses")
 	return cmd
 }
 

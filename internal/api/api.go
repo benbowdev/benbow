@@ -53,7 +53,7 @@ type Backend interface {
 	Databases(ctx context.Context) ([]string, error)
 	GetSiteDatabase(ctx context.Context, name string) (core.SiteDatabase, error)
 	CreateSiteDatabaseOn(ctx context.Context, name, db, engine string) (core.SiteDatabase, error)
-	LinkSiteDatabaseOn(ctx context.Context, name, db, engine string) (core.SiteDatabase, error)
+	LinkSiteDatabaseOn(ctx context.Context, name, db, engine string, share bool) (core.SiteDatabase, error)
 	PostgresDatabases(ctx context.Context) ([]string, error)
 	Postgres(ctx context.Context) (core.PostgresStatus, error)
 	EnablePostgres(ctx context.Context, port int) (core.PostgresResult, error)
@@ -438,18 +438,21 @@ func Handler(b Backend) http.Handler {
 		reply(w, v, err)
 	})
 	// {"name": "shop"} creates a database and its user; with "link": true
-	// it links an existing one instead.
+	// it links an existing one instead ("share": true if another site uses
+	// it).
 	post("POST", "/v1/sites/{name}/database", func(r *http.Request, body []byte) (any, error) {
 		var req struct {
 			Name   string `json:"name"`
 			Link   bool   `json:"link"`
 			Engine string `json:"engine"`
+			// Share links a database another site already uses.
+			Share bool `json:"share"`
 		}
 		if err := decode(body, &req); err != nil {
 			return nil, err
 		}
 		if req.Link {
-			return b.LinkSiteDatabaseOn(r.Context(), r.PathValue("name"), req.Name, req.Engine)
+			return b.LinkSiteDatabaseOn(r.Context(), r.PathValue("name"), req.Name, req.Engine, req.Share)
 		}
 		return b.CreateSiteDatabaseOn(r.Context(), r.PathValue("name"), req.Name, req.Engine)
 	})

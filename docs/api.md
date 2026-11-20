@@ -98,7 +98,7 @@ up as a diff of those files: adding a field is fine (rerun the Go test with
 | `DELETE /v1/sites/{name}/logs` | | `benbow site logs --clear` |
 | `GET`, `PATCH /v1/sites/{name}/php-settings` | `{"memory_limit": "1G"}`, `""` resets | `benbow site php` |
 | `GET /v1/sites/{name}/database` | | `benbow db show` |
-| `POST /v1/sites/{name}/database` | `{name, link}` | `benbow db create`, `benbow db link` |
+| `POST /v1/sites/{name}/database` | `{name, link, engine, share}` | `benbow db create`, `benbow db link` |
 | `DELETE /v1/sites/{name}/database` | `?drop=true` | `benbow db unlink` |
 | `GET /v1/databases` | | `benbow db list` |
 | `POST /v1/wordpress` | `{name, path, php, title, admin_user, admin_email, domain, aliases, group_id, php_settings}` | `benbow wordpress` |

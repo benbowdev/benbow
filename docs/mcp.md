@@ -79,6 +79,7 @@ Every change tool:
 | `add_site` | yes | folder, PHP, domain, aliases, new folder, database, php.ini values; an app with `command` or `proxy_port` (`apps.md`) |
 | `update_site` | yes | PHP version, folder, domain, aliases, on/off; an app's command, port or proxied port; a PHP site's companion |
 | `create_site_database` | yes | database with its own user (password returned once) |
+| `unlink_site_database` | yes | forgets the site's database, keeping it and its data |
 | `new_wordpress`, `new_laravel` | yes | new project in one step (WordPress: optional `blueprint`) |
 | `apply_blueprint` | yes | `blueprints.md`; a changed download stops it, and only the user can accept the change |
 | `save_blueprint` | yes | a WordPress site as a blueprint (needs `*`) |

@@ -177,7 +177,7 @@ func (c *Core) Import(ctx context.Context, opts ImportOptions) (ImportPlan, erro
 				if it.Action != ImportCreate {
 					continue
 				}
-				m := c.planMigration(ctx, previewSite(*it), it.MAMP, httpsURL(it.Domain, c.publicHTTPS(ctx)), opts.Migration)
+				m := c.planMigration(ctx, opts.Source, previewSite(*it), it.MAMP, httpsURL(it.Domain, c.publicHTTPS(ctx)), opts.Migration)
 				it.Migration = &m
 			}
 		}
@@ -281,6 +281,9 @@ func (c *Core) linkImportedDatabases(ctx context.Context, plan *ImportPlan) {
 		site, err := c.Store.Site(ctx, it.Name)
 		if err != nil || site.Database != "" {
 			continue
+		}
+		if others, err := c.sitesUsingDatabase(ctx, site.Name, it.MAMP.Databases[0], EngineMySQL); err != nil || len(others) > 0 {
+			continue // another site has it: never two sites on one database by accident
 		}
 		site.Database = it.MAMP.Databases[0]
 		if c.Store.UpdateSite(ctx, site) == nil {

@@ -141,6 +141,9 @@ func New(open Open) *mcp.Server {
 		Description: "Changes a site's PHP version, folder, domain or aliases, or turns it on or off. Snapshot first."}, t.updateSite)
 	mcp.AddTool(s, &mcp.Tool{Name: "create_site_database", Title: "Create a site database", Annotations: change,
 		Description: "Creates a database with its own user for a site (engine mysql, mysql57 for the optional MySQL 5.7 server, or pgsql); the password stays in the keychain."}, t.createDatabase)
+	mcp.AddTool(s, &mcp.Tool{Name: "unlink_site_database", Title: "Unlink a site's database", Annotations: change,
+		Description: "Forgets which database a site uses, keeping the database and its data (nothing is deleted), so the site can get another one with create_site_database. " +
+			"The site's wp-config.php or .env is not changed."}, t.unlinkDatabase)
 	mcp.AddTool(s, &mcp.Tool{Name: "new_wordpress", Title: "New WordPress site", Annotations: network,
 		Description: "Creates a WordPress site in one step; returns the admin password once. Needs permission for everything."}, t.newWordPress)
 	mcp.AddTool(s, &mcp.Tool{Name: "new_laravel", Title: "New Laravel project", Annotations: network,
@@ -652,6 +655,21 @@ func (t tools) createDatabase(ctx context.Context, _ *mcp.CallToolRequest, in cr
 			return "would create database " + core.DefaultDatabaseName(in.Site) + " with its own user", nil
 		}
 		return c.CreateSiteDatabaseOn(ctx, in.Site, "", in.Engine)
+	})
+}
+
+type unlinkDBIn struct {
+	Site   string `json:"site" jsonschema:"the site's name"`
+	DryRun bool   `json:"dry_run,omitempty" jsonschema:"only say what would happen"`
+}
+
+func (t tools) unlinkDatabase(ctx context.Context, _ *mcp.CallToolRequest, in unlinkDBIn) (*mcp.CallToolResult, any, error) {
+	return change(ctx, t, "unlink_site_database", in.Site, in, in.DryRun, false, func(c *core.Core) (any, error) {
+		if in.DryRun {
+			db, err := c.GetSiteDatabase(ctx, in.Site)
+			return "would unlink database " + db.Database + " (kept, with its data)", err
+		}
+		return c.UnlinkSiteDatabase(ctx, in.Site, false)
 	})
 }
 

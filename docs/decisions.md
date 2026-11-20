@@ -409,6 +409,18 @@ Format: **decision** (date) — why. *Not chosen:* alternatives.
   other tools), tar.gz (Finder and hosts expect zip), holding the lock while
   zipping (minutes on a big site).
 
+- **A migrated site never shares a database with another site**
+  (2026-11-20, issue #1) — the migration kept the source's database name,
+  right for MAMP (one server, unique names) but wrong for Local, whose sites
+  all use `local`: the second Local site was linked to the first one's
+  database, its data never loaded, and its address replacement rewrote the
+  first site. Now the name is the site's whenever the source's is taken by
+  another site, and always for Local; linking a database another site uses
+  needs `--share`, deleting one is refused, and the MAMP import only links a
+  database no other site has. *Not chosen:* asking for a name at every
+  import (most imports have unique names); renaming the first site's
+  database (it is in use and its `wp-config.php` points at it).
+
 ## Phone
 
 - **Open on phone: one site, private IPv4 only, `<site>-<mac>.local` via

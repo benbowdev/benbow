@@ -112,7 +112,7 @@ func (f *fake) CreateSiteDatabaseOn(_ context.Context, name, db, engine string) 
 	return core.SiteDatabase{}, f.record(strings.TrimSpace("create db " + name + " " + db + " " + engine))
 }
 
-func (f *fake) LinkSiteDatabaseOn(_ context.Context, name, db, engine string) (core.SiteDatabase, error) {
+func (f *fake) LinkSiteDatabaseOn(_ context.Context, name, db, engine string, _ bool) (core.SiteDatabase, error) {
 	return core.SiteDatabase{}, f.record(strings.TrimSpace("link db " + name + " " + db + " " + engine))
 }
 

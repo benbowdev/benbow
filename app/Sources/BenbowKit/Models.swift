@@ -755,6 +755,9 @@ public struct MigrationPlan: Codable, Sendable, Hashable {
     public var framework: String?
     public var database: String?
     public var server: String?
+    /// The database the site gets on Benbow (the site's name when the
+    /// source's is taken, and always for Local).
+    public var target: String?
     public var exists: Bool
     public var config: String?
     public var urlFrom: String?

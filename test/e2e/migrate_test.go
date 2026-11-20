@@ -185,3 +185,103 @@ func TestImportMigrate(t *testing.T) {
 		t.Fatalf("second undo = %+v", env)
 	}
 }
+
+// TestImportMigrateTakenName is issue #1: an imported site whose database
+// name another Benbow site already uses (Local names them all "local") gets
+// a database of its own, and the other site's database is left alone.
+func TestImportMigrateTakenName(t *testing.T) {
+	if runtime.GOARCH != "arm64" {
+		t.Skip("MySQL 8.4 is pinned for Apple Silicon only")
+	}
+	src := newHarness(t)
+	src.mustBenbow("mysql", "enable")
+	src.mustBenbow("start")
+	wp := filepath.Join(t.TempDir(), "shop")
+	src.mustBenbow("wordpress", "shop", "--path", wp)
+	var srcMySQL struct {
+		Port     int    `json:"port"`
+		Password string `json:"password"`
+	}
+	if err := json.Unmarshal(src.mustBenbow("mysql", "password"), &srcMySQL); err != nil {
+		t.Fatal(err)
+	}
+	cfgPath := filepath.Join(wp, "wp-config.php")
+	orig, err := os.ReadFile(cfgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	asMAMP, err := wpconfig.Set(string(orig), map[string]string{
+		"DB_USER": "root", "DB_PASSWORD": srcMySQL.Password, "DB_HOST": "127.0.0.1:" + strconv.Itoa(srcMySQL.Port),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(cfgPath, []byte(asMAMP), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	h := newHarness(t)
+	home := t.TempDir()
+	valet := filepath.Join(home, ".config", "valet")
+	if err := os.MkdirAll(filepath.Join(valet, "Sites"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(valet, "config.json"), []byte(`{"tld":"test","paths":[]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(wp, filepath.Join(valet, "Sites", "shop")); err != nil {
+		t.Fatal(err)
+	}
+	h.env = append(h.env, "BENBOW_IMPORT_HOME="+home)
+	h.mustBenbow("mysql", "enable")
+	h.mustBenbow("start")
+	// Another site already uses a database called "shop", with its own data.
+	h.mustBenbow("wordpress", "first", "--path", filepath.Join(t.TempDir(), "first"))
+	h.mustBenbow("db", "unlink", "first")
+	h.mustBenbow("site", "add", "other", "--php", "8.4", "--path", filepath.Join(t.TempDir(), "other"), "--create-folder")
+	h.mustBenbow("db", "create", "other", "--name", "shop")
+	if _, code := h.raw("db", "query", "other", "SELECT 1"); code != 0 {
+		t.Fatal("other's database is not reachable")
+	}
+
+	var res struct {
+		Items []struct {
+			Migration *struct {
+				Database string `json:"database"`
+				Target   string `json:"target"`
+				Done     bool   `json:"done"`
+				Error    string `json:"error"`
+			} `json:"migration"`
+		} `json:"items"`
+	}
+	data := h.mustBenbow("import", "valet", "--migrate", "--localhost")
+	if err := json.Unmarshal(data, &res); err != nil || len(res.Items) != 1 || res.Items[0].Migration == nil {
+		t.Fatalf("import = %s", data)
+	}
+	m := res.Items[0].Migration
+	if !m.Done || m.Error != "" || m.Database != "shop" || m.Target != "shop_2" {
+		t.Fatalf("migration = %s", data)
+	}
+	b, _ := os.ReadFile(cfgPath)
+	if cfg := wpconfig.Read(string(b)); cfg.Values["DB_NAME"] != "shop_2" || cfg.Values["DB_USER"] != "shop_2" {
+		t.Fatalf("wp-config after migration: %v", cfg.Values)
+	}
+	var q struct {
+		Rows [][]string `json:"rows"`
+	}
+	if err := json.Unmarshal(h.mustBenbow("db", "query", "shop", "SELECT COUNT(*) FROM wp_posts"), &q); err != nil || len(q.Rows) != 1 || q.Rows[0][0] == "0" {
+		t.Fatalf("shop's own data = %+v, %v", q, err)
+	}
+	// The other site's database got no WordPress tables and no new address.
+	if err := json.Unmarshal(h.mustBenbow("db", "query", "other", "SHOW TABLES"), &q); err != nil || len(q.Rows) != 0 {
+		t.Fatalf("other's database was written to: %+v, %v", q, err)
+	}
+	// Linking a database another site uses needs --share; deleting it is refused.
+	if env := h.benbow("db", "link", "first", "shop_2"); env.OK || env.Error.Code != "conflict" {
+		t.Fatalf("link to shop's database = %+v", env)
+	}
+	h.mustBenbow("db", "link", "first", "shop_2", "--share")
+	if env := h.benbow("db", "unlink", "first", "--drop", "--yes"); env.OK || env.Error.Code != "conflict" {
+		t.Fatalf("drop a shared database = %+v", env)
+	}
+}

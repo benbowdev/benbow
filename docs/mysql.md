@@ -30,11 +30,16 @@ Benbow's socket and port, so `DB_HOST` `localhost` (socket) and a bare
 benbow db create shop               # database "shop" + user "shop" that can only use it
 benbow db create shop --name shop_wp
 benbow db link blog blog_old        # an existing database; the site connects as root
+benbow db link blog shared --share  # one another site already uses (refused without --share)
 benbow db show shop --json          # credentials, password included
 benbow db list
 benbow db unlink shop               # forget the link, keep the data
 benbow db unlink shop --drop --yes  # delete the database and the site's user
 ```
+
+- Two sites on one database overwrite each other's settings and addresses,
+  so `db link` refuses a database another site uses unless `--share`, and
+  `--drop` refuses one another site still uses (unlink without it instead).
 
 - A created database gets `utf8mb4_unicode_ci` and its own MySQL user
   (`'<name>'@'localhost'` and `@'127.0.0.1'`, at most 32 characters) with

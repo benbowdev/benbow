@@ -38,9 +38,14 @@ Laravel site, in one step:
    are those in `wp-config.php`/`.env` (or `--source-user` and
    `--source-password`, asked on the terminal), used for that copy only and
    never stored. `--dump file.sql[.gz]` loads a dump instead (for one site),
-   e.g. from `~/Documents/MAMP backup/`. If Benbow already has a
-   database of that name: `--existing use` (default), `recopy` (after a gzip
-   backup in the Benbow folder) or `skip`.
+   e.g. from `~/Documents/MAMP backup/`. The database keeps the source's
+   name, except when another Benbow site already uses that name, and always
+   for Local, which names every site's database `local`: then it is named
+   after the site (`site_b`, with `_2` and so on if that is taken too).
+   The plan shows it as `target`. If Benbow already has a database of that
+   name that no other site uses: `--existing use` (default), `recopy`
+   (after a gzip backup in the Benbow folder) or `skip`. A migration never
+   loads into, or replaces addresses in, another site's database.
 2. **Own user**: the site gets a MySQL user of the database's name, password
    in the keychain, like `benbow db create`.
 3. **Configuration**: `wp-config.php` (or `.env`) is backed up to

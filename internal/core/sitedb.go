@@ -259,15 +259,27 @@ func dropSQL(db, user string) string {
 // LinkSiteDatabase links an existing database to a site. The site connects
 // as root (as with MAMP).
 func (c *Core) LinkSiteDatabase(ctx context.Context, name, db string) (SiteDatabase, error) {
-	return c.LinkSiteDatabaseOn(ctx, name, db, EngineMySQL)
+	return c.LinkSiteDatabaseOn(ctx, name, db, EngineMySQL, false)
 }
 
 // LinkSiteDatabaseOn links an existing MySQL or PostgreSQL database; the
-// site connects as the server's administrator.
-func (c *Core) LinkSiteDatabaseOn(ctx context.Context, name, db, engine string) (SiteDatabase, error) {
+// site connects as the server's administrator. A database another site
+// uses is refused unless share: two sites on one database overwrite each
+// other's settings and addresses.
+func (c *Core) LinkSiteDatabaseOn(ctx context.Context, name, db, engine string, share bool) (SiteDatabase, error) {
 	engine, err := checkEngine(engine)
 	if err != nil {
 		return SiteDatabase{}, err
+	}
+	if !share {
+		others, err := c.sitesUsingDatabase(ctx, name, db, engine)
+		if err != nil {
+			return SiteDatabase{}, err
+		}
+		if len(others) > 0 {
+			return SiteDatabase{}, errcode.Newf(errcode.Conflict,
+				"%s already uses database %s: give %s its own database, or share it on purpose (benbow db link --share)", strings.Join(others, ", "), db, name)
+		}
 	}
 	if engine == EnginePostgres {
 		return c.linkPostgresDatabase(ctx, name, db)
@@ -316,6 +328,15 @@ func (c *Core) UnlinkSiteDatabase(ctx context.Context, name string, drop bool) (
 			return errcode.Newf(errcode.NotFound, "%s has no database", name)
 		}
 		res = SiteDatabase{Site: name, Database: site.Database, User: site.DBUser, Dedicated: site.DBUser != "", Engine: engineOf(site)}
+		if drop {
+			others, err := c.sitesUsingDatabase(ctx, name, site.Database, engineOf(site))
+			if err != nil {
+				return err
+			}
+			if len(others) > 0 {
+				return errcode.Newf(errcode.Conflict, "%s also uses database %s: unlink it without deleting the data", strings.Join(others, ", "), site.Database)
+			}
+		}
 		if drop && engineOf(site) == EnginePostgres {
 			if err := c.dropPostgresDatabase(ctx, site.Database, site.DBUser); err != nil {
 				return err
@@ -388,4 +409,19 @@ func (c *Core) siteDatabase(ctx context.Context, site store.Site) (SiteDatabase,
 		return res, err
 	}
 	return res, nil
+}
+
+// sitesUsingDatabase lists the other sites linked to db on engine's server.
+func (c *Core) sitesUsingDatabase(ctx context.Context, name, db, engine string) ([]string, error) {
+	sites, err := c.Store.ListSites(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	for _, s := range sites {
+		if s.Name != name && s.Database == db && engineOf(s) == engine {
+			out = append(out, s.Name)
+		}
+	}
+	return out, nil
 }

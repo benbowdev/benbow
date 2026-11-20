@@ -176,7 +176,7 @@ func (c *Core) AddSite(ctx context.Context, req AddSiteRequest) (SiteResult, err
 		if req.NewDatabase {
 			_, dbErr = c.CreateSiteDatabaseOn(ctx, req.Name, "", req.DatabaseEngine)
 		} else {
-			_, dbErr = c.LinkSiteDatabaseOn(ctx, req.Name, req.LinkDatabase, req.DatabaseEngine)
+			_, dbErr = c.LinkSiteDatabaseOn(ctx, req.Name, req.LinkDatabase, req.DatabaseEngine, false)
 		}
 		if dbErr != nil {
 			_, _ = c.RemoveSite(context.WithoutCancel(ctx), req.Name)
