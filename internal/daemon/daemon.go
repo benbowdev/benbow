@@ -69,6 +69,9 @@ func Run(ctx context.Context) error {
 	} else if len(sites) > 0 {
 		fmt.Fprintf(os.Stderr, "interrupted restore put back: %v\n", sites)
 	}
+	if err := c.EmptySnapshotTrash(); err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+	}
 	sock := c.Layout.Socket(api.SocketName)
 	ln, err := api.Listen(sock)
 	if errcode.Code(err) == errcode.Conflict {

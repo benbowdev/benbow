@@ -209,12 +209,81 @@ func (c *Core) pruneSnapshots(ctx context.Context, name, spare string) {
 	}
 }
 
+// snapshotTrash holds snapshot folders being deleted. It sits next to the
+// site folders (a site name never starts with a dot), on the same volume,
+// so moving a snapshot there is one rename.
+func (c *Core) snapshotTrash() string {
+	return filepath.Join(c.Layout.Data, "snapshots", ".trash")
+}
+
+// removeSnapshot moves the snapshot's folder to the trash in one rename,
+// forgets the snapshot, then empties its folder. Deleting in place could
+// stop halfway (Finder writes .DS_Store files into a folder it shows,
+// and rmdir then finds it not empty), leaving a half-deleted snapshot
+// that was still listed.
 func (c *Core) removeSnapshot(ctx context.Context, sn store.Snapshot) error {
-	forgetUsage(filepath.Dir(sn.FilesDir))
-	if err := os.RemoveAll(filepath.Dir(sn.FilesDir)); err != nil {
-		return fmt.Errorf("remove snapshot %s: %w", sn.ID, err)
+	dir := filepath.Dir(sn.FilesDir)
+	forgetUsage(dir)
+	moved := ""
+	if err := os.MkdirAll(c.snapshotTrash(), 0o700); err == nil {
+		t := filepath.Join(c.snapshotTrash(), sn.Site+"-"+sn.ID)
+		switch err := os.Rename(dir, t); {
+		case err == nil:
+			moved = t
+		case errors.Is(err, fs.ErrNotExist):
+			dir = "" // already gone
+		}
 	}
-	return c.Store.DeleteSnapshot(ctx, sn.Site, sn.ID)
+	if moved == "" && dir != "" {
+		// Not movable (another volume, a name taken): delete in place.
+		if err := removeTree(dir); err != nil {
+			return fmt.Errorf("remove snapshot %s: %w", sn.ID, err)
+		}
+	}
+	if err := c.Store.DeleteSnapshot(ctx, sn.Site, sn.ID); err != nil {
+		if moved != "" {
+			_ = os.Rename(moved, dir)
+		}
+		return err
+	}
+	if moved != "" {
+		// What stays is emptied by the daemon when it starts.
+		_ = removeTree(moved)
+	}
+	return nil
+}
+
+// EmptySnapshotTrash deletes what a snapshot deletion left in the trash.
+func (c *Core) EmptySnapshotTrash() error {
+	if err := removeTree(c.snapshotTrash()); err != nil {
+		return fmt.Errorf("empty the snapshot trash: %w", err)
+	}
+	return nil
+}
+
+// removeTree is os.RemoveAll that tries again: once after a short wait
+// (something wrote into the folder meanwhile), then after making every
+// folder writable (a project can hold read-only folders, and so does
+// its snapshot).
+func removeTree(dir string) error {
+	err := os.RemoveAll(dir)
+	if err == nil {
+		return nil
+	}
+	time.Sleep(200 * time.Millisecond)
+	if err = os.RemoveAll(dir); err == nil {
+		return nil
+	}
+	_ = filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
+		if err == nil && d.IsDir() {
+			_ = os.Chmod(p, 0o700)
+		}
+		return nil
+	})
+	if err := os.RemoveAll(dir); err != nil {
+		return fmt.Errorf("remove %s: %w", dir, err)
+	}
+	return nil
 }
 
 // ListSnapshots returns a site's snapshots, newest first.
