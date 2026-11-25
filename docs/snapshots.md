@@ -55,6 +55,13 @@ before an SSH pull, and at the start of an AI agent's session and before
 its risky changes (`agents.md`): a session's snapshots do not count in the
 limit while it is open.
 
+Deleting a snapshot first moves its folder to `data/snapshots/.trash` in one
+rename, then forgets it, then empties the folder. Deleting in place could
+stop halfway, for example when Finder had the folder open and wrote a
+`.DS_Store` into it, and leave a half-empty snapshot still in the list.
+Read-only folders inside a snapshot are made writable before a second try.
+Whatever stays in the trash goes when the daemon starts.
+
 A snapshot also records the site's PHP version and its own php.ini values.
 A restore puts back files and database only; when the PHP saved differs from
 the site's, the result says so (`php_differs`) and `--php` (in the app, a
@@ -106,8 +113,9 @@ snapshots of one site or all, after asking (`--yes`), and reports the space
 freed; `--dry-run` only lists them. Snapshots of an open agent session are
 never pruned.
 
-In the app: the site's Snapshots tool (real size per snapshot, restore with
-or without PHP); Settings → Snapshots: every snapshot with its real size,
+In the app: the site's Snapshots tile shows how many there are and their
+real size; the Snapshots sheet shows the real size of each, the total, and
+why Finder shows more; restore with or without PHP. Settings → Snapshots: every snapshot with its real size,
 the total, "Delete snapshots older than…" (lists what goes first), and how
 many to keep.
 

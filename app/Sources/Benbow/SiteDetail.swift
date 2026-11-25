@@ -24,6 +24,20 @@ struct SiteDetail: View {
     @State private var blueprintSheet = false
     @State private var remoteSheet = false
     @State private var agentSheet = false
+    /// The site's snapshots and the space they really take, for the tile.
+    @State private var snapshotUsage: SnapshotsUsage?
+
+    /// "4 · 120 MB": how many snapshots and the space they really take.
+    private var snapshotsDetail: String? {
+        guard let u = snapshotUsage, !u.snapshots.isEmpty else { return nil }
+        return "\(u.snapshots.count) · \(u.privateBytes.formatted(.byteCount(style: .file)))"
+    }
+
+    private var snapshotsHelp: String {
+        guard let u = snapshotUsage, !u.snapshots.isEmpty else { return "Save and restore the files and the database." }
+        let n = u.snapshots.count
+        return "Save and restore the files and the database. \(n) snapshot\(n == 1 ? "" : "s") taking \(u.privateBytes.formatted(.byteCount(style: .file))) on disk."
+    }
 
     private var toolTitle: String {
         switch site.framework {
@@ -177,7 +191,8 @@ struct SiteDetail: View {
                 Grid(horizontalSpacing: 8, verticalSpacing: 8) {
                     GridRow {
                         ToolTile(title: "Snapshots", symbol: "clock.arrow.circlepath",
-                                 help: "Save and restore the files and the database.") { snapshotsSheet = true }
+                                 help: snapshotsHelp,
+                                 detail: snapshotsDetail, shortDetail: snapshotUsage.map { "\($0.snapshots.count)" }) { snapshotsSheet = true }
                         ToolTile(title: "Production", symbol: "arrow.up.arrow.down",
                                  help: "Pull the live site's database and uploads; push to staging.") { remoteSheet = true }
                         if site.framework == "wordpress" {
@@ -332,6 +347,12 @@ struct SiteDetail: View {
         .sheet(isPresented: $phoneSheet) { PhoneSheet(site: site) }
         .sheet(isPresented: $tunnelSheet) { TunnelSheet(site: site) }
         .sheet(isPresented: $snapshotsSheet) { SnapshotsSheet(site: site) }
+        // Measured again after every action (a pull, a restore and an agent
+        // take snapshots too); the daemon keeps sizes for a while.
+        .task(id: "\(site.name) \(snapshotsSheet) \(model.busy == nil)") {
+            guard !snapshotsSheet, model.busy == nil else { return }
+            snapshotUsage = await model.snapshotUsage(site)
+        }
         .sheet(isPresented: $blueprintSheet) { BlueprintSheet(site: site) }
         .sheet(isPresented: $remoteSheet) { RemoteSheet(site: site) }
         .sheet(isPresented: $agentSheet) { WorkWithAgentSheet(site: site) }
@@ -394,6 +415,10 @@ private struct ToolTile: View {
     let title: String
     let symbol: String
     let help: String
+    /// A short note on the right, such as a count; shortDetail replaces it
+    /// when the tile is too narrow.
+    var detail: String?
+    var shortDetail: String?
     var active = false
     let action: () -> Void
 
@@ -407,7 +432,18 @@ private struct ToolTile: View {
                     .font(.callout.weight(.medium))
                     .lineLimit(1)
                     .truncationMode(.tail)
+                    .layoutPriority(1)
                 Spacer(minLength: 0)
+                if let detail {
+                    ViewThatFits(in: .horizontal) {
+                        Text(detail)
+                        if let shortDetail { Text(shortDetail) }
+                    }
+                    .font(.caption)
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                }
             }
             .padding(.horizontal, 10)
             .frame(maxWidth: .infinity, minHeight: 34)

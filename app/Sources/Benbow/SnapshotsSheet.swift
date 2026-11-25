@@ -19,6 +19,7 @@ struct SnapshotsSheet: View {
     @State private var restorePHP = false
     /// Real size by snapshot id (what deleting it gives back).
     @State private var sizes: [String: Int64] = [:]
+    @State private var usage: SnapshotsUsage?
     @State private var exported: SnapshotExport?
 
     var body: some View {
@@ -48,7 +49,7 @@ struct SnapshotsSheet: View {
                     Spacer()
                     if let size = sizes[s.id] {
                         Text(size.formatted(.byteCount(style: .file))).font(.callout).monospacedDigit().foregroundStyle(.secondary)
-                            .help("Space given back by deleting it: the database dump and the files that changed since")
+                            .help("Space it really takes, given back by deleting it: the database dump and the files changed since. Finder shows more because it also counts the files the snapshot still shares with the site.")
                     }
                     Button("Restore…") { restoring = s }.disabled(model.busy != nil)
                     Button {
@@ -66,6 +67,11 @@ struct SnapshotsSheet: View {
                 }
             }
             .overlay { if list.isEmpty { Text("No snapshots yet").foregroundStyle(.secondary) } }
+            if let usage, !usage.snapshots.isEmpty {
+                Text(spaceLine(usage))
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             HStack {
                 if let busy = model.busy {
                     ProgressView().controlSize(.small); Text(busy).foregroundStyle(.secondary)
@@ -103,7 +109,21 @@ struct SnapshotsSheet: View {
         list = await model.snapshots(site)
         if let u = await model.snapshotUsage(site) {
             sizes = Dictionary(u.snapshots.map { ($0.id, $0.privateBytes) }, uniquingKeysWith: { a, _ in a })
+            usage = u
         }
+    }
+
+    /// Why Finder shows a much bigger folder than the sizes here.
+    private func spaceLine(_ u: SnapshotsUsage) -> String {
+        let real = u.privateBytes.formatted(.byteCount(style: .file))
+        var line = "Sizes are the space each snapshot really takes: \(real) in all."
+        if u.apparent > u.privateBytes {
+            line += " Finder shows \(u.apparent.formatted(.byteCount(style: .file))) because it also counts the files shared with the site, which take no extra space."
+        }
+        if u.snapshots.count > 1 {
+            line += " Files two snapshots share with each other count in neither, so deleting them all can free a little more."
+        }
+        return line
     }
 
     /// "database shop (MySQL 8.4.13)"; older snapshots have no version.
